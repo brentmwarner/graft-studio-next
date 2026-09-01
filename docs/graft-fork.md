@@ -11,11 +11,17 @@ implementation until an explicit production cutover.
 | Synara upstream | `Emanuele-web04/synara` / local remote `upstream` |
 | Graft fork | `brentmwarner/graft-studio-next` / local remote `origin` |
 | Preserved Graft v1 | `brentmwarner/graft-studio`, branch `legacy/graft-v1` |
-| Pre-migration snapshot | tag `graft-v1-pre-synara-2026-09-01` |
+| Initial local snapshot | tag `graft-v1-pre-synara-2026-09-01` |
+| Latest pre-cutover snapshot | tag `graft-v1-pre-synara-cutover-2026-09-01` |
 
 Do not merge the unrelated Graft v1 Git history into this repository. Port a
 Graft capability only after identifying the corresponding Synara boundary and
 implementing it through that boundary.
+
+The preserved branch includes the completed Graft SSH remote-project work that
+landed on the original repository after the initial local snapshot. Do not move
+either annotated snapshot tag; fast-forward the preservation branch if approved
+Graft v1 work continues before cutover.
 
 ## Ownership model
 
