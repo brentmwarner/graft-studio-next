@@ -1,0 +1,69 @@
+{
+  "environment": {
+    "id": "env-1",
+    "label": "Studio Mac",
+    "hostVersion": "0.1.36",
+    "protocolVersion": 1,
+    "capabilities": [
+      "projects",
+      "threads",
+      "transcript",
+      "runs",
+      "approvals",
+      "diffs",
+      "cursor_replay"
+    ],
+    "cursor": 10
+  },
+  "projects": [
+    {
+      "id": "p1",
+      "name": "graft-studio",
+      "kind": "repo",
+      "path": "/Users/me/graft-studio"
+    }
+  ],
+  "threads": [
+    {
+      "id": "t1",
+      "projectId": "p1",
+      "title": "Fix pairing",
+      "updatedAt": 1700000000,
+      "status": "running"
+    }
+  ],
+  "activeRuns": [
+    {
+      "id": "r1",
+      "threadId": "t1",
+      "projectId": "p1",
+      "status": "running",
+      "startedAt": 1700000001
+    }
+  ],
+  "pendingApprovals": [
+    {
+      "id": "a1",
+      "threadId": "t1",
+      "runId": "r1",
+      "title": "Run shell",
+      "createdAt": 1700000002
+    }
+  ],
+  "pendingQuestions": [],
+  "selectedTranscript": {
+    "threadId": "t1",
+    "cursor": 10,
+    "events": [
+      {
+        "id": "e1",
+        "cursor": 10,
+        "kind": "user.message",
+        "threadId": "t1",
+        "createdAt": 1700000000,
+        "text": "hello"
+      }
+    ]
+  },
+  "cursor": 10
+}

@@ -1,0 +1,21 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "e22",
+    "cursor": 22,
+    "kind": "plan.update",
+    "threadId": "t1",
+    "runId": "r1",
+    "createdAt": 1700000012,
+    "text": "Ship charts",
+    "data": {
+      "type": "plan",
+      "title": "Ship charts",
+      "steps": [
+        { "id": "step-0", "title": "Add schema", "status": "done" },
+        { "id": "step-1", "title": "Wire mapper", "status": "active" },
+        { "id": "step-2", "title": "Add tests", "status": "pending" }
+      ]
+    }
+  }
+}

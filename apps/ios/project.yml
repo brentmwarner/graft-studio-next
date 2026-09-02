@@ -1,0 +1,78 @@
+name: Graft
+options:
+  bundleIdPrefix: studio.graft
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "16.4"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    # Workspace UI still compiles in Swift 5 language mode; strict concurrency
+    # stays off until Observation/@MainActor boundaries are fully annotated.
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    ENABLE_PREVIEWS: YES
+    DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+
+targets:
+  Graft:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Graft
+        excludes:
+          - "**/.DS_Store"
+    info:
+      path: Graft/Resources/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Viewer
+            CFBundleURLSchemes:
+              - graft
+        # Without this key iOS treats the app as legacy and letterboxes it in
+        # a scaled compatibility window (black bars top and bottom).
+        UILaunchScreen: {}
+        NSCameraUsageDescription: Scan a pairing QR code shown by Graft Studio.
+        NSLocalNetworkUsageDescription: Connect directly to Graft Studio running on your Mac over your local network.
+        NSMicrophoneUsageDescription: Dictate messages to your agents with the composer mic.
+        NSSpeechRecognitionUsageDescription: Transcribe your dictated messages on-device.
+        GRAFT_APNS_REGISTRATION_ENABLED: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: studio.graft.mobile
+        INFOPLIST_FILE: Graft/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: graft-app-icon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        # Required for physical-device builds; harmless for the simulator.
+        DEVELOPMENT_TEAM: GCYB5LT4QQ
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+        Release:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: ""
+    scheme:
+      testTargets:
+        - GraftTests
+
+  GraftTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: GraftTests
+        excludes:
+          - "**/.DS_Store"
+    resources:
+      - path: GraftTests/Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: Graft
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: studio.graft.mobileTests
+        GENERATE_INFOPLIST_FILE: YES
