@@ -1,0 +1,8 @@
+{
+  "envelope": "error",
+  "error": {
+    "code": "device_revoked",
+    "message": "Device revoked",
+    "retryable": false
+  }
+}

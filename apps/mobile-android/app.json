@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Graft",
+    "slug": "graft-mobile-android",
+    "scheme": "graft",
+    "version": "0.1.0",
+    "platforms": ["android"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "android": {
+      "package": "studio.graft.mobile",
+      "predictiveBackGestureEnabled": true,
+      "permissions": ["CAMERA"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Graft to scan a pairing QR code shown by Graft Studio.",
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "android": {
+            "image": "./assets/adaptive-icon.png",
+            "imageWidth": 192
+          }
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
+  }
+}

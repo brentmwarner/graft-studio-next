@@ -1,0 +1,19 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "e20",
+    "cursor": 20,
+    "kind": "file.edit",
+    "threadId": "t1",
+    "runId": "r1",
+    "createdAt": 1700000010,
+    "text": "Edited src/foo.ts (+12 −3)",
+    "data": {
+      "type": "file_edit",
+      "filePath": "src/foo.ts",
+      "diff": "@@ -1,3 +1,12 @@\n-old\n+new",
+      "additions": 12,
+      "deletions": 3
+    }
+  }
+}

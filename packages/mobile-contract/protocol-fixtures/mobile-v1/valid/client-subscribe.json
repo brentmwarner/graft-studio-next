@@ -1,0 +1,9 @@
+{
+  "envelope": "subscribe",
+  "topics": [
+    "projects",
+    "threads",
+    "events"
+  ],
+  "afterCursor": 10
+}

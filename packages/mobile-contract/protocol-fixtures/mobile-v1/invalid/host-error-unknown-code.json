@@ -1,0 +1,7 @@
+{
+  "envelope": "error",
+  "error": {
+    "code": "magic_failure",
+    "message": "nope"
+  }
+}

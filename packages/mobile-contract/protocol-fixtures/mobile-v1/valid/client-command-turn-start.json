@@ -1,0 +1,10 @@
+{
+  "envelope": "command",
+  "commandId": "11111111-1111-4111-8111-111111111111",
+  "requestId": "req-1",
+  "command": {
+    "type": "turn.start",
+    "threadId": "t1",
+    "text": "ship it"
+  }
+}

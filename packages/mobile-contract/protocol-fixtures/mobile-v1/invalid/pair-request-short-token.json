@@ -1,0 +1,8 @@
+{
+  "token": "short",
+  "protocolVersion": 1,
+  "client": {
+    "platform": "ios",
+    "appVersion": "0.1.0"
+  }
+}

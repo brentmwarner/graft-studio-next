@@ -1,0 +1,36 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "e28",
+    "cursor": 28,
+    "kind": "question.requested",
+    "threadId": "t1",
+    "runId": "r1",
+    "createdAt": 1700000018,
+    "questionId": "q1",
+    "text": "Which approach?",
+    "data": {
+      "type": "question",
+      "questions": [
+        {
+          "id": "q-0",
+          "prompt": "Which approach?",
+          "options": [
+            { "id": "opt-0", "label": "Fast" },
+            { "id": "opt-1", "label": "Thorough" }
+          ],
+          "allowsText": true
+        },
+        {
+          "id": "q-1",
+          "prompt": "Ship today?",
+          "options": [
+            { "id": "opt-0", "label": "Yes" },
+            { "id": "opt-1", "label": "No" }
+          ],
+          "allowsText": true
+        }
+      ]
+    }
+  }
+}

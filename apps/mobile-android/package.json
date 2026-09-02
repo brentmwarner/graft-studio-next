@@ -1,0 +1,46 @@
+{
+  "name": "@graft/mobile-android",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "start:dev-client": "expo start --dev-client",
+    "android": "expo run:android",
+    "android:native": "expo run:android",
+    "build": "expo export --platform android",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "doctor": "expo-doctor"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@graft/mobile-contract": "workspace:*",
+    "expo": "~57.0.13",
+    "expo-application": "~57.0.2",
+    "expo-build-properties": "~57.0.11",
+    "expo-camera": "~57.0.3",
+    "expo-crypto": "~57.0.1",
+    "expo-dev-client": "~57.0.12",
+    "expo-device": "~57.0.1",
+    "expo-font": "~57.0.1",
+    "expo-linear-gradient": "~57.0.1",
+    "expo-secure-store": "~57.0.1",
+    "expo-splash-screen": "~57.0.6",
+    "expo-sqlite": "~57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "expo-doctor": "^1.20.1",
+    "typescript": "~6.0.3",
+    "vitest": "^3.0.8"
+  }
+}

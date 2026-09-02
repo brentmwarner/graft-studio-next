@@ -1,0 +1,24 @@
+{
+  "afterCursor": 10,
+  "latestCursor": 12,
+  "events": [
+    {
+      "id": "e2",
+      "cursor": 11,
+      "kind": "assistant.delta",
+      "threadId": "t1",
+      "runId": "r1",
+      "createdAt": 1700000003,
+      "text": "Working"
+    },
+    {
+      "id": "e3",
+      "cursor": 12,
+      "kind": "run.status",
+      "threadId": "t1",
+      "runId": "r1",
+      "createdAt": 1700000005,
+      "runStatus": "completed"
+    }
+  ]
+}

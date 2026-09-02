@@ -1,0 +1,10 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "e2",
+    "kind": "assistant.delta",
+    "threadId": "t1",
+    "createdAt": 1700000003,
+    "text": "Working"
+  }
+}

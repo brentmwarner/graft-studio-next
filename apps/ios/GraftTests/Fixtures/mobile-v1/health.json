@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "service": "graft-remote-gateway",
+  "protocolVersion": 1,
+  "capabilities": [
+    "projects",
+    "threads",
+    "transcript",
+    "runs",
+    "approvals",
+    "diffs",
+    "cursor_replay"
+  ],
+  "environmentId": "env-1",
+  "environmentLabel": "Studio Mac",
+  "networkAccessEnabled": true,
+  "cursor": 42
+}

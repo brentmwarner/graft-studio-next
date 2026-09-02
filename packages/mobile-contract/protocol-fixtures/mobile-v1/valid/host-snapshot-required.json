@@ -1,0 +1,5 @@
+{
+  "envelope": "snapshot_required",
+  "reason": "cursor_expired",
+  "message": "Cursor too old; fetch a snapshot"
+}
