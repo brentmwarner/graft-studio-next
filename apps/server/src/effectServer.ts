@@ -7,6 +7,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { agentGatewayRouteLayer } from "./agentGateway/httpRoute";
 import { AgentGatewayCredentials } from "./agentGateway/Services/AgentGatewayCredentials";
+import { ServerAuth } from "./auth/Services/ServerAuth";
 import { AutomationRunReactor } from "./automation/Services/AutomationRunReactor";
 import { AutomationScheduler } from "./automation/Services/AutomationScheduler";
 import { AutomationService } from "./automation/Services/AutomationService";
@@ -50,6 +51,9 @@ import { recoverGitHandoffOperations } from "./gitHandoffOperations";
 import { externalMcpRouteLayer } from "./externalMcp/httpRoute";
 import { ExternalMcpGateway } from "./externalMcp/Services/ExternalMcpGateway";
 import { ExternalMcpService } from "./externalMcp/Services/ExternalMcpService";
+import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
+import { graftMobileRouteLayer } from "./graftMobile/httpRoute";
+import { ProviderDiscoveryService } from "./provider/Services/ProviderDiscoveryService";
 
 export interface ServerShape {
   readonly start: Effect.Effect<
@@ -57,6 +61,8 @@ export interface ServerShape {
     ServerLifecycleError | ServerSettingsError,
     | Scope.Scope
     | ServerConfig
+    | ServerAuth
+    | ServerEnvironment
     | AgentGatewayCredentials
     | ExternalMcpGateway
     | ExternalMcpService
@@ -73,6 +79,7 @@ export interface ServerShape {
     | ProjectionSnapshotQuery
     | ProviderSessionReaper
     | ProviderRuntimeReconciler
+    | ProviderDiscoveryService
     | ProviderService
     | ServerRuntimeStartup
     | ServerSettingsService
@@ -167,6 +174,7 @@ export const createEffectServer = Effect.fn(function* (
   const routesLayer = Layer.mergeAll(
     makeEffectHttpRouteLayer(readiness, shutdownController),
     websocketRpcRouteLayer,
+    graftMobileRouteLayer,
     agentGatewayRouteLayer,
     externalMcpRouteLayer,
   );
@@ -242,7 +250,8 @@ export const createEffectServer = Effect.fn(function* (
       homeDir: config.homeDir,
       chatWorkspaceRoot: config.chatWorkspaceRoot,
       studioWorkspaceRoot: config.studioWorkspaceRoot,
-      projectName: config.cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? config.cwd,
+      projectName:
+        config.cwd.split(/[\\/]/).findLast((segment) => segment.length > 0) ?? config.cwd,
     },
   });
   yield* lifecycleEvents.publish({

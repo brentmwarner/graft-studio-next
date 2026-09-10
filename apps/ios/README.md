@@ -184,12 +184,10 @@ extra, and changed JSON fixtures.
 ## APNs registration scaffold
 
 Push registration is deliberately disabled by
-`GRAFT_APNS_REGISTRATION_ENABLED = false` in `project.yml`. When both the iOS
-flag and the desktop `GRAFT_APNS_REGISTRATION_ENABLED=1` environment variable
-are enabled, the paired app can request notification authorization and register
-or remove its APNs token through `/v1/push-registration`. The host stores the
-token as an encrypted secret and keeps only non-secret registration metadata in
-SQLite.
+`GRAFT_APNS_REGISTRATION_ENABLED = false` in `project.yml`. When the iOS flag is
+enabled, the paired app can request notification authorization and register or
+remove its APNs token through `/v1/push-registration`. The Synara compatibility
+adapter currently keeps this registration only in server memory.
 
 This is registration scaffolding only: the project has no `aps-environment`
 entitlement, APNs provider credentials, or notification-delivery code. Do not

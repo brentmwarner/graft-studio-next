@@ -45,6 +45,10 @@ bun run android:doctor
 Push notifications, account sign-in, attachment transport, and full diff
 review are not implemented yet.
 
+The Synara-based host exposes enabled providers and live-discovered models
+through the same `models.list` command used by the legacy host. Selecting a
+provider requires its CLI to be installed and authenticated on the host.
+
 Direct LAN and tailnet endpoints may use HTTP, so Android development builds
 currently permit cleartext traffic. Pairing tokens are one-time credentials and
 bearer tokens are never written to SQLite, but this setting should be narrowed

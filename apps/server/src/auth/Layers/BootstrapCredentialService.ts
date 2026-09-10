@@ -19,7 +19,7 @@ interface StoredBootstrapGrant extends BootstrapGrant {
 
 const DEFAULT_ONE_TIME_TOKEN_TTL = Duration.minutes(5);
 const PAIRING_TOKEN_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-const PAIRING_TOKEN_LENGTH = 12;
+const PAIRING_TOKEN_LENGTH = 20;
 
 const generatePairingToken = (): string => {
   const randomBytes = Crypto.randomBytes(PAIRING_TOKEN_LENGTH);
