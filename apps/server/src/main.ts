@@ -8,6 +8,11 @@
  */
 import OS from "node:os";
 import {
+  GRAFT_MOBILE_PROTOCOL_VERSION,
+  buildGraftPairingUrl,
+  type GraftRemoteEndpointKind,
+} from "@graft/mobile-contract";
+import {
   Config,
   Data,
   Effect,
@@ -68,6 +73,7 @@ import {
   verifyServerRuntime,
 } from "./externalMcp/bridge";
 import { externalMcpLauncher, externalMcpShellCommand } from "./externalMcp/launcher";
+import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
 import { fetchSynaraServerStatus, formatSynaraServerStatus } from "./serverStatusCli";
 import {
   embeddedMigrationRuntimeSourceDigest,
@@ -80,6 +86,25 @@ export class StartupError extends Data.TaggedError("StartupError")<{
 }> {}
 
 const DESKTOP_SHUTDOWN_TOKEN_ENV_KEY = "SYNARA_DESKTOP_SHUTDOWN_TOKEN";
+
+function firstReachableIpv4Address(): string | undefined {
+  for (const addresses of Object.values(OS.networkInterfaces())) {
+    for (const address of addresses ?? []) {
+      if (address.family === "IPv4" && !address.internal) return address.address;
+    }
+  }
+  return undefined;
+}
+
+function mobilePairingBaseUrl(input: {
+  readonly config: Pick<ServerConfigShape, "host" | "port" | "publicUrl">;
+  readonly fallback: string;
+}): string {
+  if (input.config.publicUrl) return input.config.publicUrl.origin;
+  if (!isWildcardHost(input.config.host)) return input.fallback;
+  const address = firstReachableIpv4Address();
+  return address ? `http://${formatHostForUrl(address)}:${input.config.port}` : input.fallback;
+}
 
 function consumeProcessEnvironmentValue(environmentKey: string): string | undefined {
   const matchingKeys =
@@ -392,6 +417,7 @@ const makeServerProgram = (input: CliInput) =>
     const { start, stopSignal } = yield* Server;
     const openDeps = yield* Open;
     const serverAuth = yield* ServerAuth;
+    const serverEnvironment = yield* ServerEnvironment;
     const serverSettings = yield* ServerSettingsService;
     yield* cliConfig.fixPath;
 
@@ -415,6 +441,10 @@ const makeServerProgram = (input: CliInput) =>
         ? `http://${formatHostForUrl(config.host)}:${config.port}`
         : localUrl;
     const pairingBaseUrl = config.publicUrl?.origin ?? bindUrl;
+    const resolvedMobilePairingBaseUrl = mobilePairingBaseUrl({
+      config,
+      fallback: pairingBaseUrl,
+    });
     const startupPairingUrl =
       config.publicUrl || !isLoopbackHost(config.host)
         ? yield* serverAuth.issueStartupPairingUrl(pairingBaseUrl).pipe(
@@ -422,6 +452,37 @@ const makeServerProgram = (input: CliInput) =>
               (cause) =>
                 new StartupError({
                   message: "Failed to create the remote-access startup pairing link.",
+                  cause,
+                }),
+            ),
+          )
+        : undefined;
+    const startupMobilePairingUrl =
+      config.publicUrl || !isLoopbackHost(config.host)
+        ? yield* serverAuth.issuePairingCredential({ label: "Graft mobile", role: "client" }).pipe(
+            Effect.flatMap((issued) =>
+              serverEnvironment.getDescriptor.pipe(
+                Effect.map((descriptor) => {
+                  const publicHostname = config.publicUrl?.hostname;
+                  const endpointKind: GraftRemoteEndpointKind = config.publicUrl
+                    ? publicHostname?.endsWith(".ts.net")
+                      ? "tailnet"
+                      : "https"
+                    : "lan";
+                  return buildGraftPairingUrl({
+                    v: GRAFT_MOBILE_PROTOCOL_VERSION,
+                    host: resolvedMobilePairingBaseUrl,
+                    token: issued.credential,
+                    label: descriptor.label,
+                    endpointKind,
+                  });
+                }),
+              ),
+            ),
+            Effect.mapError(
+              (cause) =>
+                new StartupError({
+                  message: "Failed to create the Graft mobile pairing link.",
                   cause,
                 }),
             ),
@@ -489,6 +550,12 @@ const makeServerProgram = (input: CliInput) =>
               : "Open this one-time URL to establish the first owner session.",
         },
       );
+    }
+    if (startupMobilePairingUrl) {
+      yield* Effect.logInfo("Graft mobile pairing link created", {
+        pairingUrl: startupMobilePairingUrl,
+        hint: "Open this one-time link on the iOS or Android app.",
+      });
     }
 
     if (!config.noBrowser) {
