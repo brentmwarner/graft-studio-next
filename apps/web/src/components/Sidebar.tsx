@@ -15,6 +15,9 @@ import {
   ExternalLinkIcon,
   FolderOpenIcon,
   GiftIcon,
+  GitBranchIcon,
+  GitForkIcon,
+  GitPullRequestIcon,
   KanbanIcon,
   KeyboardIcon,
   BellIcon,
@@ -38,9 +41,6 @@ import { ThreadPrStatusBadge } from "~/components/pullRequest/ThreadPrStatusBadg
 import { PinStatusIcon, pinActionLabel } from "~/lib/pin";
 import { ensureNativeApi } from "~/nativeApi";
 import { autoAnimate } from "@formkit/auto-animate";
-import { FiGitBranch } from "react-icons/fi";
-import { IoIosGitCompare } from "react-icons/io";
-import { GoRepoForked } from "react-icons/go";
 import {
   useCallback,
   useEffect,
@@ -206,6 +206,7 @@ import { PreviewCard, PreviewCardPopup, PreviewCardTrigger } from "./ui/preview-
 import { hasUnreadActivity as hasUnreadActivityOutsideActiveThread } from "./SidebarActivityView.logic";
 import { SidebarActivityView } from "./SidebarActivityView";
 import { SidebarIconButton, sidebarIconButtonSlotClass } from "./SidebarIconButton";
+import { GraftLockup } from "./GraftLockup";
 import { SidebarLeadingIcon } from "./SidebarLeadingIcon";
 import { SidebarMetaChipStack } from "./SidebarMetaChip";
 import { SidebarRowHoverActions } from "./SidebarRowHoverActions";
@@ -680,7 +681,9 @@ function resolveThreadRowMetaChips(input: {
     chips.push({
       id: "handoff",
       tooltip: handoffBadgeLabel,
-      icon: <SidebarGlyph icon={FiGitBranch} variant="meta" className="text-muted-foreground/55" />,
+      icon: (
+        <SidebarGlyph icon={GitBranchIcon} variant="meta" className="text-muted-foreground/55" />
+      ),
     });
   }
 
@@ -690,7 +693,7 @@ function resolveThreadRowMetaChips(input: {
       tooltip: "Forked thread",
       icon: (
         <SidebarGlyph
-          icon={GoRepoForked}
+          icon={GitForkIcon}
           variant="meta"
           className="text-emerald-600 dark:text-emerald-300/90"
         />
@@ -1305,8 +1308,8 @@ export function SidebarSurfacePicker({
           />
         }
       >
-        <span className="font-display min-w-0 truncate text-[17px] text-foreground">
-          {activeCopy.title}
+        <span className="font-display flex min-w-0 items-center truncate text-[17px] text-foreground">
+          {activeView === "threads" ? <GraftLockup /> : activeCopy.title}
         </span>
         <DisclosureChevron open className="text-muted-foreground/70" />
       </MenuTrigger>
@@ -1336,8 +1339,8 @@ export function SidebarSurfacePicker({
                 className="items-center rounded-[10px] data-checked:bg-[var(--color-background-button-secondary-hover)]"
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[13px] font-medium leading-none text-foreground">
-                    {copy.title}
+                  <span className="flex items-center text-[13px] font-medium leading-none text-foreground">
+                    {view === "threads" ? <GraftLockup /> : copy.title}
                   </span>
                   <span className="text-[11px] leading-snug text-muted-foreground">
                     {copy.description}
@@ -3740,7 +3743,7 @@ export default function Sidebar() {
         },
       },
       pullRequests: {
-        icon: IoIosGitCompare,
+        icon: GitPullRequestIcon,
         label: "Pull requests",
         active: isOnPullRequests,
         badge: pullRequestsReviewBadge,
@@ -5019,7 +5022,7 @@ export default function Sidebar() {
             </button>
             <SidebarSectionToolbar placement="overlay" revealOnHover>
               <SidebarIconButton
-                icon={IoIosGitCompare}
+                icon={GitPullRequestIcon}
                 label={`View pull requests for ${project.name}`}
                 tooltip="Pull requests"
                 tooltipSide="top"

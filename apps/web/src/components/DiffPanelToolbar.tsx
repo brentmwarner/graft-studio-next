@@ -6,7 +6,6 @@
 
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { ThreadId, TurnId } from "@synara/contracts";
-import { FaPlusMinus } from "react-icons/fa6";
 import { useState, type ReactNode } from "react";
 
 import GitActionsControl from "~/components/GitActionsControl";
@@ -137,7 +136,7 @@ function resolveScopeMenuIcon(scope: RepoDiffScope | "lastTurn") {
     case "lastTurn":
       return (
         <span className="inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
-          <FaPlusMinus className="size-2.25" />
+          <DiffIcon className="size-2.25" />
         </span>
       );
     default:
@@ -160,7 +159,7 @@ export const DiffPanelToolbar = function DiffPanelToolbar(props: DiffPanelToolba
 
   let scopePickerIcon: ReactNode;
   if (props.viewSource.kind === "turn") {
-    scopePickerIcon = <FaPlusMinus className="size-2.5 text-[var(--color-text-foreground)]" />;
+    scopePickerIcon = <DiffIcon className="size-2.5 text-[var(--color-text-foreground)]" />;
   } else {
     scopePickerIcon = <ChangesIcon className={DIFF_PANEL_PICKER_ICON_CLASS_NAME} />;
   }
@@ -420,7 +419,7 @@ export const DiffPanelToolbar = function DiffPanelToolbar(props: DiffPanelToolba
           >
             <EnvironmentRowBody
               compact
-              icon={<FaPlusMinus className="size-2.5 text-[var(--color-text-foreground)]" />}
+              icon={<DiffIcon className="size-2.5 text-[var(--color-text-foreground)]" />}
               label={<span className="truncate">{turnsMenuLabel}</span>}
               trailing={<EnvironmentRowChevron />}
             />
@@ -449,7 +448,7 @@ export const DiffPanelToolbar = function DiffPanelToolbar(props: DiffPanelToolba
                 </MenuRadioItem>
                 {visibleTurnSummaries.map((summary) => (
                   <MenuRadioItem key={summary.turnId} value={summary.turnId}>
-                    <FaPlusMinus className="size-2.5 shrink-0 text-muted-foreground" />
+                    <DiffIcon className="size-2.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">
                       Turn {resolveTurnNumber(summary, props.inferredCheckpointTurnCountByTurnId)}
                     </span>

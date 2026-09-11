@@ -5,9 +5,15 @@
  * keyboard navigation and shortcut labels behave like the rest of the app.
  */
 import {
+  ArrowLeftIcon,
   BugIcon,
   CheckIcon,
+  ChatBubbleIcon,
+  CornerLeftUpIcon,
   DeviceLaptopIcon,
+  FolderOpenIcon,
+  FolderPlusIcon,
+  ImportThreadIcon,
   MoonIcon,
   NewThreadIcon,
   SearchIcon,
@@ -16,9 +22,6 @@ import {
 } from "~/lib/icons";
 import { type FilesystemBrowseResult, type ProviderKind } from "@synara/contracts";
 import { isGenericChatThreadTitle } from "@synara/shared/chatThreads";
-import { BsChat } from "react-icons/bs";
-import { HiOutlineFolderOpen } from "react-icons/hi2";
-import { LuArrowDownToLine, LuArrowLeft, LuCornerLeftUp, LuFolderPlus } from "react-icons/lu";
 import { type ComponentType, useEffect, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FolderClosed } from "./FolderClosed";
@@ -124,10 +127,10 @@ function actionHandler(
 type IconComponent = ComponentType<{ className?: string }>;
 
 const ACTION_ICONS: Record<string, IconComponent> = {
-  "new-chat": BsChat,
+  "new-chat": ChatBubbleIcon,
   "new-thread": NewThreadIcon,
   "add-project": FolderClosed,
-  "import-thread": LuArrowDownToLine,
+  "import-thread": ImportThreadIcon,
   feedback: BugIcon,
   settings: SettingsIcon,
   "usage-settings": SettingsIcon,
@@ -606,7 +609,7 @@ export function SidebarSearchPalette(props: SidebarSearchPaletteProps) {
                     props.onModeChange("search");
                   }}
                 >
-                  <LuArrowLeft className="size-4" />
+                  <ArrowLeftIcon className="size-4" />
                 </Button>
                 <div>
                   <p className="text-sm font-medium text-foreground">Import thread from provider</p>
@@ -724,7 +727,7 @@ export function SidebarSearchPalette(props: SidebarSearchPaletteProps) {
                     onKeyDown={handleBrowseInputKeyDown}
                     startAddon={
                       isBrowsing ? (
-                        <LuFolderPlus className="text-muted-foreground" />
+                        <FolderPlusIcon className="text-muted-foreground" />
                       ) : (
                         <SearchIcon className="text-muted-foreground" />
                       )
@@ -779,7 +782,7 @@ export function SidebarSearchPalette(props: SidebarSearchPaletteProps) {
                             if (browseParentPath) setQuery(browseParentPath);
                           }}
                         >
-                          <LuCornerLeftUp className="size-3.5 text-muted-foreground/60" />
+                          <CornerLeftUpIcon className="size-3.5 text-muted-foreground/60" />
                           <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                             ..
                           </span>
@@ -945,7 +948,7 @@ export function SidebarSearchPalette(props: SidebarSearchPaletteProps) {
                             props.onOpenProject(project.id);
                           }}
                         >
-                          <PaletteIcon icon={HiOutlineFolderOpen} />
+                          <PaletteIcon icon={FolderOpenIcon} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-3">
                               <div className="min-w-0 flex-1 truncate text-[length:var(--app-font-size-ui,12px)] text-foreground">

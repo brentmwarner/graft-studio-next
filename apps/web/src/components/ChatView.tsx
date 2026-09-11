@@ -74,7 +74,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { GoTasklist } from "react-icons/go";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Debouncer, useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate } from "@tanstack/react-router";
@@ -320,6 +319,7 @@ import {
   providerModelSupportsAutoRuntimeMode,
 } from "../lib/runtimeMode";
 import { SynaraLogo } from "./SynaraLogo";
+import { UnicornBackground } from "./chat/UnicornBackground";
 import { ThreadWorktreeHandoffDialog } from "./ThreadWorktreeHandoffDialog";
 import {
   formatShortcutLabel,
@@ -333,6 +333,7 @@ import {
   ChevronDownIcon,
   ComposerSendArrowIcon,
   LayoutSidebarIcon,
+  ListTodoIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
   TemporaryThreadIcon,
@@ -11815,7 +11816,7 @@ export default function ChatView({
                               title={`${interactionMode === "plan" ? "Plan" : "Debug"} mode — click to return to normal build mode`}
                             >
                               {interactionMode === "plan" ? (
-                                <GoTasklist className="size-3.5" />
+                                <ListTodoIcon className="size-3.5" />
                               ) : (
                                 <BugIcon className="size-3.5" />
                               )}
@@ -12271,22 +12272,23 @@ export default function ChatView({
             {shouldRenderChatPaneContent && isCenteredEmptyLanding ? (
               <div
                 className={cn(
-                  "chat-pane-enter flex min-h-0 flex-1 flex-col",
+                  "chat-pane-enter relative flex min-h-0 flex-1 flex-col",
                   CHAT_COLUMN_GUTTER_CLASS_NAME,
                 )}
               >
+                <UnicornBackground visible />
                 {/* The heading floats centered in the space above the composer, which is
                     anchored to the bottom of the pane (with its workspace-tools rail
                     stacked on top of the input) so starting a chat keeps the composer
                     where it lives for the rest of the conversation. */}
-                <div className="flex min-h-0 flex-1 items-center justify-center">
+                <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center">
                   <div
                     className={cn(
                       "flex flex-col items-center gap-4 px-6 text-center select-none",
                       CHAT_COLUMN_FRAME_CLASS_NAME,
                     )}
                   >
-                    <SynaraLogo aria-label="Synara logo" className="size-10" />
+                    <SynaraLogo aria-label="Graft logo" className="size-10" />
                     <h2
                       data-testid="empty-landing-heading"
                       className="text-[26px] font-normal leading-[1.15] tracking-[-0.015em] text-foreground/95 sm:text-[30px]"
@@ -12328,7 +12330,7 @@ export default function ChatView({
                     </h2>
                   </div>
                 </div>
-                <div className="w-full shrink-0 pb-3 sm:pb-4">
+                <div className="relative z-10 w-full shrink-0 pb-3 sm:pb-4">
                   {composerSection}
                   {relocateComposerLeadingControls ? (
                     <div className={COMPOSER_COLUMN_FRAME_CLASS_NAME}>

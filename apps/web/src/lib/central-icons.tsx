@@ -84,7 +84,7 @@ export function extendButtonIconChildSelectors(className: string): string {
 }
 
 export const CentralIcon = forwardRef<HTMLSpanElement, CentralIconProps>(function CentralIcon(
-  { name, label, variant, className, style, ...props },
+  { name, label, variant, className, style, role, ...props },
   ref,
 ) {
   const iconUrl = getCentralIconUrl(name, variant);
@@ -99,14 +99,16 @@ export const CentralIcon = forwardRef<HTMLSpanElement, CentralIconProps>(functio
     mask: maskValue,
     ...style,
   } satisfies CSSProperties;
+  const resolvedRole = role ?? (label ? "img" : undefined);
+  const resolvedAriaHidden = props["aria-hidden"] ?? (label || resolvedRole ? undefined : true);
 
   return (
     <span
       {...props}
       ref={ref}
-      role={label ? "img" : undefined}
+      role={resolvedRole}
       aria-label={label}
-      aria-hidden={label ? undefined : true}
+      aria-hidden={resolvedAriaHidden}
       data-slot={CENTRAL_ICON_SLOT}
       className={cn(CENTRAL_ICON_BASE_CLASS, className)}
       style={maskStyle}
