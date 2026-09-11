@@ -25,7 +25,12 @@ import {
   writeDaemonState,
   type GraftHostDaemonState,
 } from "./daemonState";
-import { releaseDaemonLock, stopDaemonPid, stopRecordedDaemon, tryAcquireDaemonLock } from "./daemonLock";
+import {
+  releaseDaemonLock,
+  stopDaemonPid,
+  stopRecordedDaemon,
+  tryAcquireDaemonLock,
+} from "./daemonLock";
 import {
   defaultEnvironmentLabel,
   defaultGraftHostDataRoot,

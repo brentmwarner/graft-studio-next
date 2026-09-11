@@ -535,22 +535,24 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
           });
 
         yield* Stream.fromQueue(inbound).pipe(Stream.runForEach(handleFrame), Effect.forkScoped);
-        yield* socket.run((message) => {
-          Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
-        }).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              for (const commandId of ownedCommandIds) {
-                abortMobileCommand(
-                  gatewayState,
-                  commandId,
-                  closedMobileCommandResponse(commandId),
-                );
-              }
-              ownedCommandIds.clear();
-            }),
-          ),
-        );
+        yield* socket
+          .run((message) => {
+            Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
+          })
+          .pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                for (const commandId of ownedCommandIds) {
+                  abortMobileCommand(
+                    gatewayState,
+                    commandId,
+                    closedMobileCommandResponse(commandId),
+                  );
+                }
+                ownedCommandIds.clear();
+              }),
+            ),
+          );
         return HttpServerResponse.empty();
       }),
     );
