@@ -1,0 +1,13 @@
+{
+  "sessionId": "session-desktop-01",
+  "environmentId": "host-fedora-workstation-01",
+  "profile": "desktop_occupancy",
+  "clientId": "desktop-client-01",
+  "clientLabel": "Brent's Mac",
+  "grants": ["projects"],
+  "createdAt": 1779999000000,
+  "expiresAt": 1787775000000,
+  "lastSeenAt": 1779999000000,
+  "revokedAt": null,
+  "bearer": "desktop-bearer-value-0000000000000000001"
+}

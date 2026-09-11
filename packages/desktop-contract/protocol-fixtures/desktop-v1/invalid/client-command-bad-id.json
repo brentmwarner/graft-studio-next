@@ -1,0 +1,5 @@
+{
+  "envelope": "command",
+  "commandId": "not-a-uuid",
+  "command": { "version": 1, "type": "project/list" }
+}

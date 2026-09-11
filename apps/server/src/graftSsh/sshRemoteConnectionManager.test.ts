@@ -1,0 +1,310 @@
+import { createServer } from "node:http";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GRAFT_DESKTOP_ENDPOINTS, GRAFT_DESKTOP_PROTOCOL_VERSION } from "@graft/desktop-contract";
+
+import { ManagedSshTunnel, type TunnelProcess } from "./managedSshTunnel";
+import { SshMachineStore } from "./sshMachineStore";
+import { SshRemoteConnectionManager } from "./sshRemoteConnectionManager";
+import { SshSecretStore } from "./sshSecretStore";
+import type { SshCommandRunner } from "./sshTarget";
+
+const paths: string[] = [];
+
+class FakeTunnelProcess extends EventEmitter implements TunnelProcess {
+  readonly stderr = new PassThrough();
+  exitCode: number | null = null;
+  killed = false;
+
+  kill(signal?: NodeJS.Signals): boolean {
+    this.killed = true;
+    this.exitCode = 0;
+    this.emit("exit", 0, signal ?? null);
+    return true;
+  }
+}
+
+class MemorySecretStore extends SshSecretStore {
+  readonly values = new Map<string, string>();
+
+  constructor() {
+    super(join(tmpdir(), `graft-ssh-secrets-${randomUUID()}.json`));
+  }
+
+  override get(accountKey: string): string | null {
+    return this.values.get(accountKey) ?? null;
+  }
+
+  override set(accountKey: string, bearer: string): void {
+    this.values.set(accountKey, bearer);
+  }
+
+  override delete(accountKey: string): void {
+    this.values.delete(accountKey);
+  }
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  for (const path of paths.splice(0)) {
+    rmSync(path, { force: true });
+  }
+});
+
+describe("SshRemoteConnectionManager", () => {
+  it("resolves, bootstraps, tunnels, enrolls, and stores the bearer only in secret storage", async () => {
+    const environmentId = "host-fedora-workstation-01";
+    const bearer = "desktop-bearer-value-0000000000000000001";
+    const enrollmentToken = "enrollment-token-value-000000000000000001";
+    let revocationCount = 0;
+    const httpServer = createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+      if (request.url === GRAFT_DESKTOP_ENDPOINTS.health) {
+        response.end(
+          JSON.stringify({
+            service: "graft-host",
+            protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+            daemonVersion: "0.2.0",
+            environmentId,
+            environmentLabel: "Fedora workstation",
+            platform: { os: "linux", arch: "x64", libc: "glibc" },
+            port: 47_831,
+            capabilities: ["projects", "threads", "diagnostics"],
+            cursor: 8,
+            replayFloor: 2,
+            activeRunCount: 0,
+            activePtyCount: 0,
+          }),
+        );
+        return;
+      }
+      if (request.url === GRAFT_DESKTOP_ENDPOINTS.enroll) {
+        response.end(
+          JSON.stringify({
+            protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+            session: {
+              sessionId: "session-desktop-01",
+              environmentId,
+              profile: "desktop_occupancy",
+              clientId: "desktop-client-01",
+              clientLabel: "Brent's Mac",
+              grants: ["projects", "threads", "diagnostics"],
+              createdAt: 1,
+              expiresAt: Date.now() + 10_000,
+              lastSeenAt: 1,
+              revokedAt: null,
+            },
+            bearer,
+          }),
+        );
+        return;
+      }
+      if (
+        request.method === "DELETE" &&
+        request.url === GRAFT_DESKTOP_ENDPOINTS.session &&
+        request.headers.authorization === `Bearer ${bearer}`
+      ) {
+        revocationCount += 1;
+        response.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end("{}");
+    });
+    await new Promise<void>((resolveListen) => {
+      httpServer.listen(0, "127.0.0.1", () => resolveListen());
+    });
+    const address = httpServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected HTTP test port");
+    }
+    const bootstrap = {
+      protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+      environmentId,
+      environmentLabel: "Fedora workstation",
+      daemonVersion: "0.2.0",
+      platform: { os: "linux", arch: "x64", libc: "glibc" },
+      port: 47_831,
+      enrollmentToken,
+      enrollmentExpiresAt: Date.now() + 10_000,
+      activeRunCount: 0,
+      activePtyCount: 0,
+    } as const;
+    const commandRunner = vi.fn<SshCommandRunner>(async (_executable, arguments_) => {
+      if (arguments_[0] === "-G") {
+        return {
+          stdout: "hostname fedora.tail.example\nuser brent\nport 22\nproxyjump none\n",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      return { stdout: JSON.stringify(bootstrap), stderr: "", exitCode: 0 };
+    });
+    const storePath = join(tmpdir(), `graft-ssh-manager-${randomUUID()}.json`);
+    paths.push(storePath);
+    const machineStore = new SshMachineStore(storePath);
+    const secretStore = new MemorySecretStore();
+    const manager = new SshRemoteConnectionManager({
+      machineStore,
+      secretStore,
+      hostArchivePath: "/unused/host.tgz",
+      hostVersion: "0.2.0",
+      clientId: "desktop-client-01",
+      clientLabel: "Brent's Mac",
+      clientVersion: "0.2.0",
+      commandRunner,
+      createTunnel: (options) =>
+        new ManagedSshTunnel({
+          ...options,
+          localPort: address.port,
+          spawnProcess: () => new FakeTunnelProcess(),
+        }),
+    });
+    const saved = manager.saveMachine({
+      label: "Fedora",
+      sshTarget: "fedora",
+    });
+    const connection = await manager.connect(saved.id);
+    expect(connection).toMatchObject({
+      localPort: address.port,
+      machine: { environmentId, effectiveHostname: "fedora.tail.example" },
+      environment: { environmentId, cursor: 8, replayFloor: 2 },
+      session: { profile: "desktop_occupancy" },
+      bearer,
+    });
+    expect(connection.routes.httpBaseUrl).toBe(`http://127.0.0.1:${address.port}`);
+    expect(secretStore.values.size).toBe(1);
+    expect([...secretStore.values.values()]).toEqual([bearer]);
+    expect(manager.listMachines()[0]).not.toHaveProperty("bearer");
+    expect(manager.listMachines()[0]).not.toHaveProperty("httpBaseUrl");
+    await expect(manager.deleteMachine(saved.id)).resolves.toBe(true);
+    expect(revocationCount).toBe(1);
+    expect(secretStore.values.size).toBe(0);
+    await new Promise<void>((resolveClose, rejectClose) => {
+      httpServer.close((error) => {
+        if (error) rejectClose(error);
+        else resolveClose();
+      });
+    });
+  });
+
+  it("revokes a newly enrolled session when secret storage rejects its bearer", async () => {
+    const environmentId = "host-fedora-secure-store";
+    const bearer = "desktop-bearer-value-0000000000000000002";
+    let revokedBearer: string | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.health)) {
+          return new Response(
+            JSON.stringify({
+              service: "graft-host",
+              protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+              daemonVersion: "0.2.0",
+              environmentId,
+              environmentLabel: "Fedora workstation",
+              platform: { os: "linux", arch: "x64", libc: "glibc" },
+              port: 47_831,
+              capabilities: ["projects", "diagnostics"],
+              cursor: 0,
+              replayFloor: 0,
+              activeRunCount: 0,
+              activePtyCount: 0,
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.enroll)) {
+          return new Response(
+            JSON.stringify({
+              protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+              session: {
+                sessionId: "session-secure-store-failure",
+                environmentId,
+                profile: "desktop_occupancy",
+                clientId: "desktop-client-01",
+                clientLabel: "Brent's Mac",
+                grants: ["projects", "diagnostics"],
+                createdAt: 1,
+                expiresAt: Date.now() + 10_000,
+                lastSeenAt: 1,
+                revokedAt: null,
+              },
+              bearer,
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.session) && init?.method === "DELETE") {
+          revokedBearer = new Headers(init.headers).get("authorization");
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response(null, { status: 404 });
+      }),
+    );
+    const bootstrap = {
+      protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+      environmentId,
+      environmentLabel: "Fedora workstation",
+      daemonVersion: "0.2.0",
+      platform: { os: "linux", arch: "x64", libc: "glibc" },
+      port: 47_831,
+      enrollmentToken: "enrollment-token-value-000000000000000002",
+      enrollmentExpiresAt: Date.now() + 10_000,
+      activeRunCount: 0,
+      activePtyCount: 0,
+    } as const;
+    const commandRunner = vi.fn<SshCommandRunner>(async (_executable, arguments_) =>
+      arguments_[0] === "-G"
+        ? {
+            stdout: "hostname fedora\nuser brent\nport 22\nproxyjump none\n",
+            stderr: "",
+            exitCode: 0,
+          }
+        : {
+            stdout: JSON.stringify(bootstrap),
+            stderr: "",
+            exitCode: 0,
+          },
+    );
+    const storePath = join(tmpdir(), `graft-ssh-manager-${randomUUID()}.json`);
+    paths.push(storePath);
+    const machineStore = new SshMachineStore(storePath);
+    const secretStore = new MemorySecretStore();
+    secretStore.set = () => {
+      throw new Error("keyring unavailable");
+    };
+    const manager = new SshRemoteConnectionManager({
+      machineStore,
+      secretStore,
+      hostArchivePath: "/unused/host.tgz",
+      hostVersion: "0.2.0",
+      clientId: "desktop-client-01",
+      clientLabel: "Brent's Mac",
+      clientVersion: "0.2.0",
+      commandRunner,
+      createTunnel: (options) =>
+        new ManagedSshTunnel({
+          ...options,
+          localPort: 43_123,
+          spawnProcess: () => new FakeTunnelProcess(),
+        }),
+    });
+    const machine = manager.saveMachine({
+      label: "Fedora",
+      sshTarget: "fedora",
+    });
+
+    await expect(manager.connect(machine.id)).rejects.toMatchObject({
+      code: "secret_store_unavailable",
+    });
+    expect(revokedBearer).toBe(`Bearer ${bearer}`);
+    expect(machineStore.get(machine.id)?.sessionId).toBeNull();
+  });
+});

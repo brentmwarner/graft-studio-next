@@ -38,10 +38,10 @@ const forbiddenPatterns = [
   ),
   new RegExp(escapeRegExp(retiredPredecessorName), "i"),
   new RegExp(`@${escapeRegExp(retiredCompanyName)}`, "i"),
-  new RegExp(
-    `(?:^|[\\s"'\\x60./:@_-])${escapeRegExp(retiredShortName)}(?:$|[\\s"'\\x60./:@_-])`,
-    "i",
-  ),
+  // Quoted tokens such as `"t3"` / `tool("t3")` are fixture ids, not the
+  // retired product short name. Keep matching the short name as a path
+  // segment, package scope, or prose token instead.
+  new RegExp(`(?:^|[\\s./:@_-])${escapeRegExp(retiredShortName)}(?:$|[\\s./:@_-])`, "i"),
   new RegExp(escapeRegExp(incorrectBundleDomain), "i"),
 ] as const;
 

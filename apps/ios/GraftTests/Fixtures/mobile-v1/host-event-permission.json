@@ -1,0 +1,20 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "e29",
+    "cursor": 29,
+    "kind": "approval.requested",
+    "threadId": "t1",
+    "runId": "r1",
+    "createdAt": 1700000019,
+    "approvalId": "a2",
+    "toolName": "Bash",
+    "text": "Run pnpm test",
+    "data": {
+      "type": "permission",
+      "title": "Allow Bash",
+      "detail": "Run pnpm test",
+      "toolName": "Bash"
+    }
+  }
+}

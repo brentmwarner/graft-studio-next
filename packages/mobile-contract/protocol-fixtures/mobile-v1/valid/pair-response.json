@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "session": {
+    "sessionId": "sess-1",
+    "deviceId": "dev-1",
+    "bearerToken": "0123456789abcdef0123456789abcdef",
+    "environmentId": "env-1",
+    "environmentLabel": "Studio Mac",
+    "httpBaseUrl": "http://127.0.0.1:4783",
+    "wsBaseUrl": "ws://127.0.0.1:4783",
+    "protocolVersion": 1,
+    "capabilities": [
+      "projects",
+      "threads",
+      "transcript",
+      "runs",
+      "approvals",
+      "diffs",
+      "cursor_replay"
+    ],
+    "expiresAt": null
+  }
+}

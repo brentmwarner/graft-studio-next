@@ -40,8 +40,12 @@ async function getLightBlobUrl(): Promise<string> {
   return lightBlobUrl;
 }
 
+function shouldSkipUnicornScene(): boolean {
+  return import.meta.env.MODE === "test" || Boolean(import.meta.env.VITEST);
+}
+
 function loadSdk(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
+  if (typeof window === "undefined" || shouldSkipUnicornScene()) return Promise.resolve();
   if (window.UnicornStudio) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
@@ -100,6 +104,7 @@ export function UnicornBackground({ visible }: { visible: boolean }) {
   const isDark = useIsDark();
 
   useEffect(() => {
+    if (shouldSkipUnicornScene()) return undefined;
     let cancelled = false;
 
     const init = async () => {

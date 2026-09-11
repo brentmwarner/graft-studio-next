@@ -1,0 +1,18 @@
+{
+  "envelope": "response",
+  "commandId": "11111111-1111-4111-8111-111111111111",
+  "receipt": {
+    "commandId": "11111111-1111-4111-8111-111111111111",
+    "status": "duplicate",
+    "runId": "r1"
+  },
+  "result": {
+    "type": "turn.start.result",
+    "run": {
+      "id": "r1",
+      "threadId": "t1",
+      "status": "running",
+      "startedAt": 1700000001
+    }
+  }
+}

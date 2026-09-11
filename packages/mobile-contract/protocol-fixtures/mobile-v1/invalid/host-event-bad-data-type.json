@@ -1,0 +1,15 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "e30",
+    "cursor": 30,
+    "kind": "file.edit",
+    "threadId": "t1",
+    "createdAt": 1700000020,
+    "text": "Edited src/foo.ts",
+    "data": {
+      "type": "not_a_real_type",
+      "filePath": "src/foo.ts"
+    }
+  }
+}

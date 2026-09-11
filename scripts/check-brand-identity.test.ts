@@ -34,6 +34,30 @@ describe("brand identity guard", () => {
     ).toEqual([]);
   });
 
+  it("does not treat quoted fixture ids as the retired short name", () => {
+    expect(
+      findBrandIdentityViolations([
+        { path: "InboxGroupingTests.swift", contents: 'id: "t3",' },
+        { path: "mobileViewModels.test.ts", contents: 'tool("t3", true)' },
+        {
+          path: "HomeView.swift",
+          contents: 'InboxThreadItem(id: "t3", title: "Plan Graft Mobile remote access")',
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("still detects the retired spaced product name in preview copy", () => {
+    expect(
+      findBrandIdentityViolations([
+        {
+          path: "HomeView.swift",
+          contents: `title: "Audit Graft against ${firstSpacedDisplayName}"`,
+        },
+      ]),
+    ).toHaveLength(1);
+  });
+
   it("allows the exact legal attribution once in LICENSE", () => {
     expect(findBrandIdentityViolations([{ path: "LICENSE", contents: legalNotice }])).toEqual([]);
     expect(

@@ -1,0 +1,15 @@
+{
+  "envelope": "hello",
+  "protocolVersion": 1,
+  "sessionId": "sess-1",
+  "afterCursor": 10,
+  "capabilities": [
+    "projects",
+    "threads",
+    "transcript",
+    "runs",
+    "approvals",
+    "diffs",
+    "cursor_replay"
+  ]
+}
