@@ -24,7 +24,9 @@ describe("EnvironmentCollapsibleSection", () => {
 
     const trigger = document.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]');
     const panel = document.querySelector<HTMLElement>('[data-slot="collapsible-panel"]');
-    const chevron = trigger?.querySelector<SVGElement>("svg");
+    const chevron =
+      trigger?.querySelector<HTMLElement>("[data-slot='central-icon']") ??
+      trigger?.querySelector("svg");
 
     expect(trigger?.getAttribute("aria-expanded")).toBe("true");
     expect(panel?.className).toContain("duration-220");

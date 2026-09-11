@@ -28,9 +28,10 @@ function adaptIcon(Component: TablerIcon): LucideIcon {
 // avoids stroke-on-stroke alpha summation that gave hand-drawn SVGs a
 // "stamped twice" look on shared vertices (the previous PinIcon bug).
 function centralIconWrapper(name: string, variant?: CentralIconVariant): LucideIcon {
-  return function CentralIconWrapper({ className, style, ...rest }) {
+  return function CentralIconWrapper({ className, style, role, ...rest }) {
     const ariaLabelRaw = (rest as { ["aria-label"]?: unknown })["aria-label"];
     const label = typeof ariaLabelRaw === "string" ? ariaLabelRaw : undefined;
+    const ariaHidden = (rest as { ["aria-hidden"]?: boolean | "true" | "false" })["aria-hidden"];
     return (
       <CentralIcon
         name={name}
@@ -38,6 +39,8 @@ function centralIconWrapper(name: string, variant?: CentralIconVariant): LucideI
         className={typeof className === "string" ? className : undefined}
         style={style as CSSProperties | undefined}
         label={label}
+        role={typeof role === "string" ? role : undefined}
+        aria-hidden={ariaHidden}
       />
     );
   };
