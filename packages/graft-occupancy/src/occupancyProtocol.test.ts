@@ -63,7 +63,7 @@ describe("OccupancyProtocol", () => {
       const listed = await protocol.handle(opened.connection, {
         envelope: "command",
         commandId: "11111111-1111-4111-8111-111111111111",
-        command: { type: "project/list" },
+        command: { version: 1, type: "project/list" },
       });
       expect(listed[0]?.envelope).toBe("response");
     } finally {
