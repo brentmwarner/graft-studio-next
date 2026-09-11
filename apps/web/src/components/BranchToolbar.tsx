@@ -8,8 +8,13 @@ import type {
   ThreadId,
   RuntimeMode,
 } from "@synara/contracts";
-import { CheckIcon, ChevronDownIcon, HandoffIcon, WorktreeIcon } from "~/lib/icons";
-import { HiOutlineHandRaised } from "react-icons/hi2";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  HandoffIcon,
+  RaisingHandIcon,
+  WorktreeIcon,
+} from "~/lib/icons";
 import { CentralIcon } from "~/lib/central-icons";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useAppSettings } from "~/appSettings";
@@ -228,7 +233,7 @@ export function RuntimeUsageControls({
               ) : runtimeMode === "auto" ? (
                 <CentralIcon name="shield-code" className="size-3.5 shrink-0" />
               ) : (
-                <HiOutlineHandRaised className="size-3.5 shrink-0" />
+                <RaisingHandIcon className="size-3.5 shrink-0" />
               )}
               <span className={cn("truncate", hideLabel ? "sr-only" : "@max-[480px]:sr-only")}>
                 {runtimePresentation.label}
@@ -263,7 +268,7 @@ export function RuntimeUsageControls({
             >
               <RuntimeModeMenuItem
                 mode="approval-required"
-                icon={<HiOutlineHandRaised className="size-4 shrink-0" />}
+                icon={<RaisingHandIcon className="size-4 shrink-0" />}
               />
               {autoModeAvailable ? (
                 <RuntimeModeMenuItem

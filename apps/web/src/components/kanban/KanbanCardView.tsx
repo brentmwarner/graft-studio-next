@@ -5,7 +5,6 @@
 // Exports: KanbanCardView
 
 import type { ThreadId } from "@synara/contracts";
-import { GoRepoForked } from "react-icons/go";
 
 import {
   resolveThreadPullRequestFallback,
@@ -17,6 +16,7 @@ import { ThreadStatusPillChip } from "../ThreadStatusPillChip";
 import { ProviderIcon } from "../ProviderIcon";
 import {
   GitBranchIcon,
+  GitForkIcon,
   LoaderIcon,
   PaperclipIcon,
   PinFilledIcon,
@@ -185,10 +185,7 @@ function KanbanCardViewComponent({
         ) : null}
         {isForked ? (
           <span title="Forked thread" className="flex shrink-0 items-center">
-            <GoRepoForked
-              className="size-3 text-emerald-600 dark:text-emerald-300/90"
-              aria-hidden
-            />
+            <GitForkIcon className="size-3 text-emerald-600 dark:text-emerald-300/90" aria-hidden />
           </span>
         ) : null}
         {pr ? <PrStateChip pr={pr} /> : null}

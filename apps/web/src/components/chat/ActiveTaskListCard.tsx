@@ -4,15 +4,17 @@
 // Exports: ActiveTaskListCard
 
 import { pluralize } from "@synara/shared/text";
-import {
-  PiArrowsInSimple,
-  PiArrowsOutSimple,
-  PiSidebarSimple,
-  PiSlidersHorizontal,
-} from "react-icons/pi";
 
 import type { ActiveTaskListState } from "../../session-logic";
-import { BotIcon, CheckIcon, LoaderIcon } from "~/lib/icons";
+import {
+  BotIcon,
+  CheckIcon,
+  CustomizeIcon,
+  LoaderIcon,
+  PanelCollapseIcon,
+  PanelExpandIcon,
+  PanelLeftIcon,
+} from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import {
@@ -69,7 +71,7 @@ export function ActiveTaskListCard({
           {compact && hasInProgressTask ? (
             <LoaderIcon className={cn(COMPOSER_STACKED_PANEL_ICON_CLASS_NAME, "animate-spin")} />
           ) : (
-            <PiSlidersHorizontal className={COMPOSER_STACKED_PANEL_ICON_CLASS_NAME} />
+            <CustomizeIcon className={COMPOSER_STACKED_PANEL_ICON_CLASS_NAME} />
           )}
           <ComposerStackedPanelRowLabel tone="meta">
             {completedCount} out of {totalCount} tasks completed
@@ -85,7 +87,7 @@ export function ActiveTaskListCard({
             aria-label="Open tasks sidebar"
             title="Open tasks sidebar"
           >
-            <PiSidebarSimple className="size-3" />
+            <PanelLeftIcon className="size-3" />
           </Button>
           <Button
             type="button"
@@ -97,9 +99,9 @@ export function ActiveTaskListCard({
             title={compact ? "Expand task banner" : "Collapse task banner"}
           >
             {compact ? (
-              <PiArrowsOutSimple className="size-3" />
+              <PanelExpandIcon className="size-3" />
             ) : (
-              <PiArrowsInSimple className="size-3" />
+              <PanelCollapseIcon className="size-3" />
             )}
           </Button>
         </div>

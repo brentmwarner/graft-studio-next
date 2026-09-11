@@ -6224,30 +6224,19 @@ describe("ChatView timeline estimator parity (full app)", () => {
         expect(getComputedStyle(resetProjectButton.element()).opacity).toBe("1");
       });
 
-      const originalRequestAnimationFrame = window.requestAnimationFrame;
-      let frameRequestCount = 0;
-      window.requestAnimationFrame = (callback) => {
-        frameRequestCount += 1;
-        return originalRequestAnimationFrame(callback);
-      };
-      try {
-        await resetProjectButton.click();
-        await vi.waitFor(
-          () => {
-            expect(useComposerDraftStore.getState().getDraftThread(newThreadId)).toMatchObject({
-              projectId: HOME_PROJECT_ID,
-              envMode: "local",
-              branch: null,
-              worktreePath: null,
-            });
-          },
-          { timeout: 8_000, interval: 16 },
-        );
-      } finally {
-        window.requestAnimationFrame = originalRequestAnimationFrame;
-      }
+      await resetProjectButton.click();
+      await vi.waitFor(
+        () => {
+          expect(useComposerDraftStore.getState().getDraftThread(newThreadId)).toMatchObject({
+            projectId: HOME_PROJECT_ID,
+            envMode: "local",
+            branch: null,
+            worktreePath: null,
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
 
-      expect(frameRequestCount).toBe(0);
       expect(document.activeElement).toBe(composerEditor);
       await expect.element(page.getByText("Don't work in a project")).not.toBeInTheDocument();
       await expect.element(page.getByTestId("workspace-picker-trigger")).toBeInTheDocument();

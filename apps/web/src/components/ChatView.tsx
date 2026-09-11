@@ -74,7 +74,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { GoTasklist } from "react-icons/go";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Debouncer, useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate } from "@tanstack/react-router";
@@ -334,6 +333,7 @@ import {
   ChevronDownIcon,
   ComposerSendArrowIcon,
   LayoutSidebarIcon,
+  ListTodoIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
   TemporaryThreadIcon,
@@ -11816,7 +11816,7 @@ export default function ChatView({
                               title={`${interactionMode === "plan" ? "Plan" : "Debug"} mode — click to return to normal build mode`}
                             >
                               {interactionMode === "plan" ? (
-                                <GoTasklist className="size-3.5" />
+                                <ListTodoIcon className="size-3.5" />
                               ) : (
                                 <BugIcon className="size-3.5" />
                               )}

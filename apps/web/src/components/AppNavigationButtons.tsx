@@ -6,7 +6,7 @@
 import { goBackInAppHistory, goForwardInAppHistory, useAppNavigationState } from "~/appNavigation";
 import { isElectron } from "~/env";
 import { cn, isMacNavigatorPlatform } from "~/lib/utils";
-import { IoIosArrowRoundBack, IoIosArrowRoundForward } from "react-icons/io";
+import { ArrowLeftIcon, ArrowRightIcon } from "~/lib/icons";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
@@ -41,7 +41,7 @@ export function AppNavigationButtons({ className }: { className?: string }) {
             />
           }
         >
-          <IoIosArrowRoundBack className="size-6" />
+          <ArrowLeftIcon className="size-5" />
         </TooltipTrigger>
         <TooltipPopup side="bottom">Back ({backShortcutLabel})</TooltipPopup>
       </Tooltip>
@@ -59,7 +59,7 @@ export function AppNavigationButtons({ className }: { className?: string }) {
             />
           }
         >
-          <IoIosArrowRoundForward className="size-6" />
+          <ArrowRightIcon className="size-5" />
         </TooltipTrigger>
         <TooltipPopup side="bottom">Forward ({forwardShortcutLabel})</TooltipPopup>
       </Tooltip>
