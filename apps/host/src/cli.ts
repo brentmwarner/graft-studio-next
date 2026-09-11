@@ -3,7 +3,6 @@ import { existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 
 import {
   GRAFT_DESKTOP_ENDPOINTS,
@@ -26,11 +25,13 @@ import {
   writeDaemonState,
   type GraftHostDaemonState,
 } from "./daemonState";
+import { releaseDaemonLock, stopRecordedDaemon, tryAcquireDaemonLock } from "./daemonLock";
 import {
   defaultEnvironmentLabel,
   defaultGraftHostDataRoot,
   resolveGraftHostPaths,
 } from "./hostPaths";
+import { resolveSynaraEntry } from "./synaraEntry";
 
 type CommandName = "serve" | "bootstrap" | "diagnostics" | "self-test" | "version" | "help";
 
@@ -178,8 +179,7 @@ async function waitForDaemon(
 }
 
 function synaraEntry(): string {
-  if (process.env.GRAFT_HOST_SYNARA_BIN?.trim()) return process.env.GRAFT_HOST_SYNARA_BIN.trim();
-  return fileURLToPath(new URL("../../server/src/index.ts", import.meta.url));
+  return resolveSynaraEntry();
 }
 
 export function issueBootstrap(
@@ -216,6 +216,7 @@ async function ensureDaemon(
   const paths = resolveGraftHostPaths(arguments_.dataRoot);
   const existing = await currentDaemon(paths.statePath);
   if (existing?.health.daemonVersion === GRAFT_HOST_VERSION) return existing;
+  await stopRecordedDaemon(paths.statePath);
   const executable = process.argv[1];
   if (!executable) throw new Error("Cannot locate the graft-host executable");
   const childArguments = [
@@ -246,6 +247,9 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
   const paths = resolveGraftHostPaths(arguments_.dataRoot);
   mkdirSync(paths.dataRoot, { recursive: true, mode: 0o700 });
   mkdirSync(paths.synaraHome, { recursive: true, mode: 0o700 });
+  if (!tryAcquireDaemonLock(paths.lockPath, process.pid)) {
+    throw new Error("Another graft-host daemon is already running");
+  }
   const port = arguments_.port === 0 ? await reserveLoopbackPort() : arguments_.port;
   writeDaemonState(paths.statePath, {
     pid: process.pid,
@@ -255,6 +259,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
   });
   const shutdown = () => {
     removeDaemonState(paths.statePath, process.pid);
+    releaseDaemonLock(paths.lockPath, process.pid);
   };
   process.on("exit", shutdown);
   process.on("SIGTERM", () => {
@@ -284,6 +289,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
         GRAFT_HOST: "1",
         GRAFT_HOST_DATA_DIR: paths.dataRoot,
         GRAFT_HOST_ENVIRONMENT_LABEL: arguments_.environmentLabel,
+        GRAFT_HOST_SYNARA_BIN: synaraEntry(),
         SYNARA_HOME: paths.synaraHome,
         SYNARA_HOST: "127.0.0.1",
         SYNARA_NO_BROWSER: "1",

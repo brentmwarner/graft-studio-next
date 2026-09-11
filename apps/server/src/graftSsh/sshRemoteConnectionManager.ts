@@ -75,7 +75,11 @@ export class SshRemoteConnectionManager {
   async deleteMachine(id: string): Promise<boolean> {
     const activeConnection = this.activeConnections.get(id);
     if (activeConnection) {
-      await this.revokeSession(activeConnection.routes.httpBaseUrl, activeConnection.bearer);
+      try {
+        await this.revokeSession(activeConnection.routes.httpBaseUrl, activeConnection.bearer);
+      } catch {
+        // Remote revoke is best-effort so an unreachable host can still be removed.
+      }
     }
     await this.disconnect(id);
     const deleted = this.options.machineStore.delete(id);
@@ -187,6 +191,7 @@ export class SshRemoteConnectionManager {
         wsUrl: `ws://127.0.0.1:${localPort}${GRAFT_DESKTOP_ENDPOINTS.socket}`,
       };
       let closed = false;
+      let unsubscribeTunnel = () => {};
       const connection: SshRemoteConnection = {
         machine,
         resolvedTarget,
@@ -205,6 +210,7 @@ export class SshRemoteConnectionManager {
         localPort,
         routes,
         close: async () => {
+          unsubscribeTunnel();
           if (closed) return this.closing.get(machineId);
           closed = true;
           const closing = tunnel.close().finally(() => {
@@ -220,6 +226,11 @@ export class SshRemoteConnectionManager {
         },
       };
       this.activeConnections.set(machineId, connection);
+      unsubscribeTunnel = tunnel.onState((state) => {
+        if (state === "failed" || state === "closed") {
+          void connection.close();
+        }
+      });
       return connection;
     } catch (error) {
       await tunnel.close();

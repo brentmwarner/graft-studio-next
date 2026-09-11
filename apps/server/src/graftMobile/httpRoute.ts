@@ -19,19 +19,30 @@ import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstab
 
 import { makeEffectAuthRequest } from "../auth/effectHttp";
 import { AuthError, ServerAuth } from "../auth/Services/ServerAuth";
+import {
+  SessionCapacityError,
+  SessionCredentialError,
+  SessionCredentialService,
+} from "../auth/Services/SessionCredentialService";
 import { deriveAuthClientMetadata } from "../auth/utils";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
-import { isLoopbackHost } from "../startupAccess";
+import { isLoopbackHost, mobilePairingBaseUrl } from "../startupAccess";
 import {
   GraftMobileCommandError,
+  claimMobileCommand,
   executeMobileCommand,
   loadMobileSnapshot,
   makeGraftMobileGatewayState,
 } from "./gateway";
 import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  MOBILE_WS_INBOUND_CAPACITY,
+  MOBILE_WS_OUTBOUND_CAPACITY,
+  offerMobileOutbound,
+} from "./outboundQueue";
 
 const MOBILE_JSON_BODY_MAX_BYTES = 256 * 1024;
 
@@ -104,11 +115,21 @@ function mobilePlatformMetadata(platform: GraftPairExchangeRequest["client"]["pl
 
 function requestHttpBaseUrl(
   request: HttpServerRequest.HttpServerRequest,
-  config: { readonly publicUrl?: URL | undefined },
+  config: {
+    readonly host?: string | undefined;
+    readonly port: number;
+    readonly publicUrl?: URL | undefined;
+  },
 ): string | null {
-  if (config.publicUrl) return config.publicUrl.origin;
   const url = HttpServerRequest.toURL(request);
-  return url ? url.origin : null;
+  const fallback = config.publicUrl?.origin ?? url?.origin;
+  if (!fallback) return null;
+  return mobilePairingBaseUrl({
+    host: config.host,
+    port: config.port,
+    publicUrl: config.publicUrl,
+    fallback,
+  });
 }
 
 function endpointKind(baseUrl: string): GraftRemoteEndpointKind {
@@ -354,160 +375,178 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const serverAuth = yield* ServerAuth;
+    const sessions = yield* SessionCredentialService;
     const environment = yield* ServerEnvironment;
     const engine = yield* OrchestrationEngineService;
     const authenticated = yield* serverAuth.authenticateWebSocketUpgrade(
       makeEffectAuthRequest(request),
     );
-    const gatewayState = gatewayStateForSession(authenticated.sessionId);
-    const socket = yield* request.upgrade;
-    const writer = yield* socket.writer;
-    const inbound = yield* Queue.unbounded<unknown>();
-    const outbound = yield* Queue.unbounded<string>();
-    const liveState = makeGraftMobileLiveEventState();
-    let welcomed = false;
-
-    const send = (message: GraftMobileHostMessage) =>
-      Queue.offer(outbound, JSON.stringify(message)).pipe(Effect.asVoid);
-
-    yield* Stream.fromQueue(outbound).pipe(Stream.runForEach(writer), Effect.forkScoped);
-
-    const domainEvents = yield* engine.subscribeDomainEvents;
-    yield* domainEvents.pipe(
-      Stream.runForEach((event) => {
-        if (!welcomed) return Effect.void;
-        const mobileEvent = toMobileLiveEvent(liveState, event);
-        return mobileEvent
-          ? send({ envelope: "event", event: mobileEvent })
-          : send({
-              envelope: "snapshot_required",
-              reason: "resync",
-              message: "Workspace state changed.",
-            });
-      }),
-      Effect.forkScoped,
-    );
-
-    const handleFrame = (raw: unknown) =>
+    return yield* sessions.runAuthenticatedConnection(
+      authenticated.sessionId,
       Effect.gen(function* () {
-        const parsed = GraftMobileClientMessageSchema.safeParse(decodeSocketMessage(raw));
-        if (!parsed.success) {
-          yield* send({
-            envelope: "error",
-            error: remoteError("validation_failed", "Invalid mobile gateway message."),
-          });
-          return;
-        }
-        const message = parsed.data;
-        if (message.envelope === "hello") {
-          if (message.sessionId !== authenticated.sessionId) {
-            yield* send({
-              envelope: "error",
-              error: remoteError(
-                "authorization_denied",
-                "The mobile session does not match this connection.",
-              ),
-            });
-            return;
-          }
-          const descriptor = yield* environment.getDescriptor;
-          const cursor = yield* engine.getEventHighWaterSequence;
-          welcomed = true;
-          yield* send({
-            envelope: "welcome",
-            protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
-            capabilities: [...DEFAULT_MOBILE_CAPABILITIES],
-            environmentId: descriptor.environmentId,
-            environmentLabel: descriptor.label,
-            cursor,
-          });
-          return;
-        }
-        if (!welcomed) {
-          yield* send({
-            envelope: "error",
-            error: remoteError("authentication_required", "Send hello before other messages."),
-          });
-          return;
-        }
-        if (message.envelope === "ping") {
-          yield* send({ envelope: "pong", at: message.at });
-          return;
-        }
-        if (message.envelope === "subscribe") return;
+        const gatewayState = gatewayStateForSession(authenticated.sessionId);
+        const socket = yield* request.upgrade;
+        const writer = yield* socket.writer;
+        const inbound = yield* Queue.dropping<unknown>(MOBILE_WS_INBOUND_CAPACITY);
+        const outbound = yield* Queue.dropping<string>(MOBILE_WS_OUTBOUND_CAPACITY);
+        const liveState = makeGraftMobileLiveEventState();
+        let welcomed = false;
 
-        const cached = gatewayState.commandResponses.get(message.commandId);
-        if (cached) {
-          yield* send(cached);
-          return;
-        }
-        const response = yield* executeMobileCommand(
-          gatewayState,
-          message.commandId,
-          message.command,
-        ).pipe(
-          Effect.flatMap((result) =>
-            engine.getEventHighWaterSequence.pipe(
-              Effect.map(
-                (cursor): GraftMobileHostMessage => ({
+        const send = (message: GraftMobileHostMessage) => offerMobileOutbound(outbound, message);
+
+        yield* Stream.fromQueue(outbound).pipe(Stream.runForEach(writer), Effect.forkScoped);
+
+        const domainEvents = yield* engine.subscribeDomainEvents;
+        yield* domainEvents.pipe(
+          Stream.runForEach((event) => {
+            if (!welcomed) return Effect.void;
+            const mobileEvent = toMobileLiveEvent(liveState, event);
+            return mobileEvent
+              ? send({ envelope: "event", event: mobileEvent })
+              : send({
+                  envelope: "snapshot_required",
+                  reason: "resync",
+                  message: "Workspace state changed.",
+                });
+          }),
+          Effect.forkScoped,
+        );
+
+        const handleFrame = (raw: unknown) =>
+          Effect.gen(function* () {
+            const parsed = GraftMobileClientMessageSchema.safeParse(decodeSocketMessage(raw));
+            if (!parsed.success) {
+              yield* send({
+                envelope: "error",
+                error: remoteError("validation_failed", "Invalid mobile gateway message."),
+              });
+              return;
+            }
+            const message = parsed.data;
+            if (message.envelope === "hello") {
+              if (message.sessionId !== authenticated.sessionId) {
+                yield* send({
+                  envelope: "error",
+                  error: remoteError(
+                    "authorization_denied",
+                    "The mobile session does not match this connection.",
+                  ),
+                });
+                return;
+              }
+              const descriptor = yield* environment.getDescriptor;
+              const cursor = yield* engine.getEventHighWaterSequence;
+              welcomed = true;
+              yield* send({
+                envelope: "welcome",
+                protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
+                capabilities: [...DEFAULT_MOBILE_CAPABILITIES],
+                environmentId: descriptor.environmentId,
+                environmentLabel: descriptor.label,
+                cursor,
+              });
+              return;
+            }
+            if (!welcomed) {
+              yield* send({
+                envelope: "error",
+                error: remoteError("authentication_required", "Send hello before other messages."),
+              });
+              return;
+            }
+            if (message.envelope === "ping") {
+              yield* send({ envelope: "pong", at: message.at });
+              return;
+            }
+            if (message.envelope === "subscribe") return;
+
+            const claimed = claimMobileCommand(gatewayState, message.commandId);
+            if (claimed.kind === "cached") {
+              yield* send(claimed.response);
+              return;
+            }
+            if (claimed.kind === "pending") {
+              yield* send(yield* Effect.promise(() => claimed.promise));
+              return;
+            }
+            const response = yield* executeMobileCommand(
+              gatewayState,
+              message.commandId,
+              message.command,
+            ).pipe(
+              Effect.flatMap((result) =>
+                engine.getEventHighWaterSequence.pipe(
+                  Effect.map(
+                    (cursor): GraftMobileHostMessage => ({
+                      envelope: "response",
+                      commandId: message.commandId,
+                      ...(message.requestId ? { requestId: message.requestId } : {}),
+                      receipt: {
+                        commandId: message.commandId,
+                        status: "completed",
+                        ...(message.requestId ? { requestId: message.requestId } : {}),
+                        cursor,
+                      },
+                      result,
+                    }),
+                  ),
+                ),
+              ),
+              Effect.catch((error) => {
+                const commandError =
+                  error instanceof GraftMobileCommandError
+                    ? error
+                    : new GraftMobileCommandError({
+                        code: "internal",
+                        message: error instanceof Error ? error.message : "Mobile command failed.",
+                        cause: error,
+                      });
+                return Effect.succeed<GraftMobileHostMessage>({
                   envelope: "response",
                   commandId: message.commandId,
                   ...(message.requestId ? { requestId: message.requestId } : {}),
                   receipt: {
                     commandId: message.commandId,
-                    status: "completed",
+                    status: "rejected",
                     ...(message.requestId ? { requestId: message.requestId } : {}),
-                    cursor,
+                    errorCode: commandError.code,
+                    message: commandError.message,
                   },
-                  result,
-                }),
-              ),
-            ),
-          ),
-          Effect.catch((error) => {
-            const commandError =
-              error instanceof GraftMobileCommandError
-                ? error
-                : new GraftMobileCommandError({
-                    code: "internal",
-                    message: error instanceof Error ? error.message : "Mobile command failed.",
-                    cause: error,
-                  });
-            return Effect.succeed<GraftMobileHostMessage>({
-              envelope: "response",
-              commandId: message.commandId,
-              ...(message.requestId ? { requestId: message.requestId } : {}),
-              receipt: {
-                commandId: message.commandId,
-                status: "rejected",
-                ...(message.requestId ? { requestId: message.requestId } : {}),
-                errorCode: commandError.code,
-                message: commandError.message,
-              },
-            });
+                });
+              }),
+            );
+            claimed.complete(response);
+            yield* send(response);
+          });
+
+        yield* Stream.fromQueue(inbound).pipe(Stream.runForEach(handleFrame), Effect.forkScoped);
+        yield* socket.run((message) => {
+          Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
+        });
+        return HttpServerResponse.empty();
+      }),
+    );
+  }).pipe(
+    Effect.catch((error) => {
+      if (error instanceof AuthError) return Effect.succeed(authErrorResponse(error));
+      if (error instanceof SessionCapacityError) {
+        return Effect.succeed(
+          HttpServerResponse.text(error.message, {
+            status: 429,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": String(error.retryAfterSeconds),
+            },
           }),
         );
-        gatewayState.commandResponses.set(message.commandId, response);
-        if (gatewayState.commandResponses.size > 2_000) {
-          const oldest = gatewayState.commandResponses.keys().next().value;
-          if (oldest) gatewayState.commandResponses.delete(oldest);
-        }
-        yield* send(response);
-      });
-
-    yield* Stream.fromQueue(inbound).pipe(Stream.runForEach(handleFrame), Effect.forkScoped);
-    yield* socket.run((message) => {
-      Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
-    });
-    return HttpServerResponse.empty();
-  }).pipe(
-    Effect.catch((error) =>
-      Effect.succeed(
-        error instanceof AuthError
-          ? authErrorResponse(error)
-          : HttpServerResponse.text("Mobile gateway connection failed", { status: 500 }),
-      ),
-    ),
+      }
+      if (error instanceof SessionCredentialError) {
+        return Effect.succeed(HttpServerResponse.text(error.message, { status: 401 }));
+      }
+      return Effect.succeed(
+        HttpServerResponse.text("Mobile gateway connection failed", { status: 500 }),
+      );
+    }),
   ),
 );
 

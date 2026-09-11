@@ -17,6 +17,11 @@ export const MAC_DEVICE_HELPER_RESOURCE_PATH = "Resources/device-helper";
 export const WINDOWS_INSTALLER_GUID = "368107a8-afe6-5db5-ab3b-d4f331684868";
 const MAC_DMG_ICON_PATH = "icon.icns";
 export const NODE_PTY_ASAR_UNPACK_GLOBS = ["node_modules/node-pty/**"] as const;
+export const GRAFT_HOST_ARCHIVE_ASAR_UNPACK = "apps/server/dist/graft-host-linux-x64.tar.gz";
+export const DESKTOP_ASAR_UNPACK_GLOBS = [
+  ...NODE_PTY_ASAR_UNPACK_GLOBS,
+  GRAFT_HOST_ARCHIVE_ASAR_UNPACK,
+] as const;
 
 export interface DesktopPlatformBuildConfig {
   readonly asarUnpack?: ReadonlyArray<string>;
@@ -67,7 +72,7 @@ export function validateDesktopNativeBuildHost(input: DesktopNativeBuildHostInpu
 export function createDesktopPlatformBuildConfig(
   input: CreateDesktopPlatformBuildConfigInput,
 ): DesktopPlatformBuildConfig {
-  const nativePackaging = { asarUnpack: [...NODE_PTY_ASAR_UNPACK_GLOBS] };
+  const nativePackaging = { asarUnpack: [...DESKTOP_ASAR_UNPACK_GLOBS] };
 
   if (input.platform === "mac") {
     const mac = {

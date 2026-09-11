@@ -37,6 +37,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1); require("node:sqlite")'
 chmod 755 bin/graft-host.mjs
+test -f bin/graft-server.mjs
+chmod 755 bin/graft-server.mjs
 if [ -e "$target" ]; then
   rm -rf "$stage"
 else

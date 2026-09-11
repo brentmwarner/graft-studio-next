@@ -2,6 +2,8 @@ import { assert, describe, it } from "@effect/vitest";
 
 import {
   createDesktopPlatformBuildConfig,
+  DESKTOP_ASAR_UNPACK_GLOBS,
+  GRAFT_HOST_ARCHIVE_ASAR_UNPACK,
   MAC_APPSNAP_HELPER_ASAR_EXCLUSION,
   MAC_APPSNAP_HELPER_BUNDLE_PATH,
   MAC_APPSNAP_HELPER_STAGE_PATH,
@@ -29,7 +31,7 @@ describe("createDesktopPlatformBuildConfig", () => {
 
     assert.deepStrictEqual(mac.target, ["dmg", "zip"]);
     assert.equal(mac.icon, "icon.icns");
-    assert.deepStrictEqual(config.asarUnpack, ["node_modules/node-pty/**"]);
+    assert.deepStrictEqual(config.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
     assert.equal(mac.hardenedRuntime, true);
     assert.equal(mac.notarize, true);
     assert.equal(dmg.sign, true);
@@ -82,7 +84,7 @@ describe("createDesktopPlatformBuildConfig", () => {
 
     assert.equal(linux.mac, undefined);
     assert.equal(linux.extraFiles, undefined);
-    assert.deepStrictEqual(linux.asarUnpack, ["node_modules/node-pty/**"]);
+    assert.deepStrictEqual(linux.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
     assert.deepStrictEqual(linux.linux, {
       target: ["AppImage"],
       executableName: "synara",
@@ -97,7 +99,7 @@ describe("createDesktopPlatformBuildConfig", () => {
 
     assert.equal(win.mac, undefined);
     assert.equal(win.extraFiles, undefined);
-    assert.deepStrictEqual(win.asarUnpack, ["node_modules/node-pty/**"]);
+    assert.deepStrictEqual(win.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
     assert.equal(WINDOWS_INSTALLER_GUID, "368107a8-afe6-5db5-ab3b-d4f331684868");
     assert.deepStrictEqual(win.nsis, {
       guid: WINDOWS_INSTALLER_GUID,
@@ -122,14 +124,16 @@ describe("createDesktopPlatformBuildConfig", () => {
     });
   });
 
-  it("keeps node-pty unpacked from ASAR in generated build config", () => {
+  it("keeps node-pty and the graft-host archive unpacked from ASAR", () => {
     const config = createDesktopPlatformBuildConfig({
       platform: "linux",
       target: "AppImage",
     });
 
     assert.deepStrictEqual([...NODE_PTY_ASAR_UNPACK_GLOBS], ["node_modules/node-pty/**"]);
-    assert.deepStrictEqual(config.asarUnpack, [...NODE_PTY_ASAR_UNPACK_GLOBS]);
+    assert.equal(GRAFT_HOST_ARCHIVE_ASAR_UNPACK, "apps/server/dist/graft-host-linux-x64.tar.gz");
+    assert.deepStrictEqual(config.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
+    assert.ok(config.asarUnpack?.includes(GRAFT_HOST_ARCHIVE_ASAR_UNPACK));
   });
 
   it("blocks unsupported or non-matching Linux native build hosts", () => {
