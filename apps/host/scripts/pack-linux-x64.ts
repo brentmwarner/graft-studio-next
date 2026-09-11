@@ -10,8 +10,8 @@ import {
   GRAFT_HOST_SERVER_ENTRY,
 } from "@graft/desktop-contract";
 
-import { assembleGraftHostLinuxArchive, graftHostArchiveRuntimePath } from "../src/packLinuxX64.ts";
-import { rewriteNodeIncompatibleImports } from "../src/nodeBundleCompat.ts";
+import { assembleGraftHostLinuxArchive, graftHostArchiveRuntimePath } from "../src/packLinuxX64";
+import { rewriteNodeIncompatibleImports } from "../src/nodeBundleCompat";
 
 const hostRoot = fileURLToPath(new URL("..", import.meta.url));
 const distDir = join(hostRoot, "dist");

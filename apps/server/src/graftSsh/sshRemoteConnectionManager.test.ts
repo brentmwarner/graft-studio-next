@@ -500,8 +500,7 @@ describe("SshRemoteConnectionManager", () => {
     paths.push(storePath);
     const machineStore = new SshMachineStore(storePath);
     const secretStore = new MemorySecretStore();
-    let firstProcess: FakeTunnelProcess | null = null;
-    let spawnCount = 0;
+    const tunnelProcesses: FakeTunnelProcess[] = [];
     const manager = new SshRemoteConnectionManager({
       machineStore,
       secretStore,
@@ -517,10 +516,10 @@ describe("SshRemoteConnectionManager", () => {
           localPort: 43_125,
           reconnectDelaysMs: [1],
           spawnProcess: () => {
-            spawnCount += 1;
-            if (spawnCount > 1) throw new Error("ssh gone");
-            firstProcess = new FakeTunnelProcess();
-            return firstProcess;
+            if (tunnelProcesses.length > 0) throw new Error("ssh gone");
+            const child = new FakeTunnelProcess();
+            tunnelProcesses.push(child);
+            return child;
           },
         }),
     });
@@ -530,7 +529,9 @@ describe("SshRemoteConnectionManager", () => {
     });
     await manager.connect(machine.id);
     expect(manager.listMachineSummaries()[0]?.connected).toBe(true);
-    firstProcess?.kill("SIGTERM");
+    const firstProcess = tunnelProcesses[0];
+    if (!firstProcess) throw new Error("SSH tunnel process was not started");
+    firstProcess.kill("SIGTERM");
     await vi.waitFor(() => {
       expect(manager.activeConnection(machine.id)).toBeNull();
     });

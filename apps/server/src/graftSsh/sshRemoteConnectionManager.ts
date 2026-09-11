@@ -191,8 +191,13 @@ export class SshRemoteConnectionManager {
         wsUrl: `ws://127.0.0.1:${localPort}${GRAFT_DESKTOP_ENDPOINTS.socket}`,
       };
       let closed = false;
-      let unsubscribeTunnel = () => {};
-      const connection: SshRemoteConnection = {
+      let connection!: SshRemoteConnection;
+      const unsubscribeTunnel = tunnel.onState((state) => {
+        if (state === "failed" || state === "closed") {
+          void connection.close();
+        }
+      });
+      connection = {
         machine,
         resolvedTarget,
         bootstrap,
@@ -226,11 +231,6 @@ export class SshRemoteConnectionManager {
         },
       };
       this.activeConnections.set(machineId, connection);
-      unsubscribeTunnel = tunnel.onState((state) => {
-        if (state === "failed" || state === "closed") {
-          void connection.close();
-        }
-      });
       return connection;
     } catch (error) {
       await tunnel.close();
