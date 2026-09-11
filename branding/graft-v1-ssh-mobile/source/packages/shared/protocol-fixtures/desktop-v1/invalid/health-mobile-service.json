@@ -1,0 +1,14 @@
+{
+  "service": "graft-studio",
+  "protocolVersion": 1,
+  "daemonVersion": "0.1.0",
+  "environmentId": "host-fedora-workstation-01",
+  "environmentLabel": "Fedora workstation",
+  "platform": { "os": "linux", "arch": "x64", "libc": "glibc" },
+  "port": 47831,
+  "capabilities": [],
+  "cursor": 0,
+  "replayFloor": 0,
+  "activeRunCount": 0,
+  "activePtyCount": 0
+}

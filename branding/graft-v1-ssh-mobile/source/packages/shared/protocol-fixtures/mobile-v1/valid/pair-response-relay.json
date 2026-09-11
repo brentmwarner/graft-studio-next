@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "session": {
+    "sessionId": "sess-relay-1",
+    "deviceId": "dev-relay-1",
+    "bearerToken": "0123456789abcdef0123456789abcdef",
+    "environmentId": "env-relay-1",
+    "environmentLabel": "Studio Mac",
+    "httpBaseUrl": "https://relay.graftapp.io/e/env-relay-1",
+    "wsBaseUrl": "wss://relay.graftapp.io/e/env-relay-1",
+    "protocolVersion": 1,
+    "capabilities": [
+      "projects",
+      "threads",
+      "transcript",
+      "runs",
+      "approvals",
+      "diffs",
+      "cursor_replay"
+    ],
+    "expiresAt": null,
+    "endpointKind": "relay"
+  }
+}

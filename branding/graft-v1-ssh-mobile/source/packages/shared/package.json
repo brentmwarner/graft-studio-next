@@ -1,0 +1,36 @@
+{
+  "name": "@graft/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./mobile": {
+      "types": "./dist/src/mobileRemote.d.ts",
+      "import": "./dist/src/mobileRemote.js"
+    },
+    "./desktop": {
+      "types": "./dist/src/desktopRemote.d.ts",
+      "import": "./dist/src/desktopRemote.js"
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "pnpm run clean && tsc -p tsconfig.json && node scripts/verify-build-contract.mjs",
+    "test": "vitest run && node --test scripts/*.node-test.mjs",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --check src scripts"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

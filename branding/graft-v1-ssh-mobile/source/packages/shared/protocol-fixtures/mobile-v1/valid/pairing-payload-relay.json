@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "host": "https://relay.graftapp.io/e/env-relay-1",
+  "token": "abcdefghijklmnopqrstuv",
+  "label": "Studio Mac",
+  "endpointKind": "relay"
+}

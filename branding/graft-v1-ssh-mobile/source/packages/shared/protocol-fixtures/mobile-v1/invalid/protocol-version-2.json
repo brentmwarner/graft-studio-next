@@ -1,0 +1,5 @@
+{
+  "envelope": "hello",
+  "protocolVersion": 2,
+  "sessionId": "sess-1"
+}

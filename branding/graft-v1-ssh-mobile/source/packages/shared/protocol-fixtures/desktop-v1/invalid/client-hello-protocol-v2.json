@@ -1,0 +1,6 @@
+{
+  "envelope": "hello",
+  "protocolVersion": 2,
+  "clientVersion": "0.1.0",
+  "capabilities": ["projects"]
+}

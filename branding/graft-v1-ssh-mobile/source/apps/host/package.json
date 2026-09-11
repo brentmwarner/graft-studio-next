@@ -1,0 +1,32 @@
+{
+  "name": "@graft/host",
+  "version": "0.1.9",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "graft-host": "dist/graft-host.mjs"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm run clean && tsc -p tsconfig.json && esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --external:better-sqlite3 --external:node-pty --external:ws --banner:js='#!/usr/bin/env node' --outfile=dist/graft-host.mjs",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node scripts/ensure-node-sqlite.mjs && vitest run",
+    "format": "prettier --check src scripts",
+    "package:linux": "pnpm build && node scripts/package-linux.mjs"
+  },
+  "dependencies": {
+    "@graft/host-runtime": "workspace:*",
+    "@graft/shared": "workspace:*",
+    "better-sqlite3": "12.6.2",
+    "node-pty": "1.1.0",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.1",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

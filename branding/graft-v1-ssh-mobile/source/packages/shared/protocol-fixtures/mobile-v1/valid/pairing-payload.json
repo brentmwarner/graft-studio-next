@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "host": "http://100.64.0.12:4783",
+  "token": "abcdefghijklmnopqrstuv",
+  "label": "Studio",
+  "endpointKind": "tailnet"
+}

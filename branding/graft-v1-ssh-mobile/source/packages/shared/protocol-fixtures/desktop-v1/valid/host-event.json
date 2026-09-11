@@ -1,0 +1,6 @@
+{
+  "envelope": "event",
+  "cursor": 42,
+  "occurredAt": 1780000000000,
+  "event": { "type": "thread/updated", "threadId": "thread-1" }
+}
