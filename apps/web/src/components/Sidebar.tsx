@@ -206,6 +206,7 @@ import { PreviewCard, PreviewCardPopup, PreviewCardTrigger } from "./ui/preview-
 import { hasUnreadActivity as hasUnreadActivityOutsideActiveThread } from "./SidebarActivityView.logic";
 import { SidebarActivityView } from "./SidebarActivityView";
 import { SidebarIconButton, sidebarIconButtonSlotClass } from "./SidebarIconButton";
+import { GraftLockup } from "./GraftLockup";
 import { SidebarLeadingIcon } from "./SidebarLeadingIcon";
 import { SidebarMetaChipStack } from "./SidebarMetaChip";
 import { SidebarRowHoverActions } from "./SidebarRowHoverActions";
@@ -1305,8 +1306,8 @@ export function SidebarSurfacePicker({
           />
         }
       >
-        <span className="font-display min-w-0 truncate text-[17px] text-foreground">
-          {activeCopy.title}
+        <span className="font-display flex min-w-0 items-center truncate text-[17px] text-foreground">
+          {activeView === "threads" ? <GraftLockup /> : activeCopy.title}
         </span>
         <DisclosureChevron open className="text-muted-foreground/70" />
       </MenuTrigger>
@@ -1336,8 +1337,8 @@ export function SidebarSurfacePicker({
                 className="items-center rounded-[10px] data-checked:bg-[var(--color-background-button-secondary-hover)]"
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[13px] font-medium leading-none text-foreground">
-                    {copy.title}
+                  <span className="flex items-center text-[13px] font-medium leading-none text-foreground">
+                    {view === "threads" ? <GraftLockup /> : copy.title}
                   </span>
                   <span className="text-[11px] leading-snug text-muted-foreground">
                     {copy.description}
