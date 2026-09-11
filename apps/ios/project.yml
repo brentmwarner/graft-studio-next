@@ -39,6 +39,12 @@ targets:
         NSLocalNetworkUsageDescription: Connect directly to Graft Studio running on your Mac over your local network.
         NSMicrophoneUsageDescription: Dictate messages to your agents with the composer mic.
         NSSpeechRecognitionUsageDescription: Transcribe your dictated messages on-device.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            ts.net:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
         GRAFT_APNS_REGISTRATION_ENABLED: false
     settings:
       base:

@@ -1031,6 +1031,20 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* Effect.log("[desktop-artifact] Staging release app...");
   yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
+  yield* Effect.log("[desktop-artifact] Packaging graft-host Linux archive...");
+  yield* runCommand(
+    ChildProcess.make({
+      cwd: repoRoot,
+      ...commandOutputOptions(options.verbose),
+      shell: process.platform === "win32",
+    })`bun run --cwd apps/host pack:linux-x64`,
+  );
+  const hostArchivePath = path.join(distDirs.serverDist, "graft-host-linux-x64.tar.gz");
+  if (!(yield* fs.exists(hostArchivePath))) {
+    return yield* new BuildScriptError({
+      message: `Missing graft-host archive at ${hostArchivePath}. The packaged server looks for it next to apps/server/dist.`,
+    });
+  }
   yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
 
   yield* assertPlatformBuildResources(options.platform, stageResourcesDir, options.verbose);

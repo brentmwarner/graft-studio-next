@@ -1,0 +1,108 @@
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
+import { readDaemonState, removeDaemonState } from "./daemonState";
+
+export interface DaemonProcessControl {
+  isAlive(pid: number): boolean;
+  signal(pid: number, signal: NodeJS.Signals): void;
+}
+
+export const defaultDaemonProcessControl: DaemonProcessControl = {
+  isAlive(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  signal(pid, signal) {
+    process.kill(pid, signal);
+  },
+};
+
+export function isDaemonPidAlive(pid: number): boolean {
+  return defaultDaemonProcessControl.isAlive(pid);
+}
+
+export function readLockPid(lockPath: string): number | null {
+  try {
+    const pid = Number(readFileSync(lockPath, "utf8").trim());
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+export function tryAcquireDaemonLock(
+  lockPath: string,
+  pid: number,
+  control: DaemonProcessControl = defaultDaemonProcessControl,
+): boolean {
+  mkdirSync(dirname(lockPath), { recursive: true, mode: 0o700 });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      writeFileSync(lockPath, `${pid}\n`, { flag: "wx", encoding: "utf8", mode: 0o600 });
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const existing = readLockPid(lockPath);
+      if (existing === pid) return true;
+      if (existing !== null && control.isAlive(existing)) return false;
+      rmSync(lockPath, { force: true });
+    }
+  }
+  return false;
+}
+
+export function releaseDaemonLock(lockPath: string, pid: number): void {
+  if (readLockPid(lockPath) !== pid) return;
+  rmSync(lockPath, { force: true });
+}
+
+export async function stopDaemonPid(
+  pid: number,
+  options: {
+    control?: DaemonProcessControl;
+    wait?: (ms: number) => Promise<void>;
+    timeoutMs?: number;
+  } = {},
+): Promise<void> {
+  const control = options.control ?? defaultDaemonProcessControl;
+  const wait = options.wait ?? ((ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms)));
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  if (!control.isAlive(pid)) return;
+  try {
+    control.signal(pid, "SIGTERM");
+  } catch {
+    return;
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!control.isAlive(pid)) return;
+    await wait(50);
+  }
+  try {
+    control.signal(pid, "SIGKILL");
+  } catch {
+    // The process exited between the last liveness check and SIGKILL.
+  }
+}
+
+export async function stopRecordedDaemon(
+  statePath: string,
+  options: {
+    control?: DaemonProcessControl;
+    wait?: (ms: number) => Promise<void>;
+    timeoutMs?: number;
+  } = {},
+): Promise<void> {
+  const state = readDaemonState(statePath);
+  if (!state) return;
+  const control = options.control ?? defaultDaemonProcessControl;
+  if (control.isAlive(state.pid)) {
+    await stopDaemonPid(state.pid, options);
+  }
+  removeDaemonState(statePath, state.pid);
+}

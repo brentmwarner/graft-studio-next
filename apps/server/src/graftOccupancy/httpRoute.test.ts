@@ -40,6 +40,7 @@ describe("occupancy HTTP helpers", () => {
     expect(health.service).toBe("graft-host");
     expect(health.port).toBe(4783);
     expect(health.environmentLabel).toBe("Omarchy");
+    expect(health.capabilities).toEqual(["projects", "threads"]);
     store.close();
   });
 });

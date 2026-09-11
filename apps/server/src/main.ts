@@ -62,7 +62,12 @@ import { ProviderRuntimeReconcilerLive } from "./provider/Layers/ProviderRuntime
 import { Server } from "./effectServer";
 import { ServerLoggerLive } from "./serverLogger";
 import { ServerSettingsService } from "./serverSettings";
-import { formatHostForUrl, isLoopbackHost, isWildcardHost } from "./startupAccess";
+import {
+  formatHostForUrl,
+  isLoopbackHost,
+  isWildcardHost,
+  mobilePairingBaseUrl,
+} from "./startupAccess";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
 import { startThreadRetentionJob } from "./threadRetention";
 import {
@@ -86,25 +91,6 @@ export class StartupError extends Data.TaggedError("StartupError")<{
 }> {}
 
 const DESKTOP_SHUTDOWN_TOKEN_ENV_KEY = "SYNARA_DESKTOP_SHUTDOWN_TOKEN";
-
-function firstReachableIpv4Address(): string | undefined {
-  for (const addresses of Object.values(OS.networkInterfaces())) {
-    for (const address of addresses ?? []) {
-      if (address.family === "IPv4" && !address.internal) return address.address;
-    }
-  }
-  return undefined;
-}
-
-function mobilePairingBaseUrl(input: {
-  readonly config: Pick<ServerConfigShape, "host" | "port" | "publicUrl">;
-  readonly fallback: string;
-}): string {
-  if (input.config.publicUrl) return input.config.publicUrl.origin;
-  if (!isWildcardHost(input.config.host)) return input.fallback;
-  const address = firstReachableIpv4Address();
-  return address ? `http://${formatHostForUrl(address)}:${input.config.port}` : input.fallback;
-}
 
 function consumeProcessEnvironmentValue(environmentKey: string): string | undefined {
   const matchingKeys =
@@ -453,7 +439,9 @@ const makeServerProgram = (input: CliInput) =>
         : localUrl;
     const pairingBaseUrl = config.publicUrl?.origin ?? bindUrl;
     const resolvedMobilePairingBaseUrl = mobilePairingBaseUrl({
-      config,
+      host: config.host,
+      port: config.port,
+      publicUrl: config.publicUrl,
       fallback: pairingBaseUrl,
     });
     const startupPairingUrl =

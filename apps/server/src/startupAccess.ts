@@ -1,3 +1,5 @@
+import OS from "node:os";
+
 export const isWildcardHost = (host: string | undefined): boolean =>
   host === "0.0.0.0" || host === "::" || host === "[::]";
 
@@ -21,3 +23,27 @@ export const resolveListeningPort = (address: unknown, fallbackPort: number): nu
   }
   return fallbackPort;
 };
+
+export function firstReachableIpv4Address(
+  interfaces: NodeJS.Dict<OS.NetworkInterfaceInfo[]> = OS.networkInterfaces(),
+): string | undefined {
+  for (const addresses of Object.values(interfaces)) {
+    for (const address of addresses ?? []) {
+      if (address.family === "IPv4" && !address.internal) return address.address;
+    }
+  }
+  return undefined;
+}
+
+export function mobilePairingBaseUrl(input: {
+  readonly host: string | undefined;
+  readonly port: number;
+  readonly publicUrl?: URL | undefined;
+  readonly fallback: string;
+  readonly lanAddress?: string | undefined;
+}): string {
+  if (input.publicUrl) return input.publicUrl.origin;
+  if (!isWildcardHost(input.host)) return input.fallback;
+  const address = input.lanAddress ?? firstReachableIpv4Address();
+  return address ? `http://${formatHostForUrl(address)}:${input.port}` : input.fallback;
+}

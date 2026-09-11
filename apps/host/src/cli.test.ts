@@ -1,11 +1,17 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { GRAFT_DESKTOP_PROTOCOL_VERSION, GRAFT_HOST_VERSION } from "@graft/desktop-contract";
+import {
+  GRAFT_DESKTOP_PROTOCOL_VERSION,
+  GRAFT_HOST_SERVER_ENTRY,
+  GRAFT_HOST_VERSION,
+} from "@graft/desktop-contract";
 import { OccupancyStore } from "@graft/occupancy";
 
 import { issueBootstrap, parseHostArguments } from "./cli";
+import { resolveSynaraEntry } from "./synaraEntry";
 
 const roots: string[] = [];
 
@@ -56,5 +62,24 @@ describe("graft-host CLI", () => {
     expect(bootstrap.environmentId).toBe(identity.environmentId);
     expect(bootstrap.enrollmentToken.length).toBeGreaterThanOrEqual(32);
     expect(bootstrap.port).toBe(4783);
+  });
+
+  it("runs the packaged server next to graft-host when present", () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-host-entry-"));
+    roots.push(root);
+    const hostFile = join(root, "graft-host.mjs");
+    const serverFile = join(root, GRAFT_HOST_SERVER_ENTRY);
+    writeFileSync(hostFile, "host");
+    writeFileSync(serverFile, "server");
+    expect(resolveSynaraEntry({}, pathToFileURL(hostFile).href)).toBe(serverFile);
+  });
+
+  it("honors GRAFT_HOST_SYNARA_BIN over a sibling bundle", () => {
+    expect(
+      resolveSynaraEntry(
+        { GRAFT_HOST_SYNARA_BIN: "/opt/synara.mjs" },
+        "file:///tmp/graft-host.mjs",
+      ),
+    ).toBe("/opt/synara.mjs");
   });
 });

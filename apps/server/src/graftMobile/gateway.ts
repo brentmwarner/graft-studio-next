@@ -61,6 +61,7 @@ export interface GraftMobileGatewayState {
   readonly runThreads: Map<string, string>;
   readonly questionKeys: Map<string, string>;
   readonly commandResponses: Map<string, GraftMobileHostMessage>;
+  readonly commandInflight: Map<string, Promise<GraftMobileHostMessage>>;
 }
 
 export function makeGraftMobileGatewayState(): GraftMobileGatewayState {
@@ -68,6 +69,42 @@ export function makeGraftMobileGatewayState(): GraftMobileGatewayState {
     runThreads: new Map(),
     questionKeys: new Map(),
     commandResponses: new Map(),
+    commandInflight: new Map(),
+  };
+}
+
+export type ClaimedMobileCommand =
+  | { readonly kind: "cached"; readonly response: GraftMobileHostMessage }
+  | { readonly kind: "pending"; readonly promise: Promise<GraftMobileHostMessage> }
+  | {
+      readonly kind: "reserved";
+      readonly complete: (response: GraftMobileHostMessage) => void;
+    };
+
+export function claimMobileCommand(
+  state: GraftMobileGatewayState,
+  commandId: string,
+): ClaimedMobileCommand {
+  const cached = state.commandResponses.get(commandId);
+  if (cached) return { kind: "cached", response: cached };
+  const pending = state.commandInflight.get(commandId);
+  if (pending) return { kind: "pending", promise: pending };
+  let settle!: (response: GraftMobileHostMessage) => void;
+  const promise = new Promise<GraftMobileHostMessage>((resolve) => {
+    settle = resolve;
+  });
+  state.commandInflight.set(commandId, promise);
+  return {
+    kind: "reserved",
+    complete: (response) => {
+      state.commandResponses.set(commandId, response);
+      if (state.commandResponses.size > 2_000) {
+        const oldest = state.commandResponses.keys().next().value;
+        if (oldest) state.commandResponses.delete(oldest);
+      }
+      state.commandInflight.delete(commandId);
+      settle(response);
+    },
   };
 }
 
@@ -587,6 +624,9 @@ export const executeMobileCommand = Effect.fn(function* (
       };
     }
     case "cursor.replay": {
+      // First slice: ask the client for a snapshot instead of replaying an
+      // event range. A later PR can stream stored events between afterCursor
+      // and latestCursor.
       const latestCursor = yield* engine.getEventHighWaterSequence;
       return {
         type: "cursor.replay.result",
