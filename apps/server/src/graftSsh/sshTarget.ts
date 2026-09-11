@@ -55,11 +55,7 @@ export const runSshCommand: SshCommandRunner = async (executable, arguments_, op
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") {
         rejectResult(
-          new SshRemoteError(
-            "ssh_unavailable",
-            "The system OpenSSH client is unavailable",
-            false,
-          ),
+          new SshRemoteError("ssh_unavailable", "The system OpenSSH client is unavailable", false),
         );
       } else {
         rejectResult(error);

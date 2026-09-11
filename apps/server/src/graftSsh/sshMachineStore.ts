@@ -2,7 +2,10 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { GraftDesktopCapabilityListSchema } from "@graft/desktop-contract";
-import type { GraftDesktopBootstrapResponse, GraftDesktopEnrollmentResponse } from "@graft/desktop-contract";
+import type {
+  GraftDesktopBootstrapResponse,
+  GraftDesktopEnrollmentResponse,
+} from "@graft/desktop-contract";
 
 import { parseSshTarget } from "./sshTarget";
 import type { ResolvedSshTarget, SavedSshMachine } from "./sshRemoteTypes";
@@ -70,7 +73,9 @@ export class SshMachineStore {
     }
     const sshTarget = parseSshTarget(input.sshTarget);
     const file = this.read();
-    const existing = input.id ? (file.machines.find((machine) => machine.id === input.id) ?? null) : null;
+    const existing = input.id
+      ? (file.machines.find((machine) => machine.id === input.id) ?? null)
+      : null;
     const id = existing?.id ?? input.id ?? `machine-${randomUUID()}`;
     const now = Date.now();
     const next: SavedSshMachine = existing

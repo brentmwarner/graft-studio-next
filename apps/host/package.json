@@ -2,10 +2,10 @@
   "name": "@graft/host",
   "version": "0.2.0",
   "private": true,
-  "type": "module",
   "bin": {
     "graft-host": "./src/cli.ts"
   },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./src/cli.ts",

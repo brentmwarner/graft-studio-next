@@ -38,9 +38,7 @@ export const GraftRemoteEndpointKindSchema = z.enum([
   "https",
   "relay",
 ]);
-export type GraftRemoteEndpointKind = z.infer<
-  typeof GraftRemoteEndpointKindSchema
->;
+export type GraftRemoteEndpointKind = z.infer<typeof GraftRemoteEndpointKindSchema>;
 
 /** Monotonically increasing event cursor within one environment. */
 export const GraftRemoteCursorSchema = z.number().int().nonnegative();
@@ -84,14 +82,10 @@ export const GraftPushRegistrationRequestSchema = z
     bundleId: z.string().min(1).max(256),
   })
   .strict();
-export type GraftPushRegistrationRequest = z.infer<
-  typeof GraftPushRegistrationRequestSchema
->;
+export type GraftPushRegistrationRequest = z.infer<typeof GraftPushRegistrationRequestSchema>;
 
 export const GraftPushUnregistrationRequestSchema = z.object({}).strict();
-export type GraftPushUnregistrationRequest = z.infer<
-  typeof GraftPushUnregistrationRequestSchema
->;
+export type GraftPushUnregistrationRequest = z.infer<typeof GraftPushUnregistrationRequestSchema>;
 
 export const GraftPushRegistrationMetadataSchema = z.object({
   deviceId: z.string().min(1).max(256),
@@ -100,25 +94,19 @@ export const GraftPushRegistrationMetadataSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 });
-export type GraftPushRegistrationMetadata = z.infer<
-  typeof GraftPushRegistrationMetadataSchema
->;
+export type GraftPushRegistrationMetadata = z.infer<typeof GraftPushRegistrationMetadataSchema>;
 
 export const GraftPushRegistrationResponseSchema = z.object({
   ok: z.literal(true),
   registration: GraftPushRegistrationMetadataSchema,
 });
-export type GraftPushRegistrationResponse = z.infer<
-  typeof GraftPushRegistrationResponseSchema
->;
+export type GraftPushRegistrationResponse = z.infer<typeof GraftPushRegistrationResponseSchema>;
 
 export const GraftPushUnregistrationResponseSchema = z.object({
   ok: z.literal(true),
   removed: z.boolean(),
 });
-export type GraftPushUnregistrationResponse = z.infer<
-  typeof GraftPushUnregistrationResponseSchema
->;
+export type GraftPushUnregistrationResponse = z.infer<typeof GraftPushUnregistrationResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Domain summaries
@@ -132,9 +120,7 @@ export const GraftEnvironmentSummarySchema = z.object({
   capabilities: z.array(GraftMobileCapabilitySchema).min(1),
   cursor: GraftRemoteCursorSchema,
 });
-export type GraftEnvironmentSummary = z.infer<
-  typeof GraftEnvironmentSummarySchema
->;
+export type GraftEnvironmentSummary = z.infer<typeof GraftEnvironmentSummarySchema>;
 
 export const GraftProjectSummarySchema = z.object({
   id: z.string().min(1),
@@ -145,11 +131,7 @@ export const GraftProjectSummarySchema = z.object({
 });
 export type GraftProjectSummary = z.infer<typeof GraftProjectSummarySchema>;
 
-export const GraftThreadStatusSchema = z.enum([
-  "idle",
-  "running",
-  "needs_attention",
-]);
+export const GraftThreadStatusSchema = z.enum(["idle", "running", "needs_attention"]);
 export type GraftThreadStatus = z.infer<typeof GraftThreadStatusSchema>;
 
 export const GraftThreadModeSchema = z.enum(["local", "worktree"]);
@@ -178,9 +160,7 @@ export const GraftApprovalPolicyOptionSchema = z.object({
   label: z.string().min(1).max(60),
   description: z.string().min(1).max(160).optional(),
 });
-export type GraftApprovalPolicyOption = z.infer<
-  typeof GraftApprovalPolicyOptionSchema
->;
+export type GraftApprovalPolicyOption = z.infer<typeof GraftApprovalPolicyOptionSchema>;
 
 /** Measured occupancy of a thread's current model context window. */
 export const GraftContextUsageSchema = z.object({
@@ -205,10 +185,7 @@ export const GraftThreadSummarySchema = z.object({
   /** Current approval policy, resolved against the provider's defaults. */
   approvalPolicy: z.string().min(1).max(40).optional(),
   /** Policies the mobile picker can offer for this thread's provider. */
-  approvalPolicyOptions: z
-    .array(GraftApprovalPolicyOptionSchema)
-    .max(12)
-    .optional(),
+  approvalPolicyOptions: z.array(GraftApprovalPolicyOptionSchema).max(12).optional(),
   /** The PR this thread tracks, when its GitHub state is known. */
   pr: GraftThreadPrSchema.optional(),
   /** Latest context-window occupancy resolved by the host. */
@@ -229,10 +206,7 @@ export const GraftModelOptionSchema = z.object({
    */
   reasoningEfforts: z.array(z.string().min(1).max(40)).max(12).optional(),
   /** Provider-defined policies available before a new thread exists. */
-  approvalPolicyOptions: z
-    .array(GraftApprovalPolicyOptionSchema)
-    .max(12)
-    .optional(),
+  approvalPolicyOptions: z.array(GraftApprovalPolicyOptionSchema).max(12).optional(),
   /** Safe provider default for a newly-created thread. */
   defaultApprovalPolicy: z.string().min(1).max(40).optional(),
 });
@@ -284,17 +258,13 @@ export const GraftTimelineEventKindSchema = z.enum([
   "image",
   "status",
 ]);
-export type GraftTimelineEventKind = z.infer<
-  typeof GraftTimelineEventKindSchema
->;
+export type GraftTimelineEventKind = z.infer<typeof GraftTimelineEventKindSchema>;
 
 export const GraftTimelineQuestionOptionSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
 });
-export type GraftTimelineQuestionOption = z.infer<
-  typeof GraftTimelineQuestionOptionSchema
->;
+export type GraftTimelineQuestionOption = z.infer<typeof GraftTimelineQuestionOptionSchema>;
 
 /**
  * Structured payload for rich timeline events ("transcript_rich" capability).
@@ -408,9 +378,7 @@ export const GraftTimelineEventDataSchema = z.discriminatedUnion("type", [
     resultPreview: z.string().max(20_000).optional(),
   }),
 ]);
-export type GraftTimelineEventData = z.infer<
-  typeof GraftTimelineEventDataSchema
->;
+export type GraftTimelineEventData = z.infer<typeof GraftTimelineEventDataSchema>;
 
 export const GraftTimelineEventSchema = z.object({
   id: z.string().min(1),
@@ -429,11 +397,7 @@ export const GraftTimelineEventSchema = z.object({
 });
 export type GraftTimelineEvent = z.infer<typeof GraftTimelineEventSchema>;
 
-export const GraftApprovalDecisionSchema = z.enum([
-  "allow_once",
-  "allow_session",
-  "deny",
-]);
+export const GraftApprovalDecisionSchema = z.enum(["allow_once", "allow_session", "deny"]);
 export type GraftApprovalDecision = z.infer<typeof GraftApprovalDecisionSchema>;
 
 export const GraftApprovalRequestSchema = z.object({
@@ -487,9 +451,7 @@ export const GraftTranscriptSnapshotSchema = z.object({
   events: z.array(GraftTimelineEventSchema),
   cursor: GraftRemoteCursorSchema,
 });
-export type GraftTranscriptSnapshot = z.infer<
-  typeof GraftTranscriptSnapshotSchema
->;
+export type GraftTranscriptSnapshot = z.infer<typeof GraftTranscriptSnapshotSchema>;
 
 export const GraftCommandReceiptStatusSchema = z.enum([
   "accepted",
@@ -497,9 +459,7 @@ export const GraftCommandReceiptStatusSchema = z.enum([
   "rejected",
   "completed",
 ]);
-export type GraftCommandReceiptStatus = z.infer<
-  typeof GraftCommandReceiptStatusSchema
->;
+export type GraftCommandReceiptStatus = z.infer<typeof GraftCommandReceiptStatusSchema>;
 
 export const GraftCommandReceiptSchema = z.object({
   commandId: GraftCommandIdSchema,
@@ -585,9 +545,7 @@ export const GraftSessionCredentialSchema = z.object({
    */
   endpointKind: GraftRemoteEndpointKindSchema.optional(),
 });
-export type GraftSessionCredential = z.infer<
-  typeof GraftSessionCredentialSchema
->;
+export type GraftSessionCredential = z.infer<typeof GraftSessionCredentialSchema>;
 
 export const GraftPairExchangeRequestSchema = z.object({
   token: GraftPairingTokenSchema,
@@ -604,25 +562,19 @@ export const GraftPairExchangeRequestSchema = z.object({
     deviceId: z.string().min(8).max(128).optional(),
   }),
 });
-export type GraftPairExchangeRequest = z.infer<
-  typeof GraftPairExchangeRequestSchema
->;
+export type GraftPairExchangeRequest = z.infer<typeof GraftPairExchangeRequestSchema>;
 
 export const GraftPairExchangeResponseSchema = z.object({
   ok: z.literal(true),
   session: GraftSessionCredentialSchema,
 });
-export type GraftPairExchangeResponse = z.infer<
-  typeof GraftPairExchangeResponseSchema
->;
+export type GraftPairExchangeResponse = z.infer<typeof GraftPairExchangeResponseSchema>;
 
 export const GraftPairExchangeErrorSchema = z.object({
   ok: z.literal(false),
   error: GraftRemoteErrorSchema,
 });
-export type GraftPairExchangeError = z.infer<
-  typeof GraftPairExchangeErrorSchema
->;
+export type GraftPairExchangeError = z.infer<typeof GraftPairExchangeErrorSchema>;
 
 // ---------------------------------------------------------------------------
 // HTTP: health + snapshot
@@ -650,9 +602,7 @@ export const GraftEnvironmentSnapshotSchema = z.object({
   selectedTranscript: GraftTranscriptSnapshotSchema.nullable(),
   cursor: GraftRemoteCursorSchema,
 });
-export type GraftEnvironmentSnapshot = z.infer<
-  typeof GraftEnvironmentSnapshotSchema
->;
+export type GraftEnvironmentSnapshot = z.infer<typeof GraftEnvironmentSnapshotSchema>;
 
 export const GraftSnapshotQuerySchema = z.object({
   threadId: z.string().min(1).optional(),
@@ -808,9 +758,7 @@ export const GraftMobileCommandResultSchema = z.discriminatedUnion("type", [
     snapshot: GraftEnvironmentSnapshotSchema,
   }),
 ]);
-export type GraftMobileCommandResult = z.infer<
-  typeof GraftMobileCommandResultSchema
->;
+export type GraftMobileCommandResult = z.infer<typeof GraftMobileCommandResultSchema>;
 
 // ---------------------------------------------------------------------------
 // WebSocket envelopes
@@ -830,9 +778,7 @@ export const GraftMobileClientMessageSchema = z.discriminatedUnion("envelope", [
   }),
   z.object({
     envelope: z.literal("subscribe"),
-    topics: z
-      .array(z.enum(["projects", "threads", "runs", "events", "approvals"]))
-      .min(1),
+    topics: z.array(z.enum(["projects", "threads", "runs", "events", "approvals"])).min(1),
     afterCursor: GraftRemoteCursorSchema.optional(),
   }),
   z.object({
@@ -842,9 +788,7 @@ export const GraftMobileClientMessageSchema = z.discriminatedUnion("envelope", [
     command: GraftMobileCommandSchema,
   }),
 ]);
-export type GraftMobileClientMessage = z.infer<
-  typeof GraftMobileClientMessageSchema
->;
+export type GraftMobileClientMessage = z.infer<typeof GraftMobileClientMessageSchema>;
 
 export const GraftMobileHostMessageSchema = z.discriminatedUnion("envelope", [
   z.object({
@@ -876,18 +820,11 @@ export const GraftMobileHostMessageSchema = z.discriminatedUnion("envelope", [
   }),
   z.object({
     envelope: z.literal("snapshot_required"),
-    reason: z.enum([
-      "cursor_expired",
-      "backpressure",
-      "schema_changed",
-      "resync",
-    ]),
+    reason: z.enum(["cursor_expired", "backpressure", "schema_changed", "resync"]),
     message: z.string().min(1).optional(),
   }),
 ]);
-export type GraftMobileHostMessage = z.infer<
-  typeof GraftMobileHostMessageSchema
->;
+export type GraftMobileHostMessage = z.infer<typeof GraftMobileHostMessageSchema>;
 
 /** @deprecated Prefer GraftMobileClientMessage — kept for transitional adapters. */
 export type GraftRemoteClientFrame = GraftMobileClientMessage;
@@ -901,9 +838,7 @@ export const GraftRemoteHostFrameSchema = GraftMobileHostMessageSchema;
 // ---------------------------------------------------------------------------
 
 export function assertNeverMobile(value: never): never {
-  throw new Error(
-    `Unhandled mobile protocol variant: ${JSON.stringify(value)}`,
-  );
+  throw new Error(`Unhandled mobile protocol variant: ${JSON.stringify(value)}`);
 }
 
 export function describeMobileCommand(command: GraftMobileCommand): string {
@@ -945,9 +880,7 @@ export function describeMobileCommand(command: GraftMobileCommand): string {
   }
 }
 
-export function describeMobileHostMessage(
-  message: GraftMobileHostMessage,
-): string {
+export function describeMobileHostMessage(message: GraftMobileHostMessage): string {
   switch (message.envelope) {
     case "welcome":
       return "welcome";
@@ -1011,9 +944,7 @@ export function parseGraftPairingUrl(raw: string): GraftPairingPayload | null {
   if (!isGraftPairingLink && !isHttpsPairingLink) return null;
 
   const host = url.searchParams.get("host");
-  const tokenFromHash = new URLSearchParams(url.hash.replace(/^#/, "")).get(
-    "token",
-  );
+  const tokenFromHash = new URLSearchParams(url.hash.replace(/^#/, "")).get("token");
   if (!host || !tokenFromHash || url.searchParams.has("token")) return null;
 
   const versionRaw = url.searchParams.get("v");
@@ -1038,6 +969,4 @@ export function toWebSocketBaseUrl(httpBaseUrl: string): string {
   return `${protocol}//${url.host}${path}`;
 }
 
-export const DEFAULT_MOBILE_CAPABILITIES: GraftMobileCapability[] = [
-  ...GRAFT_MOBILE_CAPABILITIES,
-];
+export const DEFAULT_MOBILE_CAPABILITIES: GraftMobileCapability[] = [...GRAFT_MOBILE_CAPABILITIES];

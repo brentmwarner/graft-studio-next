@@ -20,19 +20,14 @@ export function ReasoningBlock({
 
   return (
     <View style={styles.reasoningBlock}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setExpanded((value) => !value)}
-      >
+      <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)}>
         <View style={styles.reasoningHeader}>
           {streaming ? (
             <View style={styles.liveCopy}>
               <LiveStatusLine phrase={THINKING_PHRASE} />
             </View>
           ) : (
-            <Text
-              style={[styles.reasoningTitle, { color: palette.foregroundSubtle }]}
-            >
+            <Text style={[styles.reasoningTitle, { color: palette.foregroundSubtle }]}>
               Thoughts
             </Text>
           )}
@@ -45,24 +40,13 @@ export function ReasoningBlock({
         </View>
       </Pressable>
       {expanded ? (
-        <View
-          style={[
-            styles.reasoningExpanded,
-            { borderLeftColor: palette.border },
-          ]}
-        >
-          <Text
-            selectable
-            style={[styles.reasoningText, { color: palette.foregroundSubtle }]}
-          >
+        <View style={[styles.reasoningExpanded, { borderLeftColor: palette.border }]}>
+          <Text selectable style={[styles.reasoningText, { color: palette.foregroundSubtle }]}>
             {reasoning}
           </Text>
         </View>
       ) : streaming ? (
-        <Text
-          numberOfLines={2}
-          style={[styles.reasoningText, { color: palette.foregroundSubtle }]}
-        >
+        <Text numberOfLines={2} style={[styles.reasoningText, { color: palette.foregroundSubtle }]}>
           {latestLine}
         </Text>
       ) : null}

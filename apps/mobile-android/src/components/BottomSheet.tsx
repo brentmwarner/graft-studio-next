@@ -77,10 +77,7 @@ export function BottomSheet({
         onMoveShouldSetPanResponder: (_event, gesture) => gesture.dy > 4,
         onPanResponderMove: (_event, gesture) => {
           if (gesture.dy <= 0 || measuredHeight.current <= 0) return;
-          progress.value = Math.max(
-            0,
-            1 - gesture.dy / measuredHeight.current,
-          );
+          progress.value = Math.max(0, 1 - gesture.dy / measuredHeight.current);
         },
         onPanResponderRelease: (_event, gesture) => {
           if (gesture.dy > DISMISS_DISTANCE || gesture.vy > DISMISS_VELOCITY) {
@@ -110,21 +107,9 @@ export function BottomSheet({
   if (!isMounted) return null;
 
   return (
-    <Modal
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-      transparent
-      visible
-    >
+    <Modal animationType="none" onRequestClose={onClose} statusBarTranslucent transparent visible>
       <View style={styles.root}>
-        <Animated.View
-          style={[
-            styles.scrim,
-            { backgroundColor: palette.scrim },
-            scrimStyle,
-          ]}
-        >
+        <Animated.View style={[styles.scrim, { backgroundColor: palette.scrim }, scrimStyle]}>
           <Pressable
             accessibilityLabel="Close"
             accessibilityRole="button"
@@ -147,23 +132,13 @@ export function BottomSheet({
           ]}
         >
           <View {...panResponder.panHandlers}>
-            <View
-              style={[styles.grabber, { backgroundColor: palette.muted }]}
-            />
+            <View style={[styles.grabber, { backgroundColor: palette.muted }]} />
             <View style={styles.header}>
-              <Text style={[styles.title, { color: palette.foreground }]}>
-                {title}
-              </Text>
+              <Text style={[styles.title, { color: palette.foreground }]}>{title}</Text>
               {trailingAccessory ?? (
                 <PressScale accessibilityLabel="Close" onPress={onClose}>
-                  <View
-                    style={[styles.close, { backgroundColor: palette.subtle }]}
-                  >
-                    <Ionicons
-                      color={palette.foregroundMuted}
-                      name="close"
-                      size={18}
-                    />
+                  <View style={[styles.close, { backgroundColor: palette.subtle }]}>
+                    <Ionicons color={palette.foregroundMuted} name="close" size={18} />
                   </View>
                 </PressScale>
               )}

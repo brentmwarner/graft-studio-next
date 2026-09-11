@@ -1,13 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useState } from "react";
-import {
-  Image,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import type { TranscriptActivityItem } from "../state/mobileViewModels";
 import { graftRadius, useGraftPalette } from "../theme/tokens";
 import type { GraftPalette } from "../theme/tokens";
@@ -35,12 +28,7 @@ function CardShell({ icon, title, meta, body, onPress }: CardShellProps) {
   const interactive = Boolean(body) || Boolean(onPress);
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: palette.subtle, borderColor: palette.border },
-      ]}
-    >
+    <View style={[styles.card, { backgroundColor: palette.subtle, borderColor: palette.border }]}>
       <Pressable
         accessibilityRole={interactive ? "button" : undefined}
         disabled={!interactive}
@@ -48,10 +36,7 @@ function CardShell({ icon, title, meta, body, onPress }: CardShellProps) {
       >
         <View style={styles.header}>
           <Ionicons color={palette.foregroundSubtle} name={icon} size={16} />
-          <Text
-            numberOfLines={1}
-            style={[styles.title, { color: palette.foreground }]}
-          >
+          <Text numberOfLines={1} style={[styles.title, { color: palette.foreground }]}>
             {title}
           </Text>
           {meta}
@@ -70,13 +55,7 @@ function CardShell({ icon, title, meta, body, onPress }: CardShellProps) {
   );
 }
 
-function MonoBlock({
-  text,
-  palette,
-}: {
-  readonly text: string;
-  readonly palette: GraftPalette;
-}) {
+function MonoBlock({ text, palette }: { readonly text: string; readonly palette: GraftPalette }) {
   const lines = text.split("\n");
   const shown = lines.slice(0, MAX_INLINE_LINES);
   return (
@@ -95,13 +74,7 @@ function MonoBlock({
 
 /// Unified diff with per-line tinting. The green and red here are semantic —
 /// they say "added" and "removed", not "good" and "bad".
-function DiffBlock({
-  diff,
-  palette,
-}: {
-  readonly diff: string;
-  readonly palette: GraftPalette;
-}) {
+function DiffBlock({ diff, palette }: { readonly diff: string; readonly palette: GraftPalette }) {
   const lines = diff.split("\n");
   const shown = lines.slice(0, MAX_INLINE_LINES);
   return (
@@ -118,11 +91,7 @@ function DiffBlock({
             style={[
               styles.diffLine,
               {
-                color: added
-                  ? palette.success
-                  : removed
-                    ? palette.danger
-                    : palette.foregroundMuted,
+                color: added ? palette.success : removed ? palette.danger : palette.foregroundMuted,
                 backgroundColor: added
                   ? palette.diffAddBackground
                   : removed
@@ -152,9 +121,7 @@ function StatusDot({
   readonly palette: GraftPalette;
 }) {
   if (state === "done") {
-    return (
-      <Ionicons color={palette.foregroundSubtle} name="checkmark" size={14} />
-    );
+    return <Ionicons color={palette.foregroundSubtle} name="checkmark" size={14} />;
   }
   return (
     <View
@@ -196,10 +163,7 @@ function ChecklistBody({
             style={[
               styles.stepText,
               {
-                color:
-                  item.state === "done"
-                    ? palette.foregroundSubtle
-                    : palette.foregroundMuted,
+                color: item.state === "done" ? palette.foregroundSubtle : palette.foregroundMuted,
               },
             ]}
           >
@@ -222,11 +186,7 @@ export const ActivityCard = memo(function ActivityCard({
   // No structured payload — the host still guarantees readable text, and a
   // plain line beats a hole in the turn.
   if (!data) {
-    return (
-      <Text style={[styles.plainNote, { color: palette.foregroundSubtle }]}>
-        {item.text}
-      </Text>
-    );
+    return <Text style={[styles.plainNote, { color: palette.foregroundSubtle }]}>{item.text}</Text>;
   }
 
   switch (data.type) {
@@ -237,12 +197,8 @@ export const ActivityCard = memo(function ActivityCard({
           icon="document-text-outline"
           meta={
             <View style={styles.diffStats}>
-              <Text style={[styles.stat, { color: palette.success }]}>
-                {`+${data.additions}`}
-              </Text>
-              <Text style={[styles.stat, { color: palette.danger }]}>
-                {`−${data.deletions}`}
-              </Text>
+              <Text style={[styles.stat, { color: palette.success }]}>{`+${data.additions}`}</Text>
+              <Text style={[styles.stat, { color: palette.danger }]}>{`−${data.deletions}`}</Text>
             </View>
           }
           title={fileName(data.filePath)}
@@ -342,18 +298,12 @@ export const ActivityCard = memo(function ActivityCard({
                       });
                     }}
                   >
-                    <Text
-                      numberOfLines={2}
-                      style={[styles.resultTitle, { color: palette.info }]}
-                    >
+                    <Text numberOfLines={2} style={[styles.resultTitle, { color: palette.info }]}>
                       {result.title}
                     </Text>
                     <Text
                       numberOfLines={1}
-                      style={[
-                        styles.resultUrl,
-                        { color: palette.foregroundSubtle },
-                      ]}
+                      style={[styles.resultUrl, { color: palette.foregroundSubtle }]}
                     >
                       {result.url}
                     </Text>
@@ -380,10 +330,7 @@ export const ActivityCard = memo(function ActivityCard({
         <CardShell
           body={
             data.summary ? (
-              <Text
-                selectable
-                style={[styles.bodyText, { color: palette.foregroundMuted }]}
-              >
+              <Text selectable style={[styles.bodyText, { color: palette.foregroundMuted }]}>
                 {data.summary}
               </Text>
             ) : undefined
@@ -394,18 +341,11 @@ export const ActivityCard = memo(function ActivityCard({
               style={[
                 styles.stat,
                 {
-                  color:
-                    data.status === "failed"
-                      ? palette.danger
-                      : palette.foregroundSubtle,
+                  color: data.status === "failed" ? palette.danger : palette.foregroundSubtle,
                 },
               ]}
             >
-              {data.status === "running"
-                ? "running"
-                : data.status === "failed"
-                  ? "failed"
-                  : "done"}
+              {data.status === "running" ? "running" : data.status === "failed" ? "failed" : "done"}
             </Text>
           }
           title={data.name ?? "Agent"}
@@ -415,11 +355,7 @@ export const ActivityCard = memo(function ActivityCard({
     case "artifact":
       return (
         <CardShell
-          body={
-            data.preview ? (
-              <MonoBlock palette={palette} text={data.preview} />
-            ) : undefined
-          }
+          body={data.preview ? <MonoBlock palette={palette} text={data.preview} /> : undefined}
           icon="cube-outline"
           meta={
             data.mimeType ? (
@@ -454,9 +390,7 @@ export const ActivityCard = memo(function ActivityCard({
     // their own rows and prompts — they never arrive as activity.
     default:
       return (
-        <Text style={[styles.plainNote, { color: palette.foregroundSubtle }]}>
-          {item.text}
-        </Text>
+        <Text style={[styles.plainNote, { color: palette.foregroundSubtle }]}>{item.text}</Text>
       );
   }
 });

@@ -1,7 +1,4 @@
-import type {
-  GraftApprovalPolicyOption,
-  GraftModelOption,
-} from "@graft/mobile-contract";
+import type { GraftApprovalPolicyOption, GraftModelOption } from "@graft/mobile-contract";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "../../components/BottomSheet";
@@ -115,17 +112,12 @@ export function ModelPickerSheet({
             onPress={() => {
               onSelectModel(model);
             }}
-            selected={
-              model.id === currentModel?.id &&
-              model.providerId === currentModel.providerId
-            }
+            selected={model.id === currentModel?.id && model.providerId === currentModel.providerId}
           />
         ))}
         {efforts.length > 0 ? (
           <View style={styles.effortSection}>
-            <Text
-              style={[styles.sectionLabel, { color: palette.foregroundSubtle }]}
-            >
+            <Text style={[styles.sectionLabel, { color: palette.foregroundSubtle }]}>
               Reasoning effort
             </Text>
             <View style={styles.effortOptions}>
@@ -140,9 +132,7 @@ export function ModelPickerSheet({
                       styles.effortPill,
                       {
                         backgroundColor:
-                          effort === resolvedEffort
-                            ? palette.foreground
-                            : palette.subtle,
+                          effort === resolvedEffort ? palette.foreground : palette.subtle,
                       },
                     ]}
                   >

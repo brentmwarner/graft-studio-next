@@ -16,10 +16,7 @@ export interface TunnelProcess {
   exitCode: number | null;
   killed: boolean;
   once(event: "error", listener: (error: Error) => void): this;
-  once(
-    event: "exit",
-    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
-  ): this;
+  once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
   kill(signal?: NodeJS.Signals): boolean;
 }
 

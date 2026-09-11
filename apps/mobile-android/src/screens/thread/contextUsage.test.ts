@@ -27,9 +27,7 @@ describe("context usage presentation", () => {
       source: "unknown" as const,
     };
 
-    expect(contextUsageAccessibilityLabel(usage)).toBe(
-      "Context usage unavailable",
-    );
+    expect(contextUsageAccessibilityLabel(usage)).toBe("Context usage unavailable");
     expect(contextUsageDetail(usage)).toContain("does not report");
   });
 

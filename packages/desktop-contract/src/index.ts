@@ -45,8 +45,7 @@ export const GRAFT_DESKTOP_CAPABILITIES = [
   "bulk_transfer",
   "diagnostics",
 ] as const;
-export type GraftDesktopCapability =
-  (typeof GRAFT_DESKTOP_CAPABILITIES)[number];
+export type GraftDesktopCapability = (typeof GRAFT_DESKTOP_CAPABILITIES)[number];
 
 /**
  * Commands implemented by the v1 headless host. The desktop and daemon share
@@ -133,9 +132,7 @@ export const GRAFT_DESKTOP_V1_HOST_COMMAND_CAPABILITIES = {
 export const GraftDesktopCapabilitySchema = z.enum(GRAFT_DESKTOP_CAPABILITIES);
 
 export const GraftDesktopSessionProfileSchema = z.literal("desktop_occupancy");
-export type GraftDesktopSessionProfile = z.infer<
-  typeof GraftDesktopSessionProfileSchema
->;
+export type GraftDesktopSessionProfile = z.infer<typeof GraftDesktopSessionProfileSchema>;
 
 export const GraftDesktopCursorSchema = z.number().int().nonnegative();
 export type GraftDesktopCursor = z.infer<typeof GraftDesktopCursorSchema>;
@@ -151,9 +148,7 @@ export const GraftDesktopEnvironmentIdSchema = z
   .min(16)
   .max(128)
   .regex(/^[A-Za-z0-9._~-]+$/);
-export type GraftDesktopEnvironmentId = z.infer<
-  typeof GraftDesktopEnvironmentIdSchema
->;
+export type GraftDesktopEnvironmentId = z.infer<typeof GraftDesktopEnvironmentIdSchema>;
 
 export const GraftDesktopSessionIdSchema = z
   .string()
@@ -169,17 +164,13 @@ const DesktopOpaqueSecretSchema = z
   .regex(/^[A-Za-z0-9._~-]+$/);
 
 export const GraftDesktopEnrollmentTokenSchema = DesktopOpaqueSecretSchema;
-export type GraftDesktopEnrollmentToken = z.infer<
-  typeof GraftDesktopEnrollmentTokenSchema
->;
+export type GraftDesktopEnrollmentToken = z.infer<typeof GraftDesktopEnrollmentTokenSchema>;
 
 export const GraftDesktopBearerSchema = DesktopOpaqueSecretSchema;
 export type GraftDesktopBearer = z.infer<typeof GraftDesktopBearerSchema>;
 
 export const GraftDesktopRequestHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
-export type GraftDesktopRequestHash = z.infer<
-  typeof GraftDesktopRequestHashSchema
->;
+export type GraftDesktopRequestHash = z.infer<typeof GraftDesktopRequestHashSchema>;
 
 export type GraftDesktopJsonValue =
   | null
@@ -189,21 +180,18 @@ export type GraftDesktopJsonValue =
   | GraftDesktopJsonValue[]
   | { [key: string]: GraftDesktopJsonValue };
 
-export const GraftDesktopJsonValueSchema: z.ZodType<GraftDesktopJsonValue> =
-  z.lazy(() =>
-    z.union([
-      z.null(),
-      z.boolean(),
-      z.number(),
-      z.string(),
-      z.array(GraftDesktopJsonValueSchema),
-      z.record(GraftDesktopJsonValueSchema),
-    ]),
-  );
+export const GraftDesktopJsonValueSchema: z.ZodType<GraftDesktopJsonValue> = z.lazy(() =>
+  z.union([
+    z.null(),
+    z.boolean(),
+    z.number(),
+    z.string(),
+    z.array(GraftDesktopJsonValueSchema),
+    z.record(GraftDesktopJsonValueSchema),
+  ]),
+);
 
-function uniqueCapabilities(
-  values: readonly GraftDesktopCapability[],
-): boolean {
+function uniqueCapabilities(values: readonly GraftDesktopCapability[]): boolean {
   return new Set(values).size === values.length;
 }
 
@@ -253,9 +241,7 @@ export const GraftDesktopBootstrapResponseSchema = z
     activePtyCount: z.number().int().nonnegative(),
   })
   .strict();
-export type GraftDesktopBootstrapResponse = z.infer<
-  typeof GraftDesktopBootstrapResponseSchema
->;
+export type GraftDesktopBootstrapResponse = z.infer<typeof GraftDesktopBootstrapResponseSchema>;
 
 export const GraftDesktopEnrollmentRequestSchema = z
   .object({
@@ -267,9 +253,7 @@ export const GraftDesktopEnrollmentRequestSchema = z
     capabilities: GraftDesktopCapabilityListSchema,
   })
   .strict();
-export type GraftDesktopEnrollmentRequest = z.infer<
-  typeof GraftDesktopEnrollmentRequestSchema
->;
+export type GraftDesktopEnrollmentRequest = z.infer<typeof GraftDesktopEnrollmentRequestSchema>;
 
 export const GraftDesktopSessionRecordSchema = z
   .object({
@@ -285,9 +269,7 @@ export const GraftDesktopSessionRecordSchema = z
     revokedAt: z.number().int().nonnegative().nullable(),
   })
   .strict();
-export type GraftDesktopSessionRecord = z.infer<
-  typeof GraftDesktopSessionRecordSchema
->;
+export type GraftDesktopSessionRecord = z.infer<typeof GraftDesktopSessionRecordSchema>;
 
 export const GraftDesktopEnrollmentResponseSchema = z
   .object({
@@ -296,9 +278,7 @@ export const GraftDesktopEnrollmentResponseSchema = z
     bearer: GraftDesktopBearerSchema,
   })
   .strict();
-export type GraftDesktopEnrollmentResponse = z.infer<
-  typeof GraftDesktopEnrollmentResponseSchema
->;
+export type GraftDesktopEnrollmentResponse = z.infer<typeof GraftDesktopEnrollmentResponseSchema>;
 
 export const GraftDesktopEnvironmentSchema = z
   .object({
@@ -311,9 +291,7 @@ export const GraftDesktopEnvironmentSchema = z
     replayFloor: GraftDesktopCursorSchema,
   })
   .strict();
-export type GraftDesktopEnvironment = z.infer<
-  typeof GraftDesktopEnvironmentSchema
->;
+export type GraftDesktopEnvironment = z.infer<typeof GraftDesktopEnvironmentSchema>;
 
 export const GraftDesktopCommandEnvelopeSchema = z
   .object({
@@ -322,9 +300,7 @@ export const GraftDesktopCommandEnvelopeSchema = z
     payload: GraftDesktopJsonValueSchema.optional(),
   })
   .strict();
-export type GraftDesktopCommandEnvelope = z.infer<
-  typeof GraftDesktopCommandEnvelopeSchema
->;
+export type GraftDesktopCommandEnvelope = z.infer<typeof GraftDesktopCommandEnvelopeSchema>;
 
 export const GraftDesktopCommandReceiptSchema = z
   .object({
@@ -336,9 +312,7 @@ export const GraftDesktopCommandReceiptSchema = z
     completedAt: z.number().int().nonnegative().nullable(),
   })
   .strict();
-export type GraftDesktopCommandReceipt = z.infer<
-  typeof GraftDesktopCommandReceiptSchema
->;
+export type GraftDesktopCommandReceipt = z.infer<typeof GraftDesktopCommandReceiptSchema>;
 
 export const GraftDesktopErrorCodeSchema = z.enum([
   "unauthorized",
@@ -365,43 +339,38 @@ export const GraftDesktopErrorSchema = z
   .strict();
 export type GraftDesktopError = z.infer<typeof GraftDesktopErrorSchema>;
 
-export const GraftDesktopClientMessageSchema = z.discriminatedUnion(
-  "envelope",
-  [
-    z
-      .object({
-        envelope: z.literal("hello"),
-        protocolVersion: z.literal(GRAFT_DESKTOP_PROTOCOL_VERSION),
-        clientVersion: z.string().min(1).max(80),
-        capabilities: GraftDesktopCapabilityListSchema,
-        afterCursor: GraftDesktopCursorSchema.optional(),
-      })
-      .strict(),
-    z
-      .object({
-        envelope: z.literal("ping"),
-        at: z.number().int().nonnegative(),
-      })
-      .strict(),
-    z
-      .object({
-        envelope: z.literal("replay"),
-        afterCursor: GraftDesktopCursorSchema,
-      })
-      .strict(),
-    z
-      .object({
-        envelope: z.literal("command"),
-        commandId: GraftDesktopCommandIdSchema,
-        requestId: GraftDesktopRequestIdSchema.optional(),
-        command: GraftDesktopCommandEnvelopeSchema,
-      })
-      .strict(),
-  ],
-);
-export type GraftDesktopClientMessage = z.infer<
-  typeof GraftDesktopClientMessageSchema
->;
+export const GraftDesktopClientMessageSchema = z.discriminatedUnion("envelope", [
+  z
+    .object({
+      envelope: z.literal("hello"),
+      protocolVersion: z.literal(GRAFT_DESKTOP_PROTOCOL_VERSION),
+      clientVersion: z.string().min(1).max(80),
+      capabilities: GraftDesktopCapabilityListSchema,
+      afterCursor: GraftDesktopCursorSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      envelope: z.literal("ping"),
+      at: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      envelope: z.literal("replay"),
+      afterCursor: GraftDesktopCursorSchema,
+    })
+    .strict(),
+  z
+    .object({
+      envelope: z.literal("command"),
+      commandId: GraftDesktopCommandIdSchema,
+      requestId: GraftDesktopRequestIdSchema.optional(),
+      command: GraftDesktopCommandEnvelopeSchema,
+    })
+    .strict(),
+]);
+export type GraftDesktopClientMessage = z.infer<typeof GraftDesktopClientMessageSchema>;
 
 export const GraftDesktopStreamChannelSchema = z.enum([
   "worker",
@@ -410,9 +379,7 @@ export const GraftDesktopStreamChannelSchema = z.enum([
   "lsp",
   "progress",
 ]);
-export type GraftDesktopStreamChannel = z.infer<
-  typeof GraftDesktopStreamChannelSchema
->;
+export type GraftDesktopStreamChannel = z.infer<typeof GraftDesktopStreamChannelSchema>;
 
 export const GraftDesktopStreamFrameSchema = z
   .object({
@@ -424,9 +391,7 @@ export const GraftDesktopStreamFrameSchema = z
     eof: z.boolean().optional(),
   })
   .strict();
-export type GraftDesktopStreamFrame = z.infer<
-  typeof GraftDesktopStreamFrameSchema
->;
+export type GraftDesktopStreamFrame = z.infer<typeof GraftDesktopStreamFrameSchema>;
 
 export const GraftDesktopHostMessageSchema = z
   .discriminatedUnion("envelope", [
@@ -494,9 +459,7 @@ export const GraftDesktopHostMessageSchema = z
       });
     }
   });
-export type GraftDesktopHostMessage = z.infer<
-  typeof GraftDesktopHostMessageSchema
->;
+export type GraftDesktopHostMessage = z.infer<typeof GraftDesktopHostMessageSchema>;
 
 export const GraftDesktopBulkTransferTicketSchema = z
   .object({
@@ -508,25 +471,17 @@ export const GraftDesktopBulkTransferTicketSchema = z
     expiresAt: z.number().int().nonnegative(),
   })
   .strict();
-export type GraftDesktopBulkTransferTicket = z.infer<
-  typeof GraftDesktopBulkTransferTicketSchema
->;
+export type GraftDesktopBulkTransferTicket = z.infer<typeof GraftDesktopBulkTransferTicketSchema>;
 
 export const GraftDesktopBulkUploadRequestSchema = z
   .object({
     operation: z.literal("create_upload"),
     mediaType: z.string().min(1).max(200),
-    sizeBytes: z
-      .number()
-      .int()
-      .nonnegative()
-      .max(GRAFT_DESKTOP_MAX_BULK_TRANSFER_BYTES),
+    sizeBytes: z.number().int().nonnegative().max(GRAFT_DESKTOP_MAX_BULK_TRANSFER_BYTES),
     sha256: GraftDesktopRequestHashSchema,
   })
   .strict();
-export type GraftDesktopBulkUploadRequest = z.infer<
-  typeof GraftDesktopBulkUploadRequestSchema
->;
+export type GraftDesktopBulkUploadRequest = z.infer<typeof GraftDesktopBulkUploadRequestSchema>;
 
 export const GraftDesktopBulkUploadResultSchema = z
   .object({
@@ -534,9 +489,7 @@ export const GraftDesktopBulkUploadResultSchema = z
     ticket: GraftDesktopBulkTransferTicketSchema,
   })
   .strict();
-export type GraftDesktopBulkUploadResult = z.infer<
-  typeof GraftDesktopBulkUploadResultSchema
->;
+export type GraftDesktopBulkUploadResult = z.infer<typeof GraftDesktopBulkUploadResultSchema>;
 
 export const GraftDesktopAuthorizationRejectionSchema = z
   .object({
@@ -579,7 +532,5 @@ export function negotiateDesktopCapabilities(
 }
 
 export function assertNeverDesktop(value: never): never {
-  throw new Error(
-    `Unhandled desktop host protocol variant: ${JSON.stringify(value)}`,
-  );
+  throw new Error(`Unhandled desktop host protocol variant: ${JSON.stringify(value)}`);
 }

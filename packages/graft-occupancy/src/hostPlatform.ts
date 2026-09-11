@@ -24,9 +24,7 @@ export function diagnoseHostPlatform(): HostPlatformDiagnostic {
     platform: process.platform,
     architecture: process.arch,
     libc,
-    message: compatible
-      ? `Linux x64 glibc ${libc}`
-      : "graft-host v1 requires Linux x64 with glibc",
+    message: compatible ? `Linux x64 glibc ${libc}` : "graft-host v1 requires Linux x64 with glibc",
   };
 }
 

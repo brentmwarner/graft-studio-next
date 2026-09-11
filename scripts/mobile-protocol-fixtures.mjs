@@ -1,20 +1,5 @@
-import {
-  copyFile,
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  rm,
-} from "node:fs/promises";
-import {
-  dirname,
-  isAbsolute,
-  join,
-  parse,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { copyFile, lstat, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,10 +7,7 @@ const defaultSource = join(
   repositoryRoot,
   "packages/mobile-contract/protocol-fixtures/mobile-v1/valid",
 );
-const defaultTarget = join(
-  repositoryRoot,
-  "apps/ios/GraftTests/Fixtures/mobile-v1",
-);
+const defaultTarget = join(repositoryRoot, "apps/ios/GraftTests/Fixtures/mobile-v1");
 
 export async function compareFixtureDirectories(sourcePath, targetPath) {
   const source = resolve(sourcePath);
@@ -89,10 +71,7 @@ export async function syncFixtureDirectories(sourcePath, targetPath) {
   return { total: sourceFiles.length };
 }
 
-export async function runFixtureCommand(
-  args,
-  output = { error: console.error, log: console.log },
-) {
+export async function runFixtureCommand(args, output = { error: console.error, log: console.log }) {
   try {
     const options = parseArguments(args);
     if (options.help) {
@@ -101,18 +80,12 @@ export async function runFixtureCommand(
     }
 
     if (options.mode === "write") {
-      const result = await syncFixtureDirectories(
-        options.source,
-        options.target,
-      );
+      const result = await syncFixtureDirectories(options.source, options.target);
       output.log(`Synced ${result.total} iOS protocol fixtures.`);
       return 0;
     }
 
-    const result = await compareFixtureDirectories(
-      options.source,
-      options.target,
-    );
+    const result = await compareFixtureDirectories(options.source, options.target);
     const diagnostics = formatDiagnostics(result);
     if (diagnostics.length > 0) {
       output.error("iOS protocol fixtures are out of sync:");
@@ -124,9 +97,7 @@ export async function runFixtureCommand(
     output.log(`iOS protocol fixtures are in sync (${result.total} files).`);
     return 0;
   } catch (error) {
-    output.error(
-      `Fixture sync failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    output.error(`Fixture sync failed: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }
 }
@@ -193,9 +164,7 @@ async function collectJsonFiles(root) {
     for (const entry of entries) {
       const absolutePath = join(directory, entry.name);
       if (entry.isSymbolicLink()) {
-        throw new Error(
-          `Fixture directories must not contain symlinks: ${absolutePath}`,
-        );
+        throw new Error(`Fixture directories must not contain symlinks: ${absolutePath}`);
       }
       if (entry.isDirectory()) {
         await visit(absolutePath);
@@ -232,9 +201,7 @@ async function assertDirectory(path, label) {
 
 function assertDistinctPaths(source, target) {
   if (pathIsWithin(source, target) || pathIsWithin(target, source)) {
-    throw new Error(
-      "Source and target directories must be different and non-nested",
-    );
+    throw new Error("Source and target directories must be different and non-nested");
   }
 }
 
@@ -250,14 +217,8 @@ function pathIsWithin(parent, candidate) {
 
 function assertSafeWriteTarget(target) {
   const filesystemRoot = parse(target).root;
-  const targetDepth = relative(filesystemRoot, target)
-    .split(sep)
-    .filter(Boolean).length;
-  if (
-    target === filesystemRoot ||
-    target === repositoryRoot ||
-    targetDepth < 3
-  ) {
+  const targetDepth = relative(filesystemRoot, target).split(sep).filter(Boolean).length;
+  if (target === filesystemRoot || target === repositoryRoot || targetDepth < 3) {
     throw new Error(`Refusing unsafe fixture target: ${target}`);
   }
 }
@@ -286,8 +247,7 @@ function usage() {
 }
 
 const isCommandLine =
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (isCommandLine) {
   process.exitCode = await runFixtureCommand(process.argv.slice(2));
 }

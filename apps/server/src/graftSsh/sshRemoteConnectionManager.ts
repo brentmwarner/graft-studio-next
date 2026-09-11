@@ -110,8 +110,7 @@ export class SshRemoteConnectionManager {
       runner: this.options.commandRunner,
     });
     const bootstrap = await this.installer.bootstrap(resolvedTarget.target);
-    const createTunnel =
-      this.options.createTunnel ?? ((options) => new ManagedSshTunnel(options));
+    const createTunnel = this.options.createTunnel ?? ((options) => new ManagedSshTunnel(options));
     const tunnel = createTunnel({
       target: resolvedTarget.target,
       remotePort: bootstrap.port,

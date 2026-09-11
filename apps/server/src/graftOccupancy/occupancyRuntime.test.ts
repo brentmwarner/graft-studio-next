@@ -3,10 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  closeOccupancyRuntime,
-  occupancyDatabasePath,
-} from "./occupancyRuntime";
+import { closeOccupancyRuntime, occupancyDatabasePath } from "./occupancyRuntime";
 
 const roots: string[] = [];
 

@@ -11,9 +11,20 @@ const archivePath = join(distDir, "graft-host-linux-x64.tar.gz");
 
 mkdirSync(join(stagingDir, "bin"), { recursive: true });
 
-const bundled = spawnSync("bun", ["build", join(hostRoot, "src/cli.ts"), "--outfile", join(stagingDir, "bin/graft-host.mjs"), "--target", "node"], {
-  encoding: "utf8",
-});
+const bundled = spawnSync(
+  "bun",
+  [
+    "build",
+    join(hostRoot, "src/cli.ts"),
+    "--outfile",
+    join(stagingDir, "bin/graft-host.mjs"),
+    "--target",
+    "node",
+  ],
+  {
+    encoding: "utf8",
+  },
+);
 if (bundled.status !== 0) {
   process.stderr.write(bundled.stderr || bundled.stdout || "bun build failed\n");
   process.exit(bundled.status ?? 1);
@@ -28,5 +39,8 @@ if (packed.status !== 0) {
 }
 
 const digest = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
-writeFileSync(`${archivePath}.sha256`, `${digest}  ${dirname(archivePath) === distDir ? "graft-host-linux-x64.tar.gz" : archivePath}\n`);
+writeFileSync(
+  `${archivePath}.sha256`,
+  `${digest}  ${dirname(archivePath) === distDir ? "graft-host-linux-x64.tar.gz" : archivePath}\n`,
+);
 process.stdout.write(`${archivePath}\n${digest}\n`);

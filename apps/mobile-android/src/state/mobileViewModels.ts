@@ -73,9 +73,7 @@ export type TranscriptItem =
 /// stay inside the run so Claude's think→grep→think→bash pattern is one
 /// line of activity, not a stack of identical "Using Bash…" rows. Mirrors
 /// the iOS `ToolActivityStrip`.
-export function groupToolRuns(
-  items: readonly TranscriptItem[],
-): readonly TranscriptItem[] {
+export function groupToolRuns(items: readonly TranscriptItem[]): readonly TranscriptItem[] {
   const grouped: TranscriptItem[] = [];
   let run: TranscriptToolItem[] = [];
 
@@ -85,9 +83,7 @@ export function groupToolRuns(
     // A lone tool call stays a plain row — folding one thing hides nothing and
     // costs a tap.
     grouped.push(
-      run.length === 1
-        ? first
-        : { id: `toolgroup:${first.id}`, kind: "toolGroup", tools: run },
+      run.length === 1 ? first : { id: `toolgroup:${first.id}`, kind: "toolGroup", tools: run },
     );
     run = [];
   }
@@ -108,11 +104,7 @@ export function groupToolRuns(
 function isQuietToolRunRow(item: TranscriptItem): boolean {
   if (item.kind === "assistant") return !item.text.trim();
   if (item.kind === "activity") {
-    return (
-      !item.data ||
-      item.data.type === "todo_update" ||
-      item.data.type === "web_search"
-    );
+    return !item.data || item.data.type === "todo_update" || item.data.type === "web_search";
   }
   return false;
 }
@@ -126,13 +118,9 @@ export function groupProjects(
   searchQuery: string,
 ): readonly InboxProjectGroup[] {
   if (!snapshot) return [];
-  const activeThreadIds = new Set(
-    snapshot.activeRuns.map((run) => run.threadId),
-  );
+  const activeThreadIds = new Set(snapshot.activeRuns.map((run) => run.threadId));
   const query = searchQuery.trim().toLocaleLowerCase();
-  const knownProjectIds = new Set(
-    snapshot.projects.map((project) => project.id),
-  );
+  const knownProjectIds = new Set(snapshot.projects.map((project) => project.id));
 
   function threadItems(projectId: string): readonly InboxThreadItem[] {
     return snapshot!.threads
@@ -266,15 +254,10 @@ export function buildTranscriptItems(
 ): readonly TranscriptItem[] {
   const items: TranscriptItem[] = [];
   const usedIds = new Set<string>();
-  const toolItems = new Map<
-    string,
-    Extract<TranscriptItem, { kind: "tool" }>
-  >();
+  const toolItems = new Map<string, Extract<TranscriptItem, { kind: "tool" }>>();
   const activityItems = new Map<string, TranscriptActivityItem>();
   const statusItems = new Map<string, TranscriptActivityItem>();
-  let currentAssistant:
-    | Extract<TranscriptItem, { kind: "assistant" }>
-    | undefined;
+  let currentAssistant: Extract<TranscriptItem, { kind: "assistant" }> | undefined;
   /// The host can echo a user turn either before or after the local optimistic
   /// row. Keep the most recent candidate's source as well as its text so either
   /// ordering collapses to one bubble without dropping two authoritative turns
@@ -316,11 +299,7 @@ export function buildTranscriptItems(
     return item;
   }
 
-  for (const event of mergeTimelineEvents(
-    settledEvents,
-    liveEvents,
-    snapshotCursor,
-  )) {
+  for (const event of mergeTimelineEvents(settledEvents, liveEvents, snapshotCursor)) {
     switch (event.kind) {
       case "user.message": {
         const text = event.text?.trim() ?? "";
@@ -384,9 +363,7 @@ export function buildTranscriptItems(
         }
         if (!text) break;
         const duplicate = items.some(
-          (item) =>
-            item.kind === "assistant" &&
-            normalizedText(item.text) === normalizedText(text),
+          (item) => item.kind === "assistant" && normalizedText(item.text) === normalizedText(text),
         );
         if (!duplicate) {
           items.push({
@@ -526,10 +503,7 @@ function sameActivityData(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function sameTranscriptItem(
-  left: TranscriptItem,
-  right: TranscriptItem,
-): boolean {
+function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolean {
   if (left.id !== right.id || left.kind !== right.kind) return false;
   switch (left.kind) {
     case "user":
@@ -545,9 +519,7 @@ function sameTranscriptItem(
     case "tool": {
       const other = right as typeof left;
       return (
-        left.name === other.name &&
-        left.detail === other.detail &&
-        left.running === other.running
+        left.name === other.name && left.detail === other.detail && left.running === other.running
       );
     }
     case "toolGroup": {
@@ -565,9 +537,7 @@ function sameTranscriptItem(
       // A plan or todo list is revised in place, and the revision lives
       // entirely inside `data` — comparing by reference would call every
       // rebuild equal and freeze the card on its first version.
-      return (
-        left.text === other.text && sameActivityData(left.data, other.data)
-      );
+      return left.text === other.text && sameActivityData(left.data, other.data);
     }
     case "error":
       return left.text === (right as typeof left).text;

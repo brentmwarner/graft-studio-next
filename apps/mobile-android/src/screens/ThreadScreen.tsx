@@ -29,26 +29,16 @@ import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { LiveStatusLine } from "../components/LiveStatusLine";
 import { PressScale } from "../components/PressScale";
-import {
-  livePhraseFromItems,
-  shouldShowStreamingFooter,
-} from "../state/liveStatus";
+import { livePhraseFromItems, shouldShowStreamingFooter } from "../state/liveStatus";
 import { useGraftPalette } from "../theme/tokens";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
 import { ComposerConfigMenu } from "./thread/ComposerConfigMenu";
 import { ContextProgressRing } from "./thread/ContextProgressRing";
-import {
-  contextUsageAccessibilityLabel,
-  contextUsageDetail,
-} from "./thread/contextUsage";
+import { contextUsageAccessibilityLabel, contextUsageDetail } from "./thread/contextUsage";
 import { DiffSheet } from "./thread/DiffSheet";
 import { ApprovalPrompt, QuestionPrompt } from "./thread/InteractionPrompts";
-import {
-  ApprovalPickerSheet,
-  ComposerActionsSheet,
-  ModelPickerSheet,
-} from "./thread/ThreadSheets";
+import { ApprovalPickerSheet, ComposerActionsSheet, ModelPickerSheet } from "./thread/ThreadSheets";
 import { renderTranscriptRow, transcriptRowKey } from "./thread/TranscriptRow";
 import { useThreadModel } from "./thread/useThreadModel";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
@@ -76,19 +66,9 @@ interface ThreadScreenProps {
     question: Pick<GraftQuestionRequest, "id">,
     answer: { readonly optionId?: string; readonly text?: string },
   ) => Promise<boolean>;
-  readonly onSend: (
-    threadId: string,
-    text: string,
-    effort?: string,
-  ) => Promise<boolean>;
-  readonly onSetApproval: (
-    threadId: string,
-    policy: string,
-  ) => Promise<boolean>;
-  readonly onSetModel: (
-    threadId: string,
-    model: GraftModelOption,
-  ) => Promise<boolean>;
+  readonly onSend: (threadId: string, text: string, effort?: string) => Promise<boolean>;
+  readonly onSetApproval: (threadId: string, policy: string) => Promise<boolean>;
+  readonly onSetModel: (threadId: string, model: GraftModelOption) => Promise<boolean>;
   readonly pendingSend?: boolean;
   readonly snapshot: GraftEnvironmentSnapshot | null;
   readonly projectName: string;
@@ -189,10 +169,7 @@ export function ThreadScreen({
             // (`insets.bottom + 116`) — at 12 the last line settled inside the
             // gradient, which is what "the end of the conversation should be
             // readable above the composer" was asking for.
-            paddingBottom: Math.max(
-              insets.bottom + 126,
-              bottomChromeHeight + 24,
-            ),
+            paddingBottom: Math.max(insets.bottom + 126, bottomChromeHeight + 24),
             paddingTop: insets.top + 84,
           },
           model.items.length === 0 ? styles.emptyTranscript : null,
@@ -222,26 +199,19 @@ export function ThreadScreen({
         renderItem={renderTranscriptRow}
         scrollEventThrottle={16}
         windowSize={11}
-        ListFooterComponent={
-          showLiveStatus ? <LiveStatusLine phrase={livePhrase} /> : null
-        }
+        ListFooterComponent={showLiveStatus ? <LiveStatusLine phrase={livePhrase} /> : null}
         ListEmptyComponent={
           isRefreshing ? (
             <ActivityIndicator color={palette.foregroundSubtle} />
           ) : (
-            <Text
-              style={[styles.emptyText, { color: palette.foregroundSubtle }]}
-            >
+            <Text style={[styles.emptyText, { color: palette.foregroundSubtle }]}>
               Start the conversation below.
             </Text>
           )
         }
       />
 
-      <EdgeFade
-        edge="top"
-        style={[styles.topFade, { height: insets.top + 92 }]}
-      />
+      <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 92 }]} />
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
         <CircleIconButton
           accessibilityLabel="Back to projects"
@@ -250,38 +220,21 @@ export function ThreadScreen({
           onPress={onBack}
         />
         <FloatingSurface style={styles.threadHeader}>
-          <Text
-            numberOfLines={1}
-            style={[styles.threadHeading, { color: palette.foreground }]}
-          >
+          <Text numberOfLines={1} style={[styles.threadHeading, { color: palette.foreground }]}>
             {thread.title}
           </Text>
           <View style={styles.threadContext}>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="folder-outline"
-              size={13}
-            />
+            <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={13} />
             <Text
               numberOfLines={1}
-              style={[
-                styles.threadContextText,
-                { color: palette.foregroundSubtle },
-              ]}
+              style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
             >
               {projectName}
             </Text>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="laptop-outline"
-              size={13}
-            />
+            <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={13} />
             <Text
               numberOfLines={1}
-              style={[
-                styles.threadContextText,
-                { color: palette.foregroundSubtle },
-              ]}
+              style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
             >
               {hostLabel}
             </Text>
@@ -289,21 +242,13 @@ export function ThreadScreen({
         </FloatingSurface>
         <FloatingSurface style={styles.threadActions}>
           <PressScale
-            accessibilityLabel={contextUsageAccessibilityLabel(
-              model.currentThread.contextUsage,
-            )}
+            accessibilityLabel={contextUsageAccessibilityLabel(model.currentThread.contextUsage)}
             onPress={() =>
-              Alert.alert(
-                "Context",
-                contextUsageDetail(model.currentThread.contextUsage),
-              )
+              Alert.alert("Context", contextUsageDetail(model.currentThread.contextUsage))
             }
           >
             <View style={styles.headerActionButton}>
-              <ContextProgressRing
-                palette={palette}
-                usage={model.currentThread.contextUsage}
-              />
+              <ContextProgressRing palette={palette} usage={model.currentThread.contextUsage} />
             </View>
           </PressScale>
           <PressScale
@@ -316,53 +261,36 @@ export function ThreadScreen({
             }
           >
             <View style={styles.headerActionButton}>
-              <Ionicons
-                color={palette.foreground}
-                name="ellipsis-vertical"
-                size={22}
-              />
+              <Ionicons color={palette.foreground} name="ellipsis-vertical" size={22} />
             </View>
           </PressScale>
         </FloatingSurface>
       </View>
 
-      <EdgeFade
-        edge="bottom"
-        style={[styles.bottomFade, { height: insets.bottom + 116 }]}
-      />
+      <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 116 }]} />
       <View
         onLayout={handleBottomChromeLayout}
         style={[
           styles.bottomChrome,
           {
-            paddingBottom: composerBottomPadding(
-              insets.bottom,
-              keyboardVisible,
-            ),
+            paddingBottom: composerBottomPadding(insets.bottom, keyboardVisible),
           },
         ]}
       >
         {pendingApproval ? (
           <ApprovalPrompt
             approval={pendingApproval}
-            onResolve={(decision) =>
-              void onResolveApproval(pendingApproval.id, decision)
-            }
+            onResolve={(decision) => void onResolveApproval(pendingApproval.id, decision)}
           />
         ) : null}
         {pendingQuestion ? (
           <QuestionPrompt
-            onResolve={(answer) =>
-              void onResolveQuestion(pendingQuestion, answer)
-            }
+            onResolve={(answer) => void onResolveQuestion(pendingQuestion, answer)}
             question={pendingQuestion}
           />
         ) : null}
         {error ? (
-          <Text
-            numberOfLines={2}
-            style={[styles.inlineError, { color: palette.danger }]}
-          >
+          <Text numberOfLines={2} style={[styles.inlineError, { color: palette.danger }]}>
             {error}
           </Text>
         ) : null}
@@ -377,12 +305,7 @@ export function ThreadScreen({
                 onPress={() => setShowDiffSheet(true)}
               >
                 <FloatingSurface style={styles.diffChip}>
-                  <Text
-                    style={[
-                      styles.diffLabel,
-                      { color: palette.foregroundMuted },
-                    ]}
-                  >
+                  <Text style={[styles.diffLabel, { color: palette.foregroundMuted }]}>
                     {diffSummary?.files.length ?? 0} files changed
                   </Text>
                   <Text style={[styles.diffCount, { color: palette.success }]}>
@@ -396,16 +319,9 @@ export function ThreadScreen({
             ) : null}
             <View style={styles.accessorySpacer} />
             {follow.isAwayFromBottom ? (
-              <PressScale
-                accessibilityLabel="Jump to latest message"
-                onPress={follow.jumpToLatest}
-              >
+              <PressScale accessibilityLabel="Jump to latest message" onPress={follow.jumpToLatest}>
                 <FloatingSurface style={styles.jumpButton}>
-                  <Ionicons
-                    color={palette.foreground}
-                    name="arrow-down"
-                    size={19}
-                  />
+                  <Ionicons color={palette.foreground} name="arrow-down" size={19} />
                 </FloatingSurface>
               </PressScale>
             ) : null}
@@ -464,9 +380,7 @@ export function ThreadScreen({
           setShowModelSheet(true);
         }}
         onSelectEffort={model.setSelectedEffort}
-        onSpeedPress={() =>
-          Alert.alert("Speed", "Normal is currently the supported host speed.")
-        }
+        onSpeedPress={() => Alert.alert("Speed", "Normal is currently the supported host speed.")}
         resolvedEffort={model.resolvedEffort}
         visible={showIntelligenceMenu}
       />

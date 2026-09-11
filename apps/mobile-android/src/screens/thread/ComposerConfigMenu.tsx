@@ -7,15 +7,7 @@ import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { displayName } from "./displayName";
 
-const EFFORT_ORDER = [
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-  "ultra",
-  "ultracode",
-] as const;
+const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max", "ultra", "ultracode"] as const;
 
 function orderEfforts(efforts: readonly string[]): string[] {
   const rank = new Map(EFFORT_ORDER.map((effort, index) => [effort, index]));
@@ -73,9 +65,7 @@ export function ComposerConfigMenu({
             },
           ]}
         >
-          <Text style={[styles.label, { color: palette.foregroundSubtle }]}>
-            Intelligence
-          </Text>
+          <Text style={[styles.label, { color: palette.foregroundSubtle }]}>Intelligence</Text>
           {orderEfforts(efforts).map((effort) => (
             <PressScale
               accessibilityLabel={`${displayName(effort)} intelligence`}
@@ -83,74 +73,42 @@ export function ComposerConfigMenu({
               onPress={() => onSelectEffort(effort)}
             >
               <View style={styles.optionRow}>
-                <Text
-                  style={[styles.optionText, { color: palette.foreground }]}
-                >
+                <Text style={[styles.optionText, { color: palette.foreground }]}>
                   {displayName(effort)}
                 </Text>
                 {effort === resolvedEffort ? (
-                  <Ionicons
-                    color={palette.foreground}
-                    name="checkmark"
-                    size={22}
-                  />
+                  <Ionicons color={palette.foreground} name="checkmark" size={22} />
                 ) : null}
               </View>
             </PressScale>
           ))}
 
-          <View
-            style={[styles.separator, { backgroundColor: palette.border }]}
-          />
+          <View style={[styles.separator, { backgroundColor: palette.border }]} />
 
           <PressScale accessibilityLabel="Choose model" onPress={onOpenModel}>
             <View style={styles.detailRow}>
               <View style={styles.detailCopy}>
-                <Text
-                  style={[styles.detailTitle, { color: palette.foreground }]}
-                >
-                  Model
-                </Text>
+                <Text style={[styles.detailTitle, { color: palette.foreground }]}>Model</Text>
                 <Text
                   numberOfLines={1}
-                  style={[
-                    styles.detailValue,
-                    { color: palette.foregroundSubtle },
-                  ]}
+                  style={[styles.detailValue, { color: palette.foregroundSubtle }]}
                 >
                   {currentModel?.label ?? "Model"}
                 </Text>
               </View>
-              <Ionicons
-                color={palette.foreground}
-                name="chevron-forward"
-                size={20}
-              />
+              <Ionicons color={palette.foreground} name="chevron-forward" size={20} />
             </View>
           </PressScale>
 
           <PressScale accessibilityLabel="Speed" onPress={onSpeedPress}>
             <View style={styles.detailRow}>
               <View style={styles.detailCopy}>
-                <Text
-                  style={[styles.detailTitle, { color: palette.foreground }]}
-                >
-                  Speed
-                </Text>
-                <Text
-                  style={[
-                    styles.detailValue,
-                    { color: palette.foregroundSubtle },
-                  ]}
-                >
+                <Text style={[styles.detailTitle, { color: palette.foreground }]}>Speed</Text>
+                <Text style={[styles.detailValue, { color: palette.foregroundSubtle }]}>
                   Normal
                 </Text>
               </View>
-              <Ionicons
-                color={palette.foreground}
-                name="chevron-forward"
-                size={20}
-              />
+              <Ionicons color={palette.foreground} name="chevron-forward" size={20} />
             </View>
           </PressScale>
         </View>

@@ -37,12 +37,6 @@ describe("streaming reveal", () => {
     expect(initialStreamingRevealContent("First provider snapshot", true, false)).toBe("");
     expect(initialStreamingRevealContent("Settled", false, false)).toBe("Settled");
     expect(initialStreamingRevealContent("Accessible", true, true)).toBe("Accessible");
-    expect(
-      initialStreamingRevealContent(
-        "x".repeat(20_001),
-        true,
-        false,
-      ),
-    ).toHaveLength(20_001);
+    expect(initialStreamingRevealContent("x".repeat(20_001), true, false)).toHaveLength(20_001);
   });
 });

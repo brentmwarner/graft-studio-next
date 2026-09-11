@@ -23,11 +23,7 @@ import { graftRadius, useGraftPalette } from "../theme/tokens";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
 import { ComposerConfigMenu } from "./thread/ComposerConfigMenu";
-import {
-  ApprovalPickerSheet,
-  ComposerActionsSheet,
-  ModelPickerSheet,
-} from "./thread/ThreadSheets";
+import { ApprovalPickerSheet, ComposerActionsSheet, ModelPickerSheet } from "./thread/ThreadSheets";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 
 export interface NewChatCreateRequest {
@@ -51,11 +47,7 @@ interface NewChatScreenProps {
 }
 
 function preferredEffort(efforts: readonly string[]): string | undefined {
-  return efforts.includes("xhigh")
-    ? "xhigh"
-    : efforts.includes("high")
-      ? "high"
-      : efforts[0];
+  return efforts.includes("xhigh") ? "xhigh" : efforts.includes("high") ? "high" : efforts[0];
 }
 
 export function NewChatScreen({
@@ -78,9 +70,7 @@ export function NewChatScreen({
   const [selectedEffort, setSelectedEffort] = useState<string>();
   const [selectedModelId, setSelectedModelId] = useState<string>();
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
-  const [selectedProjectId, setSelectedProjectId] = useState(
-    initialProjectId ?? projects[0]?.id,
-  );
+  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? projects[0]?.id);
   const [showActions, setShowActions] = useState(false);
   const [showApproval, setShowApproval] = useState(false);
   const [showIntelligence, setShowIntelligence] = useState(false);
@@ -88,17 +78,13 @@ export function NewChatScreen({
   const [showProjects, setShowProjects] = useState(false);
 
   const selectedProject = useMemo(
-    () =>
-      projects.find((project) => project.id === selectedProjectId) ??
-      projects[0],
+    () => projects.find((project) => project.id === selectedProjectId) ?? projects[0],
     [projects, selectedProjectId],
   );
   const currentModel = useMemo(
     () =>
       availableModels.find(
-        (model) =>
-          model.id === selectedModelId &&
-          model.providerId === selectedProviderId,
+        (model) => model.id === selectedModelId && model.providerId === selectedProviderId,
       ) ??
       availableModels.find((model) => model.isDefault) ??
       availableModels[0],
@@ -106,27 +92,21 @@ export function NewChatScreen({
   );
   const efforts = currentModel?.reasoningEfforts ?? [];
   const resolvedEffort =
-    selectedEffort && efforts.includes(selectedEffort)
-      ? selectedEffort
-      : preferredEffort(efforts);
+    selectedEffort && efforts.includes(selectedEffort) ? selectedEffort : preferredEffort(efforts);
   const approvalOptions = currentModel?.approvalPolicyOptions ?? [];
   const currentApproval =
-    selectedApproval &&
-    approvalOptions.some((option) => option.value === selectedApproval)
+    selectedApproval && approvalOptions.some((option) => option.value === selectedApproval)
       ? selectedApproval
       : (currentModel?.defaultApprovalPolicy ?? approvalOptions[0]?.value);
   const currentApprovalLabel =
-    approvalOptions.find((option) => option.value === currentApproval)?.label ??
-    "Permissions";
+    approvalOptions.find((option) => option.value === currentApproval)?.label ?? "Permissions";
   const approvalIsElevated = Boolean(
     currentApproval &&
     currentModel?.defaultApprovalPolicy &&
     currentApproval !== currentModel.defaultApprovalPolicy,
   );
   const canUseWorktree = selectedProject?.kind === "repo";
-  const canSend = Boolean(
-    draft.trim() && selectedProject && isConnected && !isCreating,
-  );
+  const canSend = Boolean(draft.trim() && selectedProject && isConnected && !isCreating);
 
   useEffect(() => {
     void onLoadModels();
@@ -163,30 +143,17 @@ export function NewChatScreen({
     >
       <View style={styles.flex}>
         <View style={styles.hero}>
-          <Text style={[styles.heroTitle, { color: palette.foreground }]}>
-            Let&apos;s work on
-          </Text>
-          <PressScale
-            accessibilityLabel="Choose project"
-            onPress={() => setShowProjects(true)}
-          >
+          <Text style={[styles.heroTitle, { color: palette.foreground }]}>Let&apos;s work on</Text>
+          <PressScale accessibilityLabel="Choose project" onPress={() => setShowProjects(true)}>
             <View style={styles.projectTrigger}>
-              <Ionicons
-                color={palette.foregroundMuted}
-                name="folder-outline"
-                size={23}
-              />
+              <Ionicons color={palette.foregroundMuted} name="folder-outline" size={23} />
               <Text
                 numberOfLines={1}
                 style={[styles.projectName, { color: palette.foregroundMuted }]}
               >
                 {selectedProject?.name ?? "No project"}
               </Text>
-              <Ionicons
-                color={palette.foregroundSubtle}
-                name="chevron-down"
-                size={16}
-              />
+              <Ionicons color={palette.foregroundSubtle} name="chevron-down" size={16} />
             </View>
           </PressScale>
 
@@ -196,9 +163,7 @@ export function NewChatScreen({
               const disabled = option === "worktree" && !canUseWorktree;
               return (
                 <Pressable
-                  accessibilityLabel={
-                    option === "local" ? "Workspace" : "Worktree"
-                  }
+                  accessibilityLabel={option === "local" ? "Workspace" : "Worktree"}
                   accessibilityRole="button"
                   accessibilityState={{ disabled, selected }}
                   disabled={disabled}
@@ -215,15 +180,9 @@ export function NewChatScreen({
                   ]}
                 >
                   {selected ? (
-                    <Ionicons
-                      color={palette.foregroundMuted}
-                      name="checkmark"
-                      size={20}
-                    />
+                    <Ionicons color={palette.foregroundMuted} name="checkmark" size={20} />
                   ) : null}
-                  <Text
-                    style={[styles.modeText, { color: palette.foreground }]}
-                  >
+                  <Text style={[styles.modeText, { color: palette.foreground }]}>
                     {option === "local" ? "Workspace" : "Worktree"}
                   </Text>
                 </Pressable>
@@ -232,10 +191,7 @@ export function NewChatScreen({
           </View>
         </View>
 
-        <EdgeFade
-          edge="top"
-          style={[styles.topFade, { height: insets.top + 84 }]}
-        />
+        <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 84 }]} />
         <View style={[styles.topBar, { paddingTop: insets.top }]}>
           <CircleIconButton
             accessibilityLabel="Back to projects"
@@ -244,35 +200,19 @@ export function NewChatScreen({
             onPress={onBack}
           />
           <FloatingSurface style={styles.headerPill}>
-            <Text style={[styles.headerTitle, { color: palette.foreground }]}>
-              New chat
-            </Text>
+            <Text style={[styles.headerTitle, { color: palette.foreground }]}>New chat</Text>
             <View style={styles.headerContext}>
-              <Ionicons
-                color={palette.foregroundSubtle}
-                name="folder-outline"
-                size={13}
-              />
+              <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={13} />
               <Text
                 numberOfLines={1}
-                style={[
-                  styles.headerContextText,
-                  { color: palette.foregroundSubtle },
-                ]}
+                style={[styles.headerContextText, { color: palette.foregroundSubtle }]}
               >
                 {selectedProject?.name ?? "Project"}
               </Text>
-              <Ionicons
-                color={palette.foregroundSubtle}
-                name="laptop-outline"
-                size={13}
-              />
+              <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={13} />
               <Text
                 numberOfLines={1}
-                style={[
-                  styles.headerContextText,
-                  { color: palette.foregroundSubtle },
-                ]}
+                style={[styles.headerContextText, { color: palette.foregroundSubtle }]}
               >
                 {hostLabel}
               </Text>
@@ -280,18 +220,12 @@ export function NewChatScreen({
           </FloatingSurface>
         </View>
 
-        <EdgeFade
-          edge="bottom"
-          style={[styles.bottomFade, { height: insets.bottom + 116 }]}
-        />
+        <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 116 }]} />
         <View
           style={[
             styles.bottomChrome,
             {
-              paddingBottom: composerBottomPadding(
-                insets.bottom,
-                keyboardVisible,
-              ),
+              paddingBottom: composerBottomPadding(insets.bottom, keyboardVisible),
             },
           ]}
         >
@@ -337,17 +271,8 @@ export function NewChatScreen({
               }}
               style={styles.projectOption}
             >
-              <Ionicons
-                color={palette.foreground}
-                name="folder-outline"
-                size={21}
-              />
-              <Text
-                style={[
-                  styles.projectOptionText,
-                  { color: palette.foreground },
-                ]}
-              >
+              <Ionicons color={palette.foreground} name="folder-outline" size={21} />
+              <Text style={[styles.projectOptionText, { color: palette.foreground }]}>
                 {project.name}
               </Text>
               {project.id === selectedProject?.id ? (
@@ -381,9 +306,7 @@ export function NewChatScreen({
           setShowModels(true);
         }}
         onSelectEffort={setSelectedEffort}
-        onSpeedPress={() =>
-          Alert.alert("Speed", "Normal is currently the supported host speed.")
-        }
+        onSpeedPress={() => Alert.alert("Speed", "Normal is currently the supported host speed.")}
         resolvedEffort={resolvedEffort}
         visible={showIntelligence}
       />

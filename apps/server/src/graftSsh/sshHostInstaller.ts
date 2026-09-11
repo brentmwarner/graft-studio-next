@@ -120,7 +120,11 @@ export class SshHostInstaller {
 
   private async install(target: string): Promise<void> {
     if (!existsSync(this.options.hostArchivePath)) {
-      throw new SshRemoteError("install_failed", "The bundled graft-host package is missing", false);
+      throw new SshRemoteError(
+        "install_failed",
+        "The bundled graft-host package is missing",
+        false,
+      );
     }
     const nonce = randomUUID().replaceAll("-", "");
     const remoteArchive = `/tmp/graft-host-${nonce}.tar.gz`;

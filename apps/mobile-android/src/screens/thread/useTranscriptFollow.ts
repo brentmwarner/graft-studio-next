@@ -62,16 +62,14 @@ export function useTranscriptFollow(activeRunId: string | undefined) {
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset, contentSize, layoutMeasurement } =
-        event.nativeEvent;
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
       // Freshest measurements we get — keep the scroll refs honest even if a
       // content-size or layout callback was coalesced away.
       contentHeightRef.current = contentSize.height;
       viewportHeightRef.current = layoutMeasurement.height;
       setAwayFromBottom(
         nextFollowLatch({
-          distanceFromBottom:
-            contentSize.height - (contentOffset.y + layoutMeasurement.height),
+          distanceFromBottom: contentSize.height - (contentOffset.y + layoutMeasurement.height),
           isAway: isAwayFromBottomRef.current,
           isUserDragging: isUserDraggingRef.current,
         }),

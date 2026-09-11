@@ -116,10 +116,7 @@ const sshHttpRouteLayer = HttpRouter.add(
     Effect.catch((error) =>
       Effect.succeed(
         error instanceof AuthError
-          ? HttpServerResponse.jsonUnsafe(
-              { error: error.message },
-              { status: error.status ?? 401 },
-            )
+          ? HttpServerResponse.jsonUnsafe({ error: error.message }, { status: error.status ?? 401 })
           : sshErrorResponse(error),
       ),
     ),

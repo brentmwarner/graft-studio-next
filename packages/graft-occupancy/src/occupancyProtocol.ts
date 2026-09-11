@@ -29,9 +29,7 @@ export interface OccupancyAuthorizationInput {
   clientCapabilities: readonly GraftDesktopCapability[];
 }
 
-export type OccupancyAuthorizationDecision =
-  | { allowed: true }
-  | { allowed: false; reason: string };
+export type OccupancyAuthorizationDecision = { allowed: true } | { allowed: false; reason: string };
 
 export interface OccupancyProtocolOptions {
   environmentLabel: string;
@@ -44,9 +42,7 @@ export interface OccupancyProtocolOptions {
     activeRunCount: number;
     activePtyCount: number;
   };
-  authorizeCommand?: (
-    input: OccupancyAuthorizationInput,
-  ) => OccupancyAuthorizationDecision;
+  authorizeCommand?: (input: OccupancyAuthorizationInput) => OccupancyAuthorizationDecision;
   dispatchCommand?: (
     session: GraftDesktopSessionRecord,
     command: { type: string; payload?: GraftDesktopJsonValue },
@@ -433,8 +429,7 @@ export class OccupancyProtocol {
         ...(message.requestId ? { requestId: message.requestId } : {}),
       };
     } catch (error) {
-      const protocolCode =
-        error instanceof OccupancyCommandError ? error.code : "internal_error";
+      const protocolCode = error instanceof OccupancyCommandError ? error.code : "internal_error";
       const protocolMessage =
         error instanceof Error ? error.message : "Desktop host command failed";
       const occupancyError = protocolError(

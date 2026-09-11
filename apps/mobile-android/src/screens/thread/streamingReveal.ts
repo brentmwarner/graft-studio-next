@@ -19,18 +19,13 @@ export function initialStreamingRevealContent(
   streaming: boolean,
   reduceMotion: boolean,
 ): string {
-  return streaming && !reduceMotion && content.length <= STREAM_REVEAL_MAX_CHARS
-    ? ""
-    : content;
+  return streaming && !reduceMotion && content.length <= STREAM_REVEAL_MAX_CHARS ? "" : content;
 }
 
 export function advanceToWordBoundary(text: string, index: number): number {
   if (index >= text.length) return text.length;
   if (index <= 0) return 0;
-  if (
-    WHITESPACE_RE.test(text[index] ?? "") ||
-    WHITESPACE_RE.test(text[index - 1] ?? "")
-  ) {
+  if (WHITESPACE_RE.test(text[index] ?? "") || WHITESPACE_RE.test(text[index - 1] ?? "")) {
     return index;
   }
 
@@ -51,13 +46,7 @@ export function nextStreamingRevealLength(
   const charactersPerSecond = 170 + 4 * Math.max(0, remaining - 90);
   const step = Math.max(
     1,
-    Math.min(
-      600,
-      Math.round((Math.min(200, elapsedMs) / 1_000) * charactersPerSecond),
-    ),
+    Math.min(600, Math.round((Math.min(200, elapsedMs) / 1_000) * charactersPerSecond)),
   );
-  return advanceToWordBoundary(
-    text,
-    Math.min(text.length, currentLength + step),
-  );
+  return advanceToWordBoundary(text, Math.min(text.length, currentLength + step));
 }

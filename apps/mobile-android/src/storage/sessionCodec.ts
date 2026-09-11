@@ -1,7 +1,4 @@
-import {
-  GraftSessionCredentialSchema,
-  type GraftSessionCredential,
-} from "@graft/mobile-contract";
+import { GraftSessionCredentialSchema, type GraftSessionCredential } from "@graft/mobile-contract";
 
 type PersistedSessionMetadata = Omit<GraftSessionCredential, "bearerToken">;
 

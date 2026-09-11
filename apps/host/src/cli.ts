@@ -32,13 +32,7 @@ import {
   resolveGraftHostPaths,
 } from "./hostPaths";
 
-type CommandName =
-  | "serve"
-  | "bootstrap"
-  | "diagnostics"
-  | "self-test"
-  | "version"
-  | "help";
+type CommandName = "serve" | "bootstrap" | "diagnostics" | "self-test" | "version" | "help";
 
 export interface ParsedHostArguments {
   command: CommandName;
@@ -374,9 +368,7 @@ export async function runGraftHost(values = process.argv.slice(2)): Promise<void
       return;
     case "bootstrap": {
       const daemon = await ensureDaemon(parsed);
-      writeJson(
-        issueBootstrap(resolveGraftHostPaths(parsed.dataRoot).databasePath, daemon.health),
-      );
+      writeJson(issueBootstrap(resolveGraftHostPaths(parsed.dataRoot).databasePath, daemon.health));
       return;
     }
     case "self-test":

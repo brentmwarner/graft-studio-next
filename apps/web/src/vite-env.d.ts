@@ -8,10 +8,10 @@ interface ImportMetaEnv {
 }
 
 interface ImportMeta {
-    readonly env: ImportMetaEnv & {
-      readonly MODE: string;
-      readonly VITEST?: boolean;
-    };
+  readonly env: ImportMetaEnv & {
+    readonly MODE: string;
+    readonly VITEST?: boolean;
+  };
 }
 
 declare global {

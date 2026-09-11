@@ -17,10 +17,7 @@ interface SessionRow {
 let databasePromise: Promise<SQLiteDatabase> | undefined;
 
 async function tokenKey(environmentId: string): Promise<string> {
-  const digest = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    environmentId,
-  );
+  const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, environmentId);
   return `${TOKEN_KEY_PREFIX}.${digest}`;
 }
 
@@ -53,10 +50,7 @@ export async function loadSession(): Promise<GraftSessionCredential | null> {
   const key = await tokenKey(row.environment_id);
   const bearerToken = await SecureStore.getItemAsync(key);
   if (!bearerToken) {
-    await db.runAsync(
-      "DELETE FROM active_session WHERE singleton = ?",
-      SESSION_ROW_ID,
-    );
+    await db.runAsync("DELETE FROM active_session WHERE singleton = ?", SESSION_ROW_ID);
     return null;
   }
 
@@ -64,19 +58,14 @@ export async function loadSession(): Promise<GraftSessionCredential | null> {
     return decodeSessionMetadata(row.metadata_json, bearerToken);
   } catch {
     await Promise.all([
-      db.runAsync(
-        "DELETE FROM active_session WHERE singleton = ?",
-        SESSION_ROW_ID,
-      ),
+      db.runAsync("DELETE FROM active_session WHERE singleton = ?", SESSION_ROW_ID),
       SecureStore.deleteItemAsync(key),
     ]);
     return null;
   }
 }
 
-export async function saveSession(
-  session: GraftSessionCredential,
-): Promise<void> {
+export async function saveSession(session: GraftSessionCredential): Promise<void> {
   const db = await database();
   const key = await tokenKey(session.environmentId);
   const prior = await db.getFirstAsync<SessionRow>(
@@ -125,8 +114,5 @@ export async function clearSession(): Promise<void> {
   if (row) {
     await SecureStore.deleteItemAsync(await tokenKey(row.environment_id));
   }
-  await db.runAsync(
-    "DELETE FROM active_session WHERE singleton = ?",
-    SESSION_ROW_ID,
-  );
+  await db.runAsync("DELETE FROM active_session WHERE singleton = ?", SESSION_ROW_ID);
 }

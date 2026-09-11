@@ -34,11 +34,7 @@ export function toolRunningPhrase(name: string, context = ""): string {
   ) {
     return "Reading files";
   }
-  if (
-    lower.includes("image") ||
-    lower.includes("vision") ||
-    lower.includes("screenshot")
-  ) {
+  if (lower.includes("image") || lower.includes("vision") || lower.includes("screenshot")) {
     return "Looking at an image";
   }
   if (lower.includes("memory") || lower.includes("recall")) {

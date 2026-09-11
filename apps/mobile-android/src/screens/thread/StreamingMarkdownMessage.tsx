@@ -46,24 +46,15 @@ export const StreamingMarkdownMessage = memo(function StreamingMarkdownMessage({
 
     const now = Date.now();
     const elapsed =
-      lastCommitRef.current === null
-        ? STREAM_REVEAL_COMMIT_MS
-        : now - lastCommitRef.current;
+      lastCommitRef.current === null ? STREAM_REVEAL_COMMIT_MS : now - lastCommitRef.current;
     lastCommitRef.current = now;
-    const nextLength = nextStreamingRevealLength(
-      target,
-      current.length,
-      elapsed,
-    );
+    const nextLength = nextStreamingRevealLength(target, current.length, elapsed);
     const next = target.slice(0, nextLength);
     displayedRef.current = next;
     setDisplayedContent(next);
 
     if (nextLength < target.length) {
-      timerRef.current = setTimeout(
-        () => tickRef.current(),
-        STREAM_REVEAL_COMMIT_MS,
-      );
+      timerRef.current = setTimeout(() => tickRef.current(), STREAM_REVEAL_COMMIT_MS);
     }
   };
 
@@ -89,10 +80,7 @@ export const StreamingMarkdownMessage = memo(function StreamingMarkdownMessage({
     }
 
     if (current.length < content.length && timerRef.current === null) {
-      timerRef.current = setTimeout(
-        () => tickRef.current(),
-        STREAM_REVEAL_COMMIT_MS,
-      );
+      timerRef.current = setTimeout(() => tickRef.current(), STREAM_REVEAL_COMMIT_MS);
     }
   }, [content, reduceMotion, streaming]);
 
@@ -103,7 +91,5 @@ export const StreamingMarkdownMessage = memo(function StreamingMarkdownMessage({
     [],
   );
 
-  return displayedContent ? (
-    <MarkdownMessage>{displayedContent}</MarkdownMessage>
-  ) : null;
+  return displayedContent ? <MarkdownMessage>{displayedContent}</MarkdownMessage> : null;
 });

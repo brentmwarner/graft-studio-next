@@ -14,7 +14,12 @@ import {
   type GraftMobilePairingLink,
 } from "~/graftConnections";
 import { copyTextToClipboard } from "~/hooks/useCopyToClipboard";
-import { SettingsEmptyState, SettingsListRow, SettingsRow, SettingsSection } from "./SettingsPanelPrimitives";
+import {
+  SettingsEmptyState,
+  SettingsListRow,
+  SettingsRow,
+  SettingsSection,
+} from "./SettingsPanelPrimitives";
 
 const SSH_QUERY_KEY = ["graft", "ssh-machines"] as const;
 
@@ -54,7 +59,8 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
       toastManager.add({
         type: "success",
         title: "Pairing link ready",
-        description: "Scan or paste it in Graft on iOS or Android. The token stays in the fragment.",
+        description:
+          "Scan or paste it in Graft on iOS or Android. The token stays in the fragment.",
       });
     },
     onError: (error: unknown) =>
@@ -133,12 +139,19 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
             title="Pairing URL"
             description={pairingExpiryLabel(pairing.expiresAt)}
             control={
-              <Button type="button" size="sm" variant="outline" onClick={() => copyWithToast(pairing.pairingUrl, "Copied pairing link")}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => copyWithToast(pairing.pairingUrl, "Copied pairing link")}
+              >
                 Copy
               </Button>
             }
           >
-            <p className="break-all font-mono text-xs text-muted-foreground">{pairing.pairingUrl}</p>
+            <p className="break-all font-mono text-xs text-muted-foreground">
+              {pairing.pairingUrl}
+            </p>
           </SettingsRow>
         ) : null}
       </SettingsSection>
@@ -151,14 +164,21 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
               type="button"
               size="sm"
               onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || label.trim().length === 0 || sshTarget.trim().length === 0}
+              disabled={
+                saveMutation.isPending || label.trim().length === 0 || sshTarget.trim().length === 0
+              }
             >
               Save
             </Button>
           }
         >
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Label" aria-label="SSH machine label" />
+            <Input
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="Label"
+              aria-label="SSH machine label"
+            />
             <Input
               value={sshTarget}
               onChange={(event) => setSshTarget(event.target.value)}
@@ -169,7 +189,9 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
         </SettingsRow>
         {sshQuery.isError ? (
           <SettingsEmptyState tone="destructive">
-            {sshQuery.error instanceof Error ? sshQuery.error.message : "Could not load SSH machines."}
+            {sshQuery.error instanceof Error
+              ? sshQuery.error.message
+              : "Could not load SSH machines."}
           </SettingsEmptyState>
         ) : machines.length === 0 ? (
           <SettingsEmptyState>No SSH machines yet.</SettingsEmptyState>
@@ -195,7 +217,11 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
                       Disconnect
                     </Button>
                   ) : (
-                    <Button type="button" size="sm" onClick={() => connectMutation.mutate(machine.id)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => connectMutation.mutate(machine.id)}
+                    >
                       Connect
                     </Button>
                   )}

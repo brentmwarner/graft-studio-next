@@ -243,9 +243,7 @@ describe("desktop host protocol fixtures", () => {
     expect(names.length).toBeGreaterThan(5);
     for (const name of names) {
       expect(
-        schemaForFixture(name).safeParse(
-          readJson(join(fixturesRoot, "valid", name)),
-        ).success,
+        schemaForFixture(name).safeParse(readJson(join(fixturesRoot, "valid", name))).success,
         `${name} should parse`,
       ).toBe(true);
     }
@@ -256,9 +254,7 @@ describe("desktop host protocol fixtures", () => {
     expect(names.length).toBeGreaterThan(5);
     for (const name of names) {
       expect(
-        schemaForFixture(name).safeParse(
-          readJson(join(fixturesRoot, "invalid", name)),
-        ).success,
+        schemaForFixture(name).safeParse(readJson(join(fixturesRoot, "invalid", name))).success,
         `${name} should fail`,
       ).toBe(false);
     }

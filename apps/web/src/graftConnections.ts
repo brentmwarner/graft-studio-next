@@ -31,7 +31,10 @@ async function requestJson<T>(
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
     const message =
-      payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload &&
+      typeof payload.error === "string"
         ? payload.error
         : `Request failed with status ${response.status}`;
     throw new Error(message);
@@ -64,7 +67,9 @@ export function connectSshMachine(id: string): Promise<{ machine: GraftSshMachin
   });
 }
 
-export function disconnectSshMachine(id: string): Promise<{ machine: GraftSshMachineSummary | null }> {
+export function disconnectSshMachine(
+  id: string,
+): Promise<{ machine: GraftSshMachineSummary | null }> {
   return requestJson(`/api/graft/ssh/machines/${encodeURIComponent(id)}/disconnect`, {
     method: "POST",
   });

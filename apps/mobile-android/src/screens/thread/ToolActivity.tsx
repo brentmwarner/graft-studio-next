@@ -14,9 +14,7 @@ import { useGraftPalette } from "../../theme/tokens";
 /// registers the instant it lands. Deliberately NOT applied to settled rows —
 /// virtualization remounts those on scroll-back, and animating that would make
 /// simply scrolling the transcript flicker.
-export const ROW_ENTER = FadeInDown.duration(220).easing(
-  Easing.out(Easing.cubic),
-);
+export const ROW_ENTER = FadeInDown.duration(220).easing(Easing.out(Easing.cubic));
 
 /// A folded run of tool calls. While one is running the header is the
 /// live status line — orb plus the current action. Settled, it collapses
@@ -53,11 +51,7 @@ export const ToolActivityStrip = memo(function ToolActivityStrip({
                 size={17}
               />
               <View style={styles.toolCopy}>
-                <Text
-                  style={[styles.toolTitle, { color: palette.foregroundMuted }]}
-                >
-                  {phrase}
-                </Text>
+                <Text style={[styles.toolTitle, { color: palette.foregroundMuted }]}>{phrase}</Text>
               </View>
             </>
           )}
@@ -101,15 +95,9 @@ export const ToolRow = memo(function ToolRow({
           </View>
         ) : (
           <>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="checkmark-circle-outline"
-              size={17}
-            />
+            <Ionicons color={palette.foregroundSubtle} name="checkmark-circle-outline" size={17} />
             <View style={styles.toolCopy}>
-              <Text
-                style={[styles.toolTitle, { color: palette.foregroundMuted }]}
-              >
+              <Text style={[styles.toolTitle, { color: palette.foregroundMuted }]}>
                 {item.name}
               </Text>
             </View>
@@ -125,10 +113,7 @@ export const ToolRow = memo(function ToolRow({
         ) : null}
       </View>
       {expanded && item.detail ? (
-        <Text
-          selectable
-          style={[styles.toolDetail, { color: palette.foregroundSubtle }]}
-        >
+        <Text selectable style={[styles.toolDetail, { color: palette.foregroundSubtle }]}>
           {item.detail}
         </Text>
       ) : null}

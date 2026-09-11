@@ -22,9 +22,7 @@ const RUN_LOADER_SIZE = 18;
 const RUN_LOADER_DOT_SIZE = RUN_LOADER_SIZE * (2 / 14);
 const RUN_LOADER_SPEED = 1.45;
 const RUN_LOADER_LOOP_MS = 1_600 / RUN_LOADER_SPEED;
-const RUN_LOADER_PATH = [
-  0, 1, 2, 3, 4, 9, 14, 19, 24, 23, 22, 21, 20, 15, 10, 5,
-] as const;
+const RUN_LOADER_PATH = [0, 1, 2, 3, 4, 9, 14, 19, 24, 23, 22, 21, 20, 15, 10, 5] as const;
 const RUN_LOADER_TAIL = [1, 0.82, 0.64, 0.46, 0.3, 0.18] as const;
 const RUN_LOADER_BACK_TAIL = [0.38, 0.3, 0.22, 0.14] as const;
 const RUN_LOADER_TWIST_INNER: Readonly<Record<number, number>> = {
@@ -46,9 +44,7 @@ export function runLoaderDotOpacity(
   reduceMotion: boolean,
 ): number {
   "worklet";
-  const loopStep = RUN_LOADER_PATH.indexOf(
-    index as (typeof RUN_LOADER_PATH)[number],
-  );
+  const loopStep = RUN_LOADER_PATH.indexOf(index as (typeof RUN_LOADER_PATH)[number]);
   if (reduceMotion) {
     if (loopStep >= 0) return 0.48;
     return index === 12 ? 0.22 : 0.08;
@@ -146,13 +142,7 @@ const RunStatusDot = memo(function RunStatusDot({
   }));
 
   return (
-    <Animated.View
-      style={[
-        styles.runLoaderDot,
-        { backgroundColor: color, left, top },
-        opacity,
-      ]}
-    />
+    <Animated.View style={[styles.runLoaderDot, { backgroundColor: color, left, top }, opacity]} />
   );
 });
 
@@ -253,10 +243,7 @@ const PhraseWipe = memo(function PhraseWipe({
         </Animated.Text>
       ) : null}
       <Animated.View style={[clipStyle, incomingStyle]}>
-        <Text
-          numberOfLines={1}
-          style={[styles.phrase, { color, width: textWidth || undefined }]}
-        >
+        <Text numberOfLines={1} style={[styles.phrase, { color, width: textWidth || undefined }]}>
           {phrase}
         </Text>
         {reduceMotion ? null : (
@@ -284,11 +271,7 @@ export const LiveStatusLine = memo(function LiveStatusLine({
   const palette = useGraftPalette();
 
   return (
-    <View
-      accessibilityLabel={phrase}
-      accessibilityLiveRegion="polite"
-      style={styles.row}
-    >
+    <View accessibilityLabel={phrase} accessibilityLiveRegion="polite" style={styles.row}>
       <RunStatusDotMatrix />
       <PhraseWipe
         background={palette.background}

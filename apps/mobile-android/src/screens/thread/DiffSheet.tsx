@@ -15,41 +15,25 @@ export function DiffSheet({
 }) {
   const palette = useGraftPalette();
   return (
-    <BottomSheet
-      onClose={onClose}
-      title={diff?.title || "Changes"}
-      visible={visible}
-    >
+    <BottomSheet onClose={onClose} title={diff?.title || "Changes"} visible={visible}>
       <ScrollView contentContainerStyle={styles.diffList}>
         {diff?.files.map((file) => (
           <View
             key={`${file.status}:${file.path}`}
             style={[styles.diffFile, { borderBottomColor: palette.border }]}
           >
-            <View
-              style={[styles.diffStatus, { backgroundColor: palette.subtle }]}
-            >
-              <Text
-                style={[
-                  styles.diffStatusText,
-                  { color: palette.foregroundMuted },
-                ]}
-              >
+            <View style={[styles.diffStatus, { backgroundColor: palette.subtle }]}>
+              <Text style={[styles.diffStatusText, { color: palette.foregroundMuted }]}>
                 {file.status.slice(0, 1).toUpperCase()}
               </Text>
             </View>
-            <Text
-              numberOfLines={2}
-              style={[styles.diffPath, { color: palette.foreground }]}
-            >
+            <Text numberOfLines={2} style={[styles.diffPath, { color: palette.foreground }]}>
               {file.path}
             </Text>
             <Text style={[styles.diffAddition, { color: palette.success }]}>
               +{file.additions ?? 0}
             </Text>
-            <Text style={{ color: palette.danger }}>
-              −{file.deletions ?? 0}
-            </Text>
+            <Text style={{ color: palette.danger }}>−{file.deletions ?? 0}</Text>
           </View>
         ))}
       </ScrollView>
