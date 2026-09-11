@@ -10,7 +10,7 @@ import {
   LINUX_X64_GLIBC_PLATFORM,
   type OccupancyConnection,
 } from "@graft/occupancy";
-import { Effect, FileSystem, Layer, Queue, Runtime, Stream } from "effect";
+import { Effect, FileSystem, Layer, Queue, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../config";
@@ -95,10 +95,9 @@ const occupancyHttpRouteLayer = HttpRouter.add(
     const config = yield* ServerConfig;
     const environment = yield* ServerEnvironment;
     const query = yield* ProjectionSnapshotQuery;
-    const effectRuntime = yield* Effect.runtime();
     const descriptor = yield* environment.getDescriptor;
     const occupancy = occupancyRuntime(config, descriptor.label, () =>
-      Runtime.runPromise(effectRuntime)(query.getShellSnapshot()),
+      Effect.runPromise(query.getShellSnapshot()),
     );
     const port = getOccupancyListenPort() || config.port;
 
@@ -143,10 +142,9 @@ const occupancyWebSocketRouteLayer = HttpRouter.add(
     const config = yield* ServerConfig;
     const environment = yield* ServerEnvironment;
     const query = yield* ProjectionSnapshotQuery;
-    const effectRuntime = yield* Effect.runtime();
     const descriptor = yield* environment.getDescriptor;
     const occupancy = occupancyRuntime(config, descriptor.label, () =>
-      Runtime.runPromise(effectRuntime)(query.getShellSnapshot()),
+      Effect.runPromise(query.getShellSnapshot()),
     );
     const bearer = parseOccupancyBearer(request.headers.authorization);
     if (!bearer || !occupancy.store.authenticateBearer(bearer)) {
@@ -179,8 +177,9 @@ const occupancyWebSocketRouteLayer = HttpRouter.add(
           }
           return;
         }
+        const activeConnection = connection;
         const messages = yield* Effect.promise(() =>
-          occupancy.protocol.handle(connection, decoded),
+          occupancy.protocol.handle(activeConnection, decoded),
         );
         for (const message of messages) {
           yield* send(message);

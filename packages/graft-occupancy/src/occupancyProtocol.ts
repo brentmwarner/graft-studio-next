@@ -10,6 +10,7 @@ import {
   type GraftDesktopBootstrapResponse,
   type GraftDesktopCapability,
   type GraftDesktopClientMessage,
+  type GraftDesktopCommandEnvelope,
   type GraftDesktopEnrollmentRequest,
   type GraftDesktopEnrollmentResponse,
   type GraftDesktopError,
@@ -45,7 +46,7 @@ export interface OccupancyProtocolOptions {
   authorizeCommand?: (input: OccupancyAuthorizationInput) => OccupancyAuthorizationDecision;
   dispatchCommand?: (
     session: GraftDesktopSessionRecord,
-    command: { type: string; payload?: GraftDesktopJsonValue },
+    command: GraftDesktopCommandEnvelope,
   ) => Promise<GraftDesktopJsonValue | undefined>;
 }
 

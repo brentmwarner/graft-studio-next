@@ -1,11 +1,15 @@
-import type { GraftDesktopJsonValue, GraftDesktopSessionRecord } from "@graft/desktop-contract";
+import type {
+  GraftDesktopCommandEnvelope,
+  GraftDesktopJsonValue,
+  GraftDesktopSessionRecord,
+} from "@graft/desktop-contract";
 import { OccupancyCommandError } from "@graft/occupancy";
 import type { OrchestrationShellSnapshot } from "@synara/contracts";
 
 export async function dispatchOccupancyCommand(
   loadShell: () => Promise<OrchestrationShellSnapshot>,
   _session: GraftDesktopSessionRecord,
-  command: { type: string; payload?: GraftDesktopJsonValue },
+  command: GraftDesktopCommandEnvelope,
 ): Promise<GraftDesktopJsonValue | undefined> {
   if (command.type !== "project/list" && command.type !== "thread/list") {
     throw new OccupancyCommandError(
@@ -19,7 +23,7 @@ export async function dispatchOccupancyCommand(
       projects: shell.projects.map((project) => ({
         id: project.id,
         name: project.title,
-        kind: project.kind,
+        ...(project.kind === undefined ? {} : { kind: project.kind }),
         path: project.workspaceRoot,
       })),
     };

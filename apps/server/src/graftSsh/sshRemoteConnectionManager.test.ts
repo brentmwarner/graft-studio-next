@@ -199,7 +199,7 @@ describe("SshRemoteConnectionManager", () => {
     let revokedBearer: string | null = null;
     vi.stubGlobal(
       "fetch",
-      vi.fn<typeof fetch>(async (input, init) => {
+      vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
         const url = String(input);
         if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.health)) {
           return new Response(

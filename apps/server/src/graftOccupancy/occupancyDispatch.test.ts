@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { GraftDesktopSessionRecord } from "@graft/desktop-contract";
 import { OccupancyCommandError } from "@graft/occupancy";
 import type { OrchestrationShellSnapshot } from "@synara/contracts";
 
@@ -25,13 +26,13 @@ const shell = {
   updatedAt: new Date().toISOString(),
 } as unknown as OrchestrationShellSnapshot;
 
-const session = {
+const session: GraftDesktopSessionRecord = {
   sessionId: "session-desktop-01",
   environmentId: "environment-1",
-  profile: "desktop_occupancy" as const,
+  profile: "desktop_occupancy",
   clientId: "desktop-1",
   clientLabel: "Graft",
-  grants: ["projects", "threads"] as const,
+  grants: ["projects", "threads"],
   createdAt: 1,
   expiresAt: 2,
   lastSeenAt: 1,
@@ -41,7 +42,10 @@ const session = {
 describe("occupancy command adapter", () => {
   it("lists projects and threads from the existing orchestration shell", async () => {
     await expect(
-      dispatchOccupancyCommand(async () => shell, session, { type: "project/list" }),
+      dispatchOccupancyCommand(async () => shell, session, {
+        version: 1,
+        type: "project/list",
+      }),
     ).resolves.toEqual({
       projects: [
         {
@@ -53,7 +57,10 @@ describe("occupancy command adapter", () => {
       ],
     });
     await expect(
-      dispatchOccupancyCommand(async () => shell, session, { type: "thread/list" }),
+      dispatchOccupancyCommand(async () => shell, session, {
+        version: 1,
+        type: "thread/list",
+      }),
     ).resolves.toEqual({
       threads: [{ id: "thread-1", title: "Wire occupancy", projectId: "project-1" }],
     });
@@ -61,7 +68,10 @@ describe("occupancy command adapter", () => {
 
   it("rejects unimplemented occupancy commands instead of inventing a second project model", async () => {
     await expect(
-      dispatchOccupancyCommand(async () => shell, session, { type: "project/create" }),
+      dispatchOccupancyCommand(async () => shell, session, {
+        version: 1,
+        type: "project/create",
+      }),
     ).rejects.toBeInstanceOf(OccupancyCommandError);
   });
 });

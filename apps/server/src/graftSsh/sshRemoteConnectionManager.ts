@@ -44,9 +44,9 @@ export class SshRemoteConnectionManager {
     this.installer = new SshHostInstaller({
       hostArchivePath: options.hostArchivePath,
       hostVersion: options.hostVersion,
-      sshExecutable: options.sshExecutable,
-      scpExecutable: options.scpExecutable,
-      runner: options.commandRunner,
+      ...(options.sshExecutable === undefined ? {} : { sshExecutable: options.sshExecutable }),
+      ...(options.scpExecutable === undefined ? {} : { scpExecutable: options.scpExecutable }),
+      ...(options.commandRunner === undefined ? {} : { runner: options.commandRunner }),
     });
   }
 
@@ -106,8 +106,10 @@ export class SshRemoteConnectionManager {
     const originalMachine = this.options.machineStore.get(machineId);
     if (!originalMachine) throw new Error("SSH machine does not exist");
     const resolvedTarget = await resolveSshTarget(originalMachine.sshTarget, {
-      sshExecutable: this.options.sshExecutable,
-      runner: this.options.commandRunner,
+      ...(this.options.sshExecutable === undefined
+        ? {}
+        : { sshExecutable: this.options.sshExecutable }),
+      ...(this.options.commandRunner === undefined ? {} : { runner: this.options.commandRunner }),
     });
     const bootstrap = await this.installer.bootstrap(resolvedTarget.target);
     const createTunnel = this.options.createTunnel ?? ((options) => new ManagedSshTunnel(options));
@@ -115,7 +117,9 @@ export class SshRemoteConnectionManager {
       target: resolvedTarget.target,
       remotePort: bootstrap.port,
       expectedEnvironmentId: bootstrap.environmentId,
-      sshExecutable: this.options.sshExecutable,
+      ...(this.options.sshExecutable === undefined
+        ? {}
+        : { sshExecutable: this.options.sshExecutable }),
     });
     try {
       const localPort = await tunnel.start();
