@@ -1,0 +1,8 @@
+{
+  "transferId": "44444444-4444-4444-8444-444444444444",
+  "direction": "upload",
+  "mediaType": "image/png",
+  "sizeBytes": 1024,
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expiresAt": 1780000000000
+}

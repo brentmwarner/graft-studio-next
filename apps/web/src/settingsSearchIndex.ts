@@ -423,6 +423,18 @@ export const SETTINGS_SEARCH_ENTRIES: readonly SettingsSearchEntry[] = [
       "Pair Codex Claude and other local MCP clients with scoped project access. revoke credential task create wait read worktree approval",
   },
   {
+    id: "connections:mobile-pairing",
+    section: "connections",
+    title: "Pair a phone",
+    keywords: "graft pair qr phone ios android mobile pairing link token",
+  },
+  {
+    id: "connections:ssh-machines",
+    section: "connections",
+    title: "Add a machine",
+    keywords: "ssh ssh target user@host graft-host occupancy linux remote host tunnel",
+  },
+  {
     id: "advanced:version",
     section: "advanced",
     title: "Version",

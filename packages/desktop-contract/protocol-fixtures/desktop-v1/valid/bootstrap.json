@@ -1,0 +1,12 @@
+{
+  "protocolVersion": 1,
+  "environmentId": "host-fedora-workstation-01",
+  "environmentLabel": "Fedora workstation",
+  "daemonVersion": "0.1.0",
+  "platform": { "os": "linux", "arch": "x64", "libc": "glibc" },
+  "port": 47831,
+  "enrollmentToken": "enrollment-token-value-000000000000000001",
+  "enrollmentExpiresAt": 1780000000000,
+  "activeRunCount": 0,
+  "activePtyCount": 0
+}

@@ -493,7 +493,7 @@ private func homeErrorMessage(_ error: GraftError) -> String {
             id: "1",
             name: "graft-studio",
             threads: [
-                InboxThreadItem(id: "t1", title: "Audit Graft against T3 Code", showsAttentionDot: true),
+                InboxThreadItem(id: "t1", title: "Audit Graft identity coverage", showsAttentionDot: true),
                 InboxThreadItem(id: "t2", title: "Audit capability coverage for Graft", showsAttentionDot: false),
                 InboxThreadItem(id: "t3", title: "Plan Graft Mobile remote access", showsAttentionDot: false),
             ]

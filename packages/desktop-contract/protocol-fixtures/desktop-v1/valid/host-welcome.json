@@ -1,0 +1,25 @@
+{
+  "envelope": "welcome",
+  "environment": {
+    "environmentId": "host-fedora-workstation-01",
+    "environmentLabel": "Fedora workstation",
+    "daemonVersion": "0.1.0",
+    "protocolVersion": 1,
+    "capabilities": ["projects", "threads", "files"],
+    "cursor": 42,
+    "replayFloor": 10
+  },
+  "session": {
+    "sessionId": "session-desktop-01",
+    "environmentId": "host-fedora-workstation-01",
+    "profile": "desktop_occupancy",
+    "clientId": "desktop-client-01",
+    "clientLabel": "Brent's Mac",
+    "grants": ["projects", "threads", "files"],
+    "createdAt": 1779999000000,
+    "expiresAt": 1787775000000,
+    "lastSeenAt": 1779999000000,
+    "revokedAt": null
+  },
+  "capabilities": ["projects", "threads", "files"]
+}

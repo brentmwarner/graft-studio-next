@@ -1,0 +1,9 @@
+{
+  "protocolVersion": 1,
+  "enrollmentToken": "enrollment-token-value-000000000000000001",
+  "clientId": "desktop-client-01",
+  "clientLabel": "Brent's Mac",
+  "clientVersion": "0.1.0",
+  "capabilities": ["projects"],
+  "wsBaseUrl": "ws://127.0.0.1:49152/desktop/v1/ws"
+}

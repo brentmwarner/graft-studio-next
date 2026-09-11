@@ -53,6 +53,9 @@ import { ExternalMcpGateway } from "./externalMcp/Services/ExternalMcpGateway";
 import { ExternalMcpService } from "./externalMcp/Services/ExternalMcpService";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
 import { graftMobileRouteLayer } from "./graftMobile/httpRoute";
+import { graftOccupancyRouteLayer, closeOccupancyRuntime } from "./graftOccupancy/httpRoute";
+import { graftSshRouteLayer, closeSshConnectionManager } from "./graftSsh/httpRoute";
+import { setOccupancyListenPort } from "./graftOccupancy/occupancyRuntime";
 import { ProviderDiscoveryService } from "./provider/Services/ProviderDiscoveryService";
 
 export interface ServerShape {
@@ -175,6 +178,8 @@ export const createEffectServer = Effect.fn(function* (
     makeEffectHttpRouteLayer(readiness, shutdownController),
     websocketRpcRouteLayer,
     graftMobileRouteLayer,
+    graftOccupancyRouteLayer,
+    graftSshRouteLayer,
     agentGatewayRouteLayer,
     externalMcpRouteLayer,
   );
@@ -188,6 +193,13 @@ export const createEffectServer = Effect.fn(function* (
   const listeningPort = resolveListeningPort(
     (nodeServer as http.Server | null)?.address() ?? null,
     config.port,
+  );
+  setOccupancyListenPort(listeningPort);
+  yield* Effect.addFinalizer(() =>
+    Effect.promise(async () => {
+      await closeSshConnectionManager();
+      closeOccupancyRuntime();
+    }),
   );
   agentGatewayCredentials.setListeningPort(listeningPort);
   yield* persistServerRuntimeState({

@@ -300,7 +300,22 @@ const ServerConfigLive = (input: CliInput) =>
         catch: (cause) =>
           new StartupError({ message: "Failed to secure Synara's local state directory", cause }),
       });
-      const noBrowser = resolveBooleanConfig(input.noBrowser, env.noBrowser, mode === "desktop");
+      const graftHost = process.env.GRAFT_HOST === "1";
+      if (graftHost && !process.env.GRAFT_HOST_DATA_DIR?.trim()) {
+        return yield* new StartupError({
+          message: "GRAFT_HOST_DATA_DIR is required when GRAFT_HOST=1",
+        });
+      }
+      // Omitting Node's host listens on an unspecified address, which exposes
+      // the server beyond the local machine on common platforms. Keep every
+      // mode loopback-only unless remote access is explicit and authenticated.
+      // graft-host occupancy is loopback-only even when SYNARA_HOST is set.
+      const host = graftHost
+        ? "127.0.0.1"
+        : (Option.getOrUndefined(input.host) ?? env.host ?? "127.0.0.1");
+      const noBrowser = graftHost
+        ? true
+        : resolveBooleanConfig(input.noBrowser, env.noBrowser, mode === "desktop");
       const authToken = Option.getOrUndefined(input.authToken) ?? env.authToken;
       const desktopShutdownToken = env.desktopShutdownToken ?? liveProcessDesktopShutdownToken;
       const migrationDivergenceConsent =
@@ -325,10 +340,6 @@ const ServerConfigLive = (input: CliInput) =>
         false,
       );
       const staticDir = devUrl ? undefined : yield* cliConfig.resolveStaticDir;
-      // Omitting Node's host listens on an unspecified address, which exposes
-      // the server beyond the local machine on common platforms. Keep every
-      // mode loopback-only unless remote access is explicit and authenticated.
-      const host = Option.getOrUndefined(input.host) ?? env.host ?? "127.0.0.1";
       const remotePolicyError = remoteAccessPolicyError({
         host,
         authToken,
