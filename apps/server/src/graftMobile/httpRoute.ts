@@ -29,10 +29,12 @@ import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
-import { isLoopbackHost, mobilePairingBaseUrl } from "../startupAccess";
+import { isLoopbackHost, getBoundListenPort, mobilePairingBaseUrl } from "../startupAccess";
 import {
   GraftMobileCommandError,
+  abortMobileCommand,
   claimMobileCommand,
+  closedMobileCommandResponse,
   executeMobileCommand,
   loadMobileSnapshot,
   makeGraftMobileGatewayState,
@@ -126,7 +128,7 @@ function requestHttpBaseUrl(
   if (!fallback) return null;
   return mobilePairingBaseUrl({
     host: config.host,
-    port: config.port,
+    port: getBoundListenPort(config.port),
     publicUrl: config.publicUrl,
     fallback,
   });
@@ -390,6 +392,7 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
         const inbound = yield* Queue.dropping<unknown>(MOBILE_WS_INBOUND_CAPACITY);
         const outbound = yield* Queue.dropping<string>(MOBILE_WS_OUTBOUND_CAPACITY);
         const liveState = makeGraftMobileLiveEventState();
+        const ownedCommandIds = new Set<string>();
         let welcomed = false;
 
         const send = (message: GraftMobileHostMessage) => offerMobileOutbound(outbound, message);
@@ -469,6 +472,7 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
               yield* send(yield* Effect.promise(() => claimed.promise));
               return;
             }
+            ownedCommandIds.add(message.commandId);
             const response = yield* executeMobileCommand(
               gatewayState,
               message.commandId,
@@ -514,15 +518,39 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
                   },
                 });
               }),
+              Effect.onInterrupt(() =>
+                Effect.sync(() => {
+                  abortMobileCommand(
+                    gatewayState,
+                    message.commandId,
+                    closedMobileCommandResponse(message.commandId),
+                  );
+                  ownedCommandIds.delete(message.commandId);
+                }),
+              ),
             );
             claimed.complete(response);
+            ownedCommandIds.delete(message.commandId);
             yield* send(response);
           });
 
         yield* Stream.fromQueue(inbound).pipe(Stream.runForEach(handleFrame), Effect.forkScoped);
         yield* socket.run((message) => {
           Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
-        });
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              for (const commandId of ownedCommandIds) {
+                abortMobileCommand(
+                  gatewayState,
+                  commandId,
+                  closedMobileCommandResponse(commandId),
+                );
+              }
+              ownedCommandIds.clear();
+            }),
+          ),
+        );
         return HttpServerResponse.empty();
       }),
     );

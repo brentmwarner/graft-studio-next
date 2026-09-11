@@ -111,4 +111,49 @@ describe("graft-host daemon upgrade", () => {
     });
     expect(signals).toEqual(["SIGTERM", "SIGKILL"]);
   });
+
+  it("waits after SIGKILL until the old pid is dead before returning", async () => {
+    const pid = 9_001;
+    let alive = true;
+    let sawKill = false;
+    let waitsAfterKill = 0;
+    await stopDaemonPid(pid, {
+      control: {
+        isAlive: () => alive,
+        signal: (_candidate, signal) => {
+          if (signal === "SIGKILL") sawKill = true;
+        },
+      },
+      wait: async () => {
+        if (sawKill) {
+          waitsAfterKill += 1;
+          if (waitsAfterKill >= 2) alive = false;
+        }
+      },
+      timeoutMs: 0,
+      killWaitMs: 1_000,
+    });
+    expect(sawKill).toBe(true);
+    expect(waitsAfterKill).toBeGreaterThanOrEqual(2);
+    expect(alive).toBe(false);
+  });
+
+  it("signals the process group so a Synara child in the same group is stopped", async () => {
+    const pid = 4_400;
+    const targets: number[] = [];
+    const alive = new Set([pid]);
+    await stopDaemonPid(pid, {
+      control: {
+        isAlive: (candidate) => alive.has(candidate),
+        signal: (candidate, signal) => {
+          targets.push(candidate);
+          if (signal === "SIGTERM") alive.delete(pid);
+        },
+      },
+      wait: async () => undefined,
+      timeoutMs: 1_000,
+      processGroup: true,
+    });
+    expect(targets[0]).toBe(-pid);
+  });
 });

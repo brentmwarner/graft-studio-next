@@ -1,13 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   formatHostForUrl,
   firstReachableIpv4Address,
+  getBoundListenPort,
   isLoopbackHost,
   isWildcardHost,
   mobilePairingBaseUrl,
   resolveListeningPort,
+  setBoundListenPort,
 } from "./startupAccess";
+
+afterEach(() => {
+  setBoundListenPort(0);
+});
 
 describe("startupAccess", () => {
   it("detects wildcard hosts", () => {
@@ -88,5 +94,19 @@ describe("startupAccess", () => {
         lanAddress: "192.168.1.20",
       }),
     ).toBe("http://localhost:3773");
+  });
+
+  it("uses the resolved listening port after the server binds port 0", () => {
+    expect(getBoundListenPort(0)).toBe(0);
+    setBoundListenPort(4123);
+    expect(getBoundListenPort(0)).toBe(4123);
+    expect(
+      mobilePairingBaseUrl({
+        host: "0.0.0.0",
+        port: getBoundListenPort(0),
+        fallback: "http://localhost:0",
+        lanAddress: "192.168.1.20",
+      }),
+    ).toBe("http://192.168.1.20:4123");
   });
 });

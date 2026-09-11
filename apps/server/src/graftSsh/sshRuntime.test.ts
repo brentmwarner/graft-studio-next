@@ -37,4 +37,18 @@ describe("resolveGraftHostArchivePath", () => {
       join("/app/apps/server/dist", GRAFT_HOST_LINUX_X64_ARCHIVE),
     );
   });
+
+  it("prefers the asar.unpacked archive so scp can read a real file", () => {
+    const fromDir = "/app/resources/app.asar/apps/server/dist";
+    const unpacked = join(
+      "/app/resources/app.asar.unpacked/apps/server/dist",
+      GRAFT_HOST_LINUX_X64_ARCHIVE,
+    );
+    const asarArchive = join(fromDir, GRAFT_HOST_LINUX_X64_ARCHIVE);
+    const present = new Set([unpacked, asarArchive]);
+    expect(graftHostArchiveCandidates(fromDir)[0]).toBe(unpacked);
+    expect(resolveGraftHostArchivePath(fromDir, {}, (candidate) => present.has(candidate))).toBe(
+      unpacked,
+    );
+  });
 });

@@ -67,16 +67,24 @@ export async function stopDaemonPid(
     control?: DaemonProcessControl;
     wait?: (ms: number) => Promise<void>;
     timeoutMs?: number;
+    killWaitMs?: number;
+    processGroup?: boolean;
   } = {},
 ): Promise<void> {
   const control = options.control ?? defaultDaemonProcessControl;
   const wait = options.wait ?? ((ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms)));
   const timeoutMs = options.timeoutMs ?? 5_000;
+  const killWaitMs = options.killWaitMs ?? 2_000;
+  const signalTarget = options.processGroup ? -pid : pid;
   if (!control.isAlive(pid)) return;
   try {
-    control.signal(pid, "SIGTERM");
+    control.signal(signalTarget, "SIGTERM");
   } catch {
-    return;
+    try {
+      control.signal(pid, "SIGTERM");
+    } catch {
+      return;
+    }
   }
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -84,9 +92,21 @@ export async function stopDaemonPid(
     await wait(50);
   }
   try {
-    control.signal(pid, "SIGKILL");
+    control.signal(signalTarget, "SIGKILL");
   } catch {
-    // The process exited between the last liveness check and SIGKILL.
+    try {
+      control.signal(pid, "SIGKILL");
+    } catch {
+      // The process exited between the last liveness check and SIGKILL.
+    }
+  }
+  const killDeadline = Date.now() + killWaitMs;
+  while (Date.now() < killDeadline) {
+    if (!control.isAlive(pid)) return;
+    await wait(50);
+  }
+  if (control.isAlive(pid)) {
+    throw new Error(`graft-host pid ${pid} did not exit after SIGKILL`);
   }
 }
 
@@ -96,6 +116,8 @@ export async function stopRecordedDaemon(
     control?: DaemonProcessControl;
     wait?: (ms: number) => Promise<void>;
     timeoutMs?: number;
+    killWaitMs?: number;
+    processGroup?: boolean;
   } = {},
 ): Promise<void> {
   const state = readDaemonState(statePath);
