@@ -14,7 +14,7 @@ import {
   type GraftRemoteEndpointKind,
   type GraftRemoteError,
 } from "@graft/mobile-contract";
-import { DateTime, Effect, FileSystem, Layer, Queue, Stream } from "effect";
+import { DateTime, Effect, FileSystem, Layer, Queue, Semaphore, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { makeEffectAuthRequest } from "../auth/effectHttp";
@@ -32,9 +32,7 @@ import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSna
 import { isLoopbackHost, getBoundListenPort, mobilePairingBaseUrl } from "../startupAccess";
 import {
   GraftMobileCommandError,
-  abortMobileCommand,
   claimMobileCommand,
-  closedMobileCommandResponse,
   executeMobileCommand,
   loadMobileSnapshot,
   makeGraftMobileGatewayState,
@@ -391,11 +389,12 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
         const writer = yield* socket.writer;
         const inbound = yield* Queue.dropping<unknown>(MOBILE_WS_INBOUND_CAPACITY);
         const outbound = yield* Queue.dropping<string>(MOBILE_WS_OUTBOUND_CAPACITY);
+        const outboundLock = yield* Semaphore.make(1);
         const liveState = makeGraftMobileLiveEventState();
-        const ownedCommandIds = new Set<string>();
         let welcomed = false;
 
-        const send = (message: GraftMobileHostMessage) => offerMobileOutbound(outbound, message);
+        const send = (message: GraftMobileHostMessage) =>
+          offerMobileOutbound(outbound, message, outboundLock);
 
         yield* Stream.fromQueue(outbound).pipe(Stream.runForEach(writer), Effect.forkScoped);
 
@@ -464,95 +463,65 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
             if (message.envelope === "subscribe") return;
 
             const claimed = claimMobileCommand(gatewayState, message.commandId);
-            if (claimed.kind === "cached") {
-              yield* send(claimed.response);
-              return;
-            }
-            if (claimed.kind === "pending") {
-              yield* send(yield* Effect.promise(() => claimed.promise));
-              return;
-            }
-            ownedCommandIds.add(message.commandId);
-            const response = yield* executeMobileCommand(
-              gatewayState,
-              message.commandId,
-              message.command,
-            ).pipe(
-              Effect.flatMap((result) =>
-                engine.getEventHighWaterSequence.pipe(
-                  Effect.map(
-                    (cursor): GraftMobileHostMessage => ({
-                      envelope: "response",
-                      commandId: message.commandId,
-                      ...(message.requestId ? { requestId: message.requestId } : {}),
-                      receipt: {
+            if (claimed.kind === "reserved") {
+              yield* executeMobileCommand(gatewayState, message.commandId, message.command).pipe(
+                Effect.flatMap((result) =>
+                  engine.getEventHighWaterSequence.pipe(
+                    Effect.map(
+                      (cursor): GraftMobileHostMessage => ({
+                        envelope: "response",
                         commandId: message.commandId,
-                        status: "completed",
                         ...(message.requestId ? { requestId: message.requestId } : {}),
-                        cursor,
-                      },
-                      result,
-                    }),
+                        receipt: {
+                          commandId: message.commandId,
+                          status: "completed",
+                          ...(message.requestId ? { requestId: message.requestId } : {}),
+                          cursor,
+                        },
+                        result,
+                      }),
+                    ),
                   ),
                 ),
-              ),
-              Effect.catch((error) => {
-                const commandError =
-                  error instanceof GraftMobileCommandError
-                    ? error
-                    : new GraftMobileCommandError({
-                        code: "internal",
-                        message: error instanceof Error ? error.message : "Mobile command failed.",
-                        cause: error,
-                      });
-                return Effect.succeed<GraftMobileHostMessage>({
-                  envelope: "response",
-                  commandId: message.commandId,
-                  ...(message.requestId ? { requestId: message.requestId } : {}),
-                  receipt: {
+                Effect.catch((error) => {
+                  const commandError =
+                    error instanceof GraftMobileCommandError
+                      ? error
+                      : new GraftMobileCommandError({
+                          code: "internal",
+                          message:
+                            error instanceof Error ? error.message : "Mobile command failed.",
+                          cause: error,
+                        });
+                  return Effect.succeed<GraftMobileHostMessage>({
+                    envelope: "response",
                     commandId: message.commandId,
-                    status: "rejected",
                     ...(message.requestId ? { requestId: message.requestId } : {}),
-                    errorCode: commandError.code,
-                    message: commandError.message,
-                  },
-                });
-              }),
-              Effect.onInterrupt(() =>
-                Effect.sync(() => {
-                  abortMobileCommand(
-                    gatewayState,
-                    message.commandId,
-                    closedMobileCommandResponse(message.commandId),
-                  );
-                  ownedCommandIds.delete(message.commandId);
+                    receipt: {
+                      commandId: message.commandId,
+                      status: "rejected",
+                      ...(message.requestId ? { requestId: message.requestId } : {}),
+                      errorCode: commandError.code,
+                      message: commandError.message,
+                    },
+                  });
                 }),
-              ),
-            );
-            claimed.complete(response);
-            ownedCommandIds.delete(message.commandId);
+                Effect.tap((response) => Effect.sync(() => claimed.complete(response))),
+                Effect.uninterruptible,
+                Effect.forkDetach,
+              );
+            }
+            const response =
+              claimed.kind === "cached"
+                ? claimed.response
+                : yield* Effect.promise(() => claimed.promise);
             yield* send(response);
           });
 
         yield* Stream.fromQueue(inbound).pipe(Stream.runForEach(handleFrame), Effect.forkScoped);
-        yield* socket
-          .run((message) => {
-            Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
-          })
-          .pipe(
-            Effect.ensuring(
-              Effect.sync(() => {
-                for (const commandId of ownedCommandIds) {
-                  abortMobileCommand(
-                    gatewayState,
-                    commandId,
-                    closedMobileCommandResponse(commandId),
-                  );
-                }
-                ownedCommandIds.clear();
-              }),
-            ),
-          );
+        yield* socket.run((message) => {
+          Effect.runFork(Queue.offer(inbound, message).pipe(Effect.asVoid));
+        });
         return HttpServerResponse.empty();
       }),
     );

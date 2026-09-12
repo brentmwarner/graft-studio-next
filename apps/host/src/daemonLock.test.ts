@@ -156,4 +156,29 @@ describe("graft-host daemon upgrade", () => {
     });
     expect(targets[0]).toBe(-pid);
   });
+
+  it("waits until the process group is dead after the leader exits", async () => {
+    const pid = 5_500;
+    const alive = new Set([pid, -pid]);
+    const signals: NodeJS.Signals[] = [];
+    await stopDaemonPid(pid, {
+      control: {
+        isAlive: (candidate) => alive.has(candidate),
+        signal: (candidate, signal) => {
+          signals.push(signal);
+          if (candidate === -pid && signal === "SIGTERM") alive.delete(pid);
+          if (candidate === -pid && signal === "SIGKILL") {
+            alive.delete(pid);
+            alive.delete(-pid);
+          }
+        },
+      },
+      wait: async () => undefined,
+      timeoutMs: 0,
+      killWaitMs: 1_000,
+      processGroup: true,
+    });
+    expect(signals).toEqual(["SIGTERM", "SIGKILL"]);
+    expect(alive.has(-pid)).toBe(false);
+  });
 });

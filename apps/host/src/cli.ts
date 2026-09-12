@@ -274,7 +274,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     stopping = true;
     if (pid) {
       try {
-        await stopDaemonPid(pid);
+        await stopDaemonPid(pid, { processGroup: true });
       } catch {
         // The replacement still needs the lock even if the child ignored SIGKILL.
       }
@@ -285,9 +285,13 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     const pid = synara?.pid;
     if (pid) {
       try {
-        process.kill(pid, "SIGKILL");
+        process.kill(-pid, "SIGKILL");
       } catch {
-        // Already gone.
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // Already gone.
+        }
       }
     }
     shutdownFiles();
@@ -312,6 +316,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
       "--no-browser",
     ],
     {
+      detached: true,
       env: {
         ...process.env,
         GRAFT_HOST: "1",

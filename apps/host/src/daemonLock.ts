@@ -61,6 +61,15 @@ export function releaseDaemonLock(lockPath: string, pid: number): void {
   rmSync(lockPath, { force: true });
 }
 
+export function isStopTargetAlive(
+  pid: number,
+  processGroup: boolean,
+  control: DaemonProcessControl,
+): boolean {
+  if (processGroup) return control.isAlive(-pid) || control.isAlive(pid);
+  return control.isAlive(pid);
+}
+
 export async function stopDaemonPid(
   pid: number,
   options: {
@@ -75,8 +84,9 @@ export async function stopDaemonPid(
   const wait = options.wait ?? ((ms) => new Promise((resolveWait) => setTimeout(resolveWait, ms)));
   const timeoutMs = options.timeoutMs ?? 5_000;
   const killWaitMs = options.killWaitMs ?? 2_000;
-  const signalTarget = options.processGroup ? -pid : pid;
-  if (!control.isAlive(pid)) return;
+  const processGroup = options.processGroup === true;
+  const signalTarget = processGroup ? -pid : pid;
+  if (!isStopTargetAlive(pid, processGroup, control)) return;
   try {
     control.signal(signalTarget, "SIGTERM");
   } catch {
@@ -88,7 +98,7 @@ export async function stopDaemonPid(
   }
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (!control.isAlive(pid)) return;
+    if (!isStopTargetAlive(pid, processGroup, control)) return;
     await wait(50);
   }
   try {
@@ -102,10 +112,10 @@ export async function stopDaemonPid(
   }
   const killDeadline = Date.now() + killWaitMs;
   while (Date.now() < killDeadline) {
-    if (!control.isAlive(pid)) return;
+    if (!isStopTargetAlive(pid, processGroup, control)) return;
     await wait(50);
   }
-  if (control.isAlive(pid)) {
+  if (isStopTargetAlive(pid, processGroup, control)) {
     throw new Error(`graft-host pid ${pid} did not exit after SIGKILL`);
   }
 }

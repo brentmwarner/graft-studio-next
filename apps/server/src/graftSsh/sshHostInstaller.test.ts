@@ -1,4 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,7 +10,11 @@ import {
   GRAFT_HOST_VERSION,
 } from "@graft/desktop-contract";
 
-import { SshHostInstaller, isSupportedGraftHostNodeVersion } from "./sshHostInstaller";
+import {
+  GRAFT_HOST_INSTALL_SCRIPT,
+  SshHostInstaller,
+  isSupportedGraftHostNodeVersion,
+} from "./sshHostInstaller";
 import type { SshCommandResult, SshCommandRunner } from "./sshTarget";
 
 const roots: string[] = [];
@@ -94,5 +100,38 @@ describe("graft-host SSH installer", () => {
     expect(probes).toBe(2);
     expect(installs).toBeGreaterThanOrEqual(2);
     expect(commands.some((command) => command.includes(GRAFT_HOST_SERVER_ENTRY))).toBe(true);
+  });
+
+  it("replaces an existing same-version directory that is missing the server entry", () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-host-install-"));
+    roots.push(root);
+    const home = join(root, "home");
+    const dataHome = join(root, "share");
+    const staging = join(root, "payload");
+    mkdirSync(join(staging, "bin"), { recursive: true });
+    writeFileSync(join(staging, "bin", "graft-host.mjs"), "host\n");
+    writeFileSync(join(staging, "bin", GRAFT_HOST_SERVER_ENTRY), "server\n");
+    const archive = join(root, "graft-host.tar.gz");
+    const packed = spawnSync("tar", ["-czf", archive, "bin"], { cwd: staging, encoding: "utf8" });
+    expect(packed.status).toBe(0);
+
+    const target = join(dataHome, "graft/host/installation/versions", GRAFT_HOST_VERSION);
+    mkdirSync(join(target, "bin"), { recursive: true });
+    writeFileSync(join(target, "bin", "graft-host.mjs"), "stale-host\n");
+    mkdirSync(join(home, ".local/bin"), { recursive: true });
+
+    const sha256 = createHash("sha256").update(readFileSync(archive)).digest("hex");
+    const installed = spawnSync("sh", ["-s", "--", GRAFT_HOST_VERSION, archive, "nonce1", sha256], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: home,
+        XDG_DATA_HOME: dataHome,
+      },
+      input: GRAFT_HOST_INSTALL_SCRIPT,
+    });
+    expect(installed.status, installed.stderr).toBe(0);
+    expect(existsSync(join(target, "bin", GRAFT_HOST_SERVER_ENTRY))).toBe(true);
+    expect(readFileSync(join(target, "bin", "graft-host.mjs"), "utf8")).toBe("host\n");
   });
 });

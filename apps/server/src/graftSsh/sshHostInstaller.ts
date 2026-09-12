@@ -35,7 +35,7 @@ export function isSupportedGraftHostNodeVersion(version: string): boolean {
   return major > 24;
 }
 
-const INSTALL_SCRIPT = `set -eu
+export const GRAFT_HOST_INSTALL_SCRIPT = `set -eu
 version="$1"
 archive="$2"
 nonce="$3"
@@ -63,11 +63,8 @@ node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(!(
 chmod 755 bin/graft-host.mjs
 test -f bin/graft-server.mjs
 chmod 755 bin/graft-server.mjs
-if [ -e "$target" ]; then
-  rm -rf "$stage"
-else
-  mv "$stage" "$target"
-fi
+rm -rf "$target"
+mv "$stage" "$target"
 ln -s "versions/$version" "$current_temp"
 mv -Tf "$current_temp" "$data_root/current"
 ln -sfn "$data_root/current/bin/graft-host.mjs" "$HOME/.local/bin/graft-host"
@@ -212,7 +209,7 @@ export class SshHostInstaller {
         target,
         `sh -s -- ${this.options.hostVersion} ${remoteArchive} ${nonce} ${archiveSha256}`,
       ],
-      { timeoutMs: 120_000, input: Buffer.from(INSTALL_SCRIPT, "utf8") },
+      { timeoutMs: 120_000, input: Buffer.from(GRAFT_HOST_INSTALL_SCRIPT, "utf8") },
     );
     if (installed.exitCode !== 0) {
       throw new SshRemoteError(

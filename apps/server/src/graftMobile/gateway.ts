@@ -78,6 +78,7 @@ export type ClaimedMobileCommand =
   | { readonly kind: "pending"; readonly promise: Promise<GraftMobileHostMessage> }
   | {
       readonly kind: "reserved";
+      readonly promise: Promise<GraftMobileHostMessage>;
       readonly complete: (response: GraftMobileHostMessage) => void;
     };
 
@@ -102,7 +103,9 @@ export function claimMobileCommand(
   state.commandInflight.set(commandId, inflight);
   return {
     kind: "reserved",
+    promise,
     complete: (response) => {
+      if (state.commandInflight.get(commandId) !== inflight) return;
       state.commandResponses.set(commandId, response);
       if (state.commandResponses.size > 2_000) {
         const oldest = state.commandResponses.keys().next().value;

@@ -51,4 +51,25 @@ describe("mobile command idempotency", () => {
     await expect(second.promise).resolves.toEqual(closed);
     expect(claimMobileCommand(state, "command-2").kind).toBe("reserved");
   });
+
+  it("ignores a late complete after abort so a retry keeps its reservation", async () => {
+    const state = makeGraftMobileGatewayState();
+    const first = claimMobileCommand(state, "command-3");
+    expect(first.kind).toBe("reserved");
+    if (first.kind !== "reserved") return;
+
+    abortMobileCommand(state, "command-3", closedMobileCommandResponse("command-3"));
+    const retry = claimMobileCommand(state, "command-3");
+    expect(retry.kind).toBe("reserved");
+    if (retry.kind !== "reserved") return;
+
+    first.complete(responseFor("command-3", "completed"));
+    expect(claimMobileCommand(state, "command-3").kind).toBe("pending");
+    const retried = responseFor("command-3", "completed");
+    retry.complete(retried);
+    expect(claimMobileCommand(state, "command-3")).toEqual({
+      kind: "cached",
+      response: retried,
+    });
+  });
 });
