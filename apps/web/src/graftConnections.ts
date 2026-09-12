@@ -1,3 +1,5 @@
+import { resolveWsHttpUrl } from "./lib/wsHttpUrl";
+
 export interface GraftSshMachineSummary {
   id: string;
   label: string;
@@ -13,14 +15,21 @@ export interface GraftMobilePairingLink {
   expiresAt: number;
 }
 
+function errorMessageFromPayload(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") return fallback;
+  if ("error" in payload && typeof payload.error === "string") return payload.error;
+  if ("message" in payload && typeof payload.message === "string") return payload.message;
+  return fallback;
+}
+
 async function requestJson<T>(
   path: string,
   options: { readonly method?: "GET" | "POST" | "DELETE"; readonly body?: unknown } = {},
 ): Promise<T> {
   const hasBody = options.body !== undefined;
-  const response = await fetch(path, {
+  const response = await fetch(resolveWsHttpUrl(path), {
     method: options.method ?? "GET",
-    credentials: "same-origin",
+    credentials: "include",
     ...(hasBody
       ? {
           headers: { "Content-Type": "application/json" },
@@ -30,14 +39,12 @@ async function requestJson<T>(
   });
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    const message =
-      payload &&
-      typeof payload === "object" &&
-      "error" in payload &&
-      typeof payload.error === "string"
-        ? payload.error
-        : `Request failed with status ${response.status}`;
-    throw new Error(message);
+    throw new Error(
+      errorMessageFromPayload(payload, `Request failed with status ${response.status}`),
+    );
+  }
+  if (payload === null || typeof payload !== "object") {
+    throw new Error(`Request failed with status ${response.status}`);
   }
   return payload as T;
 }
