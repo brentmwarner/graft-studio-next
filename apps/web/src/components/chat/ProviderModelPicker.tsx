@@ -396,7 +396,7 @@ export const ProviderModelMenuItems = function ProviderModelMenuItems(
                     providerIconClassName(option.value, "text-muted-foreground/85"),
                   )}
                 />
-                <span>{option.label}</span>
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
                 <span className="ms-auto text-[11px] text-muted-foreground/80">
                   {availability.label}
                 </span>
@@ -405,7 +405,7 @@ export const ProviderModelMenuItems = function ProviderModelMenuItems(
           }
           return (
             <MenuSub key={option.value}>
-              <MenuSubTrigger>
+              <MenuSubTrigger className="w-full">
                 <OptionIcon
                   aria-hidden="true"
                   className={cn(
@@ -413,7 +413,7 @@ export const ProviderModelMenuItems = function ProviderModelMenuItems(
                     providerIconClassName(option.value, "text-muted-foreground/85"),
                   )}
                 />
-                {option.label}
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
               </MenuSubTrigger>
               <ComposerPickerMenuSubPopup
                 fixedWidth

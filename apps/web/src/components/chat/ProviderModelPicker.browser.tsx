@@ -1,3 +1,5 @@
+import "../../index.css";
+
 import { type ModelSlug, type ProviderKind, type ServerProviderStatus } from "@synara/contracts";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -711,6 +713,94 @@ describe("ProviderModelPicker", () => {
       expect(addRect.bottom).toBeLessThanOrEqual(popupRect.bottom + 1);
       expect(addRect.left).toBeGreaterThanOrEqual(popupRect.left - 1);
       expect(addRect.right).toBeLessThanOrEqual(popupRect.right + 1);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps provider labels on the left and chevrons on the right of the picker", async () => {
+    const mounted = await mountPicker({
+      provider: "codex",
+      model: "gpt-5-codex",
+      lockedProvider: null,
+      providers: [
+        {
+          provider: "codex",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "claudeAgent",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "cursor",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "opencode",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "pi",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+      ],
+    });
+
+    try {
+      await page.getByRole("button").click();
+      const popup = await vi.waitFor(() => {
+        const node = document.querySelector('[data-slot="menu-popup"]');
+        expect(node).toBeTruthy();
+        expect(node!.getBoundingClientRect().width).toBeGreaterThan(160);
+        return node!;
+      });
+      const popupRect = popup.getBoundingClientRect();
+
+      for (const name of ["Codex", "Claude", "Cursor", "OpenCode", "Pi"] as const) {
+        const row = page.getByRole("menuitem", { name }).element();
+        const rowRect = row.getBoundingClientRect();
+        expect(rowRect.width).toBeGreaterThan(popupRect.width * 0.85);
+
+        const label = [...row.querySelectorAll("span")].find(
+          (node) => node.textContent?.trim() === name,
+        );
+        expect(label).toBeTruthy();
+        const chevron = [...row.children].findLast(
+          (node) =>
+            node instanceof SVGElement ||
+            (node instanceof HTMLElement && node.dataset.slot === "central-icon"),
+        );
+        expect(chevron).toBeTruthy();
+        expect(chevron).not.toBe(label);
+
+        const labelText = [...label!.childNodes].find(
+          (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === name,
+        );
+        expect(labelText).toBeTruthy();
+        const labelRange = document.createRange();
+        labelRange.selectNodeContents(labelText!);
+        const labelRect = labelRange.getBoundingClientRect();
+        const chevronRect = chevron!.getBoundingClientRect();
+        expect(labelRect.left).toBeLessThan(popupRect.left + 56);
+        expect(chevronRect.right).toBeGreaterThan(popupRect.right - 24);
+        expect(chevronRect.left).toBeGreaterThan(labelRect.right + 8);
+      }
     } finally {
       await mounted.cleanup();
     }
