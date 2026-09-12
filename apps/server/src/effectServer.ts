@@ -53,12 +53,20 @@ import { ExternalMcpGateway } from "./externalMcp/Services/ExternalMcpGateway";
 import { ExternalMcpService } from "./externalMcp/Services/ExternalMcpService";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
 import { graftMobileRouteLayer } from "./graftMobile/httpRoute";
+import { graftConnectionsRouteLayer } from "./graftMobile/connectionsHttp";
 import {
+  attachMobileLanGatewayMainServer,
+  detachMobileLanGatewayMainServer,
   mobileLanGatewayAdvertisesIpv6,
   shouldStartMobileLanGateway,
   startMobileLanGateway,
   stopMobileLanGateway,
 } from "./graftMobile/lanGateway";
+import {
+  loadMobileGatewaySettings,
+  mobileGatewaySettingsPath,
+  saveMobileGatewaySettings,
+} from "./graftMobile/mobileGatewaySettings";
 import { graftOccupancyRouteLayer, closeOccupancyRuntime } from "./graftOccupancy/httpRoute";
 import { graftSshRouteLayer, closeSshConnectionManager } from "./graftSsh/httpRoute";
 import { setOccupancyListenPort } from "./graftOccupancy/occupancyRuntime";
@@ -184,6 +192,7 @@ export const createEffectServer = Effect.fn(function* (
     makeEffectHttpRouteLayer(readiness, shutdownController),
     websocketRpcRouteLayer,
     graftMobileRouteLayer,
+    graftConnectionsRouteLayer,
     graftOccupancyRouteLayer,
     graftSshRouteLayer,
     agentGatewayRouteLayer,
@@ -204,24 +213,33 @@ export const createEffectServer = Effect.fn(function* (
   setOccupancyListenPort(listeningPort);
   if (nodeServer && shouldStartMobileLanGateway(config)) {
     const loopbackServer = nodeServer;
-    yield* Effect.tryPromise({
-      try: () => startMobileLanGateway(loopbackServer),
-      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-    }).pipe(
-      Effect.tap((port) =>
-        Effect.logInfo("Graft mobile LAN gateway listening", {
-          host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
-          port,
+    attachMobileLanGatewayMainServer(loopbackServer);
+    const settings = loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir));
+    if (settings.enabled) {
+      yield* Effect.tryPromise({
+        try: () => startMobileLanGateway(loopbackServer, settings.preferredPort ?? 0),
+        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+      }).pipe(
+        Effect.tap((port) => {
+          saveMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir), {
+            enabled: true,
+            preferredPort: port,
+          });
+          return Effect.logInfo("Graft mobile LAN gateway listening", {
+            host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
+            port,
+          });
         }),
-      ),
-      Effect.catch((error) =>
-        Effect.logWarning("Graft mobile LAN gateway did not start", { detail: error.message }),
-      ),
-    );
+        Effect.catch((error) =>
+          Effect.logWarning("Graft mobile LAN gateway did not start", { detail: error.message }),
+        ),
+      );
+    }
   }
   yield* Effect.addFinalizer(() =>
     Effect.promise(async () => {
       await stopMobileLanGateway();
+      detachMobileLanGatewayMainServer();
       await closeSshConnectionManager();
       closeOccupancyRuntime();
     }),

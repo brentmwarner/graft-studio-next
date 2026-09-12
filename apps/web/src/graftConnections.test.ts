@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createMobilePairingLink, listSshMachines, saveSshMachine } from "./graftConnections";
+import {
+  createMobilePairingLink,
+  getConnectionsStatus,
+  listSshMachines,
+  saveSshMachine,
+} from "./graftConnections";
 
 describe("graftConnections", () => {
   afterEach(() => {
@@ -34,6 +39,36 @@ describe("graftConnections", () => {
       expect.objectContaining({ method: "POST", credentials: "include" }),
     );
     expect(result.pairingUrl).toContain("graft://pair");
+  });
+
+  it("loads connections status against the desktop websocket origin", async () => {
+    stubDesktopBridge();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        enabled: false,
+        networkAccessEnabled: false,
+        environmentId: "env",
+        environmentLabel: "Studio",
+        bindHost: "127.0.0.1",
+        port: null,
+        endpoints: [],
+        devices: [],
+        pairingUrl: null,
+        pairingExpiresAt: null,
+        relay: { state: "disabled", lastError: null },
+        diagnostics: "enabled=false",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const status = await getConnectionsStatus();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:4111/api/graft/connections/status?token=desktop-secret",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    expect(status.enabled).toBe(false);
   });
 
   it("saves SSH machines against the desktop websocket origin", async () => {

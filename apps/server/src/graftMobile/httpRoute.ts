@@ -49,6 +49,7 @@ import {
   preferredPairingEndpoint,
   resolveAdvertisedMobilePairingBase,
 } from "./networkEndpoints";
+import { rememberIssuedPairing } from "./issuedPairing";
 import {
   MOBILE_WS_INBOUND_CAPACITY,
   MOBILE_WS_OUTBOUND_CAPACITY,
@@ -332,16 +333,19 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         label: "Graft mobile",
         role: "client",
       });
+      const pairingUrl = buildGraftPairingUrl({
+        v: GRAFT_MOBILE_PROTOCOL_VERSION,
+        host: advertised.httpBaseUrl,
+        token: issued.credential,
+        label: (yield* environment.getDescriptor).label,
+        endpointKind: advertised.endpointKind,
+      });
+      const expiresAt = DateTime.toEpochMillis(issued.expiresAt);
+      rememberIssuedPairing({ pairingUrl, expiresAt });
       return HttpServerResponse.jsonUnsafe(
         {
-          pairingUrl: buildGraftPairingUrl({
-            v: GRAFT_MOBILE_PROTOCOL_VERSION,
-            host: advertised.httpBaseUrl,
-            token: issued.credential,
-            label: (yield* environment.getDescriptor).label,
-            endpointKind: advertised.endpointKind,
-          }),
-          expiresAt: DateTime.toEpochMillis(issued.expiresAt),
+          pairingUrl,
+          expiresAt,
         },
         { headers: corsHeaders },
       );

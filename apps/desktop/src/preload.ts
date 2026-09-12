@@ -206,6 +206,12 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       return () => ipcRenderer.removeListener(IPC.appSnap.state, wrappedListener);
     },
   },
+  connections: {
+    getKeepHostAwake: () => ipcRenderer.invoke(IPC.connections.getKeepHostAwake),
+    setKeepHostAwake: (keepHostAwake, gatewayEnabled) =>
+      ipcRenderer.invoke(IPC.connections.setKeepHostAwake, keepHostAwake, gatewayEnabled),
+    syncWake: (gatewayEnabled) => ipcRenderer.invoke(IPC.connections.syncWake, gatewayEnabled),
+  },
   storageMigration: {
     readSnapshot: () => ipcRenderer.sendSync(IPC.storageMigration.read),
     acknowledgeSnapshot: () => ipcRenderer.invoke(IPC.storageMigration.acknowledge),

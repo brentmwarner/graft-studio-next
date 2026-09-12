@@ -15,6 +15,39 @@ export interface GraftMobilePairingLink {
   expiresAt: number;
 }
 
+export type GraftConnectionsStatus = {
+  enabled: boolean;
+  networkAccessEnabled: boolean;
+  environmentId: string;
+  environmentLabel: string;
+  bindHost: string;
+  port: number | null;
+  endpoints: Array<{
+    kind: "relay" | "loopback" | "lan" | "tailnet" | "https";
+    address: string;
+    interfaceName: string;
+    httpBaseUrl: string;
+    wsBaseUrl: string;
+  }>;
+  devices: Array<{
+    deviceId: string;
+    sessionId: string;
+    label: string;
+    platform: "ios" | "android" | "web" | "desktop";
+    appVersion: string;
+    environmentLabel: string;
+    lastSeenAt: number;
+    connected: boolean;
+  }>;
+  pairingUrl: string | null;
+  pairingExpiresAt: number | null;
+  relay: {
+    state: "disabled" | "connecting" | "connected" | "error";
+    lastError: string | null;
+  };
+  diagnostics: string;
+};
+
 function errorMessageFromPayload(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") return fallback;
   if ("error" in payload && typeof payload.error === "string") return payload.error;
@@ -51,6 +84,24 @@ async function requestJson<T>(
 
 export function createMobilePairingLink(): Promise<GraftMobilePairingLink> {
   return requestJson<GraftMobilePairingLink>("/v1/pairing-link", { method: "POST" });
+}
+
+export function getConnectionsStatus(): Promise<GraftConnectionsStatus> {
+  return requestJson<GraftConnectionsStatus>("/api/graft/connections/status");
+}
+
+export function setConnectionsEnabled(enabled: boolean): Promise<GraftConnectionsStatus> {
+  return requestJson<GraftConnectionsStatus>("/api/graft/connections/enabled", {
+    method: "POST",
+    body: { enabled },
+  });
+}
+
+export function revokeConnectionsDevice(deviceId: string): Promise<GraftConnectionsStatus> {
+  return requestJson<GraftConnectionsStatus>("/api/graft/connections/revoke-device", {
+    method: "POST",
+    body: { deviceId },
+  });
 }
 
 export function listSshMachines(): Promise<{ machines: GraftSshMachineSummary[] }> {

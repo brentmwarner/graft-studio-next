@@ -638,6 +638,14 @@ export interface DesktopBridge {
     onError: (listener: (error: DesktopAppSnapErrorEvent) => void) => () => void;
     onState: (listener: (state: DesktopAppSnapState) => void) => () => void;
   };
+  connections?: {
+    getKeepHostAwake: () => Promise<boolean>;
+    setKeepHostAwake: (
+      keepHostAwake: boolean,
+      gatewayEnabled: boolean,
+    ) => Promise<{ keepHostAwake: boolean; blocking: boolean }>;
+    syncWake: (gatewayEnabled: boolean) => Promise<{ keepHostAwake: boolean; blocking: boolean }>;
+  };
   storageMigration: {
     readSnapshot: () => SynaraStorageSnapshot | null;
     acknowledgeSnapshot: () => Promise<void>;

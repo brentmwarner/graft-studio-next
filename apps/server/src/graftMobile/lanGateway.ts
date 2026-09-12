@@ -7,6 +7,7 @@ import { isLoopbackHost } from "../startupAccess";
 let lanServer: http.Server | null = null;
 let lanPort = 0;
 let lanGatewayIpv6 = false;
+let mainServerRef: http.Server | null = null;
 
 export function getMobileLanGatewayPort(): number | null {
   return lanPort > 0 ? lanPort : null;
@@ -14,6 +15,24 @@ export function getMobileLanGatewayPort(): number | null {
 
 export function mobileLanGatewayAdvertisesIpv6(): boolean {
   return lanGatewayIpv6;
+}
+
+export function attachMobileLanGatewayMainServer(server: http.Server): void {
+  mainServerRef = server;
+}
+
+export async function setMobileLanGatewayEnabled(
+  enabled: boolean,
+  preferredPort = 0,
+): Promise<number | null> {
+  if (!enabled) {
+    await stopMobileLanGateway();
+    return null;
+  }
+  if (!mainServerRef) {
+    throw new Error("Mobile LAN gateway has no HTTP server.");
+  }
+  return startMobileLanGateway(mainServerRef, preferredPort);
 }
 
 export function shouldStartMobileLanGateway(config: {
@@ -79,8 +98,22 @@ function boundPort(server: http.Server): number {
   return address.port;
 }
 
-export async function startMobileLanGateway(mainServer: http.Server): Promise<number> {
+async function bindGateway(server: http.Server, port: number): Promise<boolean> {
+  try {
+    await listen(server, { port, host: "::", ipv6Only: false });
+    return true;
+  } catch {
+    await listen(server, { port, host: "0.0.0.0" });
+    return false;
+  }
+}
+
+export async function startMobileLanGateway(
+  mainServer: http.Server,
+  preferredPort = 0,
+): Promise<number> {
   if (lanServer && lanPort > 0) return lanPort;
+  mainServerRef = mainServer;
 
   const requestListeners = [...mainServer.listeners("request")] as Array<
     (request: http.IncomingMessage, response: http.ServerResponse) => void
@@ -112,12 +145,13 @@ export async function startMobileLanGateway(mainServer: http.Server): Promise<nu
     }
   });
 
+  const requestedPort = preferredPort > 0 ? preferredPort : 0;
   let ipv6 = true;
   try {
-    await listen(server, { port: 0, host: "::", ipv6Only: false });
-  } catch {
-    ipv6 = false;
-    await listen(server, { port: 0, host: "0.0.0.0" });
+    ipv6 = await bindGateway(server, requestedPort);
+  } catch (error) {
+    if (requestedPort < 1) throw error;
+    ipv6 = await bindGateway(server, 0);
   }
 
   const port = boundPort(server);
@@ -141,4 +175,8 @@ export async function stopMobileLanGateway(): Promise<void> {
   await new Promise<void>((resolve) => {
     server.close(() => resolve());
   });
+}
+
+export function detachMobileLanGatewayMainServer(): void {
+  mainServerRef = null;
 }
