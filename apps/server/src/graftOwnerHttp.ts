@@ -33,7 +33,7 @@ export function graftOwnerCorsHeaders(input: {
       origin,
       requestOrigin: input.url.origin,
       config: input.config,
-    }) || isLoopbackDesktopRendererOrigin(origin, input.config);
+    }) || isDesktopRendererOrigin(origin, input.config);
   if (!trusted) return null;
   return {
     "Access-Control-Allow-Origin": origin,
@@ -44,10 +44,13 @@ export function graftOwnerCorsHeaders(input: {
   };
 }
 
-function isLoopbackDesktopRendererOrigin(origin: string, config: ServerConfigShape): boolean {
+function isDesktopRendererOrigin(origin: string, config: ServerConfigShape): boolean {
+  if (config.mode !== "desktop") return false;
   if (!isLoopbackHost(config.host) || config.publicUrl) return false;
   try {
-    return isLoopbackHost(new URL(origin).hostname);
+    const parsed = new URL(origin);
+    if (config.devUrl && parsed.origin === config.devUrl.origin) return true;
+    return isLoopbackHost(parsed.hostname);
   } catch {
     return false;
   }
@@ -59,7 +62,7 @@ export function authenticateDesktopOwner(
   config: ServerConfigShape,
   serverAuth: Pick<ServerAuthShape, "authenticateHttpRequest">,
 ): Effect.Effect<AuthenticatedHttpSession, AuthError> {
-  if (isLegacyTokenAuthorized({ config, url })) {
+  if (config.authToken && isLegacyTokenAuthorized({ config, url })) {
     return Effect.succeed(DESKTOP_LEGACY_OWNER_SESSION);
   }
   return serverAuth.authenticateHttpRequest(makeEffectAuthRequest(request));

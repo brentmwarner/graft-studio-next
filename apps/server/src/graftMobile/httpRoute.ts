@@ -42,9 +42,13 @@ import {
   loadMobileSnapshot,
   makeGraftMobileGatewayState,
 } from "./gateway";
-import { getMobileLanGatewayPort } from "./lanGateway";
+import { getMobileLanGatewayPort, mobileLanGatewayAdvertisesIpv6 } from "./lanGateway";
 import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
-import { discoverNetworkEndpoints, preferredPairingEndpoint } from "./networkEndpoints";
+import {
+  discoverNetworkEndpoints,
+  preferredPairingEndpoint,
+  resolveAdvertisedMobilePairingBase,
+} from "./networkEndpoints";
 import {
   MOBILE_WS_INBOUND_CAPACITY,
   MOBILE_WS_OUTBOUND_CAPACITY,
@@ -139,14 +143,6 @@ function requestHttpBaseUrl(
   });
 }
 
-function endpointKind(baseUrl: string): GraftRemoteEndpointKind {
-  const url = new URL(baseUrl);
-  if (url.protocol === "https:") {
-    return url.hostname.endsWith(".ts.net") ? "tailnet" : "https";
-  }
-  return isLoopbackHost(url.hostname) ? "loopback" : "lan";
-}
-
 function networkAccessEnabled(config: {
   readonly host?: string | undefined;
   readonly publicUrl?: URL | undefined;
@@ -166,17 +162,23 @@ function advertisedMobilePairingBase(
     readonly publicUrl?: URL | undefined;
   },
 ): { readonly httpBaseUrl: string; readonly endpointKind: GraftRemoteEndpointKind } | null {
+  if (config.publicUrl) {
+    return resolveAdvertisedMobilePairingBase({
+      publicUrl: config.publicUrl,
+      preferred: null,
+      requestHttpBaseUrl: null,
+    });
+  }
   const advertisedPort = getMobileLanGatewayPort() ?? getBoundListenPort(config.port);
-  const preferred = preferredPairingEndpoint(discoverNetworkEndpoints(advertisedPort));
-  if (preferred && !isLoopbackHost(preferred.address)) {
-    return { httpBaseUrl: preferred.httpBaseUrl, endpointKind: preferred.kind };
-  }
-  const httpBaseUrl = requestHttpBaseUrl(request, config);
-  if (!httpBaseUrl) return null;
-  if (preferred) {
-    return { httpBaseUrl: preferred.httpBaseUrl, endpointKind: preferred.kind };
-  }
-  return { httpBaseUrl, endpointKind: endpointKind(httpBaseUrl) };
+  const preferred = preferredPairingEndpoint(
+    discoverNetworkEndpoints(advertisedPort, undefined, {
+      includeIpv6: mobileLanGatewayAdvertisesIpv6(),
+    }),
+  );
+  return resolveAdvertisedMobilePairingBase({
+    preferred,
+    requestHttpBaseUrl: requestHttpBaseUrl(request, config),
+  });
 }
 
 const readJson = (request: HttpServerRequest.HttpServerRequest) => {

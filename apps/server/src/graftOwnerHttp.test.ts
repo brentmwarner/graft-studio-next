@@ -7,6 +7,7 @@ import { authenticateDesktopOwner, graftOwnerCorsHeaders } from "./graftOwnerHtt
 import type { ServerConfigShape } from "./config";
 
 const loopbackConfig = {
+  mode: "desktop",
   host: "127.0.0.1",
   port: 3773,
   authToken: "desktop-secret",
@@ -61,6 +62,22 @@ describe("graft owner HTTP", () => {
     ).toBeNull();
   });
 
+  it("does not treat a missing auth token as the owner", async () => {
+    await expect(
+      Effect.runPromise(
+        authenticateDesktopOwner(
+          request({ url: "http://127.0.0.1:3773/v1/pairing-link" }),
+          new URL("http://127.0.0.1:3773/v1/pairing-link"),
+          { ...loopbackConfig, authToken: undefined },
+          {
+            authenticateHttpRequest: () =>
+              Effect.fail(new AuthError({ message: "Authentication required.", status: 401 })),
+          },
+        ),
+      ),
+    ).rejects.toThrow(/Authentication required/);
+  });
+
   it("treats the desktop websocket token as the owner", async () => {
     const session = await Effect.runPromise(
       authenticateDesktopOwner(
@@ -75,5 +92,18 @@ describe("graft owner HTTP", () => {
     );
     expect(session.role).toBe("owner");
     expect(session.sessionId).toBe(AuthSessionId.makeUnsafe("desktop-legacy-token"));
+  });
+
+  it("does not apply the localhost CORS exception in web mode", () => {
+    expect(
+      graftOwnerCorsHeaders({
+        request: request({
+          origin: "http://localhost:8891",
+          url: "http://127.0.0.1:3773/v1/pairing-link",
+        }),
+        url: new URL("http://127.0.0.1:3773/v1/pairing-link"),
+        config: { ...loopbackConfig, mode: "web" } as ServerConfigShape,
+      }),
+    ).toBeNull();
   });
 });

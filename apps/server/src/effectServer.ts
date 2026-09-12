@@ -17,7 +17,7 @@ import {
   persistServerRuntimeState,
 } from "./serverRuntimeState";
 import { remoteAccessPolicyError, ServerConfig } from "./config";
-import { isLoopbackHost, resolveListeningPort, setBoundListenPort } from "./startupAccess";
+import { resolveListeningPort, setBoundListenPort } from "./startupAccess";
 import { patchBunWebSocketCloseEventCompatibility } from "./bunWebSocketCompatibility";
 import { makeEffectHttpRouteLayer } from "./http";
 import { Keybindings } from "./keybindings";
@@ -53,7 +53,12 @@ import { ExternalMcpGateway } from "./externalMcp/Services/ExternalMcpGateway";
 import { ExternalMcpService } from "./externalMcp/Services/ExternalMcpService";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
 import { graftMobileRouteLayer } from "./graftMobile/httpRoute";
-import { startMobileLanGateway, stopMobileLanGateway } from "./graftMobile/lanGateway";
+import {
+  mobileLanGatewayAdvertisesIpv6,
+  shouldStartMobileLanGateway,
+  startMobileLanGateway,
+  stopMobileLanGateway,
+} from "./graftMobile/lanGateway";
 import { graftOccupancyRouteLayer, closeOccupancyRuntime } from "./graftOccupancy/httpRoute";
 import { graftSshRouteLayer, closeSshConnectionManager } from "./graftSsh/httpRoute";
 import { setOccupancyListenPort } from "./graftOccupancy/occupancyRuntime";
@@ -197,14 +202,17 @@ export const createEffectServer = Effect.fn(function* (
   );
   setBoundListenPort(listeningPort);
   setOccupancyListenPort(listeningPort);
-  if (nodeServer && isLoopbackHost(config.host) && !config.publicUrl) {
+  if (nodeServer && shouldStartMobileLanGateway(config)) {
     const loopbackServer = nodeServer;
     yield* Effect.tryPromise({
       try: () => startMobileLanGateway(loopbackServer),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     }).pipe(
       Effect.tap((port) =>
-        Effect.logInfo("Graft mobile LAN gateway listening", { host: "0.0.0.0", port }),
+        Effect.logInfo("Graft mobile LAN gateway listening", {
+          host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
+          port,
+        }),
       ),
       Effect.catch((error) =>
         Effect.logWarning("Graft mobile LAN gateway did not start", { detail: error.message }),
