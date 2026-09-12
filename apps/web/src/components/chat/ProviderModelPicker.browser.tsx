@@ -654,6 +654,68 @@ describe("ProviderModelPicker", () => {
     }
   });
 
+  it("keeps Add Providers inside the open menu panel", async () => {
+    const mounted = await mountPicker({
+      provider: "codex",
+      model: "gpt-5-codex",
+      lockedProvider: null,
+      providers: [
+        {
+          provider: "codex",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "claudeAgent",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "cursor",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "opencode",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+        {
+          provider: "pi",
+          status: "ready",
+          available: true,
+          authStatus: "authenticated",
+          checkedAt: "2026-04-10T10:00:00.000Z",
+        },
+      ],
+    });
+
+    try {
+      await page.getByRole("button").click();
+      const addProviders = page.getByRole("menuitem", { name: "Add Providers" });
+      await expect.element(addProviders).toBeVisible();
+
+      const popup = document.querySelector('[data-slot="menu-popup"]');
+      expect(popup).toBeTruthy();
+      const popupRect = popup!.getBoundingClientRect();
+      const addRect = addProviders.element().getBoundingClientRect();
+      expect(addRect.top).toBeGreaterThanOrEqual(popupRect.top - 1);
+      expect(addRect.bottom).toBeLessThanOrEqual(popupRect.bottom + 1);
+      expect(addRect.left).toBeGreaterThanOrEqual(popupRect.left - 1);
+      expect(addRect.right).toBeLessThanOrEqual(popupRect.right + 1);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("hides providers before live status is known", async () => {
     const mounted = await mountPicker({
       provider: "codex",
