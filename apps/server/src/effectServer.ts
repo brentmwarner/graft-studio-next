@@ -198,8 +198,9 @@ export const createEffectServer = Effect.fn(function* (
   setBoundListenPort(listeningPort);
   setOccupancyListenPort(listeningPort);
   if (nodeServer && isLoopbackHost(config.host) && !config.publicUrl) {
+    const loopbackServer = nodeServer;
     yield* Effect.tryPromise({
-      try: () => startMobileLanGateway(nodeServer),
+      try: () => startMobileLanGateway(loopbackServer),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     }).pipe(
       Effect.tap((port) =>

@@ -1,5 +1,6 @@
 import http from "node:http";
 import type { Socket } from "node:net";
+import type { Duplex } from "node:stream";
 
 let lanServer: http.Server | null = null;
 let lanPort = 0;
@@ -31,7 +32,7 @@ export async function startMobileLanGateway(mainServer: http.Server): Promise<nu
     (request: http.IncomingMessage, response: http.ServerResponse) => void
   >;
   const upgradeListeners = [...mainServer.listeners("upgrade")] as Array<
-    (request: http.IncomingMessage, socket: Socket, head: Buffer) => void
+    (request: http.IncomingMessage, socket: Duplex, head: Buffer) => void
   >;
 
   const server = http.createServer((request, response) => {
