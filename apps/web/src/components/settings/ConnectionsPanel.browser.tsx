@@ -91,7 +91,7 @@ it("opens the quiet pairing dialog and starts pairing from Get started", async (
   await expect.element(mounted.getByTestId("connections-endpoint-lan")).toBeVisible();
   await mounted.getByTestId("connections-add-device").click();
   await expect
-    .element(mounted.getByRole("dialog", { name: "Connect a device to this Mac" }))
+    .element(mounted.getByRole("dialog", { name: "Connect a device to this computer" }))
     .toBeVisible();
   await expect.element(mounted.getByText("Pick up where you left off")).toBeVisible();
   await mounted.getByTestId("connections-pairing-get-started").click();

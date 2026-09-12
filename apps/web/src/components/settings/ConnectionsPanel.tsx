@@ -151,7 +151,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
       <section aria-labelledby="paired-devices-heading" className="mb-8">
         <div className="mb-3 flex items-center justify-between gap-4">
           <h2 id="paired-devices-heading" className="px-2 text-[13px] font-medium text-foreground">
-            Devices that can control this Mac
+            Devices that can control this computer
           </h2>
           {status.devices.length > 0 ? (
             <Button
@@ -170,7 +170,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
         {status.devices.length === 0 ? (
           <SettingsEmptyState>
             <CentralIcon name="devices" className="mx-auto mb-3 size-8 text-foreground" />
-            <p>Add a device to control this Mac remotely</p>
+            <p>Add a device to control this computer remotely</p>
             <Button
               type="button"
               size="lg"
@@ -243,7 +243,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
 
       <SettingsSectionShell title="Connection options">
         <p className="px-2 pb-2 text-[11px] text-muted-foreground">
-          Manage network access and this Mac's availability.
+          Manage network access and this computer's availability.
         </p>
         <div className="space-y-3">
           <SettingsCard>
@@ -253,7 +253,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                   Allow other devices to connect
                 </span>
                 <p className={cn(SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME, "mt-0.5")}>
-                  Reaches your devices through the Graft relay, plus this Mac's private LAN and
+                  Reaches your devices through the Graft relay, plus this computer's private LAN and
                   Tailnet addresses
                 </p>
               </div>
@@ -306,7 +306,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
             <div className={SETTINGS_CARD_ROW_CLASS_NAME}>
               <span className={SETTINGS_CARD_ROW_TITLE_CLASS_NAME}>Candidate addresses</span>
               <p className={cn(SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME, "mt-0.5")}>
-                Detected on this Mac. Firewalls and VPN access rules still apply.
+                Detected on this computer. Firewalls and VPN access rules still apply.
               </p>
             </div>
             {!status.enabled ? (
@@ -475,10 +475,10 @@ function PairingIntroduction({
       <div className="px-7 pb-5 pt-5">
         <div className="text-center">
           <h2 id="pairing-dialog-title" className="text-base font-semibold text-foreground">
-            Connect a device to this Mac
+            Connect a device to this computer
           </h2>
           <p className="mx-auto mt-1.5 max-w-[300px] text-[12px] leading-5 text-muted-foreground">
-            Continue Graft work from your phone while this Mac handles the local agent runtime.
+            Continue Graft work from your phone while this computer handles the local agent runtime.
           </p>
         </div>
 
@@ -496,7 +496,7 @@ function PairingIntroduction({
           <PairingBenefit
             icon={<CentralIcon name="box-sparkle" className="size-[17px]" />}
             title="Start something new"
-            description="Send instructions from your phone while this Mac does the work."
+            description="Send instructions from your phone while this computer does the work."
           />
         </ul>
 
@@ -586,7 +586,7 @@ function PairingQrStep({
           Scan with Graft Mobile
         </h2>
         <p className="mx-auto mt-1.5 max-w-[310px] text-[12px] leading-5 text-muted-foreground">
-          Open Graft Mobile, choose Pair with Mac, then scan this one-time code.
+          Open Graft Mobile, choose Pair with Graft Studio, then scan this one-time code.
         </p>
       </div>
 
@@ -646,8 +646,8 @@ function PairingQrStep({
           data-testid="connections-pairing-reachability"
         >
           {relayIsConnected
-            ? "Single-use and generated on this Mac. Your phone can be on any network."
-            : "Single-use and generated on this Mac. Your phone needs to reach this Mac's network."}
+            ? "Single-use and generated on this computer. Your phone can be on any network."
+            : "Single-use and generated on this computer. Your phone needs to reach this computer's network."}
         </p>
         {error ? (
           <p className="mt-2 text-[11px] text-destructive" role="alert">
@@ -685,11 +685,11 @@ function PairingQrStep({
 function relayStatusDescription(state: ConnectionsStatus["relay"]["state"]): string {
   switch (state) {
     case "disabled":
-      return "Not connected. Pairing uses this Mac's LAN or Tailnet address.";
+      return "Not connected. Pairing uses this computer's LAN or Tailnet address.";
     case "connecting":
       return "Connecting…";
     case "connected":
-      return "Connected. Your devices can reach this Mac from any network.";
+      return "Connected. Your devices can reach this computer from any network.";
     case "error":
       return "Unavailable. Pairing falls back to LAN or Tailnet.";
     default: {
