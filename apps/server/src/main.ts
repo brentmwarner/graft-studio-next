@@ -64,6 +64,7 @@ import { ServerLoggerLive } from "./serverLogger";
 import { ServerSettingsService } from "./serverSettings";
 import {
   formatHostForUrl,
+  getBoundListenPort,
   isLoopbackHost,
   isWildcardHost,
   mobilePairingBaseUrl,
@@ -432,15 +433,16 @@ const makeServerProgram = (input: CliInput) =>
 
     yield* start;
 
-    const localUrl = `http://localhost:${config.port}`;
+    const advertisedPort = getBoundListenPort(config.port);
+    const localUrl = `http://localhost:${advertisedPort}`;
     const bindUrl =
       config.host && !isWildcardHost(config.host)
-        ? `http://${formatHostForUrl(config.host)}:${config.port}`
+        ? `http://${formatHostForUrl(config.host)}:${advertisedPort}`
         : localUrl;
     const pairingBaseUrl = config.publicUrl?.origin ?? bindUrl;
     const resolvedMobilePairingBaseUrl = mobilePairingBaseUrl({
       host: config.host,
-      port: config.port,
+      port: advertisedPort,
       publicUrl: config.publicUrl,
       fallback: pairingBaseUrl,
     });

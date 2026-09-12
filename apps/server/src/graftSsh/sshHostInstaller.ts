@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  GRAFT_HOST_SERVER_ENTRY,
   GraftDesktopBootstrapResponseSchema,
   type GraftDesktopBootstrapResponse,
 } from "@graft/desktop-contract";
@@ -11,7 +12,30 @@ import { SshRemoteError } from "./sshRemoteTypes";
 const BOOTSTRAP_COMMAND =
   'if command -v graft-host >/dev/null 2>&1; then exec graft-host bootstrap; elif [ -x "$HOME/.local/bin/graft-host" ]; then exec "$HOME/.local/bin/graft-host" bootstrap; else exit 127; fi';
 
-const INSTALL_SCRIPT = `set -eu
+const SERVER_ENTRY_PROBE = `hostbin="$(command -v graft-host 2>/dev/null || true)"
+if [ -z "$hostbin" ] && [ -x "$HOME/.local/bin/graft-host" ]; then
+  hostbin="$HOME/.local/bin/graft-host"
+fi
+if [ -z "$hostbin" ]; then
+  echo GRAFT_HOST_MISSING_SERVER_ENTRY
+  exit 127
+fi
+resolved="$(readlink -f "$hostbin" 2>/dev/null || printf '%s' "$hostbin")"
+if [ ! -f "$(dirname "$resolved")/${GRAFT_HOST_SERVER_ENTRY}" ]; then
+  echo GRAFT_HOST_MISSING_SERVER_ENTRY
+  exit 127
+fi`;
+
+export function isSupportedGraftHostNodeVersion(version: string): boolean {
+  const [major = 0, minor = 0] = version.split(".").map((part) => Number(part));
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return false;
+  if (major === 22) return minor >= 19;
+  if (major === 23) return minor >= 11;
+  if (major === 24) return minor >= 10;
+  return major > 24;
+}
+
+export const GRAFT_HOST_INSTALL_SCRIPT = `set -eu
 version="$1"
 archive="$2"
 nonce="$3"
@@ -32,18 +56,15 @@ mkdir "$stage"
 tar -xzf "$archive" -C "$stage"
 cd "$stage"
 if ! command -v node >/dev/null 2>&1; then
-  echo "graft-host requires Node.js 22 or newer" >&2
+  echo "graft-host requires Node.js 22.19 or newer" >&2
   exit 69
 fi
-node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1); require("node:sqlite")'
+node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(!((major===22&&minor>=19)||(major===23&&minor>=11)||(major===24&&minor>=10)||major>24)) process.exit(1); require("node:sqlite")'
 chmod 755 bin/graft-host.mjs
 test -f bin/graft-server.mjs
 chmod 755 bin/graft-server.mjs
-if [ -e "$target" ]; then
-  rm -rf "$stage"
-else
-  mv "$stage" "$target"
-fi
+rm -rf "$target"
+mv "$stage" "$target"
 ln -s "versions/$version" "$current_temp"
 mv -Tf "$current_temp" "$data_root/current"
 ln -sfn "$data_root/current/bin/graft-host.mjs" "$HOME/.local/bin/graft-host"
@@ -84,6 +105,7 @@ export class SshHostInstaller {
     if (bootstrap.daemonVersion !== this.options.hostVersion) {
       if (!installedCurrentVersion) {
         await this.install(target);
+        installedCurrentVersion = true;
         result = await this.runSsh(target, BOOTSTRAP_COMMAND);
         if (result.exitCode !== 0) {
           throw this.classifyBootstrapFailure(result.stderr);
@@ -98,6 +120,28 @@ export class SshHostInstaller {
           "incompatible_host",
           "The machine kept running an older graft-host after the update",
           true,
+        );
+      }
+    }
+    const serverEntry = await this.runSsh(target, SERVER_ENTRY_PROBE);
+    if (serverEntry.exitCode !== 0) {
+      if (installedCurrentVersion) {
+        throw new SshRemoteError(
+          "install_failed",
+          "The installed graft-host is missing its server entry",
+          false,
+        );
+      }
+      await this.install(target);
+      result = await this.runSsh(target, BOOTSTRAP_COMMAND);
+      if (result.exitCode !== 0) throw this.classifyBootstrapFailure(result.stderr);
+      bootstrap = this.parseBootstrap(result.stdout);
+      const repaired = await this.runSsh(target, SERVER_ENTRY_PROBE);
+      if (repaired.exitCode !== 0) {
+        throw new SshRemoteError(
+          "install_failed",
+          "The installed graft-host is missing its server entry",
+          false,
         );
       }
     }
@@ -165,7 +209,7 @@ export class SshHostInstaller {
         target,
         `sh -s -- ${this.options.hostVersion} ${remoteArchive} ${nonce} ${archiveSha256}`,
       ],
-      { timeoutMs: 120_000, input: Buffer.from(INSTALL_SCRIPT, "utf8") },
+      { timeoutMs: 120_000, input: Buffer.from(GRAFT_HOST_INSTALL_SCRIPT, "utf8") },
     );
     if (installed.exitCode !== 0) {
       throw new SshRemoteError(

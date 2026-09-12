@@ -17,7 +17,7 @@ import {
   persistServerRuntimeState,
 } from "./serverRuntimeState";
 import { remoteAccessPolicyError, ServerConfig } from "./config";
-import { resolveListeningPort } from "./startupAccess";
+import { resolveListeningPort, setBoundListenPort } from "./startupAccess";
 import { patchBunWebSocketCloseEventCompatibility } from "./bunWebSocketCompatibility";
 import { makeEffectHttpRouteLayer } from "./http";
 import { Keybindings } from "./keybindings";
@@ -194,6 +194,7 @@ export const createEffectServer = Effect.fn(function* (
     (nodeServer as http.Server | null)?.address() ?? null,
     config.port,
   );
+  setBoundListenPort(listeningPort);
   setOccupancyListenPort(listeningPort);
   yield* Effect.addFinalizer(() =>
     Effect.promise(async () => {

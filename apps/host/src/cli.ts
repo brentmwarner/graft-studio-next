@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
@@ -25,7 +25,12 @@ import {
   writeDaemonState,
   type GraftHostDaemonState,
 } from "./daemonState";
-import { releaseDaemonLock, stopRecordedDaemon, tryAcquireDaemonLock } from "./daemonLock";
+import {
+  releaseDaemonLock,
+  stopDaemonPid,
+  stopRecordedDaemon,
+  tryAcquireDaemonLock,
+} from "./daemonLock";
 import {
   defaultEnvironmentLabel,
   defaultGraftHostDataRoot,
@@ -216,7 +221,7 @@ async function ensureDaemon(
   const paths = resolveGraftHostPaths(arguments_.dataRoot);
   const existing = await currentDaemon(paths.statePath);
   if (existing?.health.daemonVersion === GRAFT_HOST_VERSION) return existing;
-  await stopRecordedDaemon(paths.statePath);
+  await stopRecordedDaemon(paths.statePath, { processGroup: true });
   const executable = process.argv[1];
   if (!executable) throw new Error("Cannot locate the graft-host executable");
   const childArguments = [
@@ -257,21 +262,48 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     version: GRAFT_HOST_VERSION,
     startedAt: Date.now(),
   });
-  const shutdown = () => {
+  let synara: ChildProcess | null = null;
+  let stopping = false;
+  const shutdownFiles = () => {
     removeDaemonState(paths.statePath, process.pid);
     releaseDaemonLock(paths.lockPath, process.pid);
   };
-  process.on("exit", shutdown);
+  const stopOwnedChild = async () => {
+    const pid = synara?.pid;
+    if (stopping) return;
+    stopping = true;
+    if (pid) {
+      try {
+        await stopDaemonPid(pid, { processGroup: true });
+      } catch {
+        // The replacement still needs the lock even if the child ignored SIGKILL.
+      }
+    }
+    shutdownFiles();
+  };
+  process.on("exit", () => {
+    const pid = synara?.pid;
+    if (pid) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // Already gone.
+        }
+      }
+    }
+    shutdownFiles();
+  });
   process.on("SIGTERM", () => {
-    shutdown();
-    process.exit(0);
+    void stopOwnedChild().finally(() => process.exit(0));
   });
   process.on("SIGINT", () => {
-    shutdown();
-    process.exit(0);
+    void stopOwnedChild().finally(() => process.exit(0));
   });
 
-  const child = spawn(
+  synara = spawn(
     process.execPath,
     [
       synaraEntry(),
@@ -284,6 +316,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
       "--no-browser",
     ],
     {
+      detached: true,
       env: {
         ...process.env,
         GRAFT_HOST: "1",
@@ -298,9 +331,9 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     },
   );
   const exitCode = await new Promise<number>((resolveExit) => {
-    child.once("exit", (code) => resolveExit(code ?? 1));
+    synara?.once("exit", (code) => resolveExit(code ?? 1));
   });
-  shutdown();
+  await stopOwnedChild();
   process.exit(exitCode);
 }
 

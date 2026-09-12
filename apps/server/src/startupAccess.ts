@@ -12,6 +12,17 @@ export const isLoopbackHost = (host: string | undefined): boolean => {
 export const formatHostForUrl = (host: string): string =>
   host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 
+let boundListenPort = 0;
+
+export function setBoundListenPort(port: number): void {
+  if (!Number.isInteger(port) || port < 0) return;
+  boundListenPort = port;
+}
+
+export function getBoundListenPort(fallbackPort: number): number {
+  return boundListenPort > 0 ? boundListenPort : fallbackPort;
+}
+
 export const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
   if (
     typeof address === "object" &&

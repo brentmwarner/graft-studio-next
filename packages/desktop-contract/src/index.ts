@@ -11,7 +11,7 @@ import { z } from "zod";
 
 export const GRAFT_DESKTOP_PROTOCOL_VERSION = 1 as const;
 export const GRAFT_HOST_SERVICE = "graft-host";
-export const GRAFT_HOST_VERSION = "0.2.0";
+export const GRAFT_HOST_VERSION = "0.2.1";
 export const GRAFT_HOST_LINUX_X64_ARCHIVE = "graft-host-linux-x64.tar.gz";
 export const GRAFT_HOST_BIN = "graft-host.mjs";
 export const GRAFT_HOST_SERVER_ENTRY = "graft-server.mjs";

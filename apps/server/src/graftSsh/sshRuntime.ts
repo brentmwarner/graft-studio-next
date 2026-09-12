@@ -11,9 +11,19 @@ import { SshSecretStore, defaultSshSecretStorePath } from "./sshSecretStore";
 
 let manager: SshRemoteConnectionManager | null = null;
 
+export function asarUnpackedPath(filesystemPath: string): string | null {
+  const match = /\.asar(?!\.unpacked)([/\\])/u.exec(filesystemPath);
+  if (!match || match.index === undefined) return null;
+  const separator = match[1] ?? "/";
+  return `${filesystemPath.slice(0, match.index)}.asar.unpacked${separator}${filesystemPath.slice(match.index + match[0].length)}`;
+}
+
 export function graftHostArchiveCandidates(fromDir: string): string[] {
+  const packaged = join(fromDir, GRAFT_HOST_LINUX_X64_ARCHIVE);
+  const unpacked = asarUnpackedPath(packaged);
   return [
-    join(fromDir, GRAFT_HOST_LINUX_X64_ARCHIVE),
+    ...(unpacked ? [unpacked] : []),
+    packaged,
     join(fromDir, "../../dist", GRAFT_HOST_LINUX_X64_ARCHIVE),
     join(fromDir, "../../../host/dist", GRAFT_HOST_LINUX_X64_ARCHIVE),
   ];

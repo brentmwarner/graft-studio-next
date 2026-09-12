@@ -61,7 +61,7 @@ export interface GraftMobileGatewayState {
   readonly runThreads: Map<string, string>;
   readonly questionKeys: Map<string, string>;
   readonly commandResponses: Map<string, GraftMobileHostMessage>;
-  readonly commandInflight: Map<string, Promise<GraftMobileHostMessage>>;
+  readonly commandInflight: Map<string, InflightMobileCommand>;
 }
 
 export function makeGraftMobileGatewayState(): GraftMobileGatewayState {
@@ -78,8 +78,14 @@ export type ClaimedMobileCommand =
   | { readonly kind: "pending"; readonly promise: Promise<GraftMobileHostMessage> }
   | {
       readonly kind: "reserved";
+      readonly promise: Promise<GraftMobileHostMessage>;
       readonly complete: (response: GraftMobileHostMessage) => void;
     };
+
+interface InflightMobileCommand {
+  readonly promise: Promise<GraftMobileHostMessage>;
+  readonly settle: (response: GraftMobileHostMessage) => void;
+}
 
 export function claimMobileCommand(
   state: GraftMobileGatewayState,
@@ -88,15 +94,18 @@ export function claimMobileCommand(
   const cached = state.commandResponses.get(commandId);
   if (cached) return { kind: "cached", response: cached };
   const pending = state.commandInflight.get(commandId);
-  if (pending) return { kind: "pending", promise: pending };
+  if (pending) return { kind: "pending", promise: pending.promise };
   let settle!: (response: GraftMobileHostMessage) => void;
   const promise = new Promise<GraftMobileHostMessage>((resolve) => {
     settle = resolve;
   });
-  state.commandInflight.set(commandId, promise);
+  const inflight: InflightMobileCommand = { promise, settle };
+  state.commandInflight.set(commandId, inflight);
   return {
     kind: "reserved",
+    promise,
     complete: (response) => {
+      if (state.commandInflight.get(commandId) !== inflight) return;
       state.commandResponses.set(commandId, response);
       if (state.commandResponses.size > 2_000) {
         const oldest = state.commandResponses.keys().next().value;
@@ -104,6 +113,30 @@ export function claimMobileCommand(
       }
       state.commandInflight.delete(commandId);
       settle(response);
+    },
+  };
+}
+
+export function abortMobileCommand(
+  state: GraftMobileGatewayState,
+  commandId: string,
+  response: GraftMobileHostMessage,
+): void {
+  const inflight = state.commandInflight.get(commandId);
+  if (!inflight) return;
+  state.commandInflight.delete(commandId);
+  inflight.settle(response);
+}
+
+export function closedMobileCommandResponse(commandId: string): GraftMobileHostMessage {
+  return {
+    envelope: "response",
+    commandId,
+    receipt: {
+      commandId,
+      status: "rejected",
+      errorCode: "internal",
+      message: "The mobile connection closed before this command finished.",
     },
   };
 }
