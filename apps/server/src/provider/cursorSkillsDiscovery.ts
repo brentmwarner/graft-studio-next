@@ -12,6 +12,8 @@ import { collectSkillsFromRoots, providerNativeSkillRoots } from "./skillsCatalo
 export interface CursorSkillDiscoveryInput {
   readonly cwd: string;
   readonly homeDir: string;
+  /** App data root; defaults to the resolved Graft/Synara home. */
+  readonly synaraBaseDir?: string;
 }
 
 export async function discoverCursorSkills(
@@ -21,10 +23,11 @@ export async function discoverCursorSkills(
     providerNativeSkillRoots({
       cwd: input.cwd,
       homeDir: input.homeDir,
-      synaraBaseDir: resolveSynaraHomeDirectory({
-        env: {},
-        homeDirectory: input.homeDir,
-      }),
+      synaraBaseDir:
+        input.synaraBaseDir ??
+        resolveSynaraHomeDirectory({
+          homeDirectory: input.homeDir,
+        }),
       provider: "cursor",
     }),
   );

@@ -39,6 +39,9 @@ export function legacySynaraHomeDirectoryName(directoryName: string): string {
 /**
  * Prefer the new Graft path; keep reading an existing Synara path when the
  * Graft root has not been created yet. Does not move or delete either root.
+ * Any existing Graft path wins, including an empty directory — `mkdir ~/.graft`
+ * (or `Documents/Graft`) will strand leftover Synara data until that root is
+ * removed.
  */
 export function preferExistingPath(preferred: string, legacy: string): string {
   if (FS.existsSync(preferred) || !FS.existsSync(legacy)) {

@@ -133,6 +133,7 @@ function resolveBaseDir(
   baseDir: string | undefined,
   mode: DevMode,
   requestedDesktopFlavor?: string | undefined,
+  homeDirectory: string = homedir(),
 ): Effect.Effect<string, never, Path.Path> {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
@@ -148,10 +149,12 @@ function resolveBaseDir(
         requestedFlavor: requestedDesktopFlavor,
       });
       return resolveSynaraHomeDirectory({
+        env: {},
+        homeDirectory,
         directoryName: synaraDesktopIdentity(flavor).defaultHomeDirectoryName,
       });
     }
-    return yield* DEFAULT_SYNARA_HOME;
+    return resolveSynaraHomeDirectory({ env: {}, homeDirectory });
   });
 }
 
@@ -168,6 +171,7 @@ interface CreateDevRunnerEnvInput {
   readonly host: string | undefined;
   readonly port: number | undefined;
   readonly devUrl: URL | undefined;
+  readonly homeDirectory?: string;
 }
 
 export function createDevRunnerEnv({
@@ -183,11 +187,17 @@ export function createDevRunnerEnv({
   host,
   port,
   devUrl,
+  homeDirectory,
 }: CreateDevRunnerEnvInput): Effect.Effect<NodeJS.ProcessEnv, never, Path.Path> {
   return Effect.gen(function* () {
     const serverPort = port ?? BASE_SERVER_PORT + serverOffset;
     const webPort = BASE_WEB_PORT + webOffset;
-    const resolvedBaseDir = yield* resolveBaseDir(synaraHome, mode, baseEnv.SYNARA_DESKTOP_FLAVOR);
+    const resolvedBaseDir = yield* resolveBaseDir(
+      synaraHome,
+      mode,
+      baseEnv.SYNARA_DESKTOP_FLAVOR,
+      homeDirectory,
+    );
     const configuredHost = host ?? "127.0.0.1";
     // Brackets are URL syntax, not valid listen-host syntax. Keep the bind host
     // portable while adding brackets back only when constructing an IPv6 URL.

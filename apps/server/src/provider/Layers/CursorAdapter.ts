@@ -1610,6 +1610,7 @@ export function makeCursorAdapter(
             skills: await discoverCursorSkills({
               cwd: input.cwd,
               homeDir: serverConfig.homeDir,
+              synaraBaseDir: serverConfig.baseDir,
             }),
             source: "cursor.filesystem",
             cached: false,
