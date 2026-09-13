@@ -67,7 +67,7 @@ struct HelixG4OrbTests {
         #expect((front?.opacity ?? 0) > (back?.opacity ?? 1))
     }
 
-    @Test func progressWrapsAndReducedMotionUsesTheRestPose() {
+    @Test func progressOneWrapsToTheRestPose() {
         let rest = HelixG4Renderer.dots(progress: 0)
         let wrapped = HelixG4Renderer.dots(progress: 1)
         for (a, b) in zip(rest, wrapped) {
