@@ -30,7 +30,7 @@
     "dev:desktop": "node scripts/dev-runner.ts dev:desktop",
     "dev:android": "bun run --cwd apps/mobile-android start",
     "electron": "bun run start:desktop",
-    "electron:dev": "node scripts/dev-runner.ts dev:desktop --home-dir ./.synara/electron-dev",
+    "electron:dev": "node scripts/dev-runner.ts dev:desktop --home-dir ./.graft/electron-dev",
     "start": "turbo run start --filter=@synara/cli",
     "start:desktop": "turbo run start --filter=@synara/desktop",
     "start:marketing": "turbo run preview --filter=@synara/marketing",

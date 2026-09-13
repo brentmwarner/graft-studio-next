@@ -4,9 +4,8 @@
 // Layer: Server provider discovery helper
 // Exports: discoverCursorSkills (generic primitives live in skillsCatalog.ts).
 
-import * as nodePath from "node:path";
-
 import type { ProviderSkillDescriptor } from "@synara/contracts";
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
 
 import { collectSkillsFromRoots, providerNativeSkillRoots } from "./skillsCatalog.ts";
 
@@ -22,7 +21,10 @@ export async function discoverCursorSkills(
     providerNativeSkillRoots({
       cwd: input.cwd,
       homeDir: input.homeDir,
-      synaraBaseDir: nodePath.join(input.homeDir, ".synara"),
+      synaraBaseDir: resolveSynaraHomeDirectory({
+        env: {},
+        homeDirectory: input.homeDir,
+      }),
       provider: "cursor",
     }),
   );

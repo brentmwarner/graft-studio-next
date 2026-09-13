@@ -29,7 +29,7 @@ describe("Codex home paths", () => {
   it("derives a default overlay beside the source home", () => {
     assert.equal(
       resolveSynaraCodexHomeOverlayPath({}, "/users/me/.codex"),
-      path.join("/users/me", ".synara", "runtime", "codex-home-overlay"),
+      path.join("/users/me", ".graft", "runtime", "codex-home-overlay"),
     );
   });
 

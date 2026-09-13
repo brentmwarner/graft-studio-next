@@ -153,7 +153,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
-    it.effect("defaults SYNARA_HOME to ~/.synara when not provided", () =>
+    it.effect("defaults SYNARA_HOME to ~/.graft when not provided", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
@@ -170,13 +170,13 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara"));
+        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".graft"));
         assert.equal(env.SYNARA_HOST, "127.0.0.1");
         assert.equal(env.VITE_WS_URL, "ws://127.0.0.1:3773");
       }),
     );
 
-    it.effect("defaults watched desktop development to ~/.synara-dev", () =>
+    it.effect("defaults watched desktop development to ~/.graft-dev", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
           mode: "dev:desktop",
@@ -193,7 +193,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara-dev"));
+        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".graft-dev"));
       }),
     );
 
@@ -214,7 +214,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara-canary"));
+        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".graft-canary"));
       }),
     );
 

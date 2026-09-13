@@ -13,6 +13,7 @@ import {
   type BooleanFlagInput,
 } from "@synara/shared/cli";
 import { resolveSynaraDesktopFlavor, synaraDesktopIdentity } from "@synara/shared/desktopIdentity";
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
 import { applyShellEnvironmentHydrationMarker } from "@synara/shared/shell";
 import { Config, Data, Effect, Hash, Layer, Logger, Option, Path, Schema } from "effect";
 import * as ConfigProvider from "effect/ConfigProvider";
@@ -24,9 +25,7 @@ const BASE_WEB_PORT = 5733;
 const MAX_HASH_OFFSET = 3000;
 const MAX_PORT = 65535;
 
-export const DEFAULT_SYNARA_HOME = Effect.map(Effect.service(Path.Path), (path) =>
-  path.join(homedir(), ".synara"),
-);
+export const DEFAULT_SYNARA_HOME = Effect.sync(() => resolveSynaraHomeDirectory());
 const MODE_ARGS = {
   dev: [
     "run",
@@ -148,7 +147,9 @@ function resolveBaseDir(
         isDevelopment: true,
         requestedFlavor: requestedDesktopFlavor,
       });
-      return path.join(homedir(), synaraDesktopIdentity(flavor).defaultHomeDirectoryName);
+      return resolveSynaraHomeDirectory({
+        directoryName: synaraDesktopIdentity(flavor).defaultHomeDirectoryName,
+      });
     }
     return yield* DEFAULT_SYNARA_HOME;
   });

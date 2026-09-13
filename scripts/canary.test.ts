@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import * as FS from "node:fs";
+import * as OS from "node:os";
+import * as Path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   canaryCloneArgs,
@@ -8,15 +11,34 @@ import {
   resolveCanaryRef,
 } from "./canary";
 
+const tempDirs = new Set<string>();
+
+afterEach(() => {
+  for (const directory of tempDirs) {
+    FS.rmSync(directory, { recursive: true, force: true });
+  }
+  tempDirs.clear();
+});
+
 describe("canary tooling", () => {
   it("keeps managed source and Canary data separate from Stable", () => {
     expect(resolveCanaryPaths({}, "/Users/tester")).toEqual({
-      home: "/Users/tester/.synara-canary",
+      home: "/Users/tester/.graft-canary",
       source: "/Users/tester/.cache/synara-canary/source",
-      state: "/Users/tester/.synara-canary/canary-state.json",
-      pid: "/Users/tester/.synara-canary/canary.pid",
-      log: "/Users/tester/.synara-canary/canary.log",
+      state: "/Users/tester/.graft-canary/canary-state.json",
+      pid: "/Users/tester/.graft-canary/canary.pid",
+      log: "/Users/tester/.graft-canary/canary.log",
     });
+  });
+
+  it("reuses an existing ~/.synara-canary until ~/.graft-canary exists", () => {
+    const homeDirectory = FS.mkdtempSync(Path.join(OS.tmpdir(), "graft-canary-home-"));
+    tempDirs.add(homeDirectory);
+    FS.mkdirSync(Path.join(homeDirectory, ".synara-canary"));
+
+    expect(resolveCanaryPaths({}, homeDirectory).home).toBe(
+      Path.join(homeDirectory, ".synara-canary"),
+    );
   });
 
   it("supports explicit path overrides", () => {

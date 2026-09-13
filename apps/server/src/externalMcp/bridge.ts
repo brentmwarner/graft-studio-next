@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
@@ -11,6 +10,7 @@ import {
   EXTERNAL_MCP_MAX_WAIT_MS,
   type ExternalMcpPairResult,
 } from "@synara/contracts";
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
 
 import type { PersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { ensurePrivateDirectorySync } from "../privatePathPermissions.ts";
@@ -132,13 +132,7 @@ export type ExternalMcpFetch = (
 ) => Promise<Response>;
 
 export function resolveExternalMcpBaseDir(homeDir?: string): string {
-  const configured = homeDir?.trim() || process.env.SYNARA_HOME?.trim();
-  if (!configured) return path.join(os.homedir(), ".synara");
-  if (configured === "~") return os.homedir();
-  if (configured.startsWith(`~${path.sep}`) || configured.startsWith("~/")) {
-    return path.resolve(os.homedir(), configured.slice(2));
-  }
-  return path.resolve(configured);
+  return resolveSynaraHomeDirectory({ configuredHome: homeDir });
 }
 
 function safeIntegrationId(integrationId: string): string {

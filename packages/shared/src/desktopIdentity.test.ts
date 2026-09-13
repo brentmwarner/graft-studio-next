@@ -43,7 +43,7 @@ describe("desktopIdentity", () => {
       origin: SYNARA_CANARY_DESKTOP_ORIGIN,
       entryUrl: SYNARA_CANARY_DESKTOP_ENTRY_URL,
       userDataDirectoryName: "synara-canary",
-      defaultHomeDirectoryName: ".synara-canary",
+      defaultHomeDirectoryName: ".graft-canary",
       usesScriptedUpdates: true,
     });
   });
@@ -70,8 +70,8 @@ describe("desktopIdentity", () => {
   });
 
   it("isolates development and Canary homes from packaged Stable", () => {
-    expect(synaraDesktopIdentity("development").defaultHomeDirectoryName).toBe(".synara-dev");
-    expect(synaraDesktopIdentity("canary").defaultHomeDirectoryName).toBe(".synara-canary");
-    expect(synaraDesktopIdentity("production").defaultHomeDirectoryName).toBe(".synara");
+    expect(synaraDesktopIdentity("development").defaultHomeDirectoryName).toBe(".graft-dev");
+    expect(synaraDesktopIdentity("canary").defaultHomeDirectoryName).toBe(".graft-canary");
+    expect(synaraDesktopIdentity("production").defaultHomeDirectoryName).toBe(".graft");
   });
 });
