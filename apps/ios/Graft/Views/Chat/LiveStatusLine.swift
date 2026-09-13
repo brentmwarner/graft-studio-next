@@ -37,7 +37,7 @@ private struct LiveStatusRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ComposingOrbLoader(size: 20, tint: DS.Color.fg)
+            ComposingOrbLoader(size: 26, tint: DS.Color.fg)
                 .accessibilityHidden(true)
             ZStack(alignment: .leading) {
                 LiveStatusPhraseLabel(phrase: phrase)
