@@ -1,259 +1,224 @@
 import SwiftUI
 
-// Native SwiftUI port of the `thinking-orbs` composing state's detailed 64 px
-// preset, scaled into Fetch's compact 28 pt turn-loader footprint.
-// Source: https://github.com/Jakubantalik/thinking-orbs
-// Audited against source commit eda2d708b99ab871993bbea5a5f08d23a14da436.
-//
-// MIT License
-//
-// Copyright (c) 2026 Jakub Antalik
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
-/// The detailed `thinking-orbs` composing state used by the live demo.
+/// AICSS Orbs **G4** — Helix / globe “Syncing”.
 ///
-/// The original renders depth-sorted circle fills on a 2D canvas. SwiftUI's
-/// `Canvas` preserves that drawing model and GPU acceleration without changing
-/// the source animation's antialiasing or alpha-compositing behavior. A shared
-/// absolute clock keeps every visible turn loader in phase, just like the web
-/// component's `performance.now()` clock.
+/// Native SwiftUI port of the G4 `HelixVariant` from
+/// https://www.aicss.dev/components/orbs
+/// (registry: https://www.aicss.dev/r/orbs.json).
+///
+/// Geometry is authored on a 28 px stage and scaled with `size / 28`. A globe
+/// of five latitude rings × eight dots turns one ring at a time (±π, even
+/// rings −1 / odd +1) along the G4 sequence `[2, 1, 3, 0, 4, 2, 1, 3, 0, 4]`.
+/// Depth is ink opacity — front brighter — matching `orb-globe-ringturn`
+/// (2.8 s linear infinite). Android’s live-status header is aligning to this
+/// same variant.
+///
+/// Used as Graft iOS’s thinking / composing activity indicator. Reduce Motion
+/// freezes the rest pose (progress 0) instead of collapsing the dots.
 struct ComposingOrbLoader: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
-    private let size: CGFloat
+    /// Rendered edge length. AICSS default indicator is ~20×20.
+    var size: CGFloat = HelixG4Renderer.defaultSize
+    /// Foreground ink; per-dot opacity carries depth. Follows light/dark
+    /// like the rest of Graft (`currentColor` in the CSS source).
+    var tint: Color = .primary
+    /// Standalone accessible name. Live-status call sites hide this glyph
+    /// because the phrase already labels the row.
+    var label: String = "Thinking"
 
-    init(size: CGFloat = 28) {
-        self.size = size
-    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
-            let time = reduceMotion
-                ? ComposingOrbRenderer.reducedMotionTime
-                : timeline.date.timeIntervalSinceReferenceDate * ComposingOrbRenderer.speed
-
-            Canvas { context, size in
-                let displayScale = size.width / ComposingOrbRenderer.referenceSize
-                context.scaleBy(x: displayScale, y: displayScale)
-                ComposingOrbRenderer.draw(
+            let progress = reduceMotion
+                ? 0
+                : timeline.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: HelixG4Renderer.cycle)
+                    / HelixG4Renderer.cycle
+            Canvas { context, canvasSize in
+                HelixG4Renderer.draw(
                     in: context,
-                    size: CGSize(
-                        width: ComposingOrbRenderer.referenceSize,
-                        height: ComposingOrbRenderer.referenceSize
-                    ),
-                    time: time,
-                    dark: colorScheme == .dark
+                    canvasSize: canvasSize,
+                    progress: progress,
+                    tint: tint
                 )
             }
         }
-        .frame(
-            width: size,
-            height: size
-        )
-        .accessibilityHidden(true)
+        .frame(width: size, height: size)
+        .accessibilityElement()
+        .accessibilityLabel(label)
     }
 }
 
-struct ComposingOrbDot {
-    let x: Double
-    let y: Double
-    let z: Double
-    let radius: Double
-    let white: Double
-    let opacity: Double
-    let insertionOrder: Int
+struct HelixG4Dot: Equatable {
+    var x: Double
+    var y: Double
+    var z: Double
+    var opacity: Double
 }
 
-enum ComposingOrbRenderer {
-    // Exact values from the library's composing/64 preset.
-    static let referenceSize = 64.0
-    static let speed = 2.34
-    static let reducedMotionTime = 0.6
+/// Discrete G4 globe: 5 × 8 dots, sequential latitude-ring turns, depth
+/// opacity. Screen Y is the CSS `--gky` value (`-projectedY`).
+enum HelixG4Renderer {
+    static let stage = 28.0
+    static let defaultSize: CGFloat = 20
+    static let cycle = 2.8
+    static let dotDiameter = 2.0
+    static let globeRadius = 8.5
+    static let tilt = 14.0 * Double.pi / 180
+    static let dotsPerRing = 8
+    static let latitudes = [52.0, 26.0, 0.0, -26.0, -52.0]
+    static let moveRings = [2, 1, 3, 0, 4, 2, 1, 3, 0, 4]
+    static let arcSteps = 3
+    static let poseCount = 1 + moveRings.count * arcSteps
 
-    static let displaySize = 28.0
+    private static let tiltCos = cos(tilt)
+    private static let tiltSin = sin(tilt)
 
-    private static let countScale = 0.25
-    private static let radiusScaleMultiplier = 0.85
-    private static let bandMultiplier = 3.9
-    private static let baseLanes = 5
-    private static let baseSegments = 88
-    private static let baseGhostCount = 150
-    private static let baseRadius = 1.1
-    private static let depthRadius = 1.7
-    private static let radiusPower = 0.6
-    private static let minimumRadius = 0.3
-    private static let spin = 0.0
+    /// CSS `orb-globe-ringturn` samples — 31 poses plus a 2.5 % hold after
+    /// each 7.5 % turn, 10 moves × 10 % = 100 %.
+    static let keyframes: [(time: Double, pose: Int)] = {
+        var frames: [(Double, Int)] = [(0, 0)]
+        for pose in 1...30 {
+            let move = (pose - 1) / arcSteps
+            let step = (pose - 1) % arcSteps
+            frames.append((Double(move) * 0.10 + Double(step + 1) * 0.025, pose))
+            if step == arcSteps - 1 {
+                frames.append((Double(move) * 0.10 + 0.10, pose))
+            }
+        }
+        return frames
+    }()
 
-    static func draw(in context: GraphicsContext, size: CGSize, time: Double, dark: Bool) {
-        for dot in dots(size: Double(size.width), time: time) {
-            let ink = min(1, max(0, dot.white))
-            let gray = (dark ? 1 - ink : ink) * 255
-            let channel = gray.rounded() / 255
-            let color = Color(
-                .sRGB,
-                red: channel,
-                green: channel,
-                blue: channel,
-                opacity: dot.opacity
-            )
-            let radius = max(minimumRadius, dot.radius)
+    static func ringDirection(_ ring: Int) -> Double {
+        ring.isMultiple(of: 2) ? -1 : 1
+    }
+
+    static func draw(
+        in context: GraphicsContext,
+        canvasSize: CGSize,
+        progress: Double,
+        tint: Color
+    ) {
+        let scale = Double(canvasSize.width) / stage
+        let centerX = Double(canvasSize.width) / 2
+        let centerY = Double(canvasSize.height) / 2
+        let radius = max(0.35, dotDiameter * scale / 2)
+        for dot in dots(progress: progress).sorted(by: { $0.z < $1.z }) {
             let rect = CGRect(
-                x: dot.x - radius,
-                y: dot.y - radius,
+                x: centerX + dot.x * scale - radius,
+                y: centerY + dot.y * scale - radius,
                 width: radius * 2,
                 height: radius * 2
             )
-            context.fill(Path(ellipseIn: rect), with: .color(color))
+            context.fill(Path(ellipseIn: rect), with: .color(tint.opacity(dot.opacity)))
         }
     }
 
-    /// Port of `drawRibbon`, including the library's count/radius preset
-    /// resolution. Keeping this deterministic makes pixel comparison against
-    /// the web canvas possible at any source time.
-    static func dots(size: Double = referenceSize, time: Double) -> [ComposingOrbDot] {
-        let center = size / 2
-        let sphereRadius = center * 0.78
-        let project = projector(
-            yaw: time * 0.1 * spin,
-            tilt: 0.3,
-            centerX: center,
-            centerY: center
-        )
-        let dotScale = pow(size / 300, radiusPower)
-        let resolvedGhostCount = max(1, Int((Double(baseGhostCount) * countScale).rounded()))
-        let resolvedBaseLanes = max(2, Int((Double(baseLanes) * sqrt(countScale)).rounded()))
-        let resolvedSegments = max(2, Int((Double(baseSegments) * sqrt(countScale)).rounded()))
-        let laneCount = max(1, Int((Double(resolvedBaseLanes) * bandMultiplier).rounded()))
-        let resolvedBaseRadius = baseRadius * radiusScaleMultiplier
-        let resolvedDepthRadius = depthRadius * radiusScaleMultiplier
-
-        var dots: [ComposingOrbDot] = []
-        dots.reserveCapacity(resolvedGhostCount + laneCount * resolvedSegments)
-
-        for index in 0..<resolvedGhostCount {
-            let direction = fibonacciDirection(index: index, count: resolvedGhostCount)
-            let point = project(
-                direction.x * sphereRadius,
-                direction.y * sphereRadius,
-                direction.z * sphereRadius
-            )
-            let depth = (point.z / sphereRadius + 1) / 2
-            dots.append(
-                ComposingOrbDot(
-                    x: point.x,
-                    y: point.y,
-                    z: point.z,
-                    radius: 0.8 * dotScale,
-                    white: 0.78,
-                    opacity: 0.1 + 0.22 * depth,
-                    insertionOrder: dots.count
-                )
-            )
-        }
-
-        let yaw = time * 0.24 * spin
-        let tilt = 0.55 + 0.3 * sin(time * 0.18) * spin
-        let ux = cos(yaw)
-        let uy = 0.0
-        let uz = sin(yaw)
-        let vx = -uz * sin(tilt)
-        let vy = cos(tilt)
-        let vz = ux * sin(tilt)
-        let nx = uy * vz - uz * vy
-        let ny = uz * vx - ux * vz
-        let nz = ux * vy - uy * vx
-
-        for lane in 0..<laneCount {
-            let laneOffset = (Double(lane) - Double(laneCount - 1) / 2) * 0.075
-            let edge = abs(Double(lane) - Double(laneCount - 1) / 2)
-                / max(1, Double(laneCount - 1) / 2)
-
-            for segment in 0..<resolvedSegments {
-                let angle = Double(segment) / Double(resolvedSegments) * 2 * .pi
-                let wobble = 0.16 * sin(angle * 3 - time * 1.7 + Double(lane) * 0.22)
-                    + 0.07 * sin(angle * 5 + time * 1.1)
-                let offset = laneOffset + wobble
-                let x = ux * cos(angle) + vx * sin(angle) + nx * offset
-                let y = uy * cos(angle) + vy * sin(angle) + ny * offset
-                let z = uz * cos(angle) + vz * sin(angle) + nz * offset
-                let length = sqrt(x * x + y * y + z * z)
-                let point = project(
-                    x / length * sphereRadius,
-                    y / length * sphereRadius,
-                    z / length * sphereRadius
-                )
-                let depth = (point.z / sphereRadius + 1) / 2
-
+    static func dots(progress: Double) -> [HelixG4Dot] {
+        var wrapped = progress.truncatingRemainder(dividingBy: 1)
+        if wrapped < 0 { wrapped += 1 }
+        let (from, to, fraction) = keyframeSpan(at: wrapped)
+        var dots: [HelixG4Dot] = []
+        dots.reserveCapacity(latitudes.count * dotsPerRing)
+        for ring in latitudes.indices {
+            for spoke in 0..<dotsPerRing {
+                let poses = projectedPoses[ring][spoke]
+                let a = poses[from]
+                let b = poses[to]
                 dots.append(
-                    ComposingOrbDot(
-                        x: point.x,
-                        y: point.y,
-                        z: point.z,
-                        radius: (resolvedBaseRadius + resolvedDepthRadius * depth)
-                            * (1 - 0.25 * edge) * dotScale,
-                        white: 0.52 - 0.44 * depth + 0.18 * edge,
-                        opacity: 0.4 + 0.6 * depth,
-                        insertionOrder: dots.count
+                    HelixG4Dot(
+                        x: a.x + (b.x - a.x) * fraction,
+                        y: a.y + (b.y - a.y) * fraction,
+                        z: a.z + (b.z - a.z) * fraction,
+                        opacity: a.opacity + (b.opacity - a.opacity) * fraction
                     )
                 )
             }
         }
+        return dots
+    }
 
-        return dots.sorted {
-            $0.z == $1.z
-                ? $0.insertionOrder < $1.insertionOrder
-                : $0.z < $1.z
+    /// Which latitude ring the G4 sequence is turning (or holding) at `progress`.
+    static func activeRing(progress: Double) -> Int {
+        var wrapped = progress.truncatingRemainder(dividingBy: 1)
+        if wrapped < 0 { wrapped += 1 }
+        let move = min(moveRings.count - 1, Int(wrapped / 0.10))
+        return moveRings[move]
+    }
+
+    private static func keyframeSpan(at progress: Double) -> (Int, Int, Double) {
+        let frames = keyframes
+        var index = 0
+        while index + 1 < frames.count, frames[index + 1].time <= progress {
+            index += 1
+        }
+        let start = frames[index]
+        guard index + 1 < frames.count else {
+            return (start.pose, 0, 0)
+        }
+        let end = frames[index + 1]
+        let span = end.time - start.time
+        let fraction = span <= 1e-12 ? 0 : (progress - start.time) / span
+        return (start.pose, end.pose, fraction)
+    }
+
+    private static let projectedPoses: [[[HelixG4Dot]]] = latitudes.indices.map { ring in
+        (0..<dotsPerRing).map { spoke in
+            ringTurnPoses(ring: ring, spoke: spoke).map(project)
         }
     }
 
-    private static func fibonacciDirection(index: Int, count: Int) -> (x: Double, y: Double, z: Double) {
-        let goldenAngle = Double.pi * (3 - sqrt(5))
-        let y = 1 - 2 * (Double(index) + 0.5) / Double(count)
-        let radial = sqrt(1 - y * y)
-        let angle = Double(index) * goldenAngle
-        return (radial * cos(angle), y, radial * sin(angle))
+    private static func restPoint(ring: Int, spoke: Int) -> (x: Double, y: Double, z: Double) {
+        let lat = latitudes[ring] * Double.pi / 180
+        let y = sin(lat) * globeRadius
+        let ringRadius = cos(lat) * globeRadius
+        let lon = Double(spoke) / Double(dotsPerRing) * Double.pi * 2
+        return (cos(lon) * ringRadius, y, sin(lon) * ringRadius)
     }
 
-    private static func projector(
-        yaw: Double,
-        tilt: Double,
-        centerX: Double,
-        centerY: Double
-    ) -> (Double, Double, Double) -> (x: Double, y: Double, z: Double) {
-        let sinTilt = sin(tilt)
-        let cosTilt = cos(tilt)
-        let sinYaw = sin(yaw)
-        let cosYaw = cos(yaw)
-
-        return { x, y, z in
-            let rotatedX = x * cosYaw + z * sinYaw
-            let rotatedZ = -x * sinYaw + z * cosYaw
-            let rotatedY = y * cosTilt - rotatedZ * sinTilt
-            let depth = y * sinTilt + rotatedZ * cosTilt
-            return (centerX + rotatedX, centerY - rotatedY, depth)
+    private static func ringTurnPoses(
+        ring: Int,
+        spoke: Int
+    ) -> [(x: Double, y: Double, z: Double)] {
+        var point = restPoint(ring: ring, spoke: spoke)
+        var poses = [point]
+        for moveRing in moveRings {
+            let start = point
+            let angle = ringDirection(moveRing) * Double.pi
+            for step in 1...arcSteps {
+                if ring == moveRing {
+                    let a = angle * Double(step) / Double(arcSteps)
+                    point = (
+                        start.x * cos(a) - start.z * sin(a),
+                        start.y,
+                        start.x * sin(a) + start.z * cos(a)
+                    )
+                }
+                poses.append(point)
+            }
         }
+        return poses
+    }
+
+    private static func project(_ point: (x: Double, y: Double, z: Double)) -> HelixG4Dot {
+        let rotatedY = point.y * tiltCos - point.z * tiltSin
+        let rotatedZ = point.y * tiltSin + point.z * tiltCos
+        return HelixG4Dot(
+            x: point.x,
+            y: -rotatedY,
+            z: rotatedZ,
+            opacity: globeOpacity(rotatedZ)
+        )
+    }
+
+    private static func globeOpacity(_ z: Double) -> Double {
+        let t = min(1, max(0, (z / globeRadius + 0.15) / 1.15))
+        return 0.12 + 0.88 * t * t
     }
 }
 
 #if DEBUG
-#Preview("Composing orb") {
+#Preview("G4 composing orb") {
     HStack(spacing: 24) {
         ComposingOrbLoader()
             .padding(12)
