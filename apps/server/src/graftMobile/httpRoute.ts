@@ -82,15 +82,15 @@ function remoteError(
   return { code, message, ...options };
 }
 
-function errorResponse(error: GraftRemoteError, status: number) {
-  return HttpServerResponse.jsonUnsafe(error, { status });
+function errorResponse(error: GraftRemoteError, status: number, headers?: Record<string, string>) {
+  return HttpServerResponse.jsonUnsafe(error, { status, ...(headers ? { headers } : {}) });
 }
 
 function pairErrorResponse(error: GraftRemoteError, status: number) {
   return HttpServerResponse.jsonUnsafe({ ok: false, error }, { status });
 }
 
-function authErrorResponse(error: AuthError) {
+function authErrorResponse(error: AuthError, headers?: Record<string, string>) {
   const status = error.status ?? 500;
   const code =
     status === 403
@@ -103,6 +103,7 @@ function authErrorResponse(error: AuthError) {
   return errorResponse(
     remoteError(code, error.message, { retryable: status === 429 || status >= 500 }),
     status,
+    headers,
   );
 }
 
@@ -313,13 +314,24 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         return graftOwnerPreflightResponse(corsHeaders);
       }
       if (request.method !== "POST") {
-        return errorResponse(remoteError("validation_failed", "Method Not Allowed"), 405);
+        return errorResponse(
+          remoteError("validation_failed", "Method Not Allowed"),
+          405,
+          corsHeaders,
+        );
       }
-      const authenticated = yield* authenticateDesktopOwner(request, url, config, serverAuth);
+      const authResult = yield* authenticateDesktopOwner(request, url, config, serverAuth).pipe(
+        Effect.catchTag("AuthError", (error) => Effect.succeed({ pairingLinkAuthError: error })),
+      );
+      if ("pairingLinkAuthError" in authResult) {
+        return authErrorResponse(authResult.pairingLinkAuthError, corsHeaders);
+      }
+      const authenticated = authResult;
       if (authenticated.role !== "owner") {
         return errorResponse(
           remoteError("authorization_denied", "Only the owner can create mobile pairing links."),
           403,
+          corsHeaders,
         );
       }
       const advertised = advertisedMobilePairingBase(request, config);
@@ -327,6 +339,7 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         return errorResponse(
           remoteError("internal", "Could not resolve the mobile gateway address."),
           500,
+          corsHeaders,
         );
       }
       const issued = yield* serverAuth.issuePairingCredential({

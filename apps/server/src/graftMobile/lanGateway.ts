@@ -8,6 +8,7 @@ let lanServer: http.Server | null = null;
 let lanPort = 0;
 let lanGatewayIpv6 = false;
 let mainServerRef: http.Server | null = null;
+const activeUpgradeSockets = new Set<Duplex>();
 
 export function getMobileLanGatewayPort(): number | null {
   return lanPort > 0 ? lanPort : null;
@@ -140,6 +141,10 @@ export async function startMobileLanGateway(
       socket.destroy();
       return;
     }
+    activeUpgradeSockets.add(socket);
+    socket.once("close", () => {
+      activeUpgradeSockets.delete(socket);
+    });
     for (const listener of upgradeListeners) {
       listener.call(mainServer, request, socket, head);
     }
@@ -172,6 +177,10 @@ export async function stopMobileLanGateway(): Promise<void> {
   lanPort = 0;
   lanGatewayIpv6 = false;
   if (!server) return;
+  for (const socket of activeUpgradeSockets) {
+    socket.destroy();
+  }
+  activeUpgradeSockets.clear();
   await new Promise<void>((resolve) => {
     server.close(() => resolve());
   });
