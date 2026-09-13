@@ -9,6 +9,7 @@ import * as fs from "node:fs/promises";
 import * as nodePath from "node:path";
 
 import type { ProviderKind, ProviderSkillReference } from "@synara/contracts";
+import { isAppHomeDirectoryName } from "@synara/shared/synaraHome";
 
 // Per-skill cap keeps a single oversized SKILL.md from eating the turn budget.
 const MAX_INLINE_SKILL_CONTENT_CHARS = 24_000;
@@ -19,12 +20,20 @@ const INLINE_SKILLS_HEADER =
   '"dir" attribute.';
 
 const CROSS_PROVIDER_SKILL_DIR_NAMES = [
-  ".synara",
   ".codex",
   ".cursor",
   ".claude",
   ".agents",
 ] as const;
+
+function hasAppHomeSkillRoot(segments: Set<string>): boolean {
+  for (const segment of segments) {
+    if (isAppHomeDirectoryName(segment)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function pathSegments(path: string): Set<string> {
   return new Set(
@@ -42,14 +51,15 @@ export function shouldInlineSkillForProvider(provider: ProviderKind, skillPath: 
       return true;
     case "codex":
       // Codex injects structured skill items only from roots it knows: its own
-      // folders plus `~/.synara/skills`, which Synara registers at session start
-      // via skills/extraRoots/set. Skills resolved from other providers' folders
+      // folders plus the app-owned skills root (`~/.graft/skills` or a leftover
+      // `~/.synara/skills`), which we register at session start via
+      // skills/extraRoots/set. Skills resolved from other providers' folders
       // must be inlined.
       return [".claude", ".cursor", ".agents"].some((dir) => segments.has(dir));
     case "cursor":
       // cursor-agent natively scans .cursor/.agents/.claude/.codex skill roots;
-      // only Synara-owned paths need inlining.
-      return segments.has(".synara");
+      // only app-owned portable paths need inlining.
+      return hasAppHomeSkillRoot(segments);
     case "claudeAgent":
       // Claude Code only loads skills from .claude/skills folders.
       return !segments.has(".claude");
@@ -63,8 +73,11 @@ export function shouldInlineSkillForProvider(provider: ProviderKind, skillPath: 
       );
     case "pi":
       // Pi loads its own skill set; anything resolved from a cross-provider
-      // folder is portable and must be inlined.
-      return CROSS_PROVIDER_SKILL_DIR_NAMES.some((dir) => segments.has(dir));
+      // folder or the app-owned portable root must be inlined.
+      return (
+        hasAppHomeSkillRoot(segments) ||
+        CROSS_PROVIDER_SKILL_DIR_NAMES.some((dir) => segments.has(dir))
+      );
     default:
       // Antigravity/Grok/Droid/OpenCode have no native skill support.
       return true;

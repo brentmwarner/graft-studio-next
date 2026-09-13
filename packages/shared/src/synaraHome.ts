@@ -1,7 +1,8 @@
 // FILE: synaraHome.ts
 // Purpose: Resolves the user-level Graft base directory without Effect, so the backend
 // server and the Electron main process agree on one location during early startup.
-// Exports: expandHomePath, resolveSynaraHomeDirectory, SYNARA_HOME_ENV_NAME.
+// Exports: expandHomePath, resolveSynaraHomeDirectory, isAppHomeDirectoryName,
+//          SYNARA_HOME_ENV_NAME.
 
 import * as FS from "node:fs";
 import * as OS from "node:os";
@@ -26,6 +27,17 @@ export function expandHomePath(input: string, homeDirectory: string = OS.homedir
  * Maps a Graft-branded home directory name back to the Synara name used before
  * the default-root rename (`.graft` → `.synara`, `.graft-dev` → `.synara-dev`).
  */
+/** True for `.graft`, `.synara`, and flavor suffixes (`.graft-dev`, `.synara-canary`). */
+export function isAppHomeDirectoryName(directoryName: string): boolean {
+  const normalized = directoryName.toLowerCase();
+  return (
+    normalized === DEFAULT_SYNARA_HOME_DIRECTORY_NAME ||
+    normalized === LEGACY_SYNARA_HOME_DIRECTORY_NAME ||
+    normalized.startsWith(`${DEFAULT_SYNARA_HOME_DIRECTORY_NAME}-`) ||
+    normalized.startsWith(`${LEGACY_SYNARA_HOME_DIRECTORY_NAME}-`)
+  );
+}
+
 export function legacySynaraHomeDirectoryName(directoryName: string): string {
   if (directoryName === DEFAULT_SYNARA_HOME_DIRECTORY_NAME) {
     return LEGACY_SYNARA_HOME_DIRECTORY_NAME;

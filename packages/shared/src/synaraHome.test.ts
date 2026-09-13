@@ -7,6 +7,7 @@ import {
   DEFAULT_SYNARA_HOME_DIRECTORY_NAME,
   LEGACY_SYNARA_HOME_DIRECTORY_NAME,
   expandHomePath,
+  isAppHomeDirectoryName,
   legacySynaraHomeDirectoryName,
   preferExistingPath,
   resolveSynaraHomeDirectory,
@@ -33,6 +34,17 @@ describe("expandHomePath", () => {
     expect(expandHomePath("~/Documents/Graft", "/users/tester")).toBe(
       Path.join("/users/tester", "Documents", "Graft"),
     );
+  });
+});
+
+describe("isAppHomeDirectoryName", () => {
+  it("recognizes Graft and Synara homes, including flavor suffixes", () => {
+    expect(isAppHomeDirectoryName(".graft")).toBe(true);
+    expect(isAppHomeDirectoryName(".synara")).toBe(true);
+    expect(isAppHomeDirectoryName(".graft-dev")).toBe(true);
+    expect(isAppHomeDirectoryName(".synara-canary")).toBe(true);
+    expect(isAppHomeDirectoryName(".cursor")).toBe(false);
+    expect(isAppHomeDirectoryName("graft")).toBe(false);
   });
 });
 
