@@ -19,12 +19,7 @@ const INLINE_SKILLS_HEADER =
   "skill's instructions. File paths referenced inside a skill are relative to its " +
   '"dir" attribute.';
 
-const CROSS_PROVIDER_SKILL_DIR_NAMES = [
-  ".codex",
-  ".cursor",
-  ".claude",
-  ".agents",
-] as const;
+const CROSS_PROVIDER_SKILL_DIR_NAMES = [".codex", ".cursor", ".claude", ".agents"] as const;
 
 function hasAppHomeSkillRoot(segments: Set<string>): boolean {
   for (const segment of segments) {
