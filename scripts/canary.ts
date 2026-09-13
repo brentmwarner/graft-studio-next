@@ -8,6 +8,9 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { synaraDesktopIdentity } from "@synara/shared/desktopIdentity";
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
+
 export type CanaryCommand = "setup" | "update" | "start" | "stop" | "status" | "rollback";
 
 export interface CanaryPaths {
@@ -40,7 +43,12 @@ export function resolveCanaryPaths(
   homeDirectory = OS.homedir(),
 ): CanaryPaths {
   const home = Path.resolve(
-    env.SYNARA_CANARY_HOME?.trim() || Path.join(homeDirectory, ".synara-canary"),
+    env.SYNARA_CANARY_HOME?.trim() ||
+      resolveSynaraHomeDirectory({
+        env: {},
+        homeDirectory,
+        directoryName: synaraDesktopIdentity("canary").defaultHomeDirectoryName,
+      }),
   );
   const cacheBase = env.XDG_CACHE_HOME?.trim() || Path.join(homeDirectory, ".cache");
   const source = Path.resolve(

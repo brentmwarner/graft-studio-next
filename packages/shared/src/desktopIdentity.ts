@@ -56,7 +56,7 @@ export function synaraDesktopIdentity(flavor: SynaraDesktopFlavor): SynaraDeskto
       origin: SYNARA_CANARY_DESKTOP_ORIGIN,
       entryUrl: SYNARA_CANARY_DESKTOP_ENTRY_URL,
       userDataDirectoryName: "synara-canary",
-      defaultHomeDirectoryName: ".synara-canary",
+      defaultHomeDirectoryName: ".graft-canary",
       usesScriptedUpdates: true,
     };
   }
@@ -69,7 +69,7 @@ export function synaraDesktopIdentity(flavor: SynaraDesktopFlavor): SynaraDeskto
       origin: SYNARA_DESKTOP_ORIGIN,
       entryUrl: SYNARA_DESKTOP_ENTRY_URL,
       userDataDirectoryName: "synara-dev",
-      defaultHomeDirectoryName: ".synara-dev",
+      defaultHomeDirectoryName: ".graft-dev",
       usesScriptedUpdates: false,
     };
   }
@@ -81,7 +81,7 @@ export function synaraDesktopIdentity(flavor: SynaraDesktopFlavor): SynaraDeskto
     origin: SYNARA_DESKTOP_ORIGIN,
     entryUrl: SYNARA_DESKTOP_ENTRY_URL,
     userDataDirectoryName: "synara",
-    defaultHomeDirectoryName: ".synara",
+    defaultHomeDirectoryName: ".graft",
     usesScriptedUpdates: false,
   };
 }

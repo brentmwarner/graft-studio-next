@@ -9,8 +9,9 @@
  * @module device/Layers/DeviceService
  */
 import { Effect, Layer } from "effect";
-import { homedir } from "node:os";
 import * as path from "node:path";
+
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
 
 import { makeBootOwnershipStore, NULL_BOOT_OWNERSHIP } from "../bootOwnership.ts";
 import { DeviceManager } from "../DeviceManager.ts";
@@ -32,7 +33,7 @@ export interface DeviceServiceLiveOptions {
  * crash-recovery, not the feature.
  */
 function defaultBootOwnershipPath(): string {
-  const baseDir = process.env.SYNARA_HOME?.trim() || path.join(homedir(), ".synara");
+  const baseDir = resolveSynaraHomeDirectory();
   const stateDir = path.join(baseDir, process.env.VITE_DEV_SERVER_URL ? "dev" : "userdata");
   return path.join(stateDir, "device-boot-ownership.json");
 }

@@ -364,7 +364,7 @@ describe("loginShellEnvironmentCachePath", () => {
       Path.join("/tmp/synara-home", "cache", "login-shell-environment.json"),
     );
     expect(loginShellEnvironmentCachePath({ env: {}, homeDirectory: "/users/test" })).toBe(
-      Path.join("/users/test", ".synara", "cache", "login-shell-environment.json"),
+      Path.join("/users/test", ".graft", "cache", "login-shell-environment.json"),
     );
   });
 });

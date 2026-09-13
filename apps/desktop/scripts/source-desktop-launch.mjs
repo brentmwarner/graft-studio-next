@@ -7,6 +7,7 @@ import {
   SYNARA_SOURCE_DESKTOP_BUILD_MARKER,
   synaraDesktopIdentity,
 } from "@synara/shared/desktopIdentity";
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
 import { readWindowsPersistentEnvironment } from "@synara/shared/shell";
 
 function environmentValue(environment, name, caseInsensitive) {
@@ -47,7 +48,13 @@ export function createSourceDesktopEnvironment({
   const childEnvironment = {
     ...environment,
     SYNARA_DESKTOP_FLAVOR: flavor,
-    SYNARA_HOME: configuredHome || join(homeDirectory, identity.defaultHomeDirectoryName),
+    SYNARA_HOME:
+      configuredHome ||
+      resolveSynaraHomeDirectory({
+        env: {},
+        homeDirectory,
+        directoryName: identity.defaultHomeDirectoryName,
+      }),
     SYNARA_SOURCE_DESKTOP_BUILD_MARKER,
   };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;

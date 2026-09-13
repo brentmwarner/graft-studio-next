@@ -13,6 +13,8 @@ import path from "node:path";
 import pathPosix from "node:path/posix";
 import pathWin32 from "node:path/win32";
 
+import { preferExistingPath } from "@synara/shared/synaraHome";
+
 import {
   ensurePrivateDirectorySync,
   ensurePrivateFileSync,
@@ -168,6 +170,9 @@ export const deriveServerPaths = Effect.fn(function* (
   };
 });
 
+export const DEFAULT_CHAT_WORKSPACE_DIRECTORY_NAME = "Graft";
+export const LEGACY_CHAT_WORKSPACE_DIRECTORY_NAME = "Synara";
+
 export function resolveDefaultChatWorkspaceRoot(input: {
   readonly homeDir: string;
   readonly platform?: NodeJS.Platform;
@@ -175,7 +180,9 @@ export function resolveDefaultChatWorkspaceRoot(input: {
   const homeDir = input.homeDir.trim();
   const platform = input.platform ?? process.platform;
   const pathApi = platform === "win32" ? pathWin32 : pathPosix;
-  return pathApi.join(homeDir, "Documents", "Synara");
+  const preferred = pathApi.join(homeDir, "Documents", DEFAULT_CHAT_WORKSPACE_DIRECTORY_NAME);
+  const legacy = pathApi.join(homeDir, "Documents", LEGACY_CHAT_WORKSPACE_DIRECTORY_NAME);
+  return preferExistingPath(preferred, legacy);
 }
 
 export function resolveDefaultStudioWorkspaceRoot(input: {

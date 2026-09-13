@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, it } from "vitest";
+import { afterEach, describe, it } from "vitest";
 
 import {
   resolveActiveCodexHomeWritePath,
@@ -8,6 +10,15 @@ import {
   resolveCodexHomeAllowlistCandidates,
   resolveSynaraCodexHomeOverlayPath,
 } from "./codexHomePaths.ts";
+
+const tempDirs = new Set<string>();
+
+afterEach(() => {
+  for (const directory of tempDirs) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+  tempDirs.clear();
+});
 
 describe("Codex home paths", () => {
   it("resolves the source home using explicit, environment, then default precedence", () => {
@@ -29,7 +40,19 @@ describe("Codex home paths", () => {
   it("derives a default overlay beside the source home", () => {
     assert.equal(
       resolveSynaraCodexHomeOverlayPath({}, "/users/me/.codex"),
-      path.join("/users/me", ".synara", "runtime", "codex-home-overlay"),
+      path.join("/users/me", ".graft", "runtime", "codex-home-overlay"),
+    );
+  });
+
+  it("reuses an existing .synara/runtime overlay when .graft/runtime is absent", () => {
+    const sourceParent = mkdtempSync(path.join(tmpdir(), "graft-codex-overlay-"));
+    tempDirs.add(sourceParent);
+    const legacyRuntime = path.join(sourceParent, ".synara", "runtime");
+    mkdirSync(legacyRuntime, { recursive: true });
+
+    assert.equal(
+      resolveSynaraCodexHomeOverlayPath({}, path.join(sourceParent, ".codex")),
+      path.join(legacyRuntime, "codex-home-overlay"),
     );
   });
 

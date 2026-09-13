@@ -60,6 +60,7 @@ import {
   resolveSynaraDesktopFlavor,
   synaraDesktopIdentity,
 } from "@synara/shared/desktopIdentity";
+import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
 import { NetService } from "@synara/shared/Net";
 import { applyShellEnvironmentHydrationMarker } from "@synara/shared/shell";
 import { RotatingFileSink } from "@synara/shared/logging";
@@ -309,9 +310,10 @@ const desktopFlavor = resolveSynaraDesktopFlavor({
   allowDevelopmentOverride: requestedSourceBuildMarker === SYNARA_SOURCE_DESKTOP_BUILD_MARKER,
 });
 const desktopIdentity = synaraDesktopIdentity(desktopFlavor);
-const BASE_DIR =
-  process.env.SYNARA_HOME?.trim() ||
-  Path.join(OS.homedir(), desktopIdentity.defaultHomeDirectoryName);
+const BASE_DIR = resolveSynaraHomeDirectory({
+  configuredHome: process.env.SYNARA_HOME,
+  directoryName: desktopIdentity.defaultHomeDirectoryName,
+});
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_WINDOW_STATE_PATH = Path.join(STATE_DIR, "desktop-window-state.json");
 const DESKTOP_APP_ICON_PATH = Path.join(STATE_DIR, "desktop-app-icon");

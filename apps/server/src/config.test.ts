@@ -61,19 +61,19 @@ const runResolveCanonicalWorkspaceRoots = (input: {
   Effect.runPromise(resolveCanonicalWorkspaceRoots(input).pipe(Effect.provide(NodeServices.layer)));
 
 describe("resolveDefaultChatWorkspaceRoot", () => {
-  it("places the managed chat workspace under Documents/Synara on macOS and Linux", () => {
+  it("places the managed chat workspace under Documents/Graft on macOS and Linux", () => {
     expect(
       resolveDefaultChatWorkspaceRoot({
         homeDir: "/Users/tester",
         platform: "darwin",
       }),
-    ).toBe("/Users/tester/Documents/Synara");
+    ).toBe("/Users/tester/Documents/Graft");
     expect(
       resolveDefaultChatWorkspaceRoot({
         homeDir: "/home/tester",
         platform: "linux",
       }),
-    ).toBe("/home/tester/Documents/Synara");
+    ).toBe("/home/tester/Documents/Graft");
   });
 
   it("uses Windows separators when deriving the managed chat workspace on Windows", () => {
@@ -82,7 +82,7 @@ describe("resolveDefaultChatWorkspaceRoot", () => {
         homeDir: "C:\\Users\\tester",
         platform: "win32",
       }),
-    ).toBe("C:\\Users\\tester\\Documents\\Synara");
+    ).toBe("C:\\Users\\tester\\Documents\\Graft");
   });
 
   it("defaults to the current process platform when no platform is supplied", () => {
@@ -94,7 +94,7 @@ describe("resolveDefaultChatWorkspaceRoot", () => {
 
     try {
       expect(resolveDefaultChatWorkspaceRoot({ homeDir: "C:\\Users\\tester" })).toBe(
-        "C:\\Users\\tester\\Documents\\Synara",
+        "C:\\Users\\tester\\Documents\\Graft",
       );
     } finally {
       Object.defineProperty(process, "platform", originalPlatformDescriptor!);
@@ -103,19 +103,30 @@ describe("resolveDefaultChatWorkspaceRoot", () => {
 });
 
 describe("resolveDefaultStudioWorkspaceRoot", () => {
-  it("places the Studio workspace under Documents/Synara/Studio on macOS and Linux", () => {
+  it("places the Studio workspace under Documents/Graft/Studio on macOS and Linux", () => {
     expect(
       resolveDefaultStudioWorkspaceRoot({
         homeDir: "/Users/tester",
         platform: "darwin",
       }),
-    ).toBe("/Users/tester/Documents/Synara/Studio");
+    ).toBe("/Users/tester/Documents/Graft/Studio");
     expect(
       resolveDefaultStudioWorkspaceRoot({
         homeDir: "/home/tester",
         platform: "linux",
       }),
-    ).toBe("/home/tester/Documents/Synara/Studio");
+    ).toBe("/home/tester/Documents/Graft/Studio");
+  });
+
+  it("reuses an existing Documents/Synara workspace when Documents/Graft has not been created", () => {
+    const homeDir = makeTempDir("graft-chat-workspace-legacy-");
+    const legacy = path.join(homeDir, "Documents", "Synara");
+    fs.mkdirSync(legacy, { recursive: true });
+
+    expect(resolveDefaultChatWorkspaceRoot({ homeDir, platform: "linux" })).toBe(legacy);
+    expect(resolveDefaultStudioWorkspaceRoot({ homeDir, platform: "linux" })).toBe(
+      path.join(legacy, "Studio"),
+    );
   });
 
   it("uses Windows separators when deriving the Studio workspace on Windows", () => {
@@ -124,7 +135,7 @@ describe("resolveDefaultStudioWorkspaceRoot", () => {
         homeDir: "C:\\Users\\tester",
         platform: "win32",
       }),
-    ).toBe("C:\\Users\\tester\\Documents\\Synara\\Studio");
+    ).toBe("C:\\Users\\tester\\Documents\\Graft\\Studio");
   });
 });
 
@@ -146,9 +157,9 @@ describe("resolveCanonicalWorkspaceRoots", () => {
     // chatWorkspaceRoot/studioWorkspaceRoot don't exist yet under the resolved
     // home, so they must be re-derived from the canonicalized (symlink-free)
     // home rather than the raw, symlinked input.
-    expect(result.chatWorkspaceRoot).toBe(path.join(expectedHomeDir, "Documents", "Synara"));
+    expect(result.chatWorkspaceRoot).toBe(path.join(expectedHomeDir, "Documents", "Graft"));
     expect(result.studioWorkspaceRoot).toBe(
-      path.join(expectedHomeDir, "Documents", "Synara", "Studio"),
+      path.join(expectedHomeDir, "Documents", "Graft", "Studio"),
     );
   });
 
@@ -160,7 +171,7 @@ describe("resolveCanonicalWorkspaceRoots", () => {
     fs.mkdirSync(homeDir, { recursive: true });
     // Symlink ~/Documents to a real directory elsewhere, matching the bug
     // report scenario (e.g. iCloud-managed Documents on macOS). Neither
-    // Synara/ nor Synara/Studio exist yet underneath it.
+    // Graft/ nor Graft/Studio exist yet underneath it.
     const symlinkedDocuments = path.join(homeDir, "Documents");
     fs.symlinkSync(realDocuments, symlinkedDocuments, "dir");
 
@@ -171,8 +182,8 @@ describe("resolveCanonicalWorkspaceRoots", () => {
 
     const expectedDocuments = fs.realpathSync(realDocuments);
     expect(result.homeDir).toBe(fs.realpathSync(homeDir));
-    expect(result.chatWorkspaceRoot).toBe(path.join(expectedDocuments, "Synara"));
-    expect(result.studioWorkspaceRoot).toBe(path.join(expectedDocuments, "Synara", "Studio"));
+    expect(result.chatWorkspaceRoot).toBe(path.join(expectedDocuments, "Graft"));
+    expect(result.studioWorkspaceRoot).toBe(path.join(expectedDocuments, "Graft", "Studio"));
     expect(fs.existsSync(result.chatWorkspaceRoot)).toBe(false);
     expect(fs.existsSync(result.studioWorkspaceRoot)).toBe(false);
 

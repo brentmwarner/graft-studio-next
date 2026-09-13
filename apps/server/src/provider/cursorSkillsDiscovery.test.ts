@@ -100,4 +100,44 @@ description: Help globally
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("keeps native Cursor discovery from treating portable Synara skills as Cursor skills", async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cursor-skills-base-"));
+    const homeDir = path.join(root, "home");
+    const cwd = path.join(root, "repo");
+    const synaraBaseDir = path.join(root, "custom-synara-home");
+    const portableSkill = path.join(synaraBaseDir, "skills", "portable");
+    const cursorSkill = path.join(homeDir, ".cursor", "skills", "native-helper");
+
+    try {
+      await mkdir(portableSkill, { recursive: true });
+      await mkdir(cursorSkill, { recursive: true });
+      await mkdir(cwd, { recursive: true });
+      await writeFile(
+        path.join(portableSkill, "SKILL.md"),
+        `---
+name: portable
+description: Custom home skill
+---
+
+# Portable
+`,
+      );
+      await writeFile(
+        path.join(cursorSkill, "SKILL.md"),
+        `---
+name: native-helper
+description: Cursor native skill
+---
+
+# Native Helper
+`,
+      );
+
+      const skills = await discoverCursorSkills({ cwd, homeDir, synaraBaseDir });
+      expect(skills.map((skill) => skill.name)).toEqual(["native-helper"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -1,8 +1,8 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { resolve } from "node:path";
-import { assert, describe, it } from "@effect/vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { afterEach, assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
 
 import {
@@ -13,6 +13,21 @@ import {
   resolveModePortOffsets,
   resolveOffset,
 } from "./dev-runner.ts";
+
+const isolatedHomes = new Set<string>();
+
+afterEach(() => {
+  for (const directory of isolatedHomes) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+  isolatedHomes.clear();
+});
+
+function makeIsolatedHome(): string {
+  const directory = mkdtempSync(join(tmpdir(), "graft-dev-runner-home-"));
+  isolatedHomes.add(directory);
+  return directory;
+}
 
 it.layer(NodeServices.layer)("dev-runner", (it) => {
   it("allows every generated runtime setting through Turbo", () => {
@@ -153,8 +168,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
-    it.effect("defaults SYNARA_HOME to ~/.synara when not provided", () =>
+    it.effect("defaults SYNARA_HOME to ~/.graft when not provided", () =>
       Effect.gen(function* () {
+        const homeDirectory = makeIsolatedHome();
         const env = yield* createDevRunnerEnv({
           mode: "dev",
           baseEnv: {},
@@ -168,16 +184,18 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           host: undefined,
           port: undefined,
           devUrl: undefined,
+          homeDirectory,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara"));
+        assert.equal(env.SYNARA_HOME, resolve(homeDirectory, ".graft"));
         assert.equal(env.SYNARA_HOST, "127.0.0.1");
         assert.equal(env.VITE_WS_URL, "ws://127.0.0.1:3773");
       }),
     );
 
-    it.effect("defaults watched desktop development to ~/.synara-dev", () =>
+    it.effect("defaults watched desktop development to ~/.graft-dev", () =>
       Effect.gen(function* () {
+        const homeDirectory = makeIsolatedHome();
         const env = yield* createDevRunnerEnv({
           mode: "dev:desktop",
           baseEnv: {},
@@ -191,14 +209,16 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           host: undefined,
           port: undefined,
           devUrl: undefined,
+          homeDirectory,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara-dev"));
+        assert.equal(env.SYNARA_HOME, resolve(homeDirectory, ".graft-dev"));
       }),
     );
 
     it.effect("keeps watched Canary desktop data separate from development", () =>
       Effect.gen(function* () {
+        const homeDirectory = makeIsolatedHome();
         const env = yield* createDevRunnerEnv({
           mode: "dev:desktop",
           baseEnv: { SYNARA_DESKTOP_FLAVOR: "canary" },
@@ -212,9 +232,10 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           host: undefined,
           port: undefined,
           devUrl: undefined,
+          homeDirectory,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homedir(), ".synara-canary"));
+        assert.equal(env.SYNARA_HOME, resolve(homeDirectory, ".graft-canary"));
       }),
     );
 
