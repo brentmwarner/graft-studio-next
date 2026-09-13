@@ -84,9 +84,9 @@ export function resolveSynaraHomeDirectory(
   } = {},
 ): string {
   const homeDirectory = options.homeDirectory ?? OS.homedir();
-  const configured = (
-    options.configuredHome ?? (options.env ?? process.env)[SYNARA_HOME_ENV_NAME]
-  )?.trim();
+  const explicit = options.configuredHome?.trim();
+  const fromEnv = (options.env ?? process.env)[SYNARA_HOME_ENV_NAME]?.trim();
+  const configured = explicit || fromEnv;
   if (!configured) {
     const directoryName = options.directoryName ?? DEFAULT_SYNARA_HOME_DIRECTORY_NAME;
     const preferred = Path.join(homeDirectory, directoryName);

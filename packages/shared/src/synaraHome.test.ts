@@ -106,6 +106,13 @@ describe("resolveSynaraHomeDirectory", () => {
         homeDirectory: "/users/tester",
       }),
     ).toBe(Path.join("/users/tester", "Documents", "Graft"));
+    expect(
+      resolveSynaraHomeDirectory({
+        configuredHome: "   ",
+        env: { SYNARA_HOME: "/tmp/custom-synara" },
+        homeDirectory: "/users/tester",
+      }),
+    ).toBe(Path.resolve("/tmp/custom-synara"));
   });
 
   it("reuses an existing ~/.synara when ~/.graft has not been created", () => {

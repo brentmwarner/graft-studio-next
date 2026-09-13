@@ -19,6 +19,13 @@ release/
 /apps/server/.synara-*/
 /.synara/
 /.synara-*/
+.graft
+/.graft/electron-dev
+/.graft/backups
+/.graft-*/
+/apps/server/.graft-*/
+/.graft/
+/.graft-*/
 .idea/
 apps/web/.playwright
 apps/web/playwright-report
