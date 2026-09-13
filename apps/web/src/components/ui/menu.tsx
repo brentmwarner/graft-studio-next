@@ -94,15 +94,15 @@ function MenuPopupBase({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className={cn("z-50 min-w-32", isComposerSurface ? undefined : className)}
+        className={cn("z-50 min-w-32", className)}
         data-slot="menu-positioner"
         side={side}
         sideOffset={sideOffset}
       >
         <MenuPrimitive.Popup
           className={cn(
-            "relative flex origin-(--transform-origin) text-[var(--color-text-foreground)] outline-none focus:outline-none",
-            isComposerSurface ? "min-w-0 max-w-[92vw]" : "w-full min-w-full",
+            "relative flex flex-col origin-(--transform-origin) text-[var(--color-text-foreground)] outline-none focus:outline-none",
+            isComposerSurface ? "min-w-0 max-w-[92vw] overflow-hidden" : "w-full min-w-full",
             isComposerSurface ? className : null,
             popupSurfaceClassName,
           )}
@@ -113,7 +113,7 @@ function MenuPopupBase({
             <div
               className={cn(
                 COMPOSER_PICKER_MENU_POPUP_BODY_CLASS_NAME,
-                "relative z-1 max-h-(--available-height)",
+                "relative z-1 flex max-h-(--available-height) min-h-0 w-full min-w-0 flex-col",
               )}
               data-picker-size={pickerSize}
               data-slot="menu-popup-body"

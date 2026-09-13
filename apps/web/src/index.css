@@ -2828,10 +2828,25 @@ diffs-container {
   height: var(--picker-option-icon-size);
 }
 
-.composer-picker-menu--small [data-slot="menu-sub-trigger"] > svg:last-of-type,
-.composer-picker-menu-wide--small [data-slot="menu-sub-trigger"] > svg:last-of-type,
-.composer-picker-menu--normal [data-slot="menu-sub-trigger"] > svg:last-of-type,
-.composer-picker-menu-wide--normal [data-slot="menu-sub-trigger"] > svg:last-of-type {
+.composer-picker-menu--small [data-slot="menu-sub-trigger"],
+.composer-picker-menu-wide--small [data-slot="menu-sub-trigger"],
+.composer-picker-menu--normal [data-slot="menu-sub-trigger"],
+.composer-picker-menu-wide--normal [data-slot="menu-sub-trigger"] {
+  width: 100%;
+}
+
+.composer-picker-menu--small
+  [data-slot="menu-sub-trigger"]
+  > :last-child:is(svg, [data-slot="central-icon"]),
+.composer-picker-menu-wide--small
+  [data-slot="menu-sub-trigger"]
+  > :last-child:is(svg, [data-slot="central-icon"]),
+.composer-picker-menu--normal
+  [data-slot="menu-sub-trigger"]
+  > :last-child:is(svg, [data-slot="central-icon"]),
+.composer-picker-menu-wide--normal
+  [data-slot="menu-sub-trigger"]
+  > :last-child:is(svg, [data-slot="central-icon"]) {
   margin-inline-start: var(--picker-sub-chevron-ms);
   width: var(--picker-sub-chevron-size);
   height: var(--picker-sub-chevron-size);

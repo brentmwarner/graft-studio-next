@@ -283,7 +283,7 @@ export const GrokIcon: Icon = (props) => (
 );
 
 export const PiIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg {...props} viewBox="165 165 470 470" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       fill="currentColor"
       fillRule="evenodd"

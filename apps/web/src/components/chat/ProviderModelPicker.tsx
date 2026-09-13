@@ -13,6 +13,7 @@ import { formatProviderModelOptionName } from "../../providerModelOptions";
 import { compareProvidersByOrder } from "../../providerOrdering";
 import {
   Menu,
+  MenuGroup,
   MenuItem,
   MenuRadioGroup,
   MenuSeparator,
@@ -380,51 +381,53 @@ export const ProviderModelMenuItems = function ProviderModelMenuItems(
 
   return (
     <>
-      {visibleAvailableProviderOptions.map((option) => {
-        const OptionIcon = PROVIDER_ICON_COMPONENT_BY_PROVIDER[option.value];
-        const liveProvider = props.providers?.find((entry) => entry.provider === option.value);
-        const availability = resolveLiveProviderAvailability(liveProvider);
-        if (availability.disabled) {
+      <MenuGroup className="flex min-h-0 min-w-0 flex-col overflow-y-auto">
+        {visibleAvailableProviderOptions.map((option) => {
+          const OptionIcon = PROVIDER_ICON_COMPONENT_BY_PROVIDER[option.value];
+          const liveProvider = props.providers?.find((entry) => entry.provider === option.value);
+          const availability = resolveLiveProviderAvailability(liveProvider);
+          if (availability.disabled) {
+            return (
+              <MenuItem key={option.value} disabled>
+                <OptionIcon
+                  aria-hidden="true"
+                  className={cn(
+                    "size-3.5 shrink-0 opacity-80",
+                    providerIconClassName(option.value, "text-muted-foreground/85"),
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                <span className="ms-auto text-[11px] text-muted-foreground/80">
+                  {availability.label}
+                </span>
+              </MenuItem>
+            );
+          }
           return (
-            <MenuItem key={option.value} disabled>
-              <OptionIcon
-                aria-hidden="true"
-                className={cn(
-                  "size-3 shrink-0 opacity-80",
-                  providerIconClassName(option.value, "text-muted-foreground/85"),
-                )}
-              />
-              <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80">
-                {availability.label}
-              </span>
-            </MenuItem>
+            <MenuSub key={option.value}>
+              <MenuSubTrigger className="w-full">
+                <OptionIcon
+                  aria-hidden="true"
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    providerIconClassName(option.value, "text-muted-foreground/85"),
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              </MenuSubTrigger>
+              <ComposerPickerMenuSubPopup
+                fixedWidth
+                className={COMPOSER_PICKER_MODEL_SUBMENU_HEIGHT_CLASS_NAME}
+              >
+                {renderModelRadioGroup(option.value)}
+              </ComposerPickerMenuSubPopup>
+            </MenuSub>
           );
-        }
-        return (
-          <MenuSub key={option.value}>
-            <MenuSubTrigger>
-              <OptionIcon
-                aria-hidden="true"
-                className={cn(
-                  "size-3 shrink-0",
-                  providerIconClassName(option.value, "text-muted-foreground/85"),
-                )}
-              />
-              {option.label}
-            </MenuSubTrigger>
-            <ComposerPickerMenuSubPopup
-              fixedWidth
-              className={COMPOSER_PICKER_MODEL_SUBMENU_HEIGHT_CLASS_NAME}
-            >
-              {renderModelRadioGroup(option.value)}
-            </ComposerPickerMenuSubPopup>
-          </MenuSub>
-        );
-      })}
+        })}
+      </MenuGroup>
       {visibleAvailableProviderOptions.length > 0 ? <MenuSeparator /> : null}
-      <MenuItem onClick={() => appHistory.push("/settings?section=providers")}>
-        <PlusIcon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground/85" />
+      <MenuItem className="shrink-0" onClick={() => appHistory.push("/settings?section=providers")}>
+        <PlusIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/85" />
         <span>Add Providers</span>
       </MenuItem>
     </>
@@ -572,7 +575,7 @@ export const ProviderModelPicker = function ProviderModelPicker(props: ProviderM
           <span className="sr-only">{selectedModelLabel}</span>
         </MenuTrigger>
       )}
-      <ComposerPickerMenuPopup align="start" fixedWidth>
+      <ComposerPickerMenuPopup align="start" side="top" fixedWidth>
         <ProviderModelMenuItems
           provider={props.provider}
           model={props.model}
