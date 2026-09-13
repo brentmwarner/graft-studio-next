@@ -31,13 +31,25 @@ import { OrchestrationEngineService } from "../orchestration/Services/Orchestrat
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
 import { isLoopbackHost, getBoundListenPort, mobilePairingBaseUrl } from "../startupAccess";
 import {
+  authenticateDesktopOwner,
+  graftOwnerCorsHeaders,
+  graftOwnerPreflightResponse,
+} from "../graftOwnerHttp";
+import {
   GraftMobileCommandError,
   claimMobileCommand,
   executeMobileCommand,
   loadMobileSnapshot,
   makeGraftMobileGatewayState,
 } from "./gateway";
+import { getMobileLanGatewayPort, mobileLanGatewayAdvertisesIpv6 } from "./lanGateway";
 import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  discoverNetworkEndpoints,
+  preferredPairingEndpoint,
+  resolveAdvertisedMobilePairingBase,
+} from "./networkEndpoints";
+import { rememberIssuedPairing } from "./issuedPairing";
 import {
   MOBILE_WS_INBOUND_CAPACITY,
   MOBILE_WS_OUTBOUND_CAPACITY,
@@ -70,15 +82,15 @@ function remoteError(
   return { code, message, ...options };
 }
 
-function errorResponse(error: GraftRemoteError, status: number) {
-  return HttpServerResponse.jsonUnsafe(error, { status });
+function errorResponse(error: GraftRemoteError, status: number, headers?: Record<string, string>) {
+  return HttpServerResponse.jsonUnsafe(error, { status, ...(headers ? { headers } : {}) });
 }
 
 function pairErrorResponse(error: GraftRemoteError, status: number) {
   return HttpServerResponse.jsonUnsafe({ ok: false, error }, { status });
 }
 
-function authErrorResponse(error: AuthError) {
+function authErrorResponse(error: AuthError, headers?: Record<string, string>) {
   const status = error.status ?? 500;
   const code =
     status === 403
@@ -91,6 +103,7 @@ function authErrorResponse(error: AuthError) {
   return errorResponse(
     remoteError(code, error.message, { retryable: status === 429 || status >= 500 }),
     status,
+    headers,
   );
 }
 
@@ -132,19 +145,42 @@ function requestHttpBaseUrl(
   });
 }
 
-function endpointKind(baseUrl: string): GraftRemoteEndpointKind {
-  const url = new URL(baseUrl);
-  if (url.protocol === "https:") {
-    return url.hostname.endsWith(".ts.net") ? "tailnet" : "https";
-  }
-  return isLoopbackHost(url.hostname) ? "loopback" : "lan";
-}
-
 function networkAccessEnabled(config: {
   readonly host?: string | undefined;
   readonly publicUrl?: URL | undefined;
 }) {
-  return config.publicUrl !== undefined || !isLoopbackHost(config.host);
+  return (
+    config.publicUrl !== undefined ||
+    !isLoopbackHost(config.host) ||
+    getMobileLanGatewayPort() !== null
+  );
+}
+
+function advertisedMobilePairingBase(
+  request: HttpServerRequest.HttpServerRequest,
+  config: {
+    readonly host?: string | undefined;
+    readonly port: number;
+    readonly publicUrl?: URL | undefined;
+  },
+): { readonly httpBaseUrl: string; readonly endpointKind: GraftRemoteEndpointKind } | null {
+  if (config.publicUrl) {
+    return resolveAdvertisedMobilePairingBase({
+      publicUrl: config.publicUrl,
+      preferred: null,
+      requestHttpBaseUrl: null,
+    });
+  }
+  const advertisedPort = getMobileLanGatewayPort() ?? getBoundListenPort(config.port);
+  const preferred = preferredPairingEndpoint(
+    discoverNetworkEndpoints(advertisedPort, undefined, {
+      includeIpv6: mobileLanGatewayAdvertisesIpv6(),
+    }),
+  );
+  return resolveAdvertisedMobilePairingBase({
+    preferred,
+    requestHttpBaseUrl: requestHttpBaseUrl(request, config),
+  });
 }
 
 const readJson = (request: HttpServerRequest.HttpServerRequest) => {
@@ -234,8 +270,8 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         url,
       });
       const descriptor = yield* environment.getDescriptor;
-      const httpBaseUrl = requestHttpBaseUrl(request, config);
-      if (!httpBaseUrl) {
+      const advertised = advertisedMobilePairingBase(request, config);
+      if (!advertised) {
         return pairErrorResponse(
           remoteError("internal", "Could not resolve the mobile gateway address."),
           500,
@@ -250,12 +286,12 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
           bearerToken: bearerSession.sessionToken,
           environmentId: descriptor.environmentId,
           environmentLabel: descriptor.label,
-          httpBaseUrl,
-          wsBaseUrl: toWebSocketBaseUrl(httpBaseUrl),
+          httpBaseUrl: advertised.httpBaseUrl,
+          wsBaseUrl: toWebSocketBaseUrl(advertised.httpBaseUrl),
           protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
           capabilities: [...DEFAULT_MOBILE_CAPABILITIES],
           expiresAt: DateTime.toEpochMillis(bearerSession.expiresAt),
-          endpointKind: endpointKind(httpBaseUrl),
+          endpointKind: advertised.endpointKind,
         },
       });
     }
@@ -266,37 +302,66 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
       return HttpServerResponse.jsonUnsafe(yield* loadMobileSnapshot(threadId));
     }
 
-    if (request.method === "POST" && url.pathname === "/v1/pairing-link") {
-      const authenticated = yield* serverAuth.authenticateHttpRequest(
-        makeEffectAuthRequest(request),
+    if (url.pathname === "/v1/pairing-link") {
+      const corsHeaders = graftOwnerCorsHeaders({ request, url, config });
+      if (corsHeaders === null) {
+        return errorResponse(
+          remoteError("authorization_denied", "Trusted request origin required."),
+          403,
+        );
+      }
+      if (request.method === "OPTIONS") {
+        return graftOwnerPreflightResponse(corsHeaders);
+      }
+      if (request.method !== "POST") {
+        return errorResponse(
+          remoteError("validation_failed", "Method Not Allowed"),
+          405,
+          corsHeaders,
+        );
+      }
+      const authResult = yield* authenticateDesktopOwner(request, url, config, serverAuth).pipe(
+        Effect.catchTag("AuthError", (error) => Effect.succeed({ pairingLinkAuthError: error })),
       );
+      if ("pairingLinkAuthError" in authResult) {
+        return authErrorResponse(authResult.pairingLinkAuthError, corsHeaders);
+      }
+      const authenticated = authResult;
       if (authenticated.role !== "owner") {
         return errorResponse(
           remoteError("authorization_denied", "Only the owner can create mobile pairing links."),
           403,
+          corsHeaders,
         );
       }
-      const httpBaseUrl = requestHttpBaseUrl(request, config);
-      if (!httpBaseUrl) {
+      const advertised = advertisedMobilePairingBase(request, config);
+      if (!advertised) {
         return errorResponse(
           remoteError("internal", "Could not resolve the mobile gateway address."),
           500,
+          corsHeaders,
         );
       }
       const issued = yield* serverAuth.issuePairingCredential({
         label: "Graft mobile",
         role: "client",
       });
-      return HttpServerResponse.jsonUnsafe({
-        pairingUrl: buildGraftPairingUrl({
-          v: GRAFT_MOBILE_PROTOCOL_VERSION,
-          host: httpBaseUrl,
-          token: issued.credential,
-          label: (yield* environment.getDescriptor).label,
-          endpointKind: endpointKind(httpBaseUrl),
-        }),
-        expiresAt: DateTime.toEpochMillis(issued.expiresAt),
+      const pairingUrl = buildGraftPairingUrl({
+        v: GRAFT_MOBILE_PROTOCOL_VERSION,
+        host: advertised.httpBaseUrl,
+        token: issued.credential,
+        label: (yield* environment.getDescriptor).label,
+        endpointKind: advertised.endpointKind,
       });
+      const expiresAt = DateTime.toEpochMillis(issued.expiresAt);
+      rememberIssuedPairing({ pairingUrl, expiresAt });
+      return HttpServerResponse.jsonUnsafe(
+        {
+          pairingUrl,
+          expiresAt,
+        },
+        { headers: corsHeaders },
+      );
     }
 
     if (request.method === "PUT" && url.pathname === "/v1/push-registration") {

@@ -51,6 +51,11 @@ export const DESKTOP_IPC_CHANNELS = {
     error: "desktop:appsnap-error",
     state: "desktop:appsnap-state",
   },
+  connections: {
+    getKeepHostAwake: "desktop:connections-get-keep-host-awake",
+    setKeepHostAwake: "desktop:connections-set-keep-host-awake",
+    syncWake: "desktop:connections-sync-wake",
+  },
   browser: {
     webMcpCompatibilityPolicy: "desktop:browser-webmcp-compatibility-policy",
     state: "desktop:browser-state",

@@ -1,17 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { toastManager } from "~/components/ui/toast";
+import { ConnectionsPanel, type ConnectionsStatus } from "./ConnectionsPanel";
 import {
   connectSshMachine,
   createMobilePairingLink,
   deleteSshMachine,
   disconnectSshMachine,
+  getConnectionsStatus,
   listSshMachines,
+  revokeConnectionsDevice,
   saveSshMachine,
-  type GraftMobilePairingLink,
+  setConnectionsEnabled,
 } from "~/graftConnections";
 import { copyTextToClipboard } from "~/hooks/useCopyToClipboard";
 import {
@@ -22,28 +25,39 @@ import {
 } from "./SettingsPanelPrimitives";
 
 const SSH_QUERY_KEY = ["graft", "ssh-machines"] as const;
+const CONNECTIONS_QUERY_KEY = ["graft", "connections-status"] as const;
 
-function copyWithToast(value: string, title: string): void {
-  void copyTextToClipboard(value).then(
-    () => toastManager.add({ type: "success", title }),
-    (error: unknown) =>
-      toastManager.add({
-        type: "error",
-        title: "Could not copy",
-        description: error instanceof Error ? error.message : "Clipboard access failed.",
-      }),
+const EMPTY_STATUS: ConnectionsStatus = {
+  enabled: false,
+  networkAccessEnabled: false,
+  keepHostAwake: false,
+  environmentId: "",
+  environmentLabel: "Studio",
+  bindHost: "127.0.0.1",
+  port: null,
+  endpoints: [],
+  devices: [],
+  pairingUrl: null,
+  pairingExpiresAt: null,
+  relay: { state: "disabled", lastError: null },
+};
+
+function copyQuietly(value: string, errorTitle: string): void {
+  void copyTextToClipboard(value).catch((error: unknown) =>
+    toastManager.add({
+      type: "error",
+      title: errorTitle,
+      description: error instanceof Error ? error.message : "Clipboard access failed.",
+    }),
   );
-}
-
-function pairingExpiryLabel(expiresAt: number): string {
-  return `Expires ${new Date(expiresAt).toLocaleTimeString()}`;
 }
 
 export function ConnectionsSettingsPanel(props: { active: boolean }) {
   const queryClient = useQueryClient();
   const [label, setLabel] = useState("");
   const [sshTarget, setSshTarget] = useState("");
-  const [pairing, setPairing] = useState<GraftMobilePairingLink | null>(null);
+  const [keepHostAwake, setKeepHostAwake] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const sshQuery = useQuery({
     queryKey: SSH_QUERY_KEY,
@@ -52,24 +66,24 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     staleTime: 5_000,
   });
 
-  const pairingMutation = useMutation({
-    mutationFn: createMobilePairingLink,
-    onSuccess: (result) => {
-      setPairing(result);
-      toastManager.add({
-        type: "success",
-        title: "Pairing link ready",
-        description:
-          "Scan or paste it in Graft on iOS or Android. The token stays in the fragment.",
-      });
-    },
-    onError: (error: unknown) =>
-      toastManager.add({
-        type: "error",
-        title: "Could not create a pairing link",
-        description: error instanceof Error ? error.message : "Pairing failed.",
-      }),
+  const connectionsQuery = useQuery({
+    queryKey: CONNECTIONS_QUERY_KEY,
+    queryFn: getConnectionsStatus,
+    enabled: props.active,
+    staleTime: 2_000,
   });
+
+  useEffect(() => {
+    if (!props.active) return;
+    const bridge = window.desktopBridge?.connections;
+    if (!bridge) return;
+    void bridge.getKeepHostAwake().then(setKeepHostAwake);
+  }, [props.active]);
+
+  useEffect(() => {
+    const enabled = connectionsQuery.data?.enabled === true;
+    void window.desktopBridge?.connections?.syncWake(enabled);
+  }, [connectionsQuery.data?.enabled]);
 
   const saveMutation = useMutation({
     mutationFn: () => saveSshMachine({ label: label.trim(), sshTarget: sshTarget.trim() }),
@@ -78,11 +92,11 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
       setSshTarget("");
       void queryClient.invalidateQueries({ queryKey: SSH_QUERY_KEY });
     },
-    onError: (error: unknown) =>
+    onError: (cause: unknown) =>
       toastManager.add({
         type: "error",
         title: "Could not save SSH machine",
-        description: error instanceof Error ? error.message : "Save failed.",
+        description: cause instanceof Error ? cause.message : "Save failed.",
       }),
   });
 
@@ -91,11 +105,11 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SSH_QUERY_KEY });
     },
-    onError: (error: unknown) =>
+    onError: (cause: unknown) =>
       toastManager.add({
         type: "error",
         title: "Could not connect over SSH",
-        description: error instanceof Error ? error.message : "Connect failed.",
+        description: cause instanceof Error ? cause.message : "Connect failed.",
       }),
   });
 
@@ -113,48 +127,68 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     },
   });
 
+  const enabledMutation = useMutation({
+    mutationFn: setConnectionsEnabled,
+    onSuccess: (status) => {
+      setError(null);
+      queryClient.setQueryData(CONNECTIONS_QUERY_KEY, status);
+      void window.desktopBridge?.connections?.syncWake(status.enabled);
+    },
+    onError: (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : "Could not update the gateway."),
+  });
+
+  const pairingMutation = useMutation({
+    mutationFn: async () => {
+      if (!connectionsQuery.data?.enabled) {
+        await setConnectionsEnabled(true);
+      }
+      return createMobilePairingLink();
+    },
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
+    },
+    onError: (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : "Could not create a pairing link."),
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: revokeConnectionsDevice,
+    onSuccess: (status) => {
+      queryClient.setQueryData(CONNECTIONS_QUERY_KEY, status);
+    },
+    onError: (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : "Could not revoke that device."),
+  });
+
   if (!props.active) return null;
 
   const machines = sshQuery.data?.machines ?? [];
+  const httpStatus = connectionsQuery.data;
+  const status: ConnectionsStatus = {
+    ...EMPTY_STATUS,
+    enabled: httpStatus?.enabled ?? EMPTY_STATUS.enabled,
+    networkAccessEnabled: httpStatus?.networkAccessEnabled ?? EMPTY_STATUS.networkAccessEnabled,
+    environmentId: httpStatus?.environmentId ?? EMPTY_STATUS.environmentId,
+    environmentLabel: httpStatus?.environmentLabel ?? EMPTY_STATUS.environmentLabel,
+    bindHost: httpStatus?.bindHost ?? EMPTY_STATUS.bindHost,
+    port: httpStatus?.port ?? EMPTY_STATUS.port,
+    endpoints: httpStatus?.endpoints ?? EMPTY_STATUS.endpoints,
+    devices: httpStatus?.devices ?? EMPTY_STATUS.devices,
+    pairingUrl: httpStatus?.pairingUrl ?? EMPTY_STATUS.pairingUrl,
+    pairingExpiresAt: httpStatus?.pairingExpiresAt ?? EMPTY_STATUS.pairingExpiresAt,
+    relay: httpStatus?.relay ?? EMPTY_STATUS.relay,
+    keepHostAwake,
+  };
+  const busy =
+    enabledMutation.isPending ||
+    pairingMutation.isPending ||
+    revokeMutation.isPending ||
+    connectionsQuery.isFetching;
 
   return (
     <>
-      <SettingsSection title="Mobile pairing">
-        <SettingsRow
-          title="Pair a phone"
-          description="Create a one-time graft://pair link. Graft iOS and Android exchange it for a revocable bearer. The token stays after #."
-          control={
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => pairingMutation.mutate()}
-              disabled={pairingMutation.isPending}
-            >
-              {pairingMutation.isPending ? "Creating…" : "Create pairing link"}
-            </Button>
-          }
-        />
-        {pairing ? (
-          <SettingsRow
-            title="Pairing URL"
-            description={pairingExpiryLabel(pairing.expiresAt)}
-            control={
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => copyWithToast(pairing.pairingUrl, "Copied pairing link")}
-              >
-                Copy
-              </Button>
-            }
-          >
-            <p className="break-all font-mono text-xs text-muted-foreground">
-              {pairing.pairingUrl}
-            </p>
-          </SettingsRow>
-        ) : null}
-      </SettingsSection>
       <SettingsSection title="SSH machines">
         <SettingsRow
           title="Add a machine"
@@ -239,6 +273,31 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
           ))
         )}
       </SettingsSection>
+      <ConnectionsPanel
+        status={status}
+        busy={busy}
+        error={
+          error ?? (connectionsQuery.error instanceof Error ? connectionsQuery.error.message : null)
+        }
+        onRefresh={() => {
+          void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
+        }}
+        onSetEnabled={(enabled) => enabledMutation.mutate(enabled)}
+        onSetKeepHostAwake={(next) => {
+          setKeepHostAwake(next);
+          void window.desktopBridge?.connections
+            ?.setKeepHostAwake(next, status.enabled)
+            .catch((cause: unknown) =>
+              setError(cause instanceof Error ? cause.message : "Could not keep the host awake."),
+            );
+        }}
+        onCreatePairing={() => pairingMutation.mutate()}
+        onCopyEndpoint={(httpBaseUrl) => copyQuietly(httpBaseUrl, "Could not copy address")}
+        onRevokeDevice={(deviceId) => revokeMutation.mutate(deviceId)}
+        onCopyDiagnostics={() =>
+          copyQuietly(httpStatus?.diagnostics ?? "", "Could not copy diagnostics")
+        }
+      />
     </>
   );
 }
