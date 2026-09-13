@@ -484,7 +484,7 @@ struct ScrollToBottomButton: View {
     }
 }
 
-/// Persistent turn liveness under the last item: Graft's dot-matrix loader
+/// Persistent turn liveness under the last item: AICSS G4 helix/globe
 /// plus a phrase that starts as "Thinking" and swaps to the current action.
 /// Like desktop, it remains visible until the active turn completes.
 private struct StreamingFooter: View {

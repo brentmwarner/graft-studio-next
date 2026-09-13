@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Graft dot-matrix loader + live status phrase. The loader stays put; the next phrase sits in
-/// place and is wiped on from the leading edge. No elapsed timer — the
-/// copy itself is the signal.
+/// AICSS G4 helix/globe + live status phrase. The loader stays put; the next
+/// phrase sits in place and is wiped on from the leading edge. No elapsed
+/// timer — the copy itself is the signal.
 struct LiveStatusLine: View {
     let phrase: String
     var canReveal = false
@@ -37,7 +37,8 @@ private struct LiveStatusRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RunStatusDotMatrixLoader(size: 18, tint: DS.Color.fgSubtle)
+            ComposingOrbLoader(size: 26, tint: DS.Color.fg)
+                .accessibilityHidden(true)
             ZStack(alignment: .leading) {
                 LiveStatusPhraseLabel(phrase: phrase)
             }
@@ -203,7 +204,7 @@ struct LiveStatusDemoView: View {
             Spacer()
             HStack {
                 Spacer(minLength: 56)
-                Text("Tighten the thinking header — orb plus the action, no timer.")
+                Text("Tighten the thinking header — G4 orb plus the action, no timer.")
                     .font(DS.Font.body)
                     .foregroundStyle(DS.Color.fg)
                     .padding(.horizontal, 16)
