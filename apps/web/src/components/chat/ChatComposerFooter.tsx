@@ -1,6 +1,12 @@
 import { ProviderInteractionMode } from "@synara/contracts";
 import { type ReactNode } from "react";
-import { BugIcon, ListTodoIcon, ChevronDownIcon, ComposerSendArrowIcon, LayoutSidebarIcon } from "~/lib/icons";
+import {
+  BugIcon,
+  ListTodoIcon,
+  ChevronDownIcon,
+  ComposerSendArrowIcon,
+  LayoutSidebarIcon,
+} from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import type { derivePendingUserInputProgress } from "../../pendingUserInput";
 import type { SessionPhase } from "../../types";

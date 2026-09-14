@@ -318,7 +318,9 @@ describe("resolveDroidAcpAuthMethodId", () => {
       if (apiKey === undefined) delete process.env.FACTORY_API_KEY;
       else process.env.FACTORY_API_KEY = apiKey;
       const error = await Effect.runPromise(
-        resolveDroidAcpAuthMethodId(initializeWithAuthMethods(["device-pairing"])).pipe(Effect.flip),
+        resolveDroidAcpAuthMethodId(initializeWithAuthMethods(["device-pairing"])).pipe(
+          Effect.flip,
+        ),
       );
       expect(error).toBeInstanceOf(AcpErrors.AcpRequestError);
       expect(error.message).toContain("noninteractive authentication is unavailable");
