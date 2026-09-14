@@ -57,17 +57,23 @@ test("performance gate uses the pinned browser stack without Socket-warning depe
   assert.equal(packageJson.dependencies?.["chrome-launcher"], undefined);
   assert.equal(packageJson.devDependencies?.["chrome-launcher"], undefined);
 
-  for (const removedPackage of [
-    "lighthouse",
-    "@sentry/node-core",
-    "csp_evaluator",
-    // chrome-launcher remains a transitive of @react-native/dev-middleware in
-    // the shared monorepo lockfile; the marketing app itself must not depend on it.
-  ]) {
+  for (const removedPackage of ["lighthouse", "@sentry/node-core", "csp_evaluator"]) {
     // Bun stores package identities in the first tuple field, including nested resolutions.
     assert.ok(
       !packageLock.includes(`["${removedPackage}@`),
       `removed Socket-warning dependency remains in lockfile: ${removedPackage}`,
+    );
+  }
+
+  // chrome-launcher is banned from the marketing performance stack, but Graft's
+  // React Native debugger middleware still pulls it into the shared bun.lock.
+  assert.equal(packageJson.dependencies?.["chrome-launcher"], undefined);
+  assert.equal(packageJson.devDependencies?.["chrome-launcher"], undefined);
+  if (packageLock.includes('["chrome-launcher@')) {
+    assert.ok(
+      packageLock.includes('["@react-native/dev-middleware@') &&
+        packageLock.includes('"chrome-launcher": "^0.15.2"'),
+      "chrome-launcher remains in lockfile outside React Native debugger middleware",
     );
   }
 });

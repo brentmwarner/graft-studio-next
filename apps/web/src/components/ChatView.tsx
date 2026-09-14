@@ -4706,8 +4706,11 @@ export default function ChatView({
         <ProjectPicker
           align="start"
           side="top"
-          triggerClassName={`h-7 rounded-full py-1 ${COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME}`}
           triggerVariant="ghost"
+          triggerClassName={cn(
+            "h-7 rounded-full py-1",
+            COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
+          )}
           showResetToHome={Boolean(
             isStudioContainer ? resolvedThreadWorkingDirectory : resolvedThreadWorktreePath,
           )}
@@ -4727,8 +4730,11 @@ export default function ChatView({
         <ProjectPicker
           align="start"
           side="top"
-          triggerClassName={`h-7 rounded-full py-1 ${COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME}`}
           triggerVariant="ghost"
+          triggerClassName={cn(
+            "h-7 rounded-full py-1",
+            COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
+          )}
           selectionMode="project"
           selectedProjectId={activeProject.id}
           selectedWorkspaceRoot={activeProject.cwd}

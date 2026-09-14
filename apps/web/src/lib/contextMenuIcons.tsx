@@ -24,7 +24,7 @@ export const THREAD_CONTEXT_MENU_ICONS = {
   handoff: HANDOFF_ICON_NAME,
   copy: COPY_ICON_NAME,
   openInTerminal: TERMINAL_ICON_NAME,
-  // Same glyph as the thread row's hover archive button.
+  // Same Central glyph as the thread row's hover archive button.
   archive: ARCHIVE_ICON_NAME,
   // Same glyph as the delete rows in the sidebar project and space menus.
   delete: TRASH_ICON_NAME,
