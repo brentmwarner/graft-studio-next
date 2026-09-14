@@ -49,13 +49,15 @@ function centralIconWrapper(name: string, variant?: CentralIconVariant): LucideI
 export const AppsIcon: LucideIcon = centralIconWrapper("apps");
 // Composer stacked-panel glyphs (subagent strip / workflow run card).
 export const BackgroundTrayIcon: LucideIcon = centralIconWrapper("arrow-down-wall");
+export const ContextCompactionIcon: LucideIcon = centralIconWrapper("arrows-hide");
 export const PanelExpandIcon: LucideIcon = centralIconWrapper("expand-45");
 export const PanelCollapseIcon: LucideIcon = centralIconWrapper("minimize-45");
 export const BackToParentIcon: LucideIcon = centralIconWrapper("arrow-share-left");
 export const WorkflowIcon: LucideIcon = centralIconWrapper("agents");
 export const SteerIcon: LucideIcon = centralIconWrapper("arrow-corner-down-right");
 export const ComposerSendArrowIcon: LucideIcon = centralIconWrapper("arrow-up");
-export const HandoffIcon: LucideIcon = centralIconWrapper("arrow-left-right");
+export const HANDOFF_ICON_NAME = "arrow-left-right";
+export const HandoffIcon: LucideIcon = centralIconWrapper(HANDOFF_ICON_NAME);
 export const SkillCubeIcon: LucideIcon = centralIconWrapper("building-blocks");
 export const NewThreadIcon: LucideIcon = centralIconWrapper("compose-pencil");
 /** The "+" affordance behind every add/create action (Add project, activity header). */
@@ -101,7 +103,8 @@ export const ArrowUpCircleIcon: LucideIcon = centralIconWrapper("arrow-up-circle
 export const CloudSyncIcon = centralIconWrapper("cloud-sync");
 export const Columns2Icon = adaptIcon(IconColumns2);
 export const ChangesIcon = centralIconWrapper("changes");
-export const CopyIcon = centralIconWrapper("square-behind-square-6");
+export const COPY_ICON_NAME = "square-behind-square-6";
+export const CopyIcon = centralIconWrapper(COPY_ICON_NAME);
 export const LinkIcon = centralIconWrapper("chain-link-3");
 export const DiffIcon = centralIconWrapper("difference-modified");
 export const DownloadIcon = centralIconWrapper("cloud-download");
@@ -112,7 +115,8 @@ export const RaisingHandIcon: LucideIcon = centralIconWrapper("raising-hand-5-fi
 // The clock doubles as the automation glyph everywhere it appears (meta chip,
 // Automations nav, slash command, created card, environment section), so it is
 // sourced from the Central icon set rather than the Tabler stroke icon.
-export const BellIcon: LucideIcon = centralIconWrapper("notes");
+export const BELL_ICON_NAME = "notes";
+export const BellIcon: LucideIcon = centralIconWrapper(BELL_ICON_NAME);
 export const ClockIcon = centralIconWrapper("clock");
 export const EllipsisIcon = centralIconWrapper("dot-grid-1x3-horizontal");
 export const ExternalLinkIcon = centralIconWrapper("arrow-out-of-box");
@@ -120,10 +124,12 @@ export const ExternalLinkIcon = centralIconWrapper("arrow-out-of-box");
 // file-preview header controls share one visual language with the rest of the
 // chrome (raw source = code brackets, rendered preview = open eye).
 export const CodeIcon: LucideIcon = centralIconWrapper("code");
-export const EyeOpenIcon: LucideIcon = centralIconWrapper("eye-open");
+export const EYE_OPEN_ICON_NAME = "eye-open";
+export const EyeOpenIcon: LucideIcon = centralIconWrapper(EYE_OPEN_ICON_NAME);
 export const EyeIcon = EyeOpenIcon;
 export const PaperclipIcon = centralIconWrapper("paperclip-1");
-export const ArchiveIcon = centralIconWrapper("archive");
+export const ARCHIVE_ICON_NAME = "archive";
+export const ArchiveIcon = centralIconWrapper(ARCHIVE_ICON_NAME);
 export const BrainIcon = centralIconWrapper("brain");
 export const FileIcon = centralIconWrapper("files");
 export const FlagIcon = centralIconWrapper("flag-1");
@@ -165,9 +171,6 @@ export const WebSearchIcon: LucideIcon = GlobeIcon;
 export const DeviceMobileIcon: LucideIcon = centralIconWrapper("phone");
 // Hardware-button glyphs for the simulator's control rail.
 export const DeviceHomeIcon: LucideIcon = centralIconWrapper("home");
-export const DeviceLockIcon: LucideIcon = centralIconWrapper("lock");
-export const DeviceVolumeUpIcon: LucideIcon = centralIconWrapper("volume-up");
-export const DeviceVolumeDownIcon: LucideIcon = centralIconWrapper("volume-down");
 export const DeviceShutterIcon: LucideIcon = centralIconWrapper("camera-1");
 // Simulator toolbar: start/stop a screen recording, turn the view, power the
 // device off, and let go of it. The two Tabler glyphs have no Central
@@ -207,8 +210,10 @@ export const PanelLeftIcon = centralIconWrapper("sidebar-simple-left-wide");
 export const PanelRightCloseIcon = centralIconWrapper("sidebar-simple-right-wide");
 export const WindowIcon: LucideIcon = centralIconWrapper("window");
 export const LayoutSidebarIcon: LucideIcon = centralIconWrapper("layout-sidebar");
-export const PencilIcon: LucideIcon = centralIconWrapper("pencil");
-export const PinIcon: LucideIcon = centralIconWrapper("pin");
+export const PENCIL_ICON_NAME = "pencil";
+export const PencilIcon: LucideIcon = centralIconWrapper(PENCIL_ICON_NAME);
+export const PIN_ICON_NAME = "pin";
+export const PinIcon: LucideIcon = centralIconWrapper(PIN_ICON_NAME);
 // Solid pin from the fill set — used wherever a pin reflects "pinned" status
 // (project + thread rows and their hover cards) rather than a neutral action.
 export const PinFilledIcon: LucideIcon = centralIconWrapper("pin", "fill");
@@ -250,13 +255,16 @@ const TemporaryThreadGlyph = centralIconWrapper("bubble-annotation-5");
 export const TemporaryThreadIcon: LucideIcon = ({ className, ...props }) => (
   <TemporaryThreadGlyph className={cn("size-3.5 shrink-0", className)} {...props} />
 );
-export const TerminalIcon = centralIconWrapper("console");
+export const TERMINAL_ICON_NAME = "console";
+export const TerminalIcon = centralIconWrapper(TERMINAL_ICON_NAME);
 export const TerminalSquare = centralIconWrapper("console");
 export const TerminalSquareIcon = centralIconWrapper("console");
 export const TextWrapIcon = adaptIcon(IconTextWrap);
 export const Trash2 = TrashCanIcon;
 export const TriangleAlertIcon = centralIconWrapper("exclamation-triangle");
 export const Undo2Icon = centralIconWrapper("arrow-undo-up");
+export const ResetIcon: LucideIcon = centralIconWrapper("arrow-rotate-counter-clockwise");
+export const Redo2Icon = centralIconWrapper("arrow-redo-down");
 export const WorktreeIcon = centralIconWrapper("arrow-split-right");
 export const XIcon = centralIconWrapper("cross-medium");
 export const ZapIcon = centralIconWrapper("zap");
