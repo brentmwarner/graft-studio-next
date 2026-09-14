@@ -152,11 +152,7 @@ describe("deriveSynaraMcpToolTitle", () => {
         "Graft listed allowed projects",
       ],
       ["synara_create_task", "Graft is creating a task", "Graft created a task"],
-      [
-        "synara_wait_for_task",
-        "Graft is waiting for a task",
-        "Graft finished waiting for a task",
-      ],
+      ["synara_wait_for_task", "Graft is waiting for a task", "Graft finished waiting for a task"],
       ["synara_read_task", "Graft is reading a task", "Graft read a task"],
     ] as const;
 

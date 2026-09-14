@@ -56,7 +56,7 @@ const DIAGNOSTIC_FIELDS = [
 function corsOrigin(request: Request): string | null {
   const origin = request.headers.get("origin");
   if (!origin) return null;
-  if (origin === "synara://app") return origin;
+  if (origin === "graft://app") return origin;
 
   try {
     const url = new URL(origin);

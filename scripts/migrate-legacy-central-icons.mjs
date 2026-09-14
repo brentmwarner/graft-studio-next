@@ -65,10 +65,15 @@ for (const file of fs.readdirSync(assets)) {
   if (check) console.error(`Unused generated asset: ${file}`);
   else fs.unlinkSync(path.join(assets, file));
 }
-writeOrCheck(path.join(src, "lib/central-icons-round.json"), JSON.stringify(sortedNames, null, 2) + "\n");
+writeOrCheck(
+  path.join(src, "lib/central-icons-round.json"),
+  JSON.stringify(sortedNames, null, 2) + "\n",
+);
 writeOrCheck(
   path.join(root, "apps/web/CENTRAL-ICONS-LICENSE.md"),
   fs.readFileSync(path.join(packageRoot, "LICENSE.md"), "utf8"),
 );
-console.info(`${sortedNames.length} legacy Central icons; ${differences} ${check ? "differences" : "files updated"}.`);
+console.info(
+  `${sortedNames.length} legacy Central icons; ${differences} ${check ? "differences" : "files updated"}.`,
+);
 if (check && differences > 0) process.exitCode = 1;
