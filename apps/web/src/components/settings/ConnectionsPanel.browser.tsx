@@ -142,20 +142,27 @@ it("keeps the pairing link usable when QR encoding fails", async () => {
   await expect.element(mounted.getByTestId("connections-pairing-url")).toBeVisible();
 });
 
-it.each(["lan", "relay"] as const)("describes the network required by the %s QR itself", async (kind) => {
-  const mounted = await render(
-    <ConnectionsPanel
-      {...handlers}
-      defaultPairingDialogStep="qr"
-      status={{
-        ...status,
-        relay: { state: "connected", lastError: null },
-        pairingUrl: `graft://pair?v=1&host=https%3A%2F%2Frelay.test%2Fe%2Fenv&endpointKind=${kind}#token=abcdefghijklmnopqrstuv`,
-        pairingExpiresAt: Date.now() + 60_000,
-      }}
-    />,
-  );
-  await expect.element(mounted.getByTestId("connections-pairing-reachability")).toHaveTextContent(
-    kind === "relay" ? "Your phone can be on any network." : "Your phone must be on the same Wi-Fi.",
-  );
-});
+it.each(["lan", "relay"] as const)(
+  "describes the network required by the %s QR itself",
+  async (kind) => {
+    const mounted = await render(
+      <ConnectionsPanel
+        {...handlers}
+        defaultPairingDialogStep="qr"
+        status={{
+          ...status,
+          relay: { state: "connected", lastError: null },
+          pairingUrl: `graft://pair?v=1&host=https%3A%2F%2Frelay.test%2Fe%2Fenv&endpointKind=${kind}#token=abcdefghijklmnopqrstuv`,
+          pairingExpiresAt: Date.now() + 60_000,
+        }}
+      />,
+    );
+    await expect
+      .element(mounted.getByTestId("connections-pairing-reachability"))
+      .toHaveTextContent(
+        kind === "relay"
+          ? "Your phone can be on any network."
+          : "Your phone must be on the same Wi-Fi.",
+      );
+  },
+);

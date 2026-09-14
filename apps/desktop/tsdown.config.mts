@@ -42,6 +42,9 @@ export default defineConfig([
       __SYNARA_MIGRATION_RUNTIME_SOURCE_DIGEST__: JSON.stringify(migrationRuntimeSourceDigest),
     },
     noExternal: (id) => id.startsWith("@synara/") || id.startsWith("@graft/"),
+    // Workspace contracts (and their zod parsers) must ship inside the Electron
+    // main bundle; do not treat that inlining as an accidental dependency leak.
+    inlineOnly: false,
   },
   {
     ...shared,

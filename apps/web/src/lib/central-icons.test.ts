@@ -16,7 +16,9 @@ describe("getCentralIconUrl", () => {
     expect(getCentralIconUrl("checkmark-1")).toBe("/central-icons-round/checkmark-1.svg");
     expect(getCentralIconUrl("star", "fill")).toBe("/central-icons-fill/star.svg");
     expect(getCentralIconUrl("plus-medium.svg")).toBe("/central-icons-round/plus-medium.svg");
-    expect(getCentralIconUrl("checkmark-1", "reversed")).toBe("/central-icons-reversed/checkmark-1.svg");
+    expect(getCentralIconUrl("checkmark-1", "reversed")).toBe(
+      "/central-icons-reversed/checkmark-1.svg",
+    );
     expect(getCentralIconUrl("shield-access")).toBe("/central-icons-reversed/shield-access.svg");
   });
 
@@ -104,10 +106,9 @@ describe("app icon registry", () => {
       expect(markup, name).toContain('data-slot="central-icon"');
       const assetPath = markup.match(/\/central-icons-(?:round|fill)\/[a-z0-9-]+\.svg/)?.[0];
       expect(assetPath, name).toBeDefined();
-      expect(
-        fs.existsSync(path.join(import.meta.dirname, "../../public", assetPath!)),
-        name,
-      ).toBe(true);
+      expect(fs.existsSync(path.join(import.meta.dirname, "../../public", assetPath!)), name).toBe(
+        true,
+      );
     }
   });
 });

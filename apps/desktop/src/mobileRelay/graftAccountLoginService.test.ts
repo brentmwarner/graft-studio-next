@@ -13,8 +13,7 @@ import {
 } from "./graftAccountLoginService";
 
 const VALID_JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhY2N0X3Rlc3QifQ.signature";
-const TOKEN_CANARY =
-  "eyJhbGciOiJIUzI1NiJ9.eyJzZWNyZXQiOiJUT0tFTl9DQU5BUlkifQ.signature";
+const TOKEN_CANARY = "eyJhbGciOiJIUzI1NiJ9.eyJzZWNyZXQiOiJUT0tFTl9DQU5BUlkifQ.signature";
 const activeServices: GraftAccountLoginService[] = [];
 
 interface LoopbackResponse {
@@ -57,11 +56,7 @@ function deriveChallenge(verifier: string): string {
   return createHash("sha256").update(verifier, "ascii").digest("base64url");
 }
 
-function jsonResponse(
-  body: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -71,20 +66,16 @@ function jsonResponse(
   });
 }
 
-function callbackRequest(
-  options: CallbackRequestOptions,
-): Promise<LoopbackResponse> {
+function callbackRequest(options: CallbackRequestOptions): Promise<LoopbackResponse> {
   const body = options.body ?? "";
   const headers: OutgoingHttpHeaders = {
     Host: options.hostHeader ?? `127.0.0.1:${options.port}`,
   };
   if (options.contentType !== null) {
-    headers["Content-Type"] =
-      options.contentType ?? "application/x-www-form-urlencoded";
+    headers["Content-Type"] = options.contentType ?? "application/x-www-form-urlencoded";
   }
   if (options.contentLength !== null) {
-    headers["Content-Length"] =
-      options.contentLength ?? Buffer.byteLength(body);
+    headers["Content-Length"] = options.contentLength ?? Buffer.byteLength(body);
   }
   if (options.transferEncoding) {
     delete headers["Content-Length"];
@@ -123,10 +114,7 @@ function callbackRequest(
   });
 }
 
-function partialCallbackSocket(options: {
-  port: number;
-  state: string;
-}): Promise<Socket> {
+function partialCallbackSocket(options: { port: number; state: string }): Promise<Socket> {
   return new Promise((resolve, reject) => {
     const socket = connectSocket({
       host: "127.0.0.1",
@@ -166,10 +154,7 @@ function waitForSocketClose(socket: Socket): Promise<void> {
   });
 }
 
-function expectResolvesWithin<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-): Promise<T> {
+function expectResolvesWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeout = setTimeout(() => {
@@ -376,9 +361,7 @@ describe("GraftAccountLoginService", () => {
   it("keeps listening after a well-formed invalid grant, then accepts the correct grant", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({ error: "RAW_SERVER_DETAIL_CANARY" }, 401),
-      )
+      .mockResolvedValueOnce(jsonResponse({ error: "RAW_SERVER_DETAIL_CANARY" }, 401))
       .mockResolvedValueOnce(
         jsonResponse({
           token: VALID_JWT,
@@ -404,9 +387,7 @@ describe("GraftAccountLoginService", () => {
     });
     expect(valid.status).toBe(200);
     expect(harness.persistedTokens).toEqual([VALID_JWT]);
-    expect(harness.completions).toEqual([
-      { ok: true, email: "person@example.com" },
-    ]);
+    expect(harness.completions).toEqual([{ ok: true, email: "person@example.com" }]);
   });
 
   it("sends the private verifier only to the pinned HTTPS exchange endpoint", async () => {
@@ -502,9 +483,7 @@ describe("GraftAccountLoginService", () => {
     const fetchImpl = vi
       .fn()
       .mockImplementationOnce(() => firstExchange.promise)
-      .mockResolvedValueOnce(
-        jsonResponse({ token: VALID_JWT }),
-      ) as unknown as typeof fetch;
+      .mockResolvedValueOnce(jsonResponse({ token: VALID_JWT })) as unknown as typeof fetch;
     const harness = createHarness({ fetchImpl });
     await harness.service.start();
     const first = parseSignInUrl(harness.openedUrls);
@@ -762,9 +741,7 @@ describe("GraftAccountLoginService", () => {
     for (const scenario of scenarios) {
       const harness = createHarness({
         fetchImpl: scenario.fetchImpl,
-        ...(scenario.persistToken
-          ? { persistToken: scenario.persistToken }
-          : {}),
+        ...(scenario.persistToken ? { persistToken: scenario.persistToken } : {}),
       });
       await harness.service.start();
       const signIn = parseSignInUrl(harness.openedUrls);
@@ -773,9 +750,7 @@ describe("GraftAccountLoginService", () => {
         body: validCallbackBody(signIn.state),
       });
       expect(response.status).toBe(502);
-      expect(harness.completions).toEqual([
-        { ok: false, error: scenario.expectedError },
-      ]);
+      expect(harness.completions).toEqual([{ ok: false, error: scenario.expectedError }]);
       const visible = JSON.stringify({
         response: response.body,
         completions: harness.completions,
@@ -825,9 +800,7 @@ describe("GraftAccountLoginService", () => {
         body: validCallbackBody(disposedSignIn.state),
       }),
     ).rejects.toThrow();
-    await expect(canceled.service.start()).rejects.toThrow(
-      "Account login service is disposed",
-    );
+    await expect(canceled.service.start()).rejects.toThrow("Account login service is disposed");
   });
 
   it("times out even when browser launch never settles", async () => {
@@ -849,9 +822,7 @@ describe("GraftAccountLoginService", () => {
     await Promise.resolve();
 
     expect(harness.completions).toEqual([{ ok: false, error: "timeout" }]);
-    expect(JSON.stringify(harness.completions)).not.toContain(
-      "BROWSER_LATE_SECRET_CANARY",
-    );
+    expect(JSON.stringify(harness.completions)).not.toContain("BROWSER_LATE_SECRET_CANARY");
     await expect(
       callbackRequest({
         port: signIn.port,
@@ -993,13 +964,9 @@ describe("GraftAccountLoginService", () => {
     });
     activeServices.push(service);
 
-    await expect(service.start()).rejects.toThrow(
-      "Unable to start account login",
-    );
+    await expect(service.start()).rejects.toThrow("Unable to start account login");
     expect(completion).toEqual([{ ok: false, error: "start_failed" }]);
-    expect(JSON.stringify(completion)).not.toContain(
-      "BROWSER_RAW_SECRET_CANARY",
-    );
+    expect(JSON.stringify(completion)).not.toContain("BROWSER_RAW_SECRET_CANARY");
   });
 
   it("rejects insecure or ambiguous control-plane base URLs", () => {
@@ -1019,8 +986,7 @@ describe("GraftAccountLoginService", () => {
       () =>
         new GraftAccountLoginService({
           ...dependencies,
-          controlPlaneBaseUrl:
-            "https://user:password@control.graft.test/path?query=yes",
+          controlPlaneBaseUrl: "https://user:password@control.graft.test/path?query=yes",
         }),
     ).toThrow("Invalid control-plane URL");
     expect(

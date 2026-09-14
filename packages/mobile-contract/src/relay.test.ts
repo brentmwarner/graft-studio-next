@@ -131,23 +131,20 @@ describe("mobileRelay downlink frames", () => {
 
 describe("buildRelayEnvironmentHttpBaseUrl", () => {
   it("builds the phone-facing environment base", () => {
-    expect(
-      buildRelayEnvironmentHttpBaseUrl("https://relay.example", "env-1"),
-    ).toBe("https://relay.example/e/env-1");
+    expect(buildRelayEnvironmentHttpBaseUrl("https://relay.example", "env-1")).toBe(
+      "https://relay.example/e/env-1",
+    );
   });
 
   it("drops any path, query, or fragment on the relay base", () => {
-    expect(
-      buildRelayEnvironmentHttpBaseUrl(
-        "https://relay.example/ignored?a=1#b",
-        "env-1",
-      ),
-    ).toBe("https://relay.example/e/env-1");
+    expect(buildRelayEnvironmentHttpBaseUrl("https://relay.example/ignored?a=1#b", "env-1")).toBe(
+      "https://relay.example/e/env-1",
+    );
   });
 
   it("escapes environment identifiers into a single path segment", () => {
-    expect(
-      buildRelayEnvironmentHttpBaseUrl("https://relay.example", "env/../admin"),
-    ).toBe("https://relay.example/e/env%2F..%2Fadmin");
+    expect(buildRelayEnvironmentHttpBaseUrl("https://relay.example", "env/../admin")).toBe(
+      "https://relay.example/e/env%2F..%2Fadmin",
+    );
   });
 });

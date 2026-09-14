@@ -14,13 +14,11 @@ type Listener = (...args: never[]) => void;
 class FakeSocket {
   readyState = 1;
   readonly sent: string[] = [];
-  readonly closes: Array<{ code?: number; reason?: string }> = [];
+  readonly closes: Array<{ code?: number | undefined; reason?: string | undefined }> = [];
   private readonly listeners = new Map<string, Listener[]>();
 
   send(data: unknown): void {
-    this.sent.push(
-      typeof data === "string" ? data : Buffer.from(data as Buffer).toString(),
-    );
+    this.sent.push(typeof data === "string" ? data : Buffer.from(data as Buffer).toString());
   }
 
   close(code?: number, reason?: string): void {
@@ -133,9 +131,7 @@ describe("createRelayUplink", () => {
       method: "POST",
       path: "/v1/pair",
       headers: { authorization: "Bearer phone-token", host: "relay.example" },
-      bodyBase64: Buffer.from(JSON.stringify({ token: "abc" })).toString(
-        "base64",
-      ),
+      bodyBase64: Buffer.from(JSON.stringify({ token: "abc" })).toString("base64"),
     });
     await vi.waitFor(() => {
       expect(socket.lastFrame().type).toBe("http-response");
@@ -151,15 +147,14 @@ describe("createRelayUplink", () => {
 
     const response = socket.lastFrame();
     expect(response).toMatchObject({ requestId: "req-1", status: 200 });
-    expect(
-      Buffer.from(response.bodyBase64 as string, "base64").toString(),
-    ).toBe(JSON.stringify({ ok: true }));
+    expect(Buffer.from(response.bodyBase64 as string, "base64").toString()).toBe(
+      JSON.stringify({ ok: true }),
+    );
   });
 
   it("answers host_offline when the local gateway is unreachable", async () => {
     const context = setup({
-      fetchImpl: (() =>
-        Promise.reject(new Error("ECONNREFUSED"))) as unknown as typeof fetch,
+      fetchImpl: (() => Promise.reject(new Error("ECONNREFUSED"))) as unknown as typeof fetch,
     });
     const socket = connect(context);
 
@@ -229,9 +224,9 @@ describe("createRelayUplink", () => {
       type: "ws-frame",
       streamId: "stream-1",
     });
-    expect(
-      Buffer.from(socket.lastFrame().dataBase64 as string, "base64").toString(),
-    ).toBe("from-desktop");
+    expect(Buffer.from(socket.lastFrame().dataBase64 as string, "base64").toString()).toBe(
+      "from-desktop",
+    );
 
     socket.receive({
       type: "ws-frame",

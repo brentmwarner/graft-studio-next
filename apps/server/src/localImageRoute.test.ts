@@ -8,6 +8,7 @@ import path from "node:path";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import { DateTime, Effect, Exit, Layer, Scope } from "effect";
+import { SYNARA_DESKTOP_ORIGIN } from "@synara/shared/desktopIdentity";
 import { HttpRouter } from "effect/unstable/http";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -252,14 +253,14 @@ describe("localImageEffectRouteLayer", () => {
     await withEffectServer(config, localImageEffectRouteLayer, async (origin) => {
       const params = new URLSearchParams({ path: pdfPath, cwd: workspace });
       const response = await fetch(`${origin}/api/local-image?${params}`, {
-        headers: { Origin: "synara://app" },
+        headers: { Origin: SYNARA_DESKTOP_ORIGIN },
       });
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/pdf");
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       // The in-app viewer fetches bytes cross-origin, but only trusted app
       // origins should get a CORS-readable response.
-      expect(response.headers.get("access-control-allow-origin")).toBe("synara://app");
+      expect(response.headers.get("access-control-allow-origin")).toBe(SYNARA_DESKTOP_ORIGIN);
       expect(response.headers.get("vary")).toBe("Origin");
       // Streamed responses must still advertise their size so the browser's
       // PDF viewer can show load progress.
@@ -316,14 +317,14 @@ describe("localImageEffectRouteLayer", () => {
     const config = makeServerConfig({ cwd: workspace });
     await withEffectServer(config, localImageEffectRouteLayer, async (origin) => {
       const params = new URLSearchParams({ path: "missing.png", cwd: workspace, download: "1" });
-      for (const requestOrigin of ["synara://app", "https://example.test"]) {
+      for (const requestOrigin of [SYNARA_DESKTOP_ORIGIN, "https://example.test"]) {
         const response = await fetch(`${origin}/api/local-image?${params}`, {
           headers: { Origin: requestOrigin },
         });
         expect(response.status).toBe(404);
         expect(await response.text()).toBe("Not Found");
         expect(response.headers.get("access-control-allow-origin")).toBe(
-          requestOrigin === "synara://app" ? requestOrigin : null,
+          requestOrigin === SYNARA_DESKTOP_ORIGIN ? requestOrigin : null,
         );
       }
     });

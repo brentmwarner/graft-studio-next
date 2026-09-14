@@ -24,10 +24,12 @@ export function registerMobileRelayIpc(input: {
       url.searchParams.set("token", backend.token);
       const response = await fetch(url, {
         method: body === undefined ? "GET" : "POST",
-        ...(body === undefined ? {} : {
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        }),
+        ...(body === undefined
+          ? {}
+          : {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            }),
         signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) throw new Error(`Graft gateway returned ${response.status}.`);

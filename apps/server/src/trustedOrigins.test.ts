@@ -2,6 +2,10 @@
 // Purpose: Pins which browser origins can use local-data HTTP/WS surfaces.
 // Layer: Server utility tests
 
+import {
+  SYNARA_CANARY_DESKTOP_ORIGIN,
+  SYNARA_DESKTOP_ORIGIN,
+} from "@synara/shared/desktopIdentity";
 import { describe, expect, it } from "vitest";
 
 import type { ServerConfigShape } from "./config";
@@ -35,14 +39,14 @@ describe("trustedOrigins", () => {
     ).toBe(true);
     expect(
       isTrustedAppOrigin({
-        origin: "synara://app",
+        origin: SYNARA_DESKTOP_ORIGIN,
         requestOrigin: "http://127.0.0.1:58090",
         config,
       }),
     ).toBe(true);
     expect(
       isTrustedAppOrigin({
-        origin: "synara-canary://app",
+        origin: SYNARA_CANARY_DESKTOP_ORIGIN,
         requestOrigin: "http://127.0.0.1:58090",
         config,
       }),
@@ -113,8 +117,10 @@ describe("trustedOrigins", () => {
   });
 
   it("normalizes desktop origins with trailing slashes", () => {
-    expect(normalizeCorsOrigin("synara://app/")).toBe("synara://app");
-    expect(normalizeCorsOrigin("synara-canary://app/")).toBe("synara-canary://app");
+    expect(normalizeCorsOrigin(`${SYNARA_DESKTOP_ORIGIN}/`)).toBe(SYNARA_DESKTOP_ORIGIN);
+    expect(normalizeCorsOrigin(`${SYNARA_CANARY_DESKTOP_ORIGIN}/`)).toBe(
+      SYNARA_CANARY_DESKTOP_ORIGIN,
+    );
   });
 
   it("rejects present but untrusted request origins for websocket-style gates", () => {

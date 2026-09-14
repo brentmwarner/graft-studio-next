@@ -91,7 +91,8 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
       void queryClient.invalidateQueries({ queryKey: RELAY_ACCOUNT_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
     },
-    onError: (cause: unknown) => setError(cause instanceof Error ? cause.message : "Graft sign-in failed."),
+    onError: (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : "Graft sign-in failed."),
   });
 
   useEffect(() => {
@@ -314,14 +315,22 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
                 variant="outline"
                 size="sm"
                 disabled={relayAccountMutation.isPending || relayAccountQuery.data?.signingIn}
-                onClick={() => relayAccountMutation.mutate(relayAccountQuery.data?.signedIn === true)}
+                onClick={() =>
+                  relayAccountMutation.mutate(relayAccountQuery.data?.signedIn === true)
+                }
               >
-                {relayAccountQuery.data?.signingIn ? "Waiting for sign-in…" : relayAccountQuery.data?.signedIn ? "Sign out" : "Sign in to Graft"}
+                {relayAccountQuery.data?.signingIn
+                  ? "Waiting for sign-in…"
+                  : relayAccountQuery.data?.signedIn
+                    ? "Sign out"
+                    : "Sign in to Graft"}
               </Button>
             }
           />
           {relayAccountQuery.data?.error ? (
-            <p className="px-3 py-2 text-xs text-destructive" role="alert">{relayAccountQuery.data.error}</p>
+            <p className="px-3 py-2 text-xs text-destructive" role="alert">
+              {relayAccountQuery.data.error}
+            </p>
           ) : null}
         </SettingsSection>
       ) : null}

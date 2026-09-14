@@ -4737,10 +4737,12 @@ function registerIpcHandlers(): void {
   registerKeepHostAwakeIpcHandlers();
   mobileRelayController = registerMobileRelayIpc({
     getBackend: () => ({ httpBaseUrl: backendHttpUrl, token: backendAuthToken }),
-    authorize: (event) => Boolean(
-      mainWindow && event.sender === mainWindow.webContents &&
-      event.senderFrame === mainWindow.webContents.mainFrame,
-    ),
+    authorize: (event) =>
+      Boolean(
+        mainWindow &&
+        event.sender === mainWindow.webContents &&
+        event.senderFrame === mainWindow.webContents.mainFrame,
+      ),
   });
   registerDesktopVoiceTranscriptionHandler();
   startBrowserPerformanceLogging();

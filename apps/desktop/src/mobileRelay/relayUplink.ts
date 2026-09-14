@@ -1,6 +1,7 @@
 import {
   GRAFT_RELAY_PROTOCOL_VERSION,
   parseRelayDownlinkFrame,
+  type GraftRelayHttpRequestFrame,
   type GraftRelayUplinkFrame,
 } from "@graft/mobile-contract/relay";
 import { toWebSocketBaseUrl } from "@graft/mobile-contract";
@@ -17,11 +18,7 @@ import { WebSocket } from "ws";
  * paths as a LAN phone.
  */
 
-export type RelayUplinkState =
-  | "disabled"
-  | "connecting"
-  | "connected"
-  | "error";
+export type RelayUplinkState = "disabled" | "connecting" | "connected" | "error";
 
 export type RelayUplinkStatus = {
   state: RelayUplinkState;
@@ -47,10 +44,7 @@ type SocketLike = {
   close(code?: number, reason?: string): void;
   terminate(): void;
   on(event: "open", listener: () => void): unknown;
-  on(
-    event: "message",
-    listener: (data: unknown, isBinary: boolean) => void,
-  ): unknown;
+  on(event: "message", listener: (data: unknown, isBinary: boolean) => void): unknown;
   on(event: "close", listener: (code: number, reason: Buffer) => void): unknown;
   on(event: "error", listener: (error: unknown) => void): unknown;
 };
@@ -63,10 +57,7 @@ export type RelayUplinkOptions = {
   localHttpBaseUrl: string;
   onStatusChange?: (status: RelayUplinkStatus) => void;
   /** Test seams. */
-  createSocket?: (
-    url: string,
-    init?: { headers: Record<string, string> },
-  ) => SocketLike;
+  createSocket?: (url: string, init?: { headers: Record<string, string> }) => SocketLike;
   fetchImpl?: typeof fetch;
   reconnectDelaysMs?: readonly number[];
   setTimeoutImpl?: typeof setTimeout;
@@ -89,8 +80,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 export function createRelayUplink(options: RelayUplinkOptions): RelayUplink {
-  const reconnectDelays =
-    options.reconnectDelaysMs ?? DEFAULT_RECONNECT_DELAYS_MS;
+  const reconnectDelays = options.reconnectDelaysMs ?? DEFAULT_RECONNECT_DELAYS_MS;
   const createSocket =
     options.createSocket ??
     ((url: string, init?: { headers: Record<string, string> }) =>
@@ -139,19 +129,12 @@ export function createRelayUplink(options: RelayUplinkOptions): RelayUplink {
     localStreams.clear();
   }
 
-  async function proxyHttp(frame: {
-    requestId: string;
-    method: string;
-    path: string;
-    headers: Record<string, string>;
-    bodyBase64?: string;
-  }): Promise<void> {
+  async function proxyHttp(frame: GraftRelayHttpRequestFrame): Promise<void> {
     try {
       const response = await fetchImpl(`${options.localHttpBaseUrl}${frame.path}`, {
         method: frame.method,
         headers: forwardableHeaders(frame.headers),
-        ...(frame.bodyBase64 !== undefined && frame.method !== "GET" &&
-        frame.method !== "HEAD"
+        ...(frame.bodyBase64 !== undefined && frame.method !== "GET" && frame.method !== "HEAD"
           ? { body: Buffer.from(frame.bodyBase64, "base64") }
           : {}),
       });
@@ -166,9 +149,7 @@ export function createRelayUplink(options: RelayUplinkOptions): RelayUplink {
         requestId: frame.requestId,
         status: response.status,
         headers,
-        ...(body.byteLength > 0
-          ? { bodyBase64: body.toString("base64") }
-          : {}),
+        ...(body.byteLength > 0 ? { bodyBase64: body.toString("base64") } : {}),
       });
     } catch {
       send({
@@ -233,11 +214,12 @@ export function createRelayUplink(options: RelayUplinkOptions): RelayUplink {
         });
         return;
       }
+      const closeReason = reason?.toString("utf8").slice(0, 123);
       send({
         type: "ws-close",
         streamId: frame.streamId,
         code: normalizeCloseCode(code),
-        reason: reason?.toString("utf8").slice(0, 123) || undefined,
+        ...(closeReason ? { reason: closeReason } : {}),
       });
     });
     local.on("error", () => {
@@ -417,9 +399,7 @@ export function createRelayUplink(options: RelayUplinkOptions): RelayUplink {
   };
 }
 
-function forwardableHeaders(
-  headers: Record<string, string>,
-): Record<string, string> {
+function forwardableHeaders(headers: Record<string, string>): Record<string, string> {
   const forwarded: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
     const lower = name.toLowerCase();

@@ -114,9 +114,7 @@ export class EncryptedFileRemoteSessionSecretStore implements RemoteSessionSecre
     return this.loadWithStorage(storage);
   }
 
-  private loadWithStorage(
-    storage: RemoteSessionSafeStorage,
-  ): Record<string, string> {
+  private loadWithStorage(storage: RemoteSessionSafeStorage): Record<string, string> {
     if (this.cache) return this.cache;
 
     const serialized = readRestrictedFile(this.filePath);
@@ -129,9 +127,7 @@ export class EncryptedFileRemoteSessionSecretStore implements RemoteSessionSecre
     const decrypted: Record<string, string> = {};
     for (const [accountKey, ciphertext] of Object.entries(envelope.secrets)) {
       try {
-        decrypted[accountKey] = storage.decryptString(
-          parseBase64Ciphertext(ciphertext),
-        );
+        decrypted[accountKey] = storage.decryptString(parseBase64Ciphertext(ciphertext));
       } catch {
         throw new InvalidRemoteSessionSecretStoreError();
       }
@@ -140,10 +136,7 @@ export class EncryptedFileRemoteSessionSecretStore implements RemoteSessionSecre
     return this.cache;
   }
 
-  private write(
-    secrets: Record<string, string>,
-    storage: RemoteSessionSafeStorage,
-  ): void {
+  private write(secrets: Record<string, string>, storage: RemoteSessionSafeStorage): void {
     const encrypted: Record<string, string> = {};
     for (const [accountKey, secret] of Object.entries(secrets)) {
       encrypted[accountKey] = storage.encryptString(secret).toString("base64");
@@ -162,8 +155,7 @@ export class EncryptedFileRemoteSessionSecretStore implements RemoteSessionSecre
         throw new RemoteSessionSecretStoreUnavailableError();
       }
       if (this.platform === "linux") {
-        const backend =
-          this.safeStorage.getSelectedStorageBackend?.() ?? "unknown";
+        const backend = this.safeStorage.getSelectedStorageBackend?.() ?? "unknown";
         if (backend === "basic_text" || backend === "unknown") {
           throw new RemoteSessionSecretStoreUnavailableError();
         }
@@ -229,10 +221,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExactKeys(
-  value: Record<string, unknown>,
-  expectedKeys: readonly string[],
-): boolean {
+function hasExactKeys(value: Record<string, unknown>, expectedKeys: readonly string[]): boolean {
   const actualKeys = Object.keys(value).sort();
   const sortedExpectedKeys = [...expectedKeys].sort();
   return (
@@ -292,10 +281,7 @@ function readRestrictedFile(filePath: string): string | null {
   }
 }
 
-function writeRestrictedFileAtomically(
-  filePath: string,
-  serialized: string,
-): void {
+function writeRestrictedFileAtomically(filePath: string, serialized: string): void {
   const directoryPath = prepareRestrictedDirectory(filePath);
   restrictedFileExistsOrMissing(filePath);
   const fileName = basename(filePath);

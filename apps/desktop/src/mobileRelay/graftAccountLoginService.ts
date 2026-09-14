@@ -1,10 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 
 const DESKTOP_AUTH_VERSION = "2";
@@ -81,24 +76,16 @@ function isOpaqueToken(value: string): boolean {
 function constantTimeEqual(left: string, right: string): boolean {
   const leftBytes = Buffer.from(left, "utf8");
   const rightBytes = Buffer.from(right, "utf8");
-  return (
-    leftBytes.length === rightBytes.length &&
-    timingSafeEqual(leftBytes, rightBytes)
-  );
+  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
 function isJwtLike(value: unknown): value is string {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.length > 16 * 1024
-  ) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 16 * 1024) {
     return false;
   }
   const parts = value.split(".");
   return (
-    parts.length === 3 &&
-    parts.every((part) => part.length > 0 && /^[A-Za-z0-9_-]+$/.test(part))
+    parts.length === 3 && parts.every((part) => part.length > 0 && /^[A-Za-z0-9_-]+$/.test(part))
   );
 }
 
@@ -127,11 +114,7 @@ function validateControlPlaneBaseUrl(value: string): URL {
   return parsed;
 }
 
-function writeHtmlResponse(
-  response: ServerResponse,
-  status: number,
-  html: string,
-): void {
+function writeHtmlResponse(response: ServerResponse, status: number, html: string): void {
   if (response.headersSent || response.destroyed) {
     return;
   }
@@ -147,10 +130,7 @@ function writeHtmlResponse(
   response.end(html);
 }
 
-function writeInvalidResponse(
-  response: ServerResponse,
-  status: InvalidRequestStatus,
-): void {
+function writeInvalidResponse(response: ServerResponse, status: InvalidRequestStatus): void {
   writeHtmlResponse(response, status, SAFE_ERROR_HTML);
 }
 
@@ -182,8 +162,7 @@ async function readResponseBody(response: Response): Promise<string | null> {
   const declaredLength = response.headers.get("content-length");
   if (
     declaredLength &&
-    (/^\d+$/.test(declaredLength) === false ||
-      Number(declaredLength) > MAX_EXCHANGE_RESPONSE_BYTES)
+    (/^\d+$/.test(declaredLength) === false || Number(declaredLength) > MAX_EXCHANGE_RESPONSE_BYTES)
   ) {
     return null;
   }
@@ -240,10 +219,7 @@ function parseExchangePayload(rawBody: string): ExchangePayload | null {
   ) {
     return null;
   }
-  if (
-    record.name !== undefined &&
-    (typeof record.name !== "string" || record.name.length > 200)
-  ) {
+  if (record.name !== undefined && (typeof record.name !== "string" || record.name.length > 200)) {
     return null;
   }
   return {
@@ -266,9 +242,7 @@ export class GraftAccountLoginService {
   private lifecycle: Promise<void> = Promise.resolve();
 
   constructor(dependencies: GraftAccountLoginServiceDependencies) {
-    this.baseUrl = validateControlPlaneBaseUrl(
-      dependencies.controlPlaneBaseUrl,
-    );
+    this.baseUrl = validateControlPlaneBaseUrl(dependencies.controlPlaneBaseUrl);
     this.openExternal = dependencies.openExternal;
     this.persistToken = dependencies.persistToken;
     this.fetchImpl = dependencies.fetchImpl ?? fetch;
@@ -343,10 +317,7 @@ export class GraftAccountLoginService {
         const signInUrl = new URL("/auth/login", this.baseUrl);
         signInUrl.searchParams.set("callback_port", String(attempt.port));
         signInUrl.searchParams.set("state", state);
-        signInUrl.searchParams.set(
-          "code_challenge",
-          derivePkceChallenge(verifier),
-        );
+        signInUrl.searchParams.set("code_challenge", derivePkceChallenge(verifier));
         signInUrl.searchParams.set("flow_version", DESKTOP_AUTH_VERSION);
         let launchResult: void | Promise<void>;
         try {
@@ -370,10 +341,7 @@ export class GraftAccountLoginService {
     });
   }
 
-  private observeExternalLaunch(
-    attempt: LoginAttempt,
-    launchResult: void | Promise<void>,
-  ): void {
+  private observeExternalLaunch(attempt: LoginAttempt, launchResult: void | Promise<void>): void {
     void Promise.resolve(launchResult).catch(() => {
       void this.enqueue(async () => {
         if (!this.isCurrent(attempt)) {
@@ -402,9 +370,7 @@ export class GraftAccountLoginService {
     });
   }
 
-  private enqueue<TResult>(
-    operation: () => Promise<TResult>,
-  ): Promise<TResult> {
+  private enqueue<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
     const result = this.lifecycle.then(operation, operation);
     this.lifecycle = result.then(
       () => undefined,
@@ -464,10 +430,7 @@ export class GraftAccountLoginService {
         return;
       }
 
-      const exchangeUrl = new URL(
-        "/auth/desktop/exchange",
-        this.baseUrl,
-      ).toString();
+      const exchangeUrl = new URL("/auth/desktop/exchange", this.baseUrl).toString();
       let exchangeResponse: Response;
       try {
         exchangeResponse = await this.fetchImpl(exchangeUrl, {
@@ -493,11 +456,7 @@ export class GraftAccountLoginService {
             writeHtmlResponse(response, 409, SAFE_ERROR_HTML);
             return;
           }
-          await this.finishAttempt(
-            attempt,
-            { ok: false, error: "exchange_failed" },
-            response,
-          );
+          await this.finishAttempt(attempt, { ok: false, error: "exchange_failed" }, response);
         });
         return;
       }
@@ -511,27 +470,17 @@ export class GraftAccountLoginService {
         }
         return;
       }
-      const responseMediaType = (
-        exchangeResponse.headers.get("content-type") ?? ""
-      )
+      const responseMediaType = (exchangeResponse.headers.get("content-type") ?? "")
         .split(";", 1)[0]
         ?.trim()
         .toLowerCase();
-      if (
-        !exchangeResponse.ok ||
-        rawBody === null ||
-        responseMediaType !== "application/json"
-      ) {
+      if (!exchangeResponse.ok || rawBody === null || responseMediaType !== "application/json") {
         await this.enqueue(async () => {
           if (!this.isCurrent(attempt)) {
             writeHtmlResponse(response, 409, SAFE_ERROR_HTML);
             return;
           }
-          await this.finishAttempt(
-            attempt,
-            { ok: false, error: "exchange_failed" },
-            response,
-          );
+          await this.finishAttempt(attempt, { ok: false, error: "exchange_failed" }, response);
         });
         return;
       }
@@ -543,11 +492,7 @@ export class GraftAccountLoginService {
             writeHtmlResponse(response, 409, SAFE_ERROR_HTML);
             return;
           }
-          await this.finishAttempt(
-            attempt,
-            { ok: false, error: "exchange_failed" },
-            response,
-          );
+          await this.finishAttempt(attempt, { ok: false, error: "exchange_failed" }, response);
         });
         return;
       }
@@ -560,11 +505,7 @@ export class GraftAccountLoginService {
         try {
           await this.persistToken(payload.token);
         } catch {
-          await this.finishAttempt(
-            attempt,
-            { ok: false, error: "persist_failed" },
-            response,
-          );
+          await this.finishAttempt(attempt, { ok: false, error: "persist_failed" }, response);
           return;
         }
         await this.finishAttempt(
@@ -583,11 +524,7 @@ export class GraftAccountLoginService {
           writeHtmlResponse(response, 409, SAFE_ERROR_HTML);
           return;
         }
-        await this.finishAttempt(
-          attempt,
-          { ok: false, error: "exchange_failed" },
-          response,
-        );
+        await this.finishAttempt(attempt, { ok: false, error: "exchange_failed" }, response);
       });
     }
   }
@@ -619,36 +556,23 @@ export class GraftAccountLoginService {
       return { ok: false, status: 400 };
     }
     const contentType = request.headers["content-type"];
-    if (
-      typeof contentType !== "string" ||
-      contentType.trim().toLowerCase() !== FORM_CONTENT_TYPE
-    ) {
+    if (typeof contentType !== "string" || contentType.trim().toLowerCase() !== FORM_CONTENT_TYPE) {
       request.resume();
       return { ok: false, status: 415 };
     }
     const contentLength = request.headers["content-length"];
-    if (
-      typeof contentLength !== "string" ||
-      !/^[1-9]\d*$/.test(contentLength)
-    ) {
+    if (typeof contentLength !== "string" || !/^[1-9]\d*$/.test(contentLength)) {
       request.resume();
       return { ok: false, status: 411 };
     }
     const declaredBytes = Number(contentLength);
-    if (
-      !Number.isSafeInteger(declaredBytes) ||
-      declaredBytes > MAX_CALLBACK_BODY_BYTES
-    ) {
+    if (!Number.isSafeInteger(declaredBytes) || declaredBytes > MAX_CALLBACK_BODY_BYTES) {
       request.resume();
       return { ok: false, status: 413 };
     }
 
     const body = await readRequestBody(request, declaredBytes);
-    if (
-      body === null ||
-      body.includes("\0") ||
-      /%(?![A-Fa-f0-9]{2})/.test(body)
-    ) {
+    if (body === null || body.includes("\0") || /%(?![A-Fa-f0-9]{2})/.test(body)) {
       return { ok: false, status: 400 };
     }
     const params = new URLSearchParams(body);
@@ -673,10 +597,7 @@ export class GraftAccountLoginService {
     return { ok: true, grant };
   }
 
-  private initiateClose(
-    attempt: LoginAttempt,
-    preservedSocket?: Socket,
-  ): Promise<void> {
+  private initiateClose(attempt: LoginAttempt, preservedSocket?: Socket): Promise<void> {
     if (attempt.closing) {
       return attempt.closing;
     }

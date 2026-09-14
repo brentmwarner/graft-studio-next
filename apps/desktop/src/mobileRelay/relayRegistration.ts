@@ -53,18 +53,14 @@ export function readStoredRelayCredential(
   if (!serialized) return null;
 
   try {
-    const parsed = GraftRelayEnvironmentRegistrationSchema.safeParse(
-      JSON.parse(serialized),
-    );
+    const parsed = GraftRelayEnvironmentRegistrationSchema.safeParse(JSON.parse(serialized));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
 }
 
-export function clearStoredRelayCredential(
-  secretStore: RemoteSessionSecretStore,
-): void {
+export function clearStoredRelayCredential(secretStore: RemoteSessionSecretStore): void {
   try {
     secretStore.delete(RELAY_CREDENTIAL_ACCOUNT_KEY);
   } catch {
@@ -116,17 +112,13 @@ export async function registerRelayEnvironment(
         },
         body: JSON.stringify({
           ...(dependencies.label ? { label: dependencies.label } : {}),
-          ...(input.environmentId
-            ? { environmentId: input.environmentId }
-            : {}),
+          ...(input.environmentId ? { environmentId: input.environmentId } : {}),
         }),
         signal: controller.signal,
       },
     );
   } catch (error) {
-    throw new Error(
-      `Could not reach the Graft relay service: ${describeError(error)}`,
-    );
+    throw new Error(`Could not reach the Graft relay service: ${describeError(error)}`);
   } finally {
     clearTimeout(timeout);
   }
@@ -135,9 +127,7 @@ export async function registerRelayEnvironment(
     throw new RelaySignedOutError();
   }
   if (!response.ok) {
-    throw new Error(
-      `The Graft relay service rejected registration (${response.status}).`,
-    );
+    throw new Error(`The Graft relay service rejected registration (${response.status}).`);
   }
 
   const parsed = GraftRelayEnvironmentRegistrationSchema.safeParse(
@@ -147,10 +137,7 @@ export async function registerRelayEnvironment(
     throw new Error("The Graft relay service returned an unusable response.");
   }
 
-  dependencies.secretStore.set(
-    RELAY_CREDENTIAL_ACCOUNT_KEY,
-    JSON.stringify(parsed.data),
-  );
+  dependencies.secretStore.set(RELAY_CREDENTIAL_ACCOUNT_KEY, JSON.stringify(parsed.data));
   return parsed.data;
 }
 

@@ -26,7 +26,11 @@ import {
   saveMobileGatewaySettings,
 } from "./mobileGatewaySettings";
 import { discoverNetworkEndpoints } from "./networkEndpoints";
-import { getDesktopRelayEndpoint, getDesktopRelayStatus, setDesktopRelayStatus } from "./relayState";
+import {
+  getDesktopRelayEndpoint,
+  getDesktopRelayStatus,
+  setDesktopRelayStatus,
+} from "./relayState";
 
 function jsonResponse(value: unknown, status = 200, headers: Record<string, string> = {}) {
   return HttpServerResponse.jsonUnsafe(value, { status, headers });
@@ -172,9 +176,12 @@ function connectionsStatus(
   const advertisedPort = getMobileLanGatewayPort() ?? getBoundListenPort(config.port);
   const relayEndpoint = enabled ? getDesktopRelayEndpoint() : null;
   const endpoints = enabled
-    ? [...(relayEndpoint ? [relayEndpoint] : []), ...discoverNetworkEndpoints(advertisedPort, undefined, {
-        includeIpv6: mobileLanGatewayAdvertisesIpv6(),
-      })]
+    ? [
+        ...(relayEndpoint ? [relayEndpoint] : []),
+        ...discoverNetworkEndpoints(advertisedPort, undefined, {
+          includeIpv6: mobileLanGatewayAdvertisesIpv6(),
+        }),
+      ]
     : [];
   const pairing = getIssuedPairing();
   const devices = connectionsDevicesFromSessions(sessions, environmentLabel);

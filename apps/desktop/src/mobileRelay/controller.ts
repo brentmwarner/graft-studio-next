@@ -13,7 +13,10 @@ import type { RemoteSessionSecretStore } from "./remoteSessionSecretStore";
 
 const ACCOUNT_TOKEN_KEY = "graft-account-token";
 const DISABLED: GraftDesktopRelayStatus = {
-  state: "disabled", httpBaseUrl: null, wsBaseUrl: null, lastError: null,
+  state: "disabled",
+  httpBaseUrl: null,
+  wsBaseUrl: null,
+  lastError: null,
 };
 
 export interface MobileRelayDependencies {
@@ -49,9 +52,11 @@ export class MobileRelayController {
       persistToken: async (token) => dependencies.secretStore.set(ACCOUNT_TOKEN_KEY, token),
       onComplete: (result) => {
         this.signingIn = false;
-        this.accountError = result.ok ? null : result.error === "timeout"
-          ? "Sign-in timed out. Try again."
-          : "Could not complete Graft sign-in. Try again.";
+        this.accountError = result.ok
+          ? null
+          : result.error === "timeout"
+            ? "Sign-in timed out. Try again."
+            : "Could not complete Graft sign-in. Try again.";
         if (result.ok) void this.sync();
       },
     });
@@ -104,16 +109,21 @@ export class MobileRelayController {
   sync(): Promise<void> {
     if (this.stopped || this.signingOut) return Promise.resolve();
     if (this.pending) return this.pending;
-    this.pending = this.synchronize().catch(() => {
-      // A restarting backend will be retried. Drop the outgoing connection meanwhile.
-      this.stopUplink();
-    }).finally(() => { this.pending = null; });
+    this.pending = this.synchronize()
+      .catch(() => {
+        // A restarting backend will be retried. Drop the outgoing connection meanwhile.
+        this.stopUplink();
+      })
+      .finally(() => {
+        this.pending = null;
+      });
     return this.pending;
   }
 
   private async synchronize(): Promise<void> {
-    const current = await this.dependencies.requestBackend("/api/graft/connections/status") as {
-      enabled: boolean; port: number | null;
+    const current = (await this.dependencies.requestBackend("/api/graft/connections/status")) as {
+      enabled: boolean;
+      port: number | null;
     };
     if (this.stopped || this.signingOut) return;
     if (!current.enabled || !current.port) {
@@ -124,7 +134,10 @@ export class MobileRelayController {
     const token = this.dependencies.secretStore.get(ACCOUNT_TOKEN_KEY);
     if (!token) {
       this.stopUplink();
-      await this.publish({ ...DISABLED, lastError: "Sign in to Graft to connect over cellular or another network." });
+      await this.publish({
+        ...DISABLED,
+        lastError: "Sign in to Graft to connect over cellular or another network.",
+      });
       return;
     }
     if (this.uplink && this.localPort === current.port && !this.uplink.getStatus().rejected) {
@@ -145,7 +158,10 @@ export class MobileRelayController {
     try {
       const stored = readStoredRelayCredential(registration.secretStore);
       const credential = rejected
-        ? await registerRelayEnvironment(registration, stored ? { environmentId: stored.environmentId } : {})
+        ? await registerRelayEnvironment(
+            registration,
+            stored ? { environmentId: stored.environmentId } : {},
+          )
         : await ensureRelayCredential(registration);
       if (generation !== this.generation || this.stopped || this.signingOut) return;
       this.localPort = current.port;
@@ -169,16 +185,23 @@ export class MobileRelayController {
         this.dependencies.secretStore.delete(ACCOUNT_TOKEN_KEY);
         clearStoredRelayCredential(this.dependencies.secretStore);
       }
-      await this.publish({ ...DISABLED, state: "error", lastError: error instanceof Error ? error.message : "Could not connect to Graft." });
+      await this.publish({
+        ...DISABLED,
+        state: "error",
+        lastError: error instanceof Error ? error.message : "Could not connect to Graft.",
+      });
     }
   }
 
   private publish(status: GraftDesktopRelayStatus): Promise<void> {
     this.status = status;
     // Serialize notifications so a late 'connecting' cannot replace 'connected'.
-    this.publishing = this.publishing.catch(() => {}).then(async () => {
-      await this.dependencies.requestBackend("/api/graft/connections/relay", status);
-    }).catch(() => {});
+    this.publishing = this.publishing
+      .catch(() => {})
+      .then(async () => {
+        await this.dependencies.requestBackend("/api/graft/connections/relay", status);
+      })
+      .catch(() => {});
     return this.publishing;
   }
 

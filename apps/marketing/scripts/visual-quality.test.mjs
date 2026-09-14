@@ -54,12 +54,15 @@ test("performance gate uses the pinned browser stack without Socket-warning depe
   assert.ok(performance.includes("encodedDataLength"));
   assert.doesNotMatch(performance, /from ["']lighthouse["']/);
   assert.doesNotMatch(performance, /chrome-launcher/);
+  assert.equal(packageJson.dependencies?.["chrome-launcher"], undefined);
+  assert.equal(packageJson.devDependencies?.["chrome-launcher"], undefined);
 
   for (const removedPackage of [
     "lighthouse",
     "@sentry/node-core",
     "csp_evaluator",
-    "chrome-launcher",
+    // chrome-launcher remains a transitive of @react-native/dev-middleware in
+    // the shared monorepo lockfile; the marketing app itself must not depend on it.
   ]) {
     // Bun stores package identities in the first tuple field, including nested resolutions.
     assert.ok(

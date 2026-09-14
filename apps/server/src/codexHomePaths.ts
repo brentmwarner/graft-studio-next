@@ -30,8 +30,7 @@ export function resolveSynaraCodexHomeOverlayPath(
 ): string {
   const runtimeHome = env.SYNARA_HOME?.trim();
   const sourceParent = path.dirname(sourceHomePath);
-  const overlayRoot =
-    runtimeHome || path.join(sourceParent, ".graft", "runtime");
+  const overlayRoot = runtimeHome || path.join(sourceParent, ".graft", "runtime");
   return path.join(overlayRoot, SYNARA_CODEX_HOME_OVERLAY_DIR);
 }
 

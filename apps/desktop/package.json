@@ -16,12 +16,12 @@
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
+    "@graft/mobile-contract": "workspace:*",
     "betterwright": "2.4.0",
     "effect": "catalog:",
     "electron": "43.4.1",
     "electron-updater": "^6.6.2",
-    "ws": "^8.21.0",
-    "@graft/mobile-contract": "workspace:*"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@synara/contracts": "workspace:*",

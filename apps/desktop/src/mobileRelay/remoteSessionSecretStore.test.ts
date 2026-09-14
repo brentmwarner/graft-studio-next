@@ -76,34 +76,26 @@ describe("EncryptedFileRemoteSessionSecretStore", () => {
 
   it("rejects malformed envelopes and corrupt ciphertext", () => {
     writeFileSync(secretFile, "{", { mode: 0o600 });
-    expect(() => createStore().get("session:one")).toThrow(
-      InvalidRemoteSessionSecretStoreError,
-    );
+    expect(() => createStore().get("session:one")).toThrow(InvalidRemoteSessionSecretStoreError);
 
     writeFileSync(
       secretFile,
       JSON.stringify({ version: 1, secrets: { "session:one": "not-base64" } }),
       { mode: 0o600 },
     );
-    expect(() => createStore().get("session:one")).toThrow(
-      InvalidRemoteSessionSecretStoreError,
-    );
+    expect(() => createStore().get("session:one")).toThrow(InvalidRemoteSessionSecretStoreError);
 
     writeFileSync(
       secretFile,
       JSON.stringify({
         version: 1,
         secrets: {
-          "session:one": Buffer.from("wrong-prefix", "utf-8").toString(
-            "base64",
-          ),
+          "session:one": Buffer.from("wrong-prefix", "utf-8").toString("base64"),
         },
       }),
       { mode: 0o600 },
     );
-    expect(() => createStore().get("session:one")).toThrow(
-      InvalidRemoteSessionSecretStoreError,
-    );
+    expect(() => createStore().get("session:one")).toThrow(InvalidRemoteSessionSecretStoreError);
   });
 
   it("fails closed when encryption is unavailable or Linux storage is insecure", () => {
@@ -115,15 +107,15 @@ describe("EncryptedFileRemoteSessionSecretStore", () => {
 
     safeStorage.available = true;
     safeStorage.backend = "basic_text";
-    expect(() =>
-      createStore({ platform: "linux" }).set("session:one", SENTINEL_SECRET),
-    ).toThrow(RemoteSessionSecretStoreUnavailableError);
+    expect(() => createStore({ platform: "linux" }).set("session:one", SENTINEL_SECRET)).toThrow(
+      RemoteSessionSecretStoreUnavailableError,
+    );
     expect(readdirSync(tempDirectory)).toEqual([]);
 
     safeStorage.backend = "unknown";
-    expect(() =>
-      createStore({ platform: "linux" }).set("session:one", SENTINEL_SECRET),
-    ).toThrow(RemoteSessionSecretStoreUnavailableError);
+    expect(() => createStore({ platform: "linux" }).set("session:one", SENTINEL_SECRET)).toThrow(
+      RemoteSessionSecretStoreUnavailableError,
+    );
     expect(readdirSync(tempDirectory)).toEqual([]);
   });
 
@@ -192,19 +184,14 @@ function createSafeStorage(): MockSafeStorage {
         this.failEncryptCount -= 1;
         throw new Error("encryption failed");
       }
-      return Buffer.from(
-        `safe:${Buffer.from(plaintext, "utf-8").toString("base64")}`,
-        "utf-8",
-      );
+      return Buffer.from(`safe:${Buffer.from(plaintext, "utf-8").toString("base64")}`, "utf-8");
     },
     decryptString(encrypted: Buffer) {
       const serialized = encrypted.toString("utf-8");
       if (!serialized.startsWith("safe:")) {
         throw new Error("invalid ciphertext");
       }
-      return Buffer.from(serialized.slice("safe:".length), "base64").toString(
-        "utf-8",
-      );
+      return Buffer.from(serialized.slice("safe:".length), "base64").toString("utf-8");
     },
   };
 }

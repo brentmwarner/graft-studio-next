@@ -138,19 +138,13 @@ export const GraftRelayDownlinkFrameSchema = z.discriminatedUnion("type", [
   WsFrameSchema,
   WsCloseFrameSchema,
 ]);
-export type GraftRelayDownlinkFrame = z.infer<
-  typeof GraftRelayDownlinkFrameSchema
->;
+export type GraftRelayDownlinkFrame = z.infer<typeof GraftRelayDownlinkFrameSchema>;
 
 export type GraftRelayRegisterFrame = z.infer<typeof RegisterFrameSchema>;
 export type GraftRelayRegisteredFrame = z.infer<typeof RegisteredFrameSchema>;
-export type GraftRelayRegisterFailedFrame = z.infer<
-  typeof RegisterFailedFrameSchema
->;
+export type GraftRelayRegisterFailedFrame = z.infer<typeof RegisterFailedFrameSchema>;
 export type GraftRelayHttpRequestFrame = z.infer<typeof HttpRequestFrameSchema>;
-export type GraftRelayHttpResponseFrame = z.infer<
-  typeof HttpResponseFrameSchema
->;
+export type GraftRelayHttpResponseFrame = z.infer<typeof HttpResponseFrameSchema>;
 export type GraftRelayWsOpenFrame = z.infer<typeof WsOpenFrameSchema>;
 export type GraftRelayWsFrame = z.infer<typeof WsFrameSchema>;
 export type GraftRelayWsCloseFrame = z.infer<typeof WsCloseFrameSchema>;
@@ -167,16 +161,12 @@ export type GraftRelayEnvironmentRegistration = z.infer<
   typeof GraftRelayEnvironmentRegistrationSchema
 >;
 
-export function parseRelayUplinkFrame(
-  raw: unknown,
-): GraftRelayUplinkFrame | null {
+export function parseRelayUplinkFrame(raw: unknown): GraftRelayUplinkFrame | null {
   const parsed = GraftRelayUplinkFrameSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
-export function parseRelayDownlinkFrame(
-  raw: unknown,
-): GraftRelayDownlinkFrame | null {
+export function parseRelayDownlinkFrame(raw: unknown): GraftRelayDownlinkFrame | null {
   const parsed = GraftRelayDownlinkFrameSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }

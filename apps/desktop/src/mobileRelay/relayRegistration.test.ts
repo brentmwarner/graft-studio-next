@@ -89,9 +89,7 @@ describe("relay registration", () => {
     });
     secretStore.set("relay-uplink", JSON.stringify(REGISTRATION));
 
-    await expect(ensureRelayCredential(dependencies)).rejects.toBeInstanceOf(
-      RelaySignedOutError,
-    );
+    await expect(ensureRelayCredential(dependencies)).rejects.toBeInstanceOf(RelaySignedOutError);
     expect(readStoredRelayCredential(secretStore)).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -116,9 +114,7 @@ describe("relay registration", () => {
       getAccountToken: async () => null,
     });
 
-    await expect(ensureRelayCredential(dependencies)).rejects.toBeInstanceOf(
-      RelaySignedOutError,
-    );
+    await expect(ensureRelayCredential(dependencies)).rejects.toBeInstanceOf(RelaySignedOutError);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -133,9 +129,7 @@ describe("relay registration", () => {
   it("refuses a response that is not a usable credential", async () => {
     const { dependencies, secretStore } = setup({}, { environmentId: "env-1" });
 
-    await expect(registerRelayEnvironment(dependencies)).rejects.toThrow(
-      /unusable response/,
-    );
+    await expect(registerRelayEnvironment(dependencies)).rejects.toThrow(/unusable response/);
     expect(readStoredRelayCredential(secretStore)).toBeNull();
   });
 
