@@ -5,8 +5,9 @@
 - `graft-studio` remains the releasable legacy product and rollback path.
 - `graft-studio-next` is the only migration repository. Its migration branch is
   based on Synara and carries Graft-owned product work as additive commits.
-- `upstream` is Synara and is fetch-only. Never push branches, tags, issues, or
-  pull requests upstream as part of the Graft workflow.
+- Synara is the upstream source. Fetch its verified commit through the Cursor
+  `origin` mirror; never push branches, tags, issues, or pull requests to Synara
+  as part of the Graft workflow.
 
 No third repository is part of this migration.
 
@@ -17,8 +18,9 @@ No third repository is part of this migration.
 | Legacy Graft rollback | `graft-studio`      | `graft-legacy/pre-synara-migration-2026-09-02` | `bd1206fe6d8c4f2f059c4bd111d8ad88797c1b09` |
 | Synara migration base | `graft-studio-next` | `graft-base/synara-2026-09-02`                 | `562c5fea77cff1dacb29d5e6216ed94a05f1b6a1` |
 
-The existing `main` branch in each repository stays untouched until the
-migration is reviewed and deliberately cut over.
+Graft work is now on `graft-studio-next/main`. The original pins above remain
+recovery points; subsequent upstream integrations are recorded below. Legacy
+`graft-studio/main` remains the rollback product.
 
 ## Mobile compatibility boundary
 
@@ -92,8 +94,8 @@ token is exchanged once for a revocable Synara client bearer session.
 
 ## Cutover and rollback rules
 
-1. Develop on `codex/graft-synara-migration`; keep both legacy `main` branches
-   protected.
+1. Develop changes on dedicated integration branches from the existing local
+   checkout; preserve published Graft history and the legacy rollback branch.
 2. Keep the Graft mobile HTTP/WebSocket adapter over Synara orchestration as the
    compatibility boundary; do not couple either mobile client to Synara internals.
 3. Ship preview builds with distinct update channels and isolated data roots.
@@ -108,13 +110,21 @@ token is exchanged once for a revocable Synara client bearer session.
 
 ## Adopting later Synara updates
 
-Fetch only `upstream/main`, review the range from the last pinned base, and merge
-an approved update through a dedicated integration branch. Never auto-merge,
-never rebase published Graft commits onto upstream, and never push to
-`upstream`.
+Verify Synara's current `main` SHA, fetch that commit through the Cursor
+`origin` mirror, and merge it on a dedicated integration branch based on
+`origin/main`. Preserve Graft changes when resolving conflicts. Never rebase
+published Graft commits onto upstream, auto-merge unattended updates, or push
+to Synara.
 
-Local clones should enforce the push guard:
+### September 14, 2026 integration
 
-```bash
-git config remote.upstream.pushurl DISABLED
-```
+- Graft main: `f1c3a3e6f55340404df97e88577103b03af8af7d`.
+- Synara main: `70f5ed0e4757c0f69891b258171da80d324f0e18` (0.8.4).
+- Previous shared ancestor: `182208581e9436149bdfffe3418cbb78a21528f9`;
+  this integration brings in all 169 subsequent upstream commits.
+- Retained Graft logos, Central icon mappings, landing background, mobile
+  connections, host occupancy, SSH support, and isolated Graft home paths.
+- Moved the Graft task-list icon into the extracted composer footer and kept
+  the model-picker layout fixes alongside upstream menu collision handling.
+- Adopted the official migration 99, `InvalidateProjectionThreadsCursor`,
+  which performs the same repair as the local compatibility migration.

@@ -24,6 +24,11 @@ import {
   type AcpSessionRuntimeShape,
   type AcpSpawnInput,
 } from "./AcpSessionRuntime.ts";
+import {
+  commandExistsOnPath,
+  type ProviderBinaryResolutionOptions,
+  resolveWindowsLocalAppDataBinary,
+} from "../providerBinaryResolution.ts";
 
 export interface DevinAcpRuntimeSettings {
   readonly binaryPath?: string;
@@ -60,6 +65,34 @@ const DEVIN_API_KEY_ENV_KEYS = ["WINDSURF_API_KEY", "DEVIN_API_KEY", "windsurf_a
 const DEVIN_API_SERVER_URL_ENV_KEYS = ["WINDSURF_API_SERVER_URL", "DEVIN_API_SERVER_URL"] as const;
 const DEVIN_COMPACT_COMMAND_NAME = "compact";
 const DEVIN_COMPACT_PROMPT = "/compact";
+
+export function normalizeDevinGetOutputToolCall(message: unknown): unknown {
+  if (typeof message !== "object" || message === null || Array.isArray(message)) return message;
+  const request = message as Record<string, unknown>;
+  const params = request.params;
+  if (
+    request.method !== "get_output" ||
+    typeof params !== "object" ||
+    params === null ||
+    Array.isArray(params)
+  ) {
+    return message;
+  }
+  const argumentsValue = (params as Record<string, unknown>).arguments;
+  if (
+    typeof argumentsValue !== "object" ||
+    argumentsValue === null ||
+    Array.isArray(argumentsValue) ||
+    typeof (argumentsValue as Record<string, unknown>).block !== "boolean"
+  ) {
+    return message;
+  }
+  const { block: _block, ...argumentsWithoutBlock } = argumentsValue as Record<string, unknown>;
+  return {
+    ...request,
+    params: { ...params, arguments: argumentsWithoutBlock },
+  };
+}
 
 export interface DevinAcpCredentials {
   readonly apiKey?: string;
@@ -100,9 +133,19 @@ export function hasDevinApiKeyEnv(env: NodeJS.ProcessEnv = process.env): boolean
   return getDevinApiKeyEnv(env) !== undefined;
 }
 
-export function resolveDevinBinaryPath(binaryPath?: string | null | undefined): string {
+const WINDOWS_DEVIN_RELATIVE_PATHS = [
+  ["devin", "cli", "bin", "devin.exe"],
+  ["devin", "bin", "devin.exe"],
+] as const;
+
+export function resolveDevinBinaryPath(
+  binaryPath?: string | null | undefined,
+  options: ProviderBinaryResolutionOptions = {},
+): string {
   const trimmed = binaryPath?.trim();
-  return trimmed || "devin";
+  if (trimmed && trimmed !== "devin") return trimmed;
+  if (commandExistsOnPath("devin", options)) return "devin";
+  return resolveWindowsLocalAppDataBinary(WINDOWS_DEVIN_RELATIVE_PATHS, options) ?? "devin";
 }
 
 export function getDevinApiServerUrlEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -308,7 +351,7 @@ export function buildDevinAcpSpawnInput(
   const overrides: NodeJS.ProcessEnv = apiKey ? { WINDSURF_API_KEY: apiKey } : {};
 
   return {
-    command: devinSettings?.binaryPath || "devin",
+    command: resolveDevinBinaryPath(devinSettings?.binaryPath, { env: baseEnv }),
     args,
     cwd,
     env: buildProviderChildEnvironment({ provider: "devin", baseEnv, overrides }),
@@ -402,6 +445,7 @@ export const makeDevinAcpRuntime = (
             Effect.asVoid,
           ),
         authenticateMeta,
+        normalizeIncomingMessage: normalizeDevinGetOutputToolCall,
       }).pipe(
         Layer.provide(
           Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, input.childProcessSpawner),
