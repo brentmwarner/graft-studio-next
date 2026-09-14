@@ -1,6 +1,13 @@
 import { ProviderInteractionMode } from "@synara/contracts";
 import { type ReactNode } from "react";
-import { BugIcon, ListTodoIcon, ChevronDownIcon, ComposerSendArrowIcon, LayoutSidebarIcon } from "~/lib/icons";
+import {
+  BugIcon,
+  ListTodoIcon,
+  ChevronDownIcon,
+  ComposerSendArrowIcon,
+  LayoutSidebarIcon,
+  Loader2Icon,
+} from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import type { derivePendingUserInputProgress } from "../../pendingUserInput";
 import type { SessionPhase } from "../../types";
@@ -260,24 +267,7 @@ export function ChatComposerFooter({
                 }
               >
                 {submission.connecting || submission.busy || submission.preparingImages ? (
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 14 14"
-                    fill="none"
-                    className="animate-spin"
-                    aria-hidden="true"
-                  >
-                    <circle
-                      cx="7"
-                      cy="7"
-                      r="5.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeDasharray="20 12"
-                    />
-                  </svg>
+                  <Loader2Icon aria-hidden="true" className="size-3 animate-spin" />
                 ) : (
                   <ComposerSendArrowIcon
                     aria-hidden="true"

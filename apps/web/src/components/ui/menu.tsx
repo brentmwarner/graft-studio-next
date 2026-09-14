@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { ChevronRightIcon } from "~/lib/icons";
+import { CheckIcon, ChevronRightIcon } from "~/lib/icons";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -217,20 +217,7 @@ function MenuCheckboxItem({
         <>
           <span className="col-start-1 min-w-0">{children}</span>
           <MenuPrimitive.CheckboxItemIndicator className="col-start-2 justify-self-end">
-            <svg
-              className="size-3"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
-            </svg>
+            <CheckIcon aria-hidden="true" className="block size-3" />
           </MenuPrimitive.CheckboxItemIndicator>
         </>
       )}
@@ -272,20 +259,7 @@ function MenuRadioItem({
           <span className="col-start-1 min-w-0">{children}</span>
           <div className="col-start-2 flex shrink-0 items-center justify-end gap-0.5">
             <MenuPrimitive.RadioItemIndicator className="shrink-0 data-unchecked:hidden">
-              <svg
-                className="size-3"
-                fill="none"
-                height="24"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                width="24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
-              </svg>
+              <CheckIcon aria-hidden="true" className="block size-3" />
             </MenuPrimitive.RadioItemIndicator>
             {trailing}
           </div>
@@ -294,20 +268,7 @@ function MenuRadioItem({
         <span className="flex w-full min-w-0 items-center gap-2">
           {children}
           <MenuPrimitive.RadioItemIndicator className="ml-auto shrink-0">
-            <svg
-              className="size-3"
-              fill="none"
-              height="24"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M5.252 12.7 10.2 18.63 18.748 5.37" />
-            </svg>
+            <CheckIcon aria-hidden="true" className="block size-3" />
           </MenuPrimitive.RadioItemIndicator>
         </span>
       )}

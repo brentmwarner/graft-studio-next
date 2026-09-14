@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { CentralIcon, getCentralIconUrl } from "./central-icons";
-import { Loader2Icon } from "./icons";
+import * as icons from "./icons";
 
 const reversedIconDir = path.join(import.meta.dirname, "../../public/central-icons-reversed");
 const fillIconDir = path.join(import.meta.dirname, "../../public/central-icons-fill");
@@ -76,7 +76,7 @@ describe("CentralIcon accessibility", () => {
 describe("Loader2Icon adapter", () => {
   it("forwards status role and accessible name to the Central glyph", () => {
     const html = renderToStaticMarkup(
-      createElement(Loader2Icon, {
+      createElement(icons.Loader2Icon, {
         "aria-label": "Updating app icon",
         role: "status",
       }),
@@ -84,5 +84,22 @@ describe("Loader2Icon adapter", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Updating app icon"');
     expect(html).not.toContain('role="img"');
+  });
+});
+
+describe("app icon registry", () => {
+  it("renders every app control with a shipped Central asset", () => {
+    for (const [name, Icon] of Object.entries(icons)) {
+      // The GitHub logo identifies a third-party product.
+      if (typeof Icon !== "function" || name === "GitHubIcon") continue;
+      const markup = renderToStaticMarkup(createElement(Icon));
+      expect(markup, name).toContain('data-slot="central-icon"');
+      const assetPath = markup.match(/\/central-icons-(?:reversed|fill)\/[a-z0-9-]+\.svg/)?.[0];
+      expect(assetPath, name).toBeDefined();
+      expect(
+        fs.existsSync(path.join(import.meta.dirname, "../../public", assetPath!)),
+        name,
+      ).toBe(true);
+    }
   });
 });

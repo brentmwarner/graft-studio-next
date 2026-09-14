@@ -2,13 +2,10 @@
 // Purpose: Icons for imperative context menus, matching the glyphs the same actions use in React UI.
 // Layer: web UI utility
 // Exports: THREAD_CONTEXT_MENU_ICONS
-// Why: Native menus cannot render React components, so Central glyphs are passed by basename and
-//      other icon sets are rendered to SVG markup from the same components the app shows.
+// Why: Native menus load Central glyphs by basename; React's masked spans cannot be rasterized.
 
-import { renderToStaticMarkup } from "react-dom/server";
-
-import { THREAD_ARCHIVE_ICON } from "~/components/ThreadArchiveActionButton";
 import {
+  ARCHIVE_ICON_NAME,
   BELL_ICON_NAME,
   COPY_ICON_NAME,
   EYE_OPEN_ICON_NAME,
@@ -16,7 +13,7 @@ import {
   PENCIL_ICON_NAME,
   PIN_ICON_NAME,
   TERMINAL_ICON_NAME,
-  Trash2,
+  TRASH_ICON_NAME,
 } from "./icons";
 
 export const THREAD_CONTEXT_MENU_ICONS = {
@@ -28,7 +25,7 @@ export const THREAD_CONTEXT_MENU_ICONS = {
   copy: COPY_ICON_NAME,
   openInTerminal: TERMINAL_ICON_NAME,
   // Same glyph as the thread row's hover archive button.
-  archive: renderToStaticMarkup(<THREAD_ARCHIVE_ICON size={24} />),
+  archive: ARCHIVE_ICON_NAME,
   // Same glyph as the delete rows in the sidebar project and space menus.
-  delete: renderToStaticMarkup(<Trash2 />),
+  delete: TRASH_ICON_NAME,
 } as const;

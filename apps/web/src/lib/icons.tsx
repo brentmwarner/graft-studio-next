@@ -1,28 +1,10 @@
 import { type CSSProperties, type FC, type SVGProps } from "react";
-import { PiSquareSplitHorizontal, PiSquareSplitVertical } from "react-icons/pi";
 import { SiGithub } from "react-icons/si";
-import { VscMcp } from "react-icons/vsc";
 import { cn } from "./utils";
 import { CentralIcon, type CentralIconVariant } from "./central-icons";
-import {
-  IconColumns2,
-  IconDeviceMobileRotated,
-  IconFlask2,
-  IconLayoutDistributeHorizontal,
-  IconPlugOff,
-  IconPower,
-  IconTextWrap,
-  type TablerIcon,
-} from "@tabler/icons-react";
 
-// Keep the existing icon API stable while the app moves from Lucide/Tabler to Central.
+// Keep the existing icon API stable while rendering app controls with Central assets.
 export type LucideIcon = FC<SVGProps<SVGSVGElement>>;
-
-function adaptIcon(Component: TablerIcon): LucideIcon {
-  return function AdaptedIcon(props) {
-    return <Component {...(props as any)} />;
-  };
-}
 
 // Wraps a Central icon asset behind the LucideIcon API. Rendering via CSS mask
 // avoids stroke-on-stroke alpha summation that gave hand-drawn SVGs a
@@ -101,7 +83,7 @@ export const CheckCircle2Icon: LucideIcon = centralIconWrapper("check-circle-2")
 export const CircleQuestionIcon: LucideIcon = centralIconWrapper("circle-questionmark");
 export const ArrowUpCircleIcon: LucideIcon = centralIconWrapper("arrow-up-circle");
 export const CloudSyncIcon = centralIconWrapper("cloud-sync");
-export const Columns2Icon = adaptIcon(IconColumns2);
+export const Columns2Icon = centralIconWrapper("layout-column");
 export const ChangesIcon = centralIconWrapper("changes");
 export const COPY_ICON_NAME = "square-behind-square-6";
 export const CopyIcon = centralIconWrapper(COPY_ICON_NAME);
@@ -128,11 +110,12 @@ export const EYE_OPEN_ICON_NAME = "eye-open";
 export const EyeOpenIcon: LucideIcon = centralIconWrapper(EYE_OPEN_ICON_NAME);
 export const EyeIcon = EyeOpenIcon;
 export const PaperclipIcon = centralIconWrapper("paperclip-1");
-export const ArchiveIcon = centralIconWrapper("archive");
+export const ARCHIVE_ICON_NAME = "archive";
+export const ArchiveIcon = centralIconWrapper(ARCHIVE_ICON_NAME);
 export const BrainIcon = centralIconWrapper("brain");
 export const FileIcon = centralIconWrapper("files");
 export const FlagIcon = centralIconWrapper("flag-1");
-export const FlaskConicalIcon = adaptIcon(IconFlask2);
+export const FlaskConicalIcon = centralIconWrapper("test-tube");
 export const FolderIcon = centralIconWrapper("folder-2");
 export const FolderOpenIcon = centralIconWrapper("folder-open");
 // Stacked "folders" glyph used as the single representation of a file tree /
@@ -171,17 +154,13 @@ export const DeviceMobileIcon: LucideIcon = centralIconWrapper("phone");
 // Hardware-button glyphs for the simulator's control rail.
 export const DeviceHomeIcon: LucideIcon = centralIconWrapper("home");
 export const DeviceShutterIcon: LucideIcon = centralIconWrapper("camera-1");
-// Simulator toolbar: start/stop a screen recording, turn the view, power the
-// device off, and let go of it. The two Tabler glyphs have no Central
-// equivalent that reads as unambiguously as a rotating handset and a power symbol.
+// Simulator toolbar actions use the same Central set as the rest of the chrome.
 export const DeviceRecordIcon: LucideIcon = centralIconWrapper("record");
 export const DeviceRecordStopIcon: LucideIcon = centralIconWrapper("stop", "fill");
-export const DeviceRotateIcon = adaptIcon(IconDeviceMobileRotated);
-export const DevicePowerIcon = adaptIcon(IconPower);
-export const DeviceDetachIcon = adaptIcon(IconPlugOff);
-export const McpIcon: LucideIcon = (props) => (
-  <VscMcp className={props.className} style={props.style} />
-);
+export const DeviceRotateIcon = centralIconWrapper("arrow-rotate-clockwise");
+export const DevicePowerIcon = centralIconWrapper("stop-circle");
+export const DeviceDetachIcon = centralIconWrapper("broken-chain-link-3");
+export const McpIcon = centralIconWrapper("modelcontextprotocol");
 export const PluginIcon: LucideIcon = centralIconWrapper("puzzle");
 // Single hammer/build glyph (tool-call rows, codex provider, "build" scripts).
 // Sourced from the Central set so it matches the other work-row icons (pencil,
@@ -222,15 +201,15 @@ export const PlayIcon: LucideIcon = centralIconWrapper("play", "fill");
 // row of neutral actions rather than playback state — e.g. the composer goal strip.
 export const PauseOutlineIcon: LucideIcon = centralIconWrapper("pause");
 export const PlayOutlineIcon: LucideIcon = centralIconWrapper("play");
-/** Outline trash can from the Central set (Trash2 is the legacy Tabler glyph). */
-export const TrashCanIcon: LucideIcon = centralIconWrapper("trash-can");
+export const TRASH_ICON_NAME = "trash-can";
+export const TrashCanIcon: LucideIcon = centralIconWrapper(TRASH_ICON_NAME);
 // Persistent thread goal ("Pursuing goal" strip, /goal surfaces).
 export const GoalIcon: LucideIcon = centralIconWrapper("target-arrow");
 export const Plus = AddPlusIcon;
 export const PlusIcon = AddPlusIcon;
 export const RefreshCwIcon = centralIconWrapper("arrow-rotate-clockwise");
 export const RotateCcwIcon = centralIconWrapper("arrow-rotate-counter-clockwise");
-export const Rows3Icon = adaptIcon(IconLayoutDistributeHorizontal);
+export const Rows3Icon = centralIconWrapper("layout-half");
 export const SearchIcon: LucideIcon = centralIconWrapper("magnifying-glass");
 // Single source for the settings gear. Every settings affordance renders this
 // one Central glyph so gears stay identical across the chrome.
@@ -242,12 +221,8 @@ export const MoonIcon = centralIconWrapper("moon");
 export const DeviceLaptopIcon = centralIconWrapper("macbook");
 export const StopIcon: LucideIcon = centralIconWrapper("stop", "fill");
 export const StopFilledIcon: LucideIcon = centralIconWrapper("stop", "fill");
-export const SquareSplitHorizontal: LucideIcon = (props) => (
-  <PiSquareSplitHorizontal className={props.className} style={props.style} />
-);
-export const SquareSplitVertical: LucideIcon = (props) => (
-  <PiSquareSplitVertical className={props.className} style={props.style} />
-);
+export const SquareSplitHorizontal = Columns2Icon;
+export const SquareSplitVertical = Rows3Icon;
 const TemporaryThreadGlyph = centralIconWrapper("bubble-annotation-5");
 // Dotted "annotation" chat bubble — the temporary thread marker shown on the
 // composer toggle and beside temporary threads in the sidebar.
@@ -258,7 +233,7 @@ export const TERMINAL_ICON_NAME = "console";
 export const TerminalIcon = centralIconWrapper(TERMINAL_ICON_NAME);
 export const TerminalSquare = centralIconWrapper("console");
 export const TerminalSquareIcon = centralIconWrapper("console");
-export const TextWrapIcon = adaptIcon(IconTextWrap);
+export const TextWrapIcon = centralIconWrapper("linebreak");
 export const Trash2 = TrashCanIcon;
 export const TriangleAlertIcon = centralIconWrapper("exclamation-triangle");
 export const Undo2Icon = centralIconWrapper("arrow-undo-up");
