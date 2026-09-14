@@ -95,7 +95,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
   const [dialogOpen, setDialogOpen] = useState(defaultPairingDialogStep !== null);
   const closeTimer = useRef<number | undefined>(undefined);
   const hasRemoteEndpoint = status.endpoints.some((endpoint) => endpoint.kind !== "loopback");
-  const relayIsConnected = status.relay.state === "connected";
+  const pairingUsesRelay = isRelayPairingUrl(status.pairingUrl);
   const pairingIsActive = Boolean(
     status.pairingUrl && status.pairingExpiresAt && status.pairingExpiresAt > Date.now(),
   );
@@ -253,8 +253,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                   Allow other devices to connect
                 </span>
                 <p className={cn(SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME, "mt-0.5")}>
-                  Reaches your devices through the Graft relay, plus this computer's private LAN and
-                  Tailnet addresses
+                  Connect through Graft from any network, or directly over the same Wi-Fi
                 </p>
               </div>
               <Switch
@@ -440,7 +439,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                     status={status}
                     busy={busy}
                     error={error}
-                    relayIsConnected={relayIsConnected}
+                    pairingUsesRelay={pairingUsesRelay}
                     pairingIsActive={pairingIsActive}
                     pairingQr={pairingQr}
                     onCreatePairing={onCreatePairing}
@@ -555,7 +554,7 @@ function PairingQrStep({
   status,
   busy,
   error,
-  relayIsConnected,
+  pairingUsesRelay,
   pairingIsActive,
   pairingQr,
   onCreatePairing,
@@ -564,7 +563,7 @@ function PairingQrStep({
   status: ConnectionsStatus;
   busy: boolean;
   error: string | null;
-  relayIsConnected: boolean;
+  pairingUsesRelay: boolean;
   pairingIsActive: boolean;
   pairingQr: { dataUrl: string | null; failed: boolean };
   onCreatePairing: () => void;
@@ -642,9 +641,9 @@ function PairingQrStep({
           className="mt-1 text-[10px] text-muted-foreground"
           data-testid="connections-pairing-reachability"
         >
-          {relayIsConnected
+          {pairingUsesRelay
             ? "Single-use and generated on this computer. Your phone can be on any network."
-            : "Single-use and generated on this computer. Your phone needs to reach this computer's network."}
+            : "Your phone must be on the same Wi-Fi. Sign in to Graft to connect over cellular or another network."}
         </p>
         {error ? (
           <p className="mt-2 text-[11px] text-destructive" role="alert">
@@ -677,6 +676,15 @@ function PairingQrStep({
       </div>
     </div>
   );
+}
+
+function isRelayPairingUrl(pairingUrl: string | null): boolean {
+  if (!pairingUrl) return false;
+  try {
+    return new URL(pairingUrl).searchParams.get("endpointKind") === "relay";
+  } catch {
+    return false;
+  }
 }
 
 function relayStatusDescription(state: ConnectionsStatus["relay"]["state"]): string {

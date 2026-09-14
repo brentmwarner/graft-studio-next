@@ -50,6 +50,7 @@ import {
   resolveAdvertisedMobilePairingBase,
 } from "./networkEndpoints";
 import { rememberIssuedPairing } from "./issuedPairing";
+import { getDesktopRelayEndpoint } from "./relayState";
 import {
   MOBILE_WS_INBOUND_CAPACITY,
   MOBILE_WS_OUTBOUND_CAPACITY,
@@ -163,7 +164,12 @@ function advertisedMobilePairingBase(
     readonly port: number;
     readonly publicUrl?: URL | undefined;
   },
+  connectedHttpBaseUrl?: string,
 ): { readonly httpBaseUrl: string; readonly endpointKind: GraftRemoteEndpointKind } | null {
+  const relay = networkAccessEnabled(config) ? getDesktopRelayEndpoint() : null;
+  if (relay && (!connectedHttpBaseUrl || isLoopbackHost(new URL(connectedHttpBaseUrl).hostname))) {
+    return { httpBaseUrl: relay.httpBaseUrl, endpointKind: "relay" };
+  }
   if (config.publicUrl) {
     return resolveAdvertisedMobilePairingBase({
       publicUrl: config.publicUrl,
@@ -176,6 +182,7 @@ function advertisedMobilePairingBase(
     discoverNetworkEndpoints(advertisedPort, undefined, {
       includeIpv6: mobileLanGatewayAdvertisesIpv6(),
     }),
+    connectedHttpBaseUrl,
   );
   return resolveAdvertisedMobilePairingBase({
     preferred,
@@ -270,7 +277,7 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         url,
       });
       const descriptor = yield* environment.getDescriptor;
-      const advertised = advertisedMobilePairingBase(request, config);
+      const advertised = advertisedMobilePairingBase(request, config, url.origin);
       if (!advertised) {
         return pairErrorResponse(
           remoteError("internal", "Could not resolve the mobile gateway address."),

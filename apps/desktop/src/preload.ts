@@ -214,6 +214,10 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     },
   },
   connections: {
+    getRelayAccount: () => ipcRenderer.invoke(IPC.connections.getRelayAccount),
+    signInRelay: () => ipcRenderer.invoke(IPC.connections.signInRelay),
+    signOutRelay: () => ipcRenderer.invoke(IPC.connections.signOutRelay),
+    syncRelay: () => ipcRenderer.invoke(IPC.connections.syncRelay),
     getKeepHostAwake: () => ipcRenderer.invoke(IPC.connections.getKeepHostAwake),
     setKeepHostAwake: (keepHostAwake, gatewayEnabled) =>
       ipcRenderer.invoke(IPC.connections.setKeepHostAwake, keepHostAwake, gatewayEnabled),

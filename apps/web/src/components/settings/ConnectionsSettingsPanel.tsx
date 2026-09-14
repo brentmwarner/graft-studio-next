@@ -26,6 +26,7 @@ import {
 
 const SSH_QUERY_KEY = ["graft", "ssh-machines"] as const;
 const CONNECTIONS_QUERY_KEY = ["graft", "connections-status"] as const;
+const RELAY_ACCOUNT_QUERY_KEY = ["graft", "relay-account"] as const;
 
 const EMPTY_STATUS: ConnectionsStatus = {
   enabled: false,
@@ -71,6 +72,27 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     queryFn: getConnectionsStatus,
     enabled: props.active,
     staleTime: 2_000,
+    refetchInterval: props.active ? 2_000 : false,
+  });
+
+  const relayBridge = window.desktopBridge?.connections;
+  const relayAccountQuery = useQuery({
+    queryKey: RELAY_ACCOUNT_QUERY_KEY,
+    queryFn: () => relayBridge?.getRelayAccount?.() ?? null,
+    enabled: props.active && Boolean(relayBridge?.getRelayAccount),
+    refetchInterval: props.active ? 2_000 : false,
+  });
+  const relayAccountMutation = useMutation({
+    mutationFn: async (signOut: boolean) => {
+      if (signOut) await relayBridge?.signOutRelay();
+      else await relayBridge?.signInRelay();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: RELAY_ACCOUNT_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
+    },
+    onError: (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : "Graft sign-in failed."),
   });
 
   useEffect(() => {
@@ -128,7 +150,11 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
   });
 
   const enabledMutation = useMutation({
-    mutationFn: setConnectionsEnabled,
+    mutationFn: async (enabled: boolean) => {
+      const status = await setConnectionsEnabled(enabled);
+      await relayBridge?.syncRelay?.();
+      return status;
+    },
     onSuccess: (status) => {
       setError(null);
       queryClient.setQueryData(CONNECTIONS_QUERY_KEY, status);
@@ -142,6 +168,11 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     mutationFn: async () => {
       if (!connectionsQuery.data?.enabled) {
         await setConnectionsEnabled(true);
+      }
+      await relayBridge?.syncRelay?.();
+      const current = await getConnectionsStatus();
+      if (relayAccountQuery.data?.signedIn && current.relay.state !== "connected") {
+        throw new Error(current.relay.lastError ?? "Graft is connecting. Try again in a moment.");
       }
       return createMobilePairingLink();
     },
@@ -185,7 +216,7 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     enabledMutation.isPending ||
     pairingMutation.isPending ||
     revokeMutation.isPending ||
-    connectionsQuery.isFetching;
+    connectionsQuery.isLoading;
 
   return (
     <>
@@ -273,6 +304,36 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
           ))
         )}
       </SettingsSection>
+      {relayBridge?.getRelayAccount ? (
+        <SettingsSection title="Connect from anywhere">
+          <SettingsRow
+            title={relayAccountQuery.data?.signedIn ? "Signed in to Graft" : "Graft account"}
+            description="Use Graft Mobile over cellular or any Wi-Fi. Your computer must stay awake and online."
+            control={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={relayAccountMutation.isPending || relayAccountQuery.data?.signingIn}
+                onClick={() =>
+                  relayAccountMutation.mutate(relayAccountQuery.data?.signedIn === true)
+                }
+              >
+                {relayAccountQuery.data?.signingIn
+                  ? "Waiting for sign-in…"
+                  : relayAccountQuery.data?.signedIn
+                    ? "Sign out"
+                    : "Sign in to Graft"}
+              </Button>
+            }
+          />
+          {relayAccountQuery.data?.error ? (
+            <p className="px-3 py-2 text-xs text-destructive" role="alert">
+              {relayAccountQuery.data.error}
+            </p>
+          ) : null}
+        </SettingsSection>
+      ) : null}
       <ConnectionsPanel
         status={status}
         busy={busy}

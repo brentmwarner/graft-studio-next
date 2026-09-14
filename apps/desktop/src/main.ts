@@ -285,6 +285,8 @@ import {
   sendAppSnapState,
 } from "./appSnapIpc";
 import { registerKeepHostAwakeIpcHandlers } from "./keepHostAwakeIpc";
+import { registerMobileRelayIpc } from "./mobileRelay/ipc";
+import type { MobileRelayController } from "./mobileRelay/controller";
 
 const requestedSourceBuildMarker = process.env.SYNARA_SOURCE_DESKTOP_BUILD_MARKER;
 if (
@@ -393,6 +395,7 @@ let mainWindow: BrowserWindow | null = null;
 let customTitleBarActive = false;
 let backendProcess: ChildProcess.ChildProcess | null = null;
 let backendPort = 0;
+let mobileRelayController: MobileRelayController | null = null;
 let backendAuthToken = "";
 let backendHttpUrl = "";
 let backendWsUrl = "";
@@ -4258,9 +4261,11 @@ async function shutdownDesktopRuntime(reason: string): Promise<void> {
 
   isQuitting = true;
   hideDesktopWindowForImmediateQuit();
+  const relayShutdown = mobileRelayController?.dispose() ?? Promise.resolve();
+  mobileRelayController = null;
   writeDesktopLogHeader(`${reason} shutdown start`);
   const shutdown = runAfterDesktopShutdown(
-    stopBackendAndWaitForExit(),
+    relayShutdown.then(() => stopBackendAndWaitForExit()),
     async () => {
       clearUpdateBackgroundBlurTimer();
       clearUpdateCheckTimeoutTimer();
@@ -4730,6 +4735,15 @@ function registerIpcHandlers(): void {
     registerAppSnapIpcHandlers(ipcMain, appSnapManager);
   }
   registerKeepHostAwakeIpcHandlers();
+  mobileRelayController = registerMobileRelayIpc({
+    getBackend: () => ({ httpBaseUrl: backendHttpUrl, token: backendAuthToken }),
+    authorize: (event) =>
+      Boolean(
+        mainWindow &&
+        event.sender === mainWindow.webContents &&
+        event.senderFrame === mainWindow.webContents.mainFrame,
+      ),
+  });
   registerDesktopVoiceTranscriptionHandler();
   startBrowserPerformanceLogging();
   registerBrowserIpcHandlers(ipcMain, browserManager);

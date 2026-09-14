@@ -54,6 +54,8 @@ test("performance gate uses the pinned browser stack without Socket-warning depe
   assert.ok(performance.includes("encodedDataLength"));
   assert.doesNotMatch(performance, /from ["']lighthouse["']/);
   assert.doesNotMatch(performance, /chrome-launcher/);
+  assert.equal(packageJson.dependencies?.["chrome-launcher"], undefined);
+  assert.equal(packageJson.devDependencies?.["chrome-launcher"], undefined);
 
   for (const removedPackage of ["lighthouse", "@sentry/node-core", "csp_evaluator"]) {
     // Bun stores package identities in the first tuple field, including nested resolutions.

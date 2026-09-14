@@ -19,6 +19,7 @@
       "name": "@synara/desktop",
       "version": "0.8.4",
       "dependencies": {
+        "@graft/mobile-contract": "workspace:*",
         "betterwright": "2.4.0",
         "effect": "catalog:",
         "electron": "43.4.1",
