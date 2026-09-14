@@ -1,5 +1,5 @@
 // FILE: InlineSkillChip.tsx
-// Purpose: Shared inline skill mention chip (building-blocks icon + formatted
+// Purpose: Shared inline skill mention chip (blocks icon + formatted
 //          label), so the composer echo and any read-only prompt render skills
 //          identically. Mirrors InlineMentionChip / InlineLinkChip.
 // Layer: Shared UI component

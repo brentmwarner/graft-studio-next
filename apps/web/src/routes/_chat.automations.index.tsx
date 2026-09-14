@@ -138,7 +138,7 @@ function AutomationListRow({
           }}
           className="shrink-0 self-center rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
         >
-          <CentralIcon name="trash-can-simple" className="size-3.5" />
+          <CentralIcon name="trash-can" className="size-3.5" />
         </button>
       ) : null}
     </div>

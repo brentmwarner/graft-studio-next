@@ -20,7 +20,7 @@ import {
   ChevronRightIcon,
   FastModeIcon,
   GoalIcon,
-  ListTodoIcon,
+  PlanIcon,
   PaperclipIcon,
   WindowIcon,
 } from "~/lib/icons";
@@ -169,7 +169,7 @@ export function ComposerExtrasPanel(props: {
               },
               {
                 id: ROW_PLAN,
-                icon: <ListTodoIcon className={GLYPH} />,
+                icon: <PlanIcon className={GLYPH} />,
                 title: "Plan mode",
                 secondary: toggleSecondary("plan mode", props.interactionMode === "plan"),
                 trailing: props.interactionMode === "plan" ? CHECK : null,

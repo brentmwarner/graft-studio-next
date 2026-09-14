@@ -1172,7 +1172,7 @@ export function AutomationDialog({
 
             <Menu>
               <MenuTrigger render={<Button variant="ghost" size="sm" className={CHIP_CLASS} />}>
-                <CentralIcon name="folder-2" className="size-4" />
+                <CentralIcon name="folder-1" className="size-4" />
                 <span className="max-w-[10rem] truncate">
                   {selectedProject?.name ?? "Select project"}
                 </span>

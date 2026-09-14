@@ -3,7 +3,7 @@
 //          palette, picker, and composer.
 // Layer: Web UI primitive
 // Exports: FolderClosed, FolderOpen
-// Notes: Renders Central "folder-2" / "folder-open-front" assets via CSS mask, which
+// Notes: Renders Central "folder-1" / "folder-open" assets via CSS mask, which
 //        both avoids the stroke-on-stroke "stamped twice" artifact the previous
 //        inline SVG showed on the folder lip and keeps the icon as a single
 //        uniform fill regardless of opacity. Consumers continue to pass
@@ -26,9 +26,9 @@ function FolderGlyph(name: string, props: SVGProps<SVGSVGElement>) {
 }
 
 export function FolderClosed(props: SVGProps<SVGSVGElement>) {
-  return FolderGlyph("folder-2", props);
+  return FolderGlyph("folder-1", props);
 }
 
 export function FolderOpen(props: SVGProps<SVGSVGElement>) {
-  return FolderGlyph("folder-open-front", props);
+  return FolderGlyph("folder-open", props);
 }

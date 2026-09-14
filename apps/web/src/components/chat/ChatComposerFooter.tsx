@@ -2,7 +2,7 @@ import { ProviderInteractionMode } from "@synara/contracts";
 import { type ReactNode } from "react";
 import {
   BugIcon,
-  ListTodoIcon,
+  PlanIcon,
   ChevronDownIcon,
   ComposerSendArrowIcon,
   LayoutSidebarIcon,
@@ -102,7 +102,7 @@ export function ChatComposerFooter({
                 title={`${interactionMode === "plan" ? "Plan" : "Debug"} mode — click to return to normal build mode`}
               >
                 {interactionMode === "plan" ? (
-                  <ListTodoIcon className="size-3.5" />
+                  <PlanIcon className="size-3.5" />
                 ) : (
                   <BugIcon className="size-3.5" />
                 )}

@@ -99,7 +99,7 @@ export function KanbanTaskExtrasMenu({
         >
           <MenuRadioItem value="local">
             <span className="inline-flex items-center gap-2">
-              <CentralIcon name="macbook-air" className="size-4 shrink-0" />
+              <CentralIcon name="window" className="size-4 shrink-0" />
               Local
             </span>
           </MenuRadioItem>

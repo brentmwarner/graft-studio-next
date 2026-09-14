@@ -26,10 +26,10 @@ export type { MentionChipKind };
 
 function composerMentionChipCentralIconName(path: string, kind: MentionChipKind = "path"): string {
   if (kind === "plugin" || path.startsWith("plugin://")) {
-    return "puzzle";
+    return "plugin-1";
   }
   if (inferEntryKindFromPath(path) === "directory") {
-    return "folder-2";
+    return "folder-1";
   }
   return getFileIconName(path);
 }
@@ -80,7 +80,7 @@ export const MentionChipIcon = function MentionChipIcon(props: {
   }
   // Masked Central glyph painted with `bg-current`, so the file icon inherits the
   // chip's text color (it shares the filename's color) instead of a per-filetype
-  // tint. `getFileIconName` already falls back to the bracket glyph when unknown.
+  // tint. `getFileIconName` already falls back to the document glyph when unknown.
   return <CentralIcon name={getFileIconName(props.path)} className={className} />;
 };
 
@@ -94,7 +94,7 @@ export function createMentionChipIconElement(
   const iconName = composerMentionChipCentralIconName(path, kind);
   return (
     createCentralIconElement(iconName, className) ??
-    createCentralIconElement("code-brackets", className) ??
+    createCentralIconElement("files", className) ??
     document.createElement("span")
   );
 }

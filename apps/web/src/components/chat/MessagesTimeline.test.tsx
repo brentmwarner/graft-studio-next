@@ -504,8 +504,8 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(folderMarkup).toContain("/central-icons-reversed/folder-2.svg");
-    expect(folderMarkup).not.toContain("/central-icons-reversed/puzzle.svg");
+    expect(folderMarkup).toContain("/central-icons-round/folder-1.svg");
+    expect(folderMarkup).not.toContain("/central-icons-round/plugin-1.svg");
 
     const tsxMarkup = renderToStaticMarkup(
       <MessagesTimeline
@@ -527,8 +527,8 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(tsxMarkup).toContain("/central-icons-reversed/react.svg");
-    expect(tsxMarkup).not.toContain("/central-icons-reversed/folder-2.svg");
+    expect(tsxMarkup).toContain("/central-icons-round/react.svg");
+    expect(tsxMarkup).not.toContain("/central-icons-round/folder-1.svg");
 
     const pluginMarkup = renderToStaticMarkup(
       <MessagesTimeline
@@ -551,7 +551,7 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(pluginMarkup).toContain("/central-icons-reversed/puzzle.svg");
+    expect(pluginMarkup).toContain("/central-icons-round/plugin-1.svg");
   });
 
   it("renders edit beside copy for user messages", async () => {
@@ -1054,7 +1054,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup).toContain("Terminal 1 lines 1-5");
-    expect(markup).toContain("/central-icons-reversed/console.svg");
+    expect(markup).toContain("/central-icons-round/console.svg");
     expect(markup).toContain("yoo what&#x27;s ");
     expect(markup).toContain("<strong>bold</strong>");
   });
@@ -1237,7 +1237,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup).toContain("Context compacted manually");
-    expect(markup).toContain("/central-icons-reversed/arrows-hide.svg");
+    expect(markup).toContain("/central-icons-round/arrows-hide.svg");
     expect(markup).not.toContain("Work log");
   });
 
@@ -1291,7 +1291,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup).toContain("Compacting context");
-    expect(markup).toContain("/central-icons-reversed/arrows-hide.svg");
+    expect(markup).toContain("/central-icons-round/arrows-hide.svg");
     expect(markup).toContain("Working for");
     expect(markup).not.toContain("h-px flex-1 bg-border");
   });
@@ -2503,7 +2503,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup.match(/data-tool-icon="github"/g)).toHaveLength(2);
-    expect(markup).not.toContain("/central-icons-reversed/git.svg");
+    expect(markup).not.toContain("/central-icons-round/git.svg");
   });
 
   it("marks command rows with captured details as clickable", async () => {
@@ -2704,7 +2704,7 @@ describe("MessagesTimeline", () => {
     expect(markup).not.toContain("data-file-change-row");
   });
 
-  it("shows a globe icon next to compact web-search rows", async () => {
+  it("shows the legacy search icon next to compact web-search rows", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
@@ -2746,7 +2746,7 @@ describe("MessagesTimeline", () => {
 
     expect(markup).toContain("Searched the web");
     expect(markup).toContain("48 files found");
-    expect(markup).toContain("/central-icons-reversed/globe.svg");
+    expect(markup).toContain("/central-icons-round/search-intelligence.svg");
     expect(markup).not.toContain("tabler-icon-world");
   });
 

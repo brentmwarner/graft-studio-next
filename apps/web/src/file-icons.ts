@@ -1,12 +1,11 @@
 // FILE: file-icons.ts
-// Purpose: Map file/folder paths to Central icon names (the central-icons-reversed
-//          asset set). Anything we don't have a dedicated glyph for falls back to
-//          the generic `code-brackets` icon.
+// Purpose: Map file paths to legacy Graft’s Central icons, retaining extra
+//          attachment formats supported by this app.
 // Layer: app-level utility shared by composer, diff panel, timeline, sidebar.
-// Depends on: Central icon assets served from /central-icons-reversed (see central-icons.tsx).
+// Depends on: Central icon assets resolved by central-icons.tsx.
 
-// Generic bracket glyph used whenever a file type has no dedicated Central icon.
-const DEFAULT_FILE_ICON = "code-brackets";
+// Legacy Graft uses the document glyph for unknown file types.
+const DEFAULT_FILE_ICON = "files";
 
 // Lookup keys come from untrusted text (chat content, attachment names), so the
 // tables must be Maps: a plain-object lookup for `constructor` or `__proto__` walks
@@ -18,7 +17,7 @@ function createIconTable(entries: Record<string, string>): ReadonlyMap<string, s
 // Exact basename → Central icon name (case-insensitive lookup). Add entries here
 // when a well-known filename has a dedicated icon we want to surface.
 const FILE_ICON_BY_BASENAME = createIconTable({
-  "package.json": "npm",
+  "package.json": "json",
   "package-lock.json": "npm",
   "npm-shrinkwrap.json": "npm",
   ".npmrc": "npm",
@@ -30,12 +29,12 @@ const FILE_ICON_BY_BASENAME = createIconTable({
   "pnpm-workspace.yaml": "npm",
   "bun.lockb": "bun",
   "bun.lock": "bun",
-  ".gitignore": "git",
+  ".gitignore": "settings-gear-1",
   ".gitattributes": "git",
   ".gitmodules": "git",
   ".gitkeep": "git",
   ".gitconfig": "git",
-  "tsconfig.json": "typescript",
+  "tsconfig.json": "settings-gear-1",
   "tsconfig.base.json": "typescript",
   "tsconfig.build.json": "typescript",
   "tsconfig.node.json": "typescript",
@@ -52,12 +51,14 @@ const FILE_ICON_BY_BASENAME = createIconTable({
   "license.md": "file-text",
   "license.txt": "file-text",
   "vercel.json": "vercel",
-  ".env": "settings-gear-1",
-  ".env.local": "settings-gear-1",
-  ".env.development": "settings-gear-1",
-  ".env.production": "settings-gear-1",
-  ".env.test": "settings-gear-1",
-  ".env.example": "settings-gear-1",
+  dockerfile: "settings-gear-1",
+  "docker-compose.yml": "settings-gear-1",
+  ".env": "lock",
+  ".env.local": "lock",
+  ".env.development": "lock",
+  ".env.production": "lock",
+  ".env.test": "lock",
+  ".env.example": "lock",
 });
 
 // Extension → Central icon name. Longest extension wins because
@@ -73,6 +74,16 @@ const FILE_ICON_BY_EXTENSION = createIconTable({
   mjs: "javascript",
   cjs: "javascript",
   jsx: "react",
+  html: "file-text",
+  htm: "file-text",
+  css: "file-text",
+  scss: "file-text",
+  less: "file-text",
+  sql: "storage",
+  xml: "code",
+  cpp: "code",
+  cc: "code",
+  hpp: "code",
   json: "json",
   json5: "json",
   jsonc: "json",
@@ -87,13 +98,13 @@ const FILE_ICON_BY_EXTENSION = createIconTable({
   rs: "rust",
   php: "php",
   phtml: "php",
-  java: "java",
-  c: "c",
-  h: "c",
+  java: "code",
+  c: "code",
+  h: "code",
   vue: "vue",
   svelte: "svelte",
-  yml: "settings-gear-1",
-  yaml: "settings-gear-1",
+  yml: "code",
+  yaml: "code",
   toml: "settings-gear-1",
   ini: "settings-gear-1",
   conf: "settings-gear-1",
@@ -116,9 +127,9 @@ const FILE_ICON_BY_EXTENSION = createIconTable({
   ics: "calendar-days",
   ifb: "calendar-days",
   vcs: "calendar-days",
-  sh: "cmd",
-  bash: "cmd",
-  zsh: "cmd",
+  sh: "code",
+  bash: "code",
+  zsh: "code",
   fish: "cmd",
   bat: "cmd",
   ps1: "cmd",
@@ -134,7 +145,7 @@ const FILE_ICON_BY_EXTENSION = createIconTable({
   tiff: "image-alt-text",
   avif: "image-alt-text",
   ico: "image-alt-text",
-  svg: "image-alt-text",
+  svg: "file-text",
   pdf: "file-pdf",
   zip: "file-zip",
   tar: "file-zip",
@@ -201,7 +212,7 @@ function extensionCandidates(fileName: string): string[] {
 }
 
 // Resolves the Central icon name for a file path, defaulting to the generic
-// bracket glyph when the basename/extension has no dedicated icon.
+// document glyph when the basename/extension has no dedicated icon.
 export function getFileIconName(pathValue: string): string {
   const basename = basenameOfPath(pathValue).toLowerCase();
   const byName = FILE_ICON_BY_BASENAME.get(basename);

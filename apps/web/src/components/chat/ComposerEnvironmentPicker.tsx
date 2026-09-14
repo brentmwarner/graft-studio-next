@@ -79,7 +79,7 @@ export function ComposerEnvironmentPicker({
 }: ComposerEnvironmentPickerProps) {
   const envGlyph = (className: string) =>
     environmentPresentation.mode === "local" ? (
-      <CentralIcon name="macbook-air" className={className} />
+      <CentralIcon name="window" className={className} />
     ) : (
       <WorktreeIcon className={className} />
     );
@@ -121,13 +121,13 @@ export function ComposerEnvironmentPicker({
           <MenuGroupLabel>Work in</MenuGroupLabel>
           {environmentPresentation.mode === "local" ? (
             <WorkInMenuItem
-              icon={<CentralIcon name="macbook-air" className={ENV_MENU_ICON_CLASS_NAME} />}
+              icon={<CentralIcon name="window" className={ENV_MENU_ICON_CLASS_NAME} />}
               label={environmentPresentation.localOptionLabel}
               selected
             />
           ) : (
             <WorkInMenuItem
-              icon={<CentralIcon name="macbook-air" className={ENV_MENU_ICON_CLASS_NAME} />}
+              icon={<CentralIcon name="window" className={ENV_MENU_ICON_CLASS_NAME} />}
               label={environmentPresentation.localOptionLabel}
               onSelect={() => onEnvModeChange("local")}
             />

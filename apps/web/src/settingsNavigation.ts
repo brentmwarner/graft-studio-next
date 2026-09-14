@@ -62,7 +62,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     group: "personal",
     label: "General",
     description: "Choose defaults for new chats, navigation, and the Environment panel.",
-    icon: "settings-gear-4",
+    icon: "settings-gear-1",
     eyebrow: "Workflow defaults",
   },
   {
@@ -142,7 +142,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     group: "coding",
     label: "Agent providers",
     description: "Choose visible coding agents and manage their installed CLI tools.",
-    icon: "puzzle",
+    icon: "plugin-1",
     eyebrow: "Coding agents",
   },
   {
@@ -150,7 +150,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     group: "coding",
     label: "Models & writing",
     description: "Choose the model used for Git writing and add custom model slugs.",
-    icon: "brain",
+    icon: "brain-1",
     eyebrow: "Model configuration",
   },
   {
@@ -158,7 +158,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     group: "coding",
     label: "Agent skills",
     description: "Review reusable workflows discovered across all configured providers.",
-    icon: "building-blocks",
+    icon: "blocks",
     eyebrow: "Reusable workflows",
   },
   {

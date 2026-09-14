@@ -6,15 +6,18 @@ import { describe, expect, it } from "vitest";
 
 import { CentralIcon, getCentralIconUrl } from "./central-icons";
 import * as icons from "./icons";
+import roundIconNames from "./central-icons-round.json";
 
-const reversedIconDir = path.join(import.meta.dirname, "../../public/central-icons-reversed");
+const roundIconDir = path.join(import.meta.dirname, "../../public/central-icons-round");
 const fillIconDir = path.join(import.meta.dirname, "../../public/central-icons-fill");
 
 describe("getCentralIconUrl", () => {
-  it("builds reversed and fill asset URLs for valid icon names", () => {
-    expect(getCentralIconUrl("checkmark-1")).toBe("/central-icons-reversed/checkmark-1.svg");
+  it("defaults to legacy rounded artwork and preserves explicit variants", () => {
+    expect(getCentralIconUrl("checkmark-1")).toBe("/central-icons-round/checkmark-1.svg");
     expect(getCentralIconUrl("star", "fill")).toBe("/central-icons-fill/star.svg");
-    expect(getCentralIconUrl("plus-medium.svg")).toBe("/central-icons-reversed/plus-medium.svg");
+    expect(getCentralIconUrl("plus-medium.svg")).toBe("/central-icons-round/plus-medium.svg");
+    expect(getCentralIconUrl("checkmark-1", "reversed")).toBe("/central-icons-reversed/checkmark-1.svg");
+    expect(getCentralIconUrl("shield-access")).toBe("/central-icons-reversed/shield-access.svg");
   });
 
   it("rejects path traversal and invalid names", () => {
@@ -27,8 +30,8 @@ describe("getCentralIconUrl", () => {
   it("ships the chrome glyphs used by sidebar, settings, and composer", () => {
     const names = [
       "branch",
-      "settings-gear-4",
-      "compose-pencil",
+      "settings-gear-1",
+      "edit-big",
       "raising-hand-5-finger",
       "archive",
       "checkmark-1",
@@ -37,10 +40,16 @@ describe("getCentralIconUrl", () => {
       "tasks",
     ];
     for (const name of names) {
-      expect(getCentralIconUrl(name)).toBe(`/central-icons-reversed/${name}.svg`);
-      expect(fs.existsSync(path.join(reversedIconDir, `${name}.svg`))).toBe(true);
+      expect(getCentralIconUrl(name)).toBe(`/central-icons-round/${name}.svg`);
+      expect(fs.existsSync(path.join(roundIconDir, `${name}.svg`))).toBe(true);
     }
     expect(fs.existsSync(path.join(fillIconDir, "star.svg"))).toBe(true);
+  });
+
+  it("ships every generated rounded asset", () => {
+    for (const name of roundIconNames) {
+      expect(fs.existsSync(path.join(roundIconDir, `${name}.svg`)), name).toBe(true);
+    }
   });
 });
 
@@ -90,11 +99,10 @@ describe("Loader2Icon adapter", () => {
 describe("app icon registry", () => {
   it("renders every app control with a shipped Central asset", () => {
     for (const [name, Icon] of Object.entries(icons)) {
-      // The GitHub logo identifies a third-party product.
-      if (typeof Icon !== "function" || name === "GitHubIcon") continue;
+      if (typeof Icon !== "function") continue;
       const markup = renderToStaticMarkup(createElement(Icon));
       expect(markup, name).toContain('data-slot="central-icon"');
-      const assetPath = markup.match(/\/central-icons-(?:reversed|fill)\/[a-z0-9-]+\.svg/)?.[0];
+      const assetPath = markup.match(/\/central-icons-(?:round|fill)\/[a-z0-9-]+\.svg/)?.[0];
       expect(assetPath, name).toBeDefined();
       expect(
         fs.existsSync(path.join(import.meta.dirname, "../../public", assetPath!)),
