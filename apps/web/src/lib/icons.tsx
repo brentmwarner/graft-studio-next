@@ -128,7 +128,8 @@ export const EYE_OPEN_ICON_NAME = "eye-open";
 export const EyeOpenIcon: LucideIcon = centralIconWrapper(EYE_OPEN_ICON_NAME);
 export const EyeIcon = EyeOpenIcon;
 export const PaperclipIcon = centralIconWrapper("paperclip-1");
-export const ArchiveIcon = centralIconWrapper("archive");
+export const ARCHIVE_ICON_NAME = "archive";
+export const ArchiveIcon = centralIconWrapper(ARCHIVE_ICON_NAME);
 export const BrainIcon = centralIconWrapper("brain");
 export const FileIcon = centralIconWrapper("files");
 export const FlagIcon = centralIconWrapper("flag-1");
@@ -223,7 +224,8 @@ export const PlayIcon: LucideIcon = centralIconWrapper("play", "fill");
 export const PauseOutlineIcon: LucideIcon = centralIconWrapper("pause");
 export const PlayOutlineIcon: LucideIcon = centralIconWrapper("play");
 /** Outline trash can from the Central set (Trash2 is the legacy Tabler glyph). */
-export const TrashCanIcon: LucideIcon = centralIconWrapper("trash-can");
+export const TRASH_CAN_ICON_NAME = "trash-can";
+export const TrashCanIcon: LucideIcon = centralIconWrapper(TRASH_CAN_ICON_NAME);
 // Persistent thread goal ("Pursuing goal" strip, /goal surfaces).
 export const GoalIcon: LucideIcon = centralIconWrapper("target-arrow");
 export const Plus = AddPlusIcon;
