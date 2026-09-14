@@ -4702,12 +4702,9 @@ export default function ChatView({
   const emptyLandingControls = showEmptyLandingControls ? (
     <div
       data-empty-landing-controls="true"
-      // Tray sitting in normal flow directly above the composer, full composer width so
-      // the project / environment / branch chips sit near the shell edges. Unfilled in
-      // both themes (chips float over the page), rounded on top only and flush against
-      // the input shell below. No overlap/underlay tricks — in dark mode a slice tucked
-      // behind the composer's translucent corners reads as a visible cut along the seam.
-      className="chat-composer-shell mx-auto flex min-h-8 w-full min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden !rounded-b-none !rounded-t-[var(--composer-radius)] px-1.5 py-1 transition-colors duration-150 ease-out motion-reduce:transition-none sm:min-h-7"
+      // Keep Graft's tinted, inset tray above the composer. It stays in normal flow
+      // and flush against the input so their translucent corners do not overlap.
+      className="chat-composer-shell mx-auto flex min-h-8 w-14/15 min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden !rounded-b-none !rounded-t-[var(--composer-radius)] bg-[color-mix(in_srgb,var(--color-background-elevated-secondary)_76%,var(--color-background-surface)_24%)] px-2 py-1.5 transition-colors duration-150 ease-out motion-reduce:transition-none sm:min-h-7"
     >
       {showContainerChatWorkspacePicker ? (
         <ProjectPicker
