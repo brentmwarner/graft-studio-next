@@ -1325,7 +1325,7 @@ describe("deriveMessagesTimelineRows", () => {
     const createTool = workEntry(
       "synara-create-tool",
       "2026-01-01T00:00:01Z",
-      "Synara created threads",
+      "Graft created threads",
     );
     const creationRecap: TimelineEntry = {
       id: "entry-synara-create-recap",

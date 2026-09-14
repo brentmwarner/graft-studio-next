@@ -26,8 +26,8 @@ const actions: SidebarSearchAction[] = [
   },
   {
     id: "feedback",
-    label: "Feedback Synara",
-    description: "Send feedback or report an issue to the Synara team.",
+    label: "Feedback Graft",
+    description: "Send feedback or report an issue to the Graft team.",
     keywords: ["feedback", "bug", "issue", "report", "support"],
   },
   {

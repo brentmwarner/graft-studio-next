@@ -425,9 +425,9 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup.match(/data-cross-task-origin="true"/g)).toHaveLength(1);
-    expect(markup).toContain("Sent by Synara from another thread");
+    expect(markup).toContain("Sent by Graft from another thread");
     expect(markup).toContain('aria-label="Open source thread"');
-    expect(markup.indexOf("Sent by Synara from another thread")).toBeLessThan(
+    expect(markup.indexOf("Sent by Graft from another thread")).toBeLessThan(
       markup.indexOf("Inspect the repository"),
     );
   });
@@ -476,7 +476,7 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(markup).toContain("Sent by Synara from another thread");
+    expect(markup).toContain("Sent by Graft from another thread");
     expect(markup).not.toContain("Sent by agent");
   });
 
@@ -2868,7 +2868,7 @@ describe("MessagesTimeline", () => {
     );
     expect(claudeMarkup).toContain('data-tool-icon="synara"');
     expect(claudeMarkup).not.toContain('data-tool-icon="mcp"');
-    expect(claudeMarkup).toContain("Synara is creating a thread");
+    expect(claudeMarkup).toContain("Graft is creating a thread");
     expect(claudeMarkup).not.toContain("Synara__synara_create_thread");
 
     // A provider may misclassify an MCP action containing "create" or "list"
@@ -2895,7 +2895,7 @@ describe("MessagesTimeline", () => {
       />,
     );
     expect(codexMarkup).toContain('data-tool-icon="synara"');
-    expect(codexMarkup).toContain("Synara listed threads");
+    expect(codexMarkup).toContain("Graft listed threads");
     expect(codexMarkup).not.toContain("mcp__Synara__synara_list_threads");
 
     const failedMarkup = renderToStaticMarkup(
@@ -2921,7 +2921,7 @@ describe("MessagesTimeline", () => {
         ]}
       />,
     );
-    expect(failedMarkup).toContain("Synara couldn&#x27;t create threads");
+    expect(failedMarkup).toContain("Graft couldn&#x27;t create threads");
     expect(failedMarkup).toContain("Claude rejected reasoningEffort");
   });
 
@@ -3019,7 +3019,7 @@ describe("MessagesTimeline", () => {
       detail: 'mcp__synara__synara_read_thread: {"threadId":"c357d8c5-b4c1-47d0"}',
       activityKind: "tool.completed",
     });
-    expect(readThreadMarkup).toContain("Synara read a thread");
+    expect(readThreadMarkup).toContain("Graft read a thread");
     expect(readThreadMarkup).not.toContain("mcp__synara__synara_read_thread:");
     expect(readThreadMarkup).not.toContain("threadId");
 
@@ -3033,7 +3033,7 @@ describe("MessagesTimeline", () => {
       detail: 'mcp__synara__synara_diagnose_thread: {"threadId":"09a1615d-084f-40b9"}',
       activityKind: "tool.completed",
     });
-    expect(diagnoseMarkup).toContain("Synara diagnosed a thread");
+    expect(diagnoseMarkup).toContain("Graft diagnosed a thread");
     expect(diagnoseMarkup).not.toContain("mcp__synara__synara_diagnose_thread:");
     expect(diagnoseMarkup).not.toContain("threadId");
 
@@ -3064,7 +3064,7 @@ describe("MessagesTimeline", () => {
       detail: 'McpError: {"code":-32602,"message":"Invalid params"}',
       activityKind: "tool.completed",
     });
-    expect(failedArgsMarkup).toContain("Synara couldn&#x27;t create threads");
+    expect(failedArgsMarkup).toContain("Graft couldn&#x27;t create threads");
     expect(failedArgsMarkup).toContain("Invalid params");
   });
 
@@ -3083,7 +3083,7 @@ describe("MessagesTimeline", () => {
           tone: "tool",
           itemType: "mcp_tool_call",
           toolName: "mcp__synara__synara_create_threads",
-          toolTitle: "Synara created threads",
+          toolTitle: "Graft created threads",
           activityKind: "tool.completed",
         },
       },
@@ -3136,7 +3136,7 @@ describe("MessagesTimeline", () => {
         timelineEntries={[...workEntries]}
       />,
     );
-    expect(liveMarkup).toContain("Synara created threads");
+    expect(liveMarkup).toContain("Graft created threads");
     expect(liveMarkup).not.toContain('data-synara-thread-creation-card="true"');
 
     const markup = renderToStaticMarkup(

@@ -214,7 +214,7 @@ export function resolveThreadProjectLabel(
   project: Pick<Project, "kind" | "name" | "folderName"> | null | undefined,
 ): string {
   if (!project || project.kind !== "project") {
-    return "Synara";
+    return "Graft";
   }
   return nonEmptyDisplayValue(project.name) ?? project.folderName;
 }

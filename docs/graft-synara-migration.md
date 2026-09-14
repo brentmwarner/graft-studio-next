@@ -128,3 +128,9 @@ to Synara.
   the model-picker layout fixes alongside upstream menu collision handling.
 - Adopted the official migration 99, `InvalidateProjectionThreadsCursor`,
   which performs the same repair as the local compatibility migration.
+
+Graft's desktop display name, window title, onboarding, settings, browser labels,
+and tool activity copy use the Graft product identity. Development favicons use
+the existing Graft artwork. Upstream release notes and feedback remain attributed
+to Synara. Internal package names, protocol identifiers, bundle IDs, storage keys,
+and existing profiles remain compatible during this local development update.

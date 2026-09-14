@@ -98,7 +98,7 @@ function listStaleComputerUsePids() {
 
   return candidatePids.filter((pid) => {
     const command = readProcessCommand(pid);
-    if (!/Synara \(Dev\)\.app\/Contents\/MacOS\/Electron/.test(command)) {
+    if (!/(?:Graft|Synara) \(Dev\)\.app\/Contents\/MacOS\/Electron/.test(command)) {
       return false;
     }
     if (!/computerUseMcp\.mjs\s+mcp(?:\s|$)/.test(command)) {

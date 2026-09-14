@@ -772,8 +772,8 @@ describe("resolveThreadProjectLabel", () => {
       resolveThreadProjectLabel({ kind: "project", name: "Synara App", folderName: "synara" }),
     ).toBe("Synara App");
     expect(resolveThreadProjectLabel({ kind: "chat", name: "Chats", folderName: "chats" })).toBe(
-      "Synara",
+      "Graft",
     );
-    expect(resolveThreadProjectLabel(undefined)).toBe("Synara");
+    expect(resolveThreadProjectLabel(undefined)).toBe("Graft");
   });
 });

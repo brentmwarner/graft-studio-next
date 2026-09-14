@@ -7,11 +7,11 @@ export const BRAND_ASSET_PATHS = {
   productionWebFavicon16Png: "assets/prod/synara-black-web-favicon-16x16.png",
   productionWebFavicon32Png: "assets/prod/synara-black-web-favicon-32x32.png",
   productionWebAppleTouchIconPng: "assets/prod/synara-black-web-apple-touch-180.png",
-  developmentWindowsIconIco: "assets/dev/blueprint-windows.ico",
-  developmentWebFaviconIco: "assets/dev/blueprint-web-favicon.ico",
-  developmentWebFavicon16Png: "assets/dev/blueprint-web-favicon-16x16.png",
-  developmentWebFavicon32Png: "assets/dev/blueprint-web-favicon-32x32.png",
-  developmentWebAppleTouchIconPng: "assets/dev/blueprint-web-apple-touch-180.png",
+  developmentWindowsIconIco: "assets/prod/synara-black-windows.ico",
+  developmentWebFaviconIco: "assets/prod/synara-black-web-favicon.ico",
+  developmentWebFavicon16Png: "assets/prod/synara-black-web-favicon-16x16.png",
+  developmentWebFavicon32Png: "assets/prod/synara-black-web-favicon-32x32.png",
+  developmentWebAppleTouchIconPng: "assets/prod/synara-black-web-apple-touch-180.png",
 } as const;
 
 export interface IconOverride {

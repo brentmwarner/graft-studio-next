@@ -291,7 +291,7 @@ if (
   requestedSourceBuildMarker !== undefined &&
   requestedSourceBuildMarker !== SYNARA_SOURCE_DESKTOP_BUILD_MARKER
 ) {
-  throw new Error("The source desktop launcher and built main are incompatible. Rebuild Synara.");
+  throw new Error("The source desktop launcher and built main are incompatible. Rebuild Graft.");
 }
 
 // Capture the real archive identity before any explicit app.asar lookup. Static
@@ -382,7 +382,7 @@ const BROWSER_PERF_SAMPLE_INTERVAL_MS = 5_000;
 const DESKTOP_MENU_ZOOM_FACTOR_STEP = 1.1;
 const DESKTOP_MENU_MIN_ZOOM_FACTOR = 0.25;
 const DESKTOP_MENU_MAX_ZOOM_FACTOR = 5;
-const SYNARA_BROWSER_LABEL = "Synara browser";
+const SYNARA_BROWSER_LABEL = "Graft browser";
 const browserPerfLoggingEnabled = process.env.SYNARA_BROWSER_PERF === "1";
 
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
@@ -1212,9 +1212,9 @@ async function rejectUnverifiableDesktopMigrationBundle(error: unknown): Promise
   writeDesktopLogHeader(`migration bundle source check failed message=${message}`);
   await dialog.showMessageBox({
     type: "error",
-    title: "Synara could not verify its server build",
+    title: "Graft could not verify its server build",
     message: "The migration source could not be checked safely.",
-    detail: `${message}\n\nRebuild with bun run build:desktop before starting Synara. The database was not opened.`,
+    detail: `${message}\n\nRebuild with bun run build:desktop before starting Graft. The database was not opened.`,
     buttons: ["Quit"],
     defaultId: 0,
     noLink: true,
@@ -1231,11 +1231,11 @@ async function rejectDesktopMigrationBundleMismatch(
   );
   await dialog.showMessageBox({
     type: "error",
-    title: "Synara's server build is stale",
+    title: "Graft's server build is stale",
     message: "The built migration code does not match this checkout.",
     detail:
       `Expected ${mismatch.expectedDigest}, but the desktop bundle contains ` +
-      `${mismatch.actualDigest}.\n\nRebuild with bun run build:desktop before starting Synara. The database was not opened.`,
+      `${mismatch.actualDigest}.\n\nRebuild with bun run build:desktop before starting Graft. The database was not opened.`,
     buttons: ["Quit"],
     defaultId: 0,
     noLink: true,
@@ -1309,15 +1309,15 @@ async function handleDesktopMigrationRecovery(): Promise<DesktopMigrationRecover
       ];
       if (canInstallUpdate) {
         choices.push({
-          label: "Update Synara and restart",
-          detail: "install the newest Synara release, which may already contain the fix",
+          label: "Update Graft and restart",
+          detail: "install the newest Graft release, which may already contain the fix",
           decision: "install-update",
         });
       }
       if (releaseUrl !== null) {
         choices.push({
           label: "Download latest release",
-          detail: `${canInstallUpdate ? "download that release" : "download the latest Synara release"} in a browser`,
+          detail: `${canInstallUpdate ? "download that release" : "download the latest Graft release"} in a browser`,
           decision: "open-release-page",
         });
       }
@@ -1332,16 +1332,16 @@ async function handleDesktopMigrationRecovery(): Promise<DesktopMigrationRecover
         type: previousFailure === null ? "warning" : "error",
         title:
           previousFailure === null
-            ? "Synara needs to recover its database"
+            ? "Graft needs to recover its database"
             : restoreFailed
               ? "Migration recovery failed"
-              : "Synara could not update itself",
+              : "Graft could not update itself",
         message:
           previousFailure === null
-            ? "Synara stopped a database migration before it could finish safely."
+            ? "Graft stopped a database migration before it could finish safely."
             : restoreFailed
               ? "The saved database backup could not be restored."
-              : "The newest Synara release could not be installed.",
+              : "The newest Graft release could not be installed.",
         detail: `${previousFailure === null ? "" : `${previousFailure.message}\n\n`}You can ${options}. No provider or chat process will start until recovery succeeds.`,
         buttons: choices.map((choice) => choice.label),
         defaultId: 0,
@@ -1516,7 +1516,7 @@ function handleFatalStartupError(stage: string, error: unknown): void {
   console.error(`[desktop] fatal startup error (${stage})`, error);
   if (!isQuitting) {
     isQuitting = true;
-    dialog.showErrorBox("Synara failed to start", `Stage: ${stage}\n${message}${detail}`);
+    dialog.showErrorBox("Graft failed to start", `Stage: ${stage}\n${message}${detail}`);
   }
   requestGracefulAppQuit(`fatal startup (${stage})`);
 }
@@ -1674,14 +1674,14 @@ async function checkForUpdatesFromMenu(): Promise<void> {
     void dialog.showMessageBox({
       type: "info",
       title: "You're up to date!",
-      message: `Synara ${updateState.currentVersion} is currently the newest version available.`,
+      message: `Graft ${updateState.currentVersion} is currently the newest version available.`,
       buttons: ["OK"],
     });
   } else if (updateState.status === "downloading" || updateState.status === "available") {
     void dialog.showMessageBox({
       type: "info",
       title: "Update found",
-      message: "Synara is preparing the update in the background.",
+      message: "Graft is preparing the update in the background.",
       buttons: ["OK"],
     });
   } else if (updateState.status === "downloaded") {
@@ -2044,13 +2044,13 @@ function resolveUserDataPath(): string {
 function repairBrowserProfileBeforeElectronReady(userDataPath: string): void {
   const browserProfileRepair = repairBrowserProfileFromBridgeManifest(userDataPath);
   if (browserProfileRepair.status === "repaired") {
-    console.info("[desktop] Completed Synara browser profile bridge repair", {
+    console.info("[desktop] Completed Graft browser profile bridge repair", {
       sourcePath: browserProfileRepair.sourcePath,
       targetPath: browserProfileRepair.targetPath,
       copiedEntries: browserProfileRepair.copiedEntries,
     });
   } else if (browserProfileRepair.status === "repair-failed") {
-    console.warn("[desktop] Failed to complete Synara browser profile bridge repair", {
+    console.warn("[desktop] Failed to complete Graft browser profile bridge repair", {
       sourcePath: browserProfileRepair.sourcePath,
       targetPath: browserProfileRepair.targetPath,
       error: browserProfileRepair.error,
@@ -2532,11 +2532,11 @@ function restartAfterStartupBundleSwap(error: BundleChangedDuringStartupError): 
   void dialog
     .showMessageBox({
       type: "warning",
-      title: "Synara needs to restart",
-      message: "Synara changed while it was opening.",
+      title: "Graft needs to restart",
+      message: "Graft changed while it was opening.",
       detail:
-        "The current process cannot safely read the replaced application bundle. Restart Synara to finish opening with one consistent version.",
-      buttons: ["Restart Synara"],
+        "The current process cannot safely read the replaced application bundle. Restart Graft to finish opening with one consistent version.",
+      buttons: ["Restart Graft"],
       defaultId: 0,
     })
     .catch(() => undefined)
@@ -2588,8 +2588,8 @@ function startBundleSwapWatcher(): void {
     void dialog
       .showMessageBox({
         type: "warning",
-        title: "Synara was replaced on disk",
-        message: "The installed Synara app changed while it was running.",
+        title: "Graft was replaced on disk",
+        message: "The installed Graft app changed while it was running.",
         detail:
           "The interface keeps running from a safeguarded copy, but parts of the app loaded later can still read the replaced file. Restart now to pick up the new version safely.",
         buttons: ["Restart Now", "Later"],
@@ -2758,7 +2758,7 @@ function processInstallMarkerOnStartup(): void {
   }
 
   automaticUpdateActivitySuppressed = true;
-  const message = `Synara restarted, but update ${marker.toVersion} was not installed. Try again.`;
+  const message = `Graft restarted, but update ${marker.toVersion} was not installed. Try again.`;
   setUpdateState(
     reduceDesktopUpdateStateOnInstallRestartFailure(
       updateState,
@@ -3188,7 +3188,7 @@ async function installLatestUpdateForMigrationRecovery(): Promise<string | null>
   }
 
   if (updateState.status === "up-to-date") {
-    return `Synara ${app.getVersion()} is already the newest release, so updating cannot repair this database.`;
+    return `Graft ${app.getVersion()} is already the newest release, so updating cannot repair this database.`;
   }
   if (updateState.status !== "downloaded") {
     return updateState.message ?? "The update could not be downloaded.";
@@ -3660,7 +3660,7 @@ function backendFailureDialogDetail(reason: string): string {
   const cause = summary.length > 0 ? summary : reason;
   return [
     cause,
-    "Synara paused automatic restarts so a failing backend can't keep respawning in the background.",
+    "Graft paused automatic restarts so a failing backend can't keep respawning in the background.",
     `Log file:\n${Path.join(LOG_DIR, BACKEND_LOG_FILE_NAME)}`,
   ].join("\n\n");
 }
@@ -3689,8 +3689,8 @@ function presentBackendStartupGiveUp(reason: string): void {
     for (;;) {
       const result = await dialog.showMessageBox({
         type: "error",
-        title: "Synara's backend didn't start",
-        message: `Synara's backend failed to start ${BACKEND_MAX_CONSECUTIVE_START_FAILURES} times in a row.`,
+        title: "Graft's backend didn't start",
+        message: `Graft's backend failed to start ${BACKEND_MAX_CONSECUTIVE_START_FAILURES} times in a row.`,
         detail,
         buttons: ["Try again", "Open logs", "Quit"],
         defaultId: 0,
@@ -3727,25 +3727,25 @@ function schemaTooNewRestoreDetail(
 ): string {
   if (restoreCandidate) {
     return (
-      `Synara verified the exact pre-migration backup at:\n${restoreCandidate.backupPath}\n\n` +
+      `Graft verified the exact pre-migration backup at:\n${restoreCandidate.backupPath}\n\n` +
       `Its tracker ends at migration ${restoreCandidate.backupMigrationId}; its shared lineage is compatible ` +
       "with this build, and it passed SQLite integrity checking."
     );
   }
 
   if (block.recovery.kind === "restore-available") {
-    return "The recorded backup does not match this desktop database exactly, so Synara will not restore it.";
+    return "The recorded backup does not match this desktop database exactly, so Graft will not restore it.";
   }
 
   switch (block.recovery.reason) {
     case "missing-provenance":
-      return "No completed migration backup record exists for this database, so Synara cannot choose a backup safely.";
+      return "No completed migration backup record exists for this database, so Graft cannot choose a backup safely.";
     case "invalid-provenance":
       return "The completed migration backup record does not describe this exact database state.";
     case "invalid-backup":
       return "The exact recorded backup is missing, unreadable, or failed SQLite integrity checking.";
     case "incompatible-backup":
-      return "The exact recorded backup has a schema or migration lineage this Synara build cannot open safely.";
+      return "The exact recorded backup has a schema or migration lineage this Graft build cannot open safely.";
   }
 }
 
@@ -3777,7 +3777,7 @@ async function handleDesktopSchemaTooNewRecovery(
         });
       }
       if (canInstallUpdate) {
-        choices.push({ label: "Update Synara and restart", decision: "install-update" });
+        choices.push({ label: "Update Graft and restart", decision: "install-update" });
       }
       if (releaseUrl !== null) {
         choices.push({ label: "Download latest release", decision: "open-release-page" });
@@ -3791,16 +3791,16 @@ async function handleDesktopSchemaTooNewRecovery(
         type: previousFailure === null ? "warning" : "error",
         title:
           previousFailure === null
-            ? "This database is newer than Synara"
+            ? "This database is newer than Graft"
             : restoreFailed
               ? "Database restore failed"
-              : "Synara could not update itself",
+              : "Graft could not update itself",
         message:
           previousFailure === null
             ? `Database migration ${block.databaseMigrationId} is newer than this build supports (${block.latestSupportedMigrationId}).`
             : restoreFailed
               ? "The verified database backup could not be restored."
-              : "The newest Synara release could not be installed.",
+              : "The newest Graft release could not be installed.",
         detail:
           `${previousFailure === null ? "" : `${previousFailure.message}\n\n`}` +
           `${schemaTooNewRestoreDetail(block, restoreCandidate)}\n\n` +
@@ -3866,15 +3866,15 @@ function handleBackendStartupBlock(block: BackendStartupBlock): void {
             type: "error",
             title:
               previousFailure === null
-                ? "Synara could not verify migration recovery"
-                : "Synara could not update itself",
+                ? "Graft could not verify migration recovery"
+                : "Graft could not update itself",
             message:
               previousFailure === null
                 ? "The backend stopped for database safety, but its recovery details were invalid."
-                : "The newest Synara release could not be installed.",
+                : "The newest Graft release could not be installed.",
             detail:
               `${previousFailure === null ? "" : `${previousFailure.message}\n\n`}` +
-              "Synara will keep the backend and provider processes stopped. The recovery record is not trusted, so restoring from it is disabled; choose one of the safe actions below.",
+              "Graft will keep the backend and provider processes stopped. The recovery record is not trusted, so restoring from it is disabled; choose one of the safe actions below.",
             buttons: choices.map((choice) => choice.label),
             defaultId: 0,
             cancelId: choices.length - 1,
@@ -3903,7 +3903,7 @@ function handleBackendStartupBlock(block: BackendStartupBlock): void {
       const challenge = block.challenge;
       const result = await dialog.showMessageBox({
         type: "warning",
-        title: "Synara found a different database migration history",
+        title: "Graft found a different database migration history",
         message: `Migration ${challenge.firstDivergedId} does not match this build.`,
         detail:
           `The database records "${challenge.recordedName}", while this build expects ` +
@@ -3929,11 +3929,11 @@ function handleBackendStartupBlock(block: BackendStartupBlock): void {
     if (block.kind === "migration-runtime-identity-mismatch") {
       await dialog.showMessageBox({
         type: "error",
-        title: "Synara's server build does not match",
+        title: "Graft's server build does not match",
         message: "The desktop and server migration code came from different builds.",
         detail: app.isPackaged
-          ? "Update or reinstall Synara before starting it again. The database was not opened."
-          : "Rebuild with bun run build:desktop before starting Synara again. The database was not opened.",
+          ? "Update or reinstall Graft before starting it again. The database was not opened."
+          : "Rebuild with bun run build:desktop before starting Graft again. The database was not opened.",
         buttons: ["Quit"],
         defaultId: 0,
         noLink: true,
@@ -3945,10 +3945,10 @@ function handleBackendStartupBlock(block: BackendStartupBlock): void {
     if (block.kind === "migration-recovery-required") {
       const result = await dialog.showMessageBox({
         type: "warning",
-        title: "Synara needs to recover its database",
+        title: "Graft needs to recover its database",
         message: "A database migration did not finish safely.",
         detail:
-          "Restart Synara to open the verified backup recovery flow. Provider and chat processes will remain stopped until recovery completes.",
+          "Restart Graft to open the verified backup recovery flow. Provider and chat processes will remain stopped until recovery completes.",
         buttons: ["Restart and recover", "Quit"],
         defaultId: 0,
         cancelId: 1,
@@ -3965,13 +3965,13 @@ function handleBackendStartupBlock(block: BackendStartupBlock): void {
 
     const processDetail =
       block.ownerPid === null
-        ? "Another Synara server is already using this database."
-        : `Another Synara server (process ${block.ownerPid}) is already using this database.`;
+        ? "Another Graft server is already using this database."
+        : `Another Graft server (process ${block.ownerPid}) is already using this database.`;
     const result = await dialog.showMessageBox({
       type: "warning",
-      title: "Synara is already running elsewhere",
-      message: "Your local Synara data is in use by another process.",
-      detail: `${processDetail}\n\nStop the other Synara app or development server, then try again. Your data has not been changed.`,
+      title: "Graft is already running elsewhere",
+      message: "Your local Graft data is in use by another process.",
+      detail: `${processDetail}\n\nStop the other Graft app or development server, then try again. Your data has not been changed.`,
       buttons: ["Try again", "Quit"],
       defaultId: 0,
       cancelId: 1,
@@ -4752,7 +4752,7 @@ function registerIpcHandlers(): void {
             "Secure browser session persistence failed.",
           ];
           console.warn(
-            "[Synara browser]",
+            "[Graft browser]",
             error instanceof Error && allowed.includes(error.message)
               ? error.message
               : "Browser session checkpoint failed.",
@@ -5103,13 +5103,13 @@ function presentRendererCrashRecovery(
 
   const message =
     response.cause === "reload-budget-exhausted"
-      ? `Synara's window crashed ${response.crashes} times in a row.`
-      : "Synara's window stopped unexpectedly.";
+      ? `Graft's window crashed ${response.crashes} times in a row.`
+      : "Graft's window stopped unexpectedly.";
   const detail = [
     `The window's renderer process exited (${reason}).`,
     response.cause === "reload-budget-exhausted"
-      ? "Synara paused automatic reloads so a repeating crash can't keep reloading in the background."
-      : "This exit reason repeats on reload, so Synara did not retry automatically.",
+      ? "Graft paused automatic reloads so a repeating crash can't keep reloading in the background."
+      : "This exit reason repeats on reload, so Graft did not retry automatically.",
     `Log file:\n${Path.join(LOG_DIR, DESKTOP_LOG_FILE_NAME)}`,
   ].join("\n\n");
 
@@ -5117,7 +5117,7 @@ function presentRendererCrashRecovery(
     for (;;) {
       const result = await dialog.showMessageBox({
         type: "error",
-        title: "Synara's window stopped",
+        title: "Graft's window stopped",
         message,
         detail,
         buttons: ["Reload", "Open logs", "Quit"],
@@ -5270,7 +5270,7 @@ async function bootstrap(): Promise<void> {
     await browserSessionRestore.initialize();
   } catch {
     console.warn(
-      "[Synara browser] Secure session restoration is unavailable; no saved session cookies were restored.",
+      "[Graft browser] Secure session restoration is unavailable; no saved session cookies were restored.",
     );
   }
 
@@ -5279,7 +5279,7 @@ async function bootstrap(): Promise<void> {
   try {
     await ensureBrowserHostPipeServer();
   } catch (error) {
-    console.warn("[Synara browser] Failed to start browser host pipe", error);
+    console.warn("[Graft browser] Failed to start browser host pipe", error);
   }
   startBackend();
   writeDesktopLogHeader("bootstrap backend start requested");

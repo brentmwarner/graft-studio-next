@@ -561,7 +561,7 @@ describe("resolveThreadHoverCardMetadata", () => {
       },
     });
 
-    expect(metadata.projectName).toBe("Synara");
+    expect(metadata.projectName).toBe("Graft");
   });
 });
 

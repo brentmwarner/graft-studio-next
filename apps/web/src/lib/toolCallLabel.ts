@@ -146,144 +146,144 @@ const SYNARA_BROWSER_TOOL_PRESENTATIONS = Object.fromEntries(
 
 const SYNARA_MCP_TOOL_PRESENTATIONS = {
   synara_context: {
-    running: "Synara is checking its context",
-    completed: "Synara checked its context",
-    failed: "Synara couldn't check its context",
+    running: "Graft is checking its context",
+    completed: "Graft checked its context",
+    failed: "Graft couldn't check its context",
   },
   synara_capabilities: {
-    running: "Synara is checking available agents",
-    completed: "Synara checked available agents",
-    failed: "Synara couldn't check available agents",
+    running: "Graft is checking available agents",
+    completed: "Graft checked available agents",
+    failed: "Graft couldn't check available agents",
   },
   synara_overview: {
-    running: "Synara is gathering an overview",
-    completed: "Synara gathered an overview",
-    failed: "Synara couldn't gather an overview",
+    running: "Graft is gathering an overview",
+    completed: "Graft gathered an overview",
+    failed: "Graft couldn't gather an overview",
   },
   synara_list_allowed_projects: {
-    running: "Synara is listing allowed projects",
-    completed: "Synara listed allowed projects",
-    failed: "Synara couldn't list allowed projects",
+    running: "Graft is listing allowed projects",
+    completed: "Graft listed allowed projects",
+    failed: "Graft couldn't list allowed projects",
   },
   synara_create_task: {
-    running: "Synara is creating a task",
-    completed: "Synara created a task",
-    failed: "Synara couldn't create a task",
+    running: "Graft is creating a task",
+    completed: "Graft created a task",
+    failed: "Graft couldn't create a task",
   },
   synara_wait_for_task: {
-    running: "Synara is waiting for a task",
-    completed: "Synara finished waiting for a task",
-    failed: "Synara couldn't wait for a task",
+    running: "Graft is waiting for a task",
+    completed: "Graft finished waiting for a task",
+    failed: "Graft couldn't wait for a task",
   },
   synara_read_task: {
-    running: "Synara is reading a task",
-    completed: "Synara read a task",
-    failed: "Synara couldn't read a task",
+    running: "Graft is reading a task",
+    completed: "Graft read a task",
+    failed: "Graft couldn't read a task",
   },
   synara_list_projects: {
-    running: "Synara is listing projects",
-    completed: "Synara listed projects",
-    failed: "Synara couldn't list projects",
+    running: "Graft is listing projects",
+    completed: "Graft listed projects",
+    failed: "Graft couldn't list projects",
   },
   synara_list_threads: {
-    running: "Synara is listing threads",
-    completed: "Synara listed threads",
-    failed: "Synara couldn't list threads",
+    running: "Graft is listing threads",
+    completed: "Graft listed threads",
+    failed: "Graft couldn't list threads",
   },
   synara_read_thread: {
-    running: "Synara is reading a thread",
-    completed: "Synara read a thread",
-    failed: "Synara couldn't read a thread",
+    running: "Graft is reading a thread",
+    completed: "Graft read a thread",
+    failed: "Graft couldn't read a thread",
   },
   synara_read_thread_activity: {
-    running: "Synara is reading thread activity",
-    completed: "Synara read thread activity",
-    failed: "Synara couldn't read thread activity",
+    running: "Graft is reading thread activity",
+    completed: "Graft read thread activity",
+    failed: "Graft couldn't read thread activity",
   },
   synara_read_thread_events: {
-    running: "Synara is reading thread events",
-    completed: "Synara read thread events",
-    failed: "Synara couldn't read thread events",
+    running: "Graft is reading thread events",
+    completed: "Graft read thread events",
+    failed: "Graft couldn't read thread events",
   },
   synara_read_thread_runtime_events: {
-    running: "Synara is reading thread runtime events",
-    completed: "Synara read thread runtime events",
-    failed: "Synara couldn't read thread runtime events",
+    running: "Graft is reading thread runtime events",
+    completed: "Graft read thread runtime events",
+    failed: "Graft couldn't read thread runtime events",
   },
   synara_diagnose_thread: {
-    running: "Synara is diagnosing a thread",
-    completed: "Synara diagnosed a thread",
-    failed: "Synara couldn't diagnose a thread",
+    running: "Graft is diagnosing a thread",
+    completed: "Graft diagnosed a thread",
+    failed: "Graft couldn't diagnose a thread",
   },
   synara_create_thread: {
-    running: "Synara is creating a thread",
-    completed: "Synara created a thread",
-    failed: "Synara couldn't create a thread",
+    running: "Graft is creating a thread",
+    completed: "Graft created a thread",
+    failed: "Graft couldn't create a thread",
   },
   synara_create_threads: {
-    running: "Synara is creating threads",
-    completed: "Synara created threads",
-    failed: "Synara couldn't create threads",
+    running: "Graft is creating threads",
+    completed: "Graft created threads",
+    failed: "Graft couldn't create threads",
   },
   synara_wait_for_threads: {
-    running: "Synara is waiting for threads",
-    completed: "Synara finished waiting for threads",
-    failed: "Synara couldn't wait for threads",
+    running: "Graft is waiting for threads",
+    completed: "Graft finished waiting for threads",
+    failed: "Graft couldn't wait for threads",
   },
   synara_send_message: {
-    running: "Synara is sending a message",
-    completed: "Synara sent a message",
-    failed: "Synara couldn't send a message",
+    running: "Graft is sending a message",
+    completed: "Graft sent a message",
+    failed: "Graft couldn't send a message",
   },
   synara_interrupt_thread: {
-    running: "Synara is interrupting a thread",
-    completed: "Synara interrupted a thread",
-    failed: "Synara couldn't interrupt a thread",
+    running: "Graft is interrupting a thread",
+    completed: "Graft interrupted a thread",
+    failed: "Graft couldn't interrupt a thread",
   },
   synara_set_thread_title: {
-    running: "Synara is renaming a thread",
-    completed: "Synara renamed a thread",
-    failed: "Synara couldn't rename a thread",
+    running: "Graft is renaming a thread",
+    completed: "Graft renamed a thread",
+    failed: "Graft couldn't rename a thread",
   },
   synara_set_thread_archived: {
-    running: "Synara is updating a thread",
-    completed: "Synara updated a thread",
-    failed: "Synara couldn't update a thread",
+    running: "Graft is updating a thread",
+    completed: "Graft updated a thread",
+    failed: "Graft couldn't update a thread",
   },
   synara_create_automation: {
-    running: "Synara is creating an automation",
-    completed: "Synara created an automation",
-    failed: "Synara couldn't create an automation",
+    running: "Graft is creating an automation",
+    completed: "Graft created an automation",
+    failed: "Graft couldn't create an automation",
   },
   synara_list_automations: {
-    running: "Synara is listing automations",
-    completed: "Synara listed automations",
-    failed: "Synara couldn't list automations",
+    running: "Graft is listing automations",
+    completed: "Graft listed automations",
+    failed: "Graft couldn't list automations",
   },
   synara_view_automation: {
-    running: "Synara is viewing an automation",
-    completed: "Synara viewed an automation",
-    failed: "Synara couldn't view an automation",
+    running: "Graft is viewing an automation",
+    completed: "Graft viewed an automation",
+    failed: "Graft couldn't view an automation",
   },
   synara_update_automation: {
-    running: "Synara is updating an automation",
-    completed: "Synara updated an automation",
-    failed: "Synara couldn't update an automation",
+    running: "Graft is updating an automation",
+    completed: "Graft updated an automation",
+    failed: "Graft couldn't update an automation",
   },
   synara_update_automation_memory: {
-    running: "Synara is updating automation memory",
-    completed: "Synara updated automation memory",
-    failed: "Synara couldn't update automation memory",
+    running: "Graft is updating automation memory",
+    completed: "Graft updated automation memory",
+    failed: "Graft couldn't update automation memory",
   },
   synara_report_automation_result: {
-    running: "Synara is reporting an automation result",
-    completed: "Synara reported an automation result",
-    failed: "Synara couldn't report an automation result",
+    running: "Graft is reporting an automation result",
+    completed: "Graft reported an automation result",
+    failed: "Graft couldn't report an automation result",
   },
   synara_cancel_automation: {
-    running: "Synara is stopping an automation",
-    completed: "Synara stopped an automation",
-    failed: "Synara couldn't stop an automation",
+    running: "Graft is stopping an automation",
+    completed: "Graft stopped an automation",
+    failed: "Graft couldn't stop an automation",
   },
   ...SYNARA_BROWSER_TOOL_PRESENTATIONS,
 } as const satisfies Record<string, SynaraMcpToolPresentation>;
@@ -356,9 +356,9 @@ function fallbackSynaraMcpToolPresentation(toolName: string): SynaraMcpToolPrese
       .replace(/_+/g, " ")
       .trim() || "an action";
   return {
-    running: `Synara is handling ${action}`,
-    completed: `Synara handled ${action}`,
-    failed: `Synara couldn't handle ${action}`,
+    running: `Graft is handling ${action}`,
+    completed: `Graft handled ${action}`,
+    failed: `Graft couldn't handle ${action}`,
   };
 }
 
@@ -450,8 +450,8 @@ export function deriveSynaraMcpToolTitle(input: SynaraMcpToolTitleInput): string
     case "failed":
       return presentation.failed;
     case "cancelled":
-      return presentation.running.startsWith("Synara is ")
-        ? `Synara stopped ${presentation.running.slice("Synara is ".length)}`
+      return presentation.running.startsWith("Graft is ")
+        ? `Graft stopped ${presentation.running.slice("Graft is ".length)}`
         : `Cancelled ${presentation.running}`;
   }
 }

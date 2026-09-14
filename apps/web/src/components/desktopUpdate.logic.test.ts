@@ -99,7 +99,7 @@ describe("desktop update button state", () => {
     expect(isDesktopUpdateButtonDisabled(state)).toBe(false);
     expect(getDesktopUpdateButtonPresentation(state).label).toBe("Retry");
     expect(getDesktopUpdateButtonTooltip(state)).toBe(
-      "Synara restarted, but update 1.1.0 was not installed. Click to try again.",
+      "Graft restarted, but update 1.1.0 was not installed. Click to try again.",
     );
   });
 

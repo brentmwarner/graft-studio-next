@@ -36,7 +36,7 @@ describe("desktopIdentity", () => {
     expect(SYNARA_CANARY_DESKTOP_ENTRY_URL).toBe("synara-canary://app/index.html");
     expect(synaraDesktopIdentity("canary")).toEqual({
       flavor: "canary",
-      displayName: "Synara Canary",
+      displayName: "Graft Canary",
       bundleId: SYNARA_CANARY_BUNDLE_ID,
       scheme: "synara-canary",
       origin: SYNARA_CANARY_DESKTOP_ORIGIN,

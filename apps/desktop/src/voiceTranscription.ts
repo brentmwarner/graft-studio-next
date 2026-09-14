@@ -195,7 +195,7 @@ async function resolveDesktopVoiceAuth(
         params: {
           clientInfo: {
             name: "synara-desktop",
-            title: "Synara Desktop",
+            title: "Graft Desktop",
             version: app.getVersion(),
           },
           capabilities: { experimentalApi: true },
