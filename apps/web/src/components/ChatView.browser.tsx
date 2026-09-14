@@ -8400,6 +8400,138 @@ describe("ChatView transcript geometry (full app)", () => {
     }
   });
 
+  it("uses the Fable 5.1 effort slider before the first message", async () => {
+    useComposerDraftStore.setState({
+      stickyModelSelectionByProvider: {
+        claudeAgent: {
+          provider: "claudeAgent",
+          model: "claude-fable-5-1",
+          options: { effort: "max" },
+        },
+      },
+      stickyActiveProvider: "claudeAgent",
+    });
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: MessageId.makeUnsafe("msg-user-fable-effort-slider"),
+        targetText: "Fable effort slider",
+      }),
+      configureFixture: (nextFixture) => {
+        const providers: ServerConfig["providers"] = [
+          ...nextFixture.serverConfig.providers,
+          {
+            provider: "claudeAgent",
+            status: "ready",
+            available: true,
+            authStatus: "authenticated",
+            checkedAt: NOW_ISO,
+          },
+        ];
+        nextFixture.serverConfig = { ...nextFixture.serverConfig, providers };
+        nextFixture.providerStatusesSnapshot = providers;
+      },
+    });
+
+    try {
+      await vi.waitFor(() => {
+        expect(
+          hasReconciledServerProviderStatuses(mounted.router.options.context.queryClient),
+        ).toBe(true);
+      });
+      await page.getByTestId("new-thread-button").click();
+      const newThreadPath = await waitForURL(
+        mounted.router,
+        (path) => UUID_ROUTE_RE.test(path),
+        "New chat should open a local draft before sending a message.",
+      );
+      const newThreadId = ThreadId.makeUnsafe(newThreadPath.slice(1));
+      const trigger = page.getByRole("button", { name: "Change model and reasoning" });
+      await expect.element(trigger).toHaveTextContent("Claude Fable 5.1");
+      await trigger.click();
+
+      const slider = page.getByRole("slider", { name: "Reasoning effort" });
+      await expect.element(slider).toHaveAttribute("aria-valuetext", "Max");
+      await expect.element(slider).toHaveAttribute("max", "5");
+      await expect
+        .element(page.getByRole("menuitemradio", { name: "Auto (Claude Code) (default)" }))
+        .toHaveAttribute("aria-checked", "true");
+      await expect.element(page.getByRole("menuitemradio", { name: "200k" })).toBeVisible();
+      await expect.element(page.getByRole("menuitemradio", { name: "1M" })).toBeVisible();
+
+      slider.element().focus();
+      await userEvent.keyboard("{ArrowLeft}");
+      await expect.element(slider).toHaveAttribute("aria-valuetext", "Extra High");
+      expect(
+        useComposerDraftStore.getState().stickyModelSelectionByProvider.claudeAgent,
+      ).toMatchObject({
+        model: "claude-fable-5-1",
+        options: { effort: "xhigh" },
+      });
+
+      await page.getByRole("menuitemradio", { name: "200k" }).click();
+      await trigger.click();
+      await expect
+        .element(page.getByRole("menuitemradio", { name: "200k" }))
+        .toHaveAttribute("aria-checked", "true");
+      const reset = page.getByRole("button", { name: "Reset effort and speed" });
+      await reset.click();
+      await expect.element(slider).toHaveAttribute("aria-valuetext", "High");
+      await expect.element(reset).toBeDisabled();
+      expect(
+        useComposerDraftStore.getState().draftsByThreadId[newThreadId]?.modelSelectionByProvider
+          .claudeAgent,
+      ).toMatchObject({
+        model: "claude-fable-5-1",
+        options: { effort: "high", autoCompactWindow: "200k" },
+      });
+      expect(useComposerDraftStore.getState().getDraftThread(newThreadId)).toBeDefined();
+      expect(
+        wsRequests
+          .map(readDispatchedCommand)
+          .some((command) => command?.type === "thread.turn.start"),
+      ).toBe(false);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps separate new-chat controls when the effort slider is disabled", async () => {
+    localStorage.setItem("synara:app-settings:v1", JSON.stringify({ composerEffortSlider: false }));
+    useComposerDraftStore.setState({
+      stickyModelSelectionByProvider: {
+        codex: { provider: "codex", model: "gpt-5.5", options: { reasoningEffort: "medium" } },
+      },
+      stickyActiveProvider: "codex",
+    });
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: MessageId.makeUnsafe("msg-user-effort-slider-disabled"),
+        targetText: "Effort slider disabled",
+      }),
+    });
+
+    try {
+      await page.getByTestId("new-thread-button").click();
+      await waitForURL(
+        mounted.router,
+        (path) => UUID_ROUTE_RE.test(path),
+        "New chat should open a local draft.",
+      );
+      await page.getByRole("button", { name: "Change effort, context, and speed" }).click();
+      await expect
+        .element(page.getByRole("menuitemradio", { name: "High", exact: true }))
+        .toBeVisible();
+      await expect
+        .element(page.getByRole("slider", { name: "Reasoning effort" }))
+        .not.toBeInTheDocument();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("restores a usable sticky claude model on fresh chat", async () => {
     useComposerDraftStore.setState({
       stickyModelSelectionByProvider: {

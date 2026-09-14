@@ -3971,7 +3971,8 @@ export default function ChatView({
       }),
     [runtimeUsageContextWindow, composerTraitSelection.contextWindow, selectedProvider],
   );
-  const useSplitComposerPickerControls = isLocalDraftThread && !hasThreadStarted;
+  const useSplitComposerPickerControls =
+    isLocalDraftThread && !hasThreadStarted && !settings.composerEffortSlider;
   const composerFooterControlsPlan = useMemo(
     () => composerFooterPlanForTier(composerFooterTier, Boolean(runtimeUsageContextWindow)),
     [composerFooterTier, runtimeUsageContextWindow],
