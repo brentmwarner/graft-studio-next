@@ -196,8 +196,9 @@ export const PlayIcon: LucideIcon = centralIconWrapper("play");
 // row of neutral actions rather than playback state — e.g. the composer goal strip.
 export const PauseOutlineIcon: LucideIcon = centralIconWrapper("pause");
 export const PlayOutlineIcon: LucideIcon = centralIconWrapper("play");
-export const TRASH_ICON_NAME = "trash-can";
-export const TrashCanIcon: LucideIcon = centralIconWrapper(TRASH_ICON_NAME);
+/** Outline trash can from the Central set (Trash2 is the legacy Tabler glyph). */
+export const TRASH_CAN_ICON_NAME = "trash-can";
+export const TrashCanIcon: LucideIcon = centralIconWrapper(TRASH_CAN_ICON_NAME);
 // Persistent thread goal ("Pursuing goal" strip, /goal surfaces).
 export const GoalIcon: LucideIcon = centralIconWrapper("target-arrow");
 export const Plus = AddPlusIcon;

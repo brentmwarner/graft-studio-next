@@ -69,7 +69,7 @@ function modelDiscoveryError(
 export function useProviderModelCatalog(input: {
   selectedProvider: ProviderKind;
   /**
-   * Enables discovery for the on-demand providers (cursor/grok/droid/opencode/pi)
+   * Enables discovery for the on-demand providers (cursor/grok/opencode/pi)
    * even when they are not selected — pass the picker's open state so their lists
    * are warm by the time the user browses them.
    */
@@ -127,9 +127,9 @@ export function useProviderModelCatalog(input: {
   const cursorModelDiscoveryEnabled = shouldDiscoverProvider("cursor");
   const antigravityModelDiscoveryEnabled = shouldDiscoverProvider("antigravity");
   const grokModelDiscoveryEnabled = shouldDiscoverProvider("grok");
-  // ponytail: explicit prefetch only; picker surfaces stay cold (see droid query comment below).
-  const droidPrefetchRequested = discoveryEnabled && (prefetchProviderSet?.has("droid") ?? false);
-  const droidModelDiscoveryEnabled = shouldDiscoverProvider("droid", droidPrefetchRequested);
+  // Droid discovery starts an ACP session. Only selecting Droid should trigger it,
+  // including in settings surfaces that prefetch every supported provider.
+  const droidModelDiscoveryEnabled = shouldDiscoverProvider("droid", false);
   const openCodeModelDiscoveryEnabled = shouldDiscoverProvider("opencode");
   const piModelDiscoveryEnabled = shouldDiscoverProvider("pi");
   const devinModelDiscoveryEnabled = shouldDiscoverProvider("devin");
