@@ -297,11 +297,8 @@ import {
   COMPOSER_COLUMN_FRAME_CLASS_NAME,
   COMPOSER_COMMAND_MENU_FLOATING_WRAPPER_CLASS_NAME,
   COMPOSER_EDITOR_PADDING_CLASS_NAME,
-  COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
   COMPOSER_INPUT_SHELL_CLASS_NAME,
   COMPOSER_INPUT_SURFACE_CLASS_NAME,
-  COMPOSER_TOOLBAR_CAPSULE_HOVER_CLASS_NAME,
-  COMPOSER_TOOLBAR_TRIGGER_TEXT_CLASS_NAME,
   ENVIRONMENT_CONTENT_INSET_MOTION_CLASS,
 } from "./chat/composerPickerStyles";
 import { getComposerTraitSelection } from "./chat/composerTraits";
@@ -4683,12 +4680,7 @@ export default function ChatView({
     !showContainerChatWorkspacePicker &&
     !showEmptyLandingProjectPicker &&
     activeProjectDisplayName ? (
-      <span
-        className={cn(
-          "inline-flex min-w-0 max-w-56 shrink items-center gap-2 overflow-hidden rounded-full px-2 py-1 sm:max-w-64",
-          COMPOSER_TOOLBAR_TRIGGER_TEXT_CLASS_NAME,
-        )}
-      >
+      <span className="inline-flex min-w-0 max-w-56 shrink items-center gap-2 overflow-hidden rounded-full px-2 py-1 text-[length:var(--app-font-size-ui-sm,11px)] font-normal text-[var(--color-text-foreground-secondary)] sm:max-w-64">
         <FolderClosed className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{activeProjectDisplayName}</span>
       </span>
@@ -4702,20 +4694,17 @@ export default function ChatView({
   const emptyLandingControls = showEmptyLandingControls ? (
     <div
       data-empty-landing-controls="true"
-      // Keep Graft's tinted, inset tray above the composer. It stays in normal flow
-      // and flush against the input so their translucent corners do not overlap.
+      // United-but-not-fused tray sitting in normal flow directly above the composer at a
+      // narrower width (w-14/15): tinted, rounded on top only, flush against the input
+      // shell below. No overlap/underlay tricks — in dark mode a slice tucked behind the
+      // composer's translucent corners reads as a visible cut along the seam.
       className="chat-composer-shell mx-auto flex min-h-8 w-14/15 min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden !rounded-b-none !rounded-t-[var(--composer-radius)] bg-[color-mix(in_srgb,var(--color-background-elevated-secondary)_76%,var(--color-background-surface)_24%)] px-2 py-1.5 transition-colors duration-150 ease-out motion-reduce:transition-none sm:min-h-7"
     >
       {showContainerChatWorkspacePicker ? (
         <ProjectPicker
           align="start"
           side="top"
-          triggerVariant="ghost"
-          triggerClassName={cn(
-            "h-8 px-2 py-1 sm:h-7 sm:px-2.5",
-            COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
-            COMPOSER_TOOLBAR_TRIGGER_TEXT_CLASS_NAME,
-          )}
+          triggerClassName="h-7 rounded-full py-1"
           showResetToHome={Boolean(
             isStudioContainer ? resolvedThreadWorkingDirectory : resolvedThreadWorktreePath,
           )}
@@ -4735,12 +4724,7 @@ export default function ChatView({
         <ProjectPicker
           align="start"
           side="top"
-          triggerVariant="ghost"
-          triggerClassName={cn(
-            "h-8 px-2 py-1 sm:h-7 sm:px-2.5",
-            COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
-            COMPOSER_TOOLBAR_TRIGGER_TEXT_CLASS_NAME,
-          )}
+          triggerClassName="h-7 rounded-full py-1"
           selectionMode="project"
           selectedProjectId={activeProject.id}
           selectedWorkspaceRoot={activeProject.cwd}
@@ -4784,11 +4768,10 @@ export default function ChatView({
           }
           aria-label="Temporary chat"
           className={cn(
-            "ml-auto shrink-0 gap-1.5 whitespace-nowrap px-2 sm:px-2.5",
-            COMPOSER_TOOLBAR_CAPSULE_HOVER_CLASS_NAME,
-            COMPOSER_TOOLBAR_TRIGGER_TEXT_CLASS_NAME,
-            isThreadTemporary &&
-              "text-[var(--color-text-accent)] hover:text-[var(--color-text-accent)]",
+            "ml-auto shrink-0 gap-1.5 whitespace-nowrap rounded-full px-2 text-[length:var(--app-font-size-ui-sm,11px)] font-normal transition-colors sm:px-2.5",
+            isThreadTemporary
+              ? "text-[var(--color-text-accent)] hover:bg-[var(--color-background-button-secondary-hover)] hover:text-[var(--color-text-accent)]"
+              : "text-[var(--color-text-foreground-secondary)] hover:bg-[var(--color-background-button-secondary-hover)] hover:text-[var(--color-text-foreground)]",
           )}
         >
           <TemporaryThreadIcon className="size-3.5" />
