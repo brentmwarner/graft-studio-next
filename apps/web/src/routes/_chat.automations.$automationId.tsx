@@ -543,7 +543,7 @@ function AutomationDetailView() {
                   title="Delete"
                   onClick={() => void deleteDefinition()}
                 >
-                  <CentralIcon name="trash-can-simple" className="size-4" />
+                  <CentralIcon name="trash-can" className="size-4" />
                 </Button>
                 <Button
                   type="button"

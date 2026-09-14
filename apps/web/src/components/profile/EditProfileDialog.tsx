@@ -179,7 +179,7 @@ function EditProfileDialogContent({
                       setError(null);
                     }}
                   >
-                    <CentralIcon name="trash-can-simple" className="size-3.5" />
+                    <CentralIcon name="trash-can" className="size-3.5" />
                     Remove
                   </Button>
                 )}

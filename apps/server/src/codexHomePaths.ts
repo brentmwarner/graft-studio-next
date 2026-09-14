@@ -4,10 +4,9 @@
 //          Centralizing this lets consumers outside the manager (the local image
 //          allowlist, image-path predictions, etc.) stay in sync with the actual
 //          runtime so they don't 404 paths Codex legitimately wrote.
-// Layer: Server utility (path-only plus existsSync for legacy-root fallback)
+// Layer: Server utility (path-only)
 // Exports: overlay constants, base/overlay home resolvers, write-home + allowlist helpers.
 
-import { preferExistingPath } from "@synara/shared/synaraHome";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -31,12 +30,7 @@ export function resolveSynaraCodexHomeOverlayPath(
 ): string {
   const runtimeHome = env.SYNARA_HOME?.trim();
   const sourceParent = path.dirname(sourceHomePath);
-  const overlayRoot =
-    runtimeHome ||
-    preferExistingPath(
-      path.join(sourceParent, ".graft", "runtime"),
-      path.join(sourceParent, ".synara", "runtime"),
-    );
+  const overlayRoot = runtimeHome || path.join(sourceParent, ".graft", "runtime");
   return path.join(overlayRoot, SYNARA_CODEX_HOME_OVERLAY_DIR);
 }
 

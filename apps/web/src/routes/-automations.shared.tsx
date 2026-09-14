@@ -825,7 +825,7 @@ export function AutomationApprovalBanner({
       <AlertTitle>Approval needed</AlertTitle>
       <AlertDescription>
         <span>
-          This automation needs your approval once before Synara can save changes. When a warning
+          This automation needs your approval once before Graft can save changes. When a warning
           blocks manual runs, Run now stays disabled until you approve it.
         </span>
         <ul className="flex flex-col gap-1.5">
@@ -1172,7 +1172,7 @@ export function AutomationDialog({
 
             <Menu>
               <MenuTrigger render={<Button variant="ghost" size="sm" className={CHIP_CLASS} />}>
-                <CentralIcon name="folder-2" className="size-4" />
+                <CentralIcon name="folder-1" className="size-4" />
                 <span className="max-w-[10rem] truncate">
                   {selectedProject?.name ?? "Select project"}
                 </span>

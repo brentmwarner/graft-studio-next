@@ -234,9 +234,9 @@ function SettingsRouteView() {
     toastManager.add({
       type: "warning",
       title: "Restart to apply title bar",
-      description: "The window frame updates the next time Synara launches.",
+      description: "The window frame updates the next time Graft launches.",
       actionProps: {
-        "aria-label": "Restart Synara",
+        "aria-label": "Restart Graft",
         children: "Restart",
         onClick: () => {
           void window.desktopBridge?.customTitleBar?.relaunch();
@@ -773,7 +773,7 @@ function SettingsRouteView() {
         <SettingsSection title="App">
           <SettingsRow
             title="App icon"
-            description="Choose the icon Synara uses in the dock or taskbar."
+            description="Choose the icon Graft uses in the dock or taskbar."
             resetAction={
               settings.desktopAppIcon !== defaults.desktopAppIcon ? (
                 <SettingResetButton
@@ -800,8 +800,8 @@ function SettingsRouteView() {
               title="Use custom title bar"
               description={
                 customTitleBarRestartRequired
-                  ? "Restart Synara to apply. Some Linux window managers work better with the system title bar."
-                  : "Replace the system title bar with Synara's frameless chrome and window controls. Restart required to apply."
+                  ? "Restart Graft to apply. Some Linux window managers work better with the system title bar."
+                  : "Replace the system title bar with Graft's frameless chrome and window controls. Restart required to apply."
               }
               status={customTitleBarRestartRequired ? "Restart required" : undefined}
               resetAction={
@@ -1164,7 +1164,7 @@ function SettingsRouteView() {
           settingKey: "composerEffortSlider",
           title: "Effort slider",
           description:
-            "Once a chat has started, show reasoning effort as a slider in the composer's model menu, with fast mode and the model list alongside it. New chats keep the separate model and effort pickers.",
+            "Show reasoning effort as a slider in the composer's model menu, with fast mode and the model list alongside it, including before the first message.",
           resetLabel: "effort slider",
           ariaLabel: "Show effort slider in the composer",
         })}

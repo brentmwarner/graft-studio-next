@@ -2,10 +2,11 @@ import { ProviderInteractionMode } from "@synara/contracts";
 import { type ReactNode } from "react";
 import {
   BugIcon,
-  ListTodoIcon,
+  PlanIcon,
   ChevronDownIcon,
   ComposerSendArrowIcon,
   LayoutSidebarIcon,
+  Loader2Icon,
 } from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import type { derivePendingUserInputProgress } from "../../pendingUserInput";
@@ -101,7 +102,7 @@ export function ChatComposerFooter({
                 title={`${interactionMode === "plan" ? "Plan" : "Debug"} mode — click to return to normal build mode`}
               >
                 {interactionMode === "plan" ? (
-                  <ListTodoIcon className="size-3.5" />
+                  <PlanIcon className="size-3.5" />
                 ) : (
                   <BugIcon className="size-3.5" />
                 )}
@@ -266,24 +267,7 @@ export function ChatComposerFooter({
                 }
               >
                 {submission.connecting || submission.busy || submission.preparingImages ? (
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 14 14"
-                    fill="none"
-                    className="animate-spin"
-                    aria-hidden="true"
-                  >
-                    <circle
-                      cx="7"
-                      cy="7"
-                      r="5.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeDasharray="20 12"
-                    />
-                  </svg>
+                  <Loader2Icon aria-hidden="true" className="size-3 animate-spin" />
                 ) : (
                   <ComposerSendArrowIcon
                     aria-hidden="true"

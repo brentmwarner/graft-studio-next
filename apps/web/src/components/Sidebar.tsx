@@ -1272,7 +1272,7 @@ function SidebarActivityBellButton({
 }
 
 const SIDEBAR_SURFACE_PICKER_COPY: Record<SidebarView, { title: string; description: string }> = {
-  threads: { title: "Synara", description: "Build, debug, and ship" },
+  threads: { title: "Graft", description: "Build, debug, and ship" },
   studio: { title: "Studio", description: "Open-ended agent work" },
 };
 
@@ -5619,8 +5619,8 @@ export default function Sidebar() {
       },
       {
         id: "feedback",
-        label: "Feedback Synara",
-        description: "Send feedback or report an issue to the Synara team.",
+        label: "Upstream feedback",
+        description: "Report an issue with the Synara base to its upstream team.",
         keywords: ["feedback", "bug", "issue", "problem", "report", "support", "synara"],
       },
       {
@@ -5708,7 +5708,7 @@ export default function Sidebar() {
             toastManager.add({
               type: "info",
               title: "Preparing update",
-              description: `Synara is preparing version ${nextState.availableVersion ?? "available"} in the background.`,
+              description: `Graft is preparing version ${nextState.availableVersion ?? "available"} in the background.`,
             });
             return;
           }
@@ -5717,7 +5717,7 @@ export default function Sidebar() {
             toastManager.add({
               type: "info",
               title: "Preparing update",
-              description: "Synara is downloading the update in the background.",
+              description: "Graft is downloading the update in the background.",
             });
             return;
           }
@@ -5735,7 +5735,7 @@ export default function Sidebar() {
             toastManager.add({
               type: "info",
               title: "You're up to date",
-              description: `Synara ${nextState.currentVersion} is already the newest version.`,
+              description: `Graft ${nextState.currentVersion} is already the newest version.`,
             });
             return;
           }

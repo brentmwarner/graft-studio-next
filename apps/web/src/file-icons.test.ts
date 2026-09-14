@@ -22,10 +22,10 @@ const PROTOTYPE_MEMBER_TOKENS = [
 
 describe("getFileIconName", () => {
   it("uses exact filename matches from the Central mapping", () => {
-    assert.equal(getFileIconName("package.json"), "npm");
+    assert.equal(getFileIconName("package.json"), "json");
     assert.equal(getFileIconName("bun.lock"), "bun");
-    assert.equal(getFileIconName("tsconfig.json"), "typescript");
-    assert.equal(getFileIconName(".gitignore"), "git");
+    assert.equal(getFileIconName("tsconfig.json"), "settings-gear-1");
+    assert.equal(getFileIconName(".gitignore"), "settings-gear-1");
     assert.equal(getFileIconName("Cargo.toml"), "rust");
   });
 
@@ -41,10 +41,10 @@ describe("getFileIconName", () => {
     assert.equal(getFileIconName("index.php"), "php");
     assert.equal(getFileIconName("App.vue"), "vue");
     assert.equal(getFileIconName("Counter.svelte"), "svelte");
-    assert.equal(getFileIconName("Main.java"), "java");
+    assert.equal(getFileIconName("Main.java"), "code");
     assert.equal(getFileIconName("readme.md"), "markdown");
     assert.equal(getFileIconName("general.mdc"), "markdown");
-    assert.equal(getFileIconName(".github/workflows/ci.yml"), "settings-gear-1");
+    assert.equal(getFileIconName(".github/workflows/ci.yml"), "code");
   });
 
   it("resolves common attachment extensions", () => {
@@ -55,17 +55,17 @@ describe("getFileIconName", () => {
     assert.equal(getFileIconName("deck.pptx"), "page-text");
   });
 
-  it("falls back to the bracket glyph for unknown or icon-less types", () => {
-    // Swift/Go/Ruby have no dedicated Central icon, so they use the bracket.
-    assert.equal(getFileIconName("App.swift"), "code-brackets");
-    assert.equal(getFileIconName("main.go"), "code-brackets");
-    assert.equal(getFileIconName("server.rb"), "code-brackets");
-    assert.equal(getFileIconName("foo.unknown-ext"), "code-brackets");
-    assert.equal(getFileIconName("notes"), "code-brackets");
+  it("falls back to the legacy document glyph for unknown types", () => {
+    // Keep the legacy Central fallback for types without a dedicated asset.
+    assert.equal(getFileIconName("App.swift"), "files");
+    assert.equal(getFileIconName("main.go"), "files");
+    assert.equal(getFileIconName("server.rb"), "files");
+    assert.equal(getFileIconName("foo.unknown-ext"), "files");
+    assert.equal(getFileIconName("notes"), "files");
   });
 
   it("is case insensitive on basename lookup", () => {
-    assert.equal(getFileIconName("PACKAGE.JSON"), "npm");
+    assert.equal(getFileIconName("PACKAGE.JSON"), "json");
     assert.equal(getFileIconName("Main.PY"), "phyton");
   });
 
@@ -77,7 +77,7 @@ describe("getFileIconName", () => {
 
   it("never resolves an inherited Object.prototype member as an icon name", () => {
     for (const token of PROTOTYPE_MEMBER_TOKENS) {
-      assert.equal(getFileIconName(token), "code-brackets", token);
+      assert.equal(getFileIconName(token), "files", token);
     }
   });
 });

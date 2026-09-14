@@ -71,7 +71,7 @@ describe("browser saved logins", () => {
         safariAccess: {
           getInfo: async () => ({
             supported: true,
-            appName: "Synara",
+            appName: "Graft",
             appPath: "/Applications/Synara.app",
           }),
           openSettings: async () => true,
@@ -101,7 +101,7 @@ describe("browser saved logins", () => {
       await expect
         .element(page.getByRole("status"))
         .toHaveTextContent(
-          "System Settings is open. Once Synara is switched on, quit and reopen it.",
+          "System Settings is open. Once Graft is switched on, quit and reopen it.",
         );
       await page.getByRole("button", { name: "Not now" }).click();
       await page.getByRole("button", { name: "Import browser cookies" }).click();

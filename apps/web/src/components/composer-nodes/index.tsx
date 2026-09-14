@@ -42,7 +42,7 @@ import {
   formatComposerSkillChipLabel,
   resolveAgentChipColor,
 } from "../composerInlineChip";
-import { AGENT_ROBOT_ICON_NAME, MessageCircleIcon } from "~/lib/icons";
+import { AGENT_ICON_NAME, MessageCircleIcon } from "~/lib/icons";
 import { slashCommandIcon } from "~/lib/slashCommandIcons";
 import type { ComposerSlashCommand } from "~/composerSlashCommands";
 import { InlineLinkChip } from "../InlineLinkChip";
@@ -209,7 +209,7 @@ function renderAgentMentionChipDom(container: HTMLElement, alias: string, color:
   container.style.color = colorStyles.text;
 
   const icon = createCentralIconElement(
-    AGENT_ROBOT_ICON_NAME,
+    AGENT_ICON_NAME,
     COMPOSER_INLINE_AGENT_CHIP_ICON_CLASS_NAME,
   );
 

@@ -27,10 +27,15 @@ function captureSourceDesktopSpawn(environment, overrides = {}) {
 }
 
 describe("source desktop launch", () => {
+  it("does not adopt an inherited Synara home as Graft's profile", () => {
+    const { spawnProcess } = captureSourceDesktopSpawn({ SYNARA_HOME: "/upstream/synara" });
+    expect(spawnProcess.mock.calls[0][2].env.GRAFT_HOME).toBe(join("/Users/tester", ".graft-dev"));
+  });
+
   it("launches normal macOS starts through LaunchServices without secrets in argv", () => {
     const { spawnProcess } = captureSourceDesktopSpawn(
       {
-        SYNARA_HOME: "/tmp/isolated",
+        GRAFT_HOME: "/tmp/isolated",
         SYNARA_AUTH_TOKEN: "synthetic-secret",
         ELECTRON_RUN_AS_NODE: "1",
       },
@@ -48,7 +53,7 @@ describe("source desktop launch", () => {
       ],
       expect.objectContaining({
         env: expect.objectContaining({
-          SYNARA_HOME: "/tmp/isolated",
+          GRAFT_HOME: "/tmp/isolated",
           SYNARA_AUTH_TOKEN: "synthetic-secret",
         }),
       }),
@@ -80,7 +85,7 @@ describe("source desktop launch", () => {
       env: {
         PATH: "/usr/bin",
         SYNARA_DESKTOP_FLAVOR: "development",
-        SYNARA_HOME: join("/Users/tester", ".graft-dev"),
+        GRAFT_HOME: join("/Users/tester", ".graft-dev"),
         SYNARA_SOURCE_DESKTOP_BUILD_MARKER,
       },
       stdio: "inherit",
@@ -91,34 +96,34 @@ describe("source desktop launch", () => {
     });
   });
 
-  it("preserves an explicit Synara home", () => {
+  it("preserves an explicit Graft home", () => {
     const readWindowsEnvironment = vi.fn(() => ({
-      SYNARA_HOME: "C:\\Users\\tester\\persisted-synara-home",
+      GRAFT_HOME: "C:\\Users\\tester\\persisted-synara-home",
     }));
     const { spawnProcess } = captureSourceDesktopSpawn(
-      { SYNARA_HOME: "/tmp/custom-synara-home" },
+      { GRAFT_HOME: "/tmp/custom-synara-home" },
       { platform: "win32", readWindowsEnvironment },
     );
 
     expect(spawnProcess.mock.calls[0][2].env).toMatchObject({
       SYNARA_DESKTOP_FLAVOR: "development",
-      SYNARA_HOME: "/tmp/custom-synara-home",
+      GRAFT_HOME: "/tmp/custom-synara-home",
     });
     expect(readWindowsEnvironment).not.toHaveBeenCalled();
   });
 
-  it("preserves a persisted Windows Synara home", () => {
+  it("preserves a persisted Windows Graft home", () => {
     const { spawnProcess } = captureSourceDesktopSpawn(
       {},
       {
         platform: "win32",
         readWindowsEnvironment: () => ({
-          Synara_Home: "C:\\Users\\tester\\persisted-synara-home",
+          Graft_Home: "C:\\Users\\tester\\persisted-synara-home",
         }),
       },
     );
 
-    expect(spawnProcess.mock.calls[0][2].env.SYNARA_HOME).toBe(
+    expect(spawnProcess.mock.calls[0][2].env.GRAFT_HOME).toBe(
       "C:\\Users\\tester\\persisted-synara-home",
     );
   });
@@ -130,7 +135,7 @@ describe("source desktop launch", () => {
 
     expect(spawnProcess.mock.calls[0][2].env).toMatchObject({
       SYNARA_DESKTOP_FLAVOR: "canary",
-      SYNARA_HOME: join("/Users/tester", ".graft-canary"),
+      GRAFT_HOME: join("/Users/tester", ".graft-canary"),
     });
   });
 
@@ -140,14 +145,14 @@ describe("source desktop launch", () => {
     const stdio = ["pipe", "pipe", "pipe"];
     const { spawnProcess } = captureSourceDesktopSpawn(
       {
-        SYNARA_HOME: smokeHome,
+        GRAFT_HOME: smokeHome,
         [SYNARA_DESKTOP_SMOKE_USER_DATA_ENV]: smokeUserData,
       },
       { stdio },
     );
 
     expect(spawnProcess.mock.calls[0][2].env).toMatchObject({
-      SYNARA_HOME: smokeHome,
+      GRAFT_HOME: smokeHome,
       [SYNARA_DESKTOP_SMOKE_USER_DATA_ENV]: smokeUserData,
     });
     expect(spawnProcess.mock.calls[0][2].stdio).toBe(stdio);

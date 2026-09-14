@@ -205,7 +205,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                         </p>
                         {device.connected ? (
                           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600">
-                            <CentralIcon name="check-circle-2" className="size-[11px]" />
+                            <CentralIcon name="circle-check" className="size-[11px]" />
                             Connected
                           </span>
                         ) : (
@@ -489,7 +489,7 @@ function PairingIntroduction({
             description="Follow active projects and continue work from Graft Mobile."
           />
           <PairingBenefit
-            icon={<CentralIcon name="notes" className="size-[17px]" />}
+            icon={<CentralIcon name="bell" className="size-[17px]" />}
             title="Stay in the loop"
             description="See when agent work finishes or needs your attention."
           />
@@ -626,10 +626,7 @@ function PairingQrStep({
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
             data-testid="connections-copy-pairing-link"
           >
-            <CentralIcon
-              name={linkCopied ? "check-circle-2" : "clipboard"}
-              className="size-[13px]"
-            />
+            <CentralIcon name={linkCopied ? "circle-check" : "clipboard"} className="size-[13px]" />
             {linkCopied ? "Copied" : "Copy pairing link"}
           </button>
         </div>

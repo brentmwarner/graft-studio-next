@@ -24,20 +24,20 @@ describe("canary tooling", () => {
   it("keeps managed source and Canary data separate from Stable", () => {
     expect(resolveCanaryPaths({}, "/Users/tester")).toEqual({
       home: "/Users/tester/.graft-canary",
-      source: "/Users/tester/.cache/synara-canary/source",
+      source: "/Users/tester/.cache/graft-canary/source",
       state: "/Users/tester/.graft-canary/canary-state.json",
       pid: "/Users/tester/.graft-canary/canary.pid",
       log: "/Users/tester/.graft-canary/canary.log",
     });
   });
 
-  it("reuses an existing ~/.synara-canary until ~/.graft-canary exists", () => {
+  it("keeps Canary storage separate from an existing Synara Canary home", () => {
     const homeDirectory = FS.mkdtempSync(Path.join(OS.tmpdir(), "graft-canary-home-"));
     tempDirs.add(homeDirectory);
     FS.mkdirSync(Path.join(homeDirectory, ".synara-canary"));
 
     expect(resolveCanaryPaths({}, homeDirectory).home).toBe(
-      Path.join(homeDirectory, ".synara-canary"),
+      Path.join(homeDirectory, ".graft-canary"),
     );
   });
 

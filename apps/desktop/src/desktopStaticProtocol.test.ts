@@ -19,26 +19,26 @@ describe("createDesktopStaticProtocolResolver", () => {
     const assetPath = Path.join(staticRoot, "assets", "app.js");
     const resolveRequest = resolverWithExistingPaths([rootIndex, assetPath]);
 
-    expect(resolveRequest("synara://app/assets/app.js")).toEqual({ path: assetPath });
+    expect(resolveRequest("graft://app/assets/app.js")).toEqual({ path: assetPath });
   });
 
   it("returns Electron file-not-found for a missing asset", () => {
     const resolveRequest = resolverWithExistingPaths([rootIndex]);
 
-    expect(resolveRequest("synara://app/assets/missing.js")).toEqual({ error: -6 });
+    expect(resolveRequest("graft://app/assets/missing.js")).toEqual({ error: -6 });
   });
 
   it("resolves an extensionless route to its existing nested index", () => {
     const nestedIndex = Path.join(staticRoot, "settings", "index.html");
     const resolveRequest = resolverWithExistingPaths([rootIndex, nestedIndex]);
 
-    expect(resolveRequest("synara://app/settings")).toEqual({ path: nestedIndex });
+    expect(resolveRequest("graft://app/settings")).toEqual({ path: nestedIndex });
   });
 
   it("falls back to the root index for a missing navigation route", () => {
     const resolveRequest = resolverWithExistingPaths([rootIndex]);
 
-    expect(resolveRequest("synara://app/thread/missing")).toEqual({ path: rootIndex });
+    expect(resolveRequest("graft://app/thread/missing")).toEqual({ path: rootIndex });
   });
 
   it("keeps encoded traversal inside the root and safely handles malformed encoding", () => {
@@ -49,8 +49,8 @@ describe("createDesktopStaticProtocolResolver", () => {
       return resolvedCandidate === rootIndex;
     });
 
-    expect(resolveRequest("synara://app/..%2Foutside.js")).toEqual({ error: -6 });
-    expect(resolveRequest("synara://app/%E0%A4%A")).toEqual({ path: rootIndex });
+    expect(resolveRequest("graft://app/..%2Foutside.js")).toEqual({ error: -6 });
+    expect(resolveRequest("graft://app/%E0%A4%A")).toEqual({ path: rootIndex });
     expect(
       observedPaths.every(
         (candidate) => candidate === staticRoot || candidate.startsWith(`${staticRoot}${Path.sep}`),

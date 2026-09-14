@@ -81,7 +81,7 @@ describe("normalizeProviderStatusForLocalConfig", () => {
       available: false,
       authStatus: "unknown",
       checkedAt: BASE_STATUS.checkedAt,
-      message: "Provider is disabled in Synara settings.",
+      message: "Provider is disabled in Graft settings.",
     });
   });
 

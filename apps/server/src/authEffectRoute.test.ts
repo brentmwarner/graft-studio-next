@@ -11,6 +11,7 @@ import {
   ATTACHMENT_UPLOAD_ROUTE_PATH,
   VOICE_TRANSCRIPTION_UPLOAD_ROUTE_PATH,
 } from "@synara/shared/binaryTransfer";
+import { SYNARA_CANARY_DESKTOP_ORIGIN } from "@synara/shared/desktopIdentity";
 import { DateTime, Effect, Exit, Layer, Scope } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import { describe, expect, it, vi } from "vitest";
@@ -409,14 +410,16 @@ describe("binaryUploadEffectRouteLayer", () => {
           const response = await fetch(`${serverOrigin}${ATTACHMENT_UPLOAD_ROUTE_PATH}`, {
             method: "OPTIONS",
             headers: {
-              Origin: "synara-canary://app",
+              Origin: SYNARA_CANARY_DESKTOP_ORIGIN,
               "Access-Control-Request-Method": "POST",
               "Access-Control-Request-Headers": "content-type",
             },
           });
 
           expect(response.status).toBe(204);
-          expect(response.headers.get("access-control-allow-origin")).toBe("synara-canary://app");
+          expect(response.headers.get("access-control-allow-origin")).toBe(
+            SYNARA_CANARY_DESKTOP_ORIGIN,
+          );
           expect(response.headers.get("access-control-allow-credentials")).toBe("true");
           expect(response.headers.get("access-control-allow-methods")).toContain("POST");
           expect(response.headers.get("access-control-allow-headers")?.toLowerCase()).toContain(

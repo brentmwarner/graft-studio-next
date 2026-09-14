@@ -22,12 +22,12 @@ function environmentValue(environment, name, caseInsensitive) {
 
 function configuredSourceDesktopHome(environment, platform, readWindowsEnvironment) {
   const isWindows = platform === "win32";
-  const inheritedHome = environmentValue(environment, "SYNARA_HOME", isWindows)?.trim();
+  const inheritedHome = environmentValue(environment, "GRAFT_HOME", isWindows)?.trim();
   if (inheritedHome) return inheritedHome;
   if (!isWindows) return undefined;
 
   try {
-    return environmentValue(readWindowsEnvironment(), "SYNARA_HOME", true)?.trim();
+    return environmentValue(readWindowsEnvironment(), "GRAFT_HOME", true)?.trim();
   } catch {
     return undefined;
   }
@@ -48,7 +48,7 @@ export function createSourceDesktopEnvironment({
   const childEnvironment = {
     ...environment,
     SYNARA_DESKTOP_FLAVOR: flavor,
-    SYNARA_HOME:
+    GRAFT_HOME:
       configuredHome ||
       resolveSynaraHomeDirectory({
         env: {},

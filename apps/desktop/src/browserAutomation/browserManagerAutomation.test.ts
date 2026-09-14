@@ -27,7 +27,7 @@ const { browserSession, fromId, webContentsViewConstructor, willDownloadListener
 );
 vi.mock("electron", () => ({
   app: {
-    getName: () => "Synara",
+    getName: () => "Graft",
     getPreferredSystemLanguages: () => ["en-US"],
     userAgentFallback: "Mozilla/5.0 Electron/40.0.0",
   },

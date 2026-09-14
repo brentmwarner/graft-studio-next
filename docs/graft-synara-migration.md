@@ -128,3 +128,15 @@ to Synara.
   the model-picker layout fixes alongside upstream menu collision handling.
 - Adopted the official migration 99, `InvalidateProjectionThreadsCursor`,
   which performs the same repair as the local compatibility migration.
+
+Graft's desktop display name, window title, onboarding, settings, browser labels,
+and tool activity copy use the Graft product identity. Development favicons use
+the existing Graft artwork. Upstream release notes and feedback remain attributed
+to Synara. Internal package and IPC names remain compatible with upstream. Graft's desktop
+identity is isolated: `com.graft.studio.next` (with `.dev` and `.canary` suffixes),
+`graft://app`, and `graft-studio-next*` Electron profiles. Desktop home overrides
+use `GRAFT_HOME`; defaults remain `.graft*` and never fall back to `.synara*`.
+The desktop always binds its private backend to loopback. Do not set global
+`SYNARA_HOST`, `SYNARA_HOME`, or remote-access overrides for Graft: those also
+affect the installed Synara app. Synara databases and browser profiles must not
+be adopted implicitly. Graft's updater channel is `graft`.

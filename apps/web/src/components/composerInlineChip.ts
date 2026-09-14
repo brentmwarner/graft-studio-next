@@ -161,7 +161,7 @@ export const COMPOSER_ATTACHMENT_CHIP_CLASS_NAME =
 
 // ── Skill helpers ─────────────────────────────────────────────────────
 /** Central icon basename shared by every skill token (editor + timeline). */
-export const COMPOSER_INLINE_SKILL_CHIP_ICON_NAME = "building-blocks";
+export const COMPOSER_INLINE_SKILL_CHIP_ICON_NAME = "blocks";
 
 function formatComposerInlineTokenLabel(name: string): string {
   return name

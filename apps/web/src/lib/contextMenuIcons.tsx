@@ -2,8 +2,7 @@
 // Purpose: Icons for imperative context menus, matching the glyphs the same actions use in React UI.
 // Layer: web UI utility
 // Exports: THREAD_CONTEXT_MENU_ICONS
-// Why: Native menus cannot render React components, so Central glyphs are passed by basename and
-//      other icon sets are rendered to SVG markup from the same components the app shows.
+// Why: Native menus load Central glyphs by basename; React's masked spans cannot be rasterized.
 
 import {
   ARCHIVE_ICON_NAME,

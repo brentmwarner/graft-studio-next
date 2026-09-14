@@ -12,6 +12,7 @@ import {
   type AuthSessionId,
   type WsBootstrapNegotiateResult,
 } from "@synara/contracts";
+import { SYNARA_DESKTOP_ORIGIN, SYNARA_DESKTOP_SCHEME } from "@synara/shared/desktopIdentity";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Duration, Effect, Exit, Layer, Schema, Scope } from "effect";
 import { HttpRouter, HttpServerRequest } from "effect/unstable/http";
@@ -509,17 +510,17 @@ describe("websocket RPC payload admission", () => {
 
       // A lookalike of the desktop scheme is not the desktop scheme.
       const lookalike = await fetch(negotiateHttpUrl(server), {
-        headers: { origin: "synara://app.evil.com" },
+        headers: { origin: `${SYNARA_DESKTOP_SCHEME}://app.evil.com` },
       });
       expect(lookalike.status).toBe(403);
       expect(lookalike.headers.get("access-control-allow-origin")).toBeNull();
 
       // The desktop origin is reflected, and only that origin.
       const desktop = await fetch(negotiateHttpUrl(server), {
-        headers: { origin: "synara://app" },
+        headers: { origin: SYNARA_DESKTOP_ORIGIN },
       });
       expect(desktop.status).toBe(200);
-      expect(desktop.headers.get("access-control-allow-origin")).toBe("synara://app");
+      expect(desktop.headers.get("access-control-allow-origin")).toBe(SYNARA_DESKTOP_ORIGIN);
       expect(desktop.headers.get("vary")).toBe("Origin");
 
       // No Origin at all (CLI clients) passes without reflection, matching

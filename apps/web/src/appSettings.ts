@@ -325,8 +325,7 @@ export const AppSettingsSchema = Schema.Struct({
   showEnvironmentNotepad: Schema.Boolean.pipe(withDefaults(() => false)),
   followUpBehavior: FollowUpBehavior.pipe(withDefaults(() => DEFAULT_FOLLOW_UP_BEHAVIOR)),
   enableAssistantStreaming: Schema.Boolean.pipe(withDefaults(() => true)),
-  // Started threads: show reasoning effort as a stepped slider card in the composer's
-  // model menu instead of radio rows. New chats keep the split model/effort pickers.
+  // Show the combined model picker with a stepped effort slider in new and started chats.
   composerEffortSlider: Schema.Boolean.pipe(withDefaults(() => true)),
   autoOpenDevicePane: Schema.Boolean.pipe(withDefaults(() => true)),
   enableProviderUpdateChecks: Schema.Boolean.pipe(withDefaults(() => true)),
