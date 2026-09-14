@@ -52,7 +52,7 @@ export function resolveCanaryPaths(
   );
   const cacheBase = env.XDG_CACHE_HOME?.trim() || Path.join(homeDirectory, ".cache");
   const source = Path.resolve(
-    env.SYNARA_CANARY_SOURCE?.trim() || Path.join(cacheBase, "synara-canary", "source"),
+    env.SYNARA_CANARY_SOURCE?.trim() || Path.join(cacheBase, "graft-canary", "source"),
   );
   return {
     home,
@@ -271,7 +271,7 @@ function startCanary(paths: CanaryPaths): void {
   Object.assign(env, {
     SYNARA_DESKTOP_FLAVOR: "canary",
     SYNARA_DISABLE_AUTO_UPDATE: "1",
-    SYNARA_HOME: paths.home,
+    GRAFT_HOME: paths.home,
     SYNARA_COMMIT_HASH: commit,
   });
   const logDescriptor = FS.openSync(paths.log, "a", 0o600);

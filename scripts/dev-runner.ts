@@ -76,7 +76,7 @@ const OffsetConfig = Config.all({
   portOffset: optionalIntegerConfig("SYNARA_PORT_OFFSET"),
   devInstance: optionalStringConfig("SYNARA_DEV_INSTANCE"),
 });
-const HomeConfig = optionalStringConfig("SYNARA_HOME");
+const HomeConfig = optionalStringConfig("GRAFT_HOME");
 const BooleanEnvConfig = Config.all({
   noBrowser: optionalBooleanEnvironmentConfig("SYNARA_NO_BROWSER"),
   autoBootstrapProjectFromCwd: optionalBooleanEnvironmentConfig(
@@ -215,6 +215,7 @@ export function createDevRunnerEnv({
       ELECTRON_RENDERER_PORT: String(webPort),
       VITE_WS_URL: `ws://${formattedClientHost}:${serverPort}`,
       VITE_DEV_SERVER_URL: devUrl?.toString() ?? `http://localhost:${webPort}`,
+      GRAFT_HOME: resolvedBaseDir,
       SYNARA_HOME: resolvedBaseDir,
       SYNARA_HOST: serverHost,
     };
@@ -546,7 +547,7 @@ const devRunnerCli = Command.make("dev-runner", {
     Argument.withDescription("Development mode to run."),
   ),
   synaraHome: Flag.string("home-dir").pipe(
-    Flag.withDescription("Base directory for all Synara data (equivalent to SYNARA_HOME)."),
+    Flag.withDescription("Base directory for all Graft data (equivalent to GRAFT_HOME)."),
     Flag.withFallbackConfig(HomeConfig),
   ),
   authToken: Flag.string("auth-token").pipe(

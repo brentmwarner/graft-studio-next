@@ -44,7 +44,7 @@ describe("Codex home paths", () => {
     );
   });
 
-  it("reuses an existing .synara/runtime overlay when .graft/runtime is absent", () => {
+  it("does not reuse Synara's Codex overlay when the Graft runtime is absent", () => {
     const sourceParent = mkdtempSync(path.join(tmpdir(), "graft-codex-overlay-"));
     tempDirs.add(sourceParent);
     const legacyRuntime = path.join(sourceParent, ".synara", "runtime");
@@ -52,7 +52,7 @@ describe("Codex home paths", () => {
 
     assert.equal(
       resolveSynaraCodexHomeOverlayPath({}, path.join(sourceParent, ".codex")),
-      path.join(legacyRuntime, "codex-home-overlay"),
+      path.join(sourceParent, ".graft", "runtime", "codex-home-overlay"),
     );
   });
 

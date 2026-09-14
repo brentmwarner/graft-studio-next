@@ -1,4 +1,4 @@
-// This file mostly exists because we want dev mode to say "Synara (Dev)" instead of "electron"
+// This file mostly exists because we want dev mode to say "Graft (Dev)" instead of "electron"
 
 import { spawnSync } from "node:child_process";
 import {
@@ -15,6 +15,7 @@ import { createRequire } from "node:module";
 import { resolveSynaraDesktopFlavor, synaraDesktopIdentity } from "@synara/shared/desktopIdentity";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LSREGISTER_PATH } from "../src/macIconCacheRefresh.ts";
 
 const desktopFlavor = resolveSynaraDesktopFlavor({
   // Packaged apps launch their bundled main directly; this launcher is source-only.
@@ -135,6 +136,8 @@ function buildMacLauncher(electronBinaryPath) {
 
   const expectedMetadata = {
     launcherVersion: LAUNCHER_VERSION,
+    bundleId: APP_BUNDLE_ID,
+    displayName: APP_DISPLAY_NAME,
     sourceAppBundlePath,
     sourceAppMtimeMs: statSync(sourceAppBundlePath).mtimeMs,
     iconMtimeMs: statSync(iconPath).mtimeMs,
@@ -153,6 +156,16 @@ function buildMacLauncher(electronBinaryPath) {
   copyMacAppBundle(sourceAppBundlePath, targetAppBundlePath);
   patchMainBundleInfoPlist(targetAppBundlePath, iconPath);
   patchHelperBundleInfoPlists(targetAppBundlePath);
+  // Re-register after an identity change so LaunchServices stops resolving this
+  // path to the upstream bundle ID cached from an earlier development build.
+  if (existsSync(LSREGISTER_PATH)) {
+    const registration = spawnSync(LSREGISTER_PATH, ["-f", targetAppBundlePath], {
+      encoding: "utf8",
+    });
+    if (registration.status !== 0) {
+      console.warn("Could not refresh Graft's macOS app registration:", registration.stderr);
+    }
+  }
   writeFileSync(metadataPath, `${JSON.stringify(expectedMetadata, null, 2)}\n`);
 
   return targetBinaryPath;

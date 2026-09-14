@@ -3,9 +3,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { SYNARA_DESKTOP_UPDATE_CHANNEL } from "@synara/shared/desktopIdentity";
+
 import {
   channelManifestNames,
   prepareReleaseUpdateManifests,
+  readReleaseUpdatePolicyConfig,
   resolveReleaseUpdatePolicy,
   type ReleaseUpdatePolicyConfig,
 } from "./lib/release-update-policy";
@@ -18,6 +21,12 @@ const cleanConfig: ReleaseUpdatePolicyConfig = {
 const defaultManifestNames = ["latest-mac.yml", "latest.yml", "latest-linux.yml"] as const;
 
 describe("release update policy", () => {
+  it("publishes to the same Graft channel that the desktop consumes", () => {
+    const config = readReleaseUpdatePolicyConfig(resolve(import.meta.dirname, ".."));
+    expect(config.channel).toBe("graft");
+    expect(config.channel).toBe(SYNARA_DESKTOP_UPDATE_CHANNEL);
+  });
+
   it("publishes stable clean releases to Latest and keeps prereleases off it", () => {
     expect(resolveReleaseUpdatePolicy("0.4.2", { ...cleanConfig, lane: "bridge" })).toMatchObject({
       tag: "v0.4.2",

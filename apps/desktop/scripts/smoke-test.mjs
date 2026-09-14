@@ -22,7 +22,7 @@ const child = spawnSourceDesktop({
   environment: {
     ...process.env,
     ELECTRON_ENABLE_LOGGING: "1",
-    SYNARA_HOME: smokeHome,
+    GRAFT_HOME: smokeHome,
     [SYNARA_DESKTOP_SMOKE_USER_DATA_ENV]: join(smokeHome, "electron-user-data"),
     VITE_DEV_SERVER_URL: "",
   },

@@ -84,6 +84,14 @@ describe("preferExistingPath", () => {
 });
 
 describe("resolveSynaraHomeDirectory", () => {
+  it("prefers an explicit Graft environment over inherited Synara configuration", () => {
+    expect(
+      resolveSynaraHomeDirectory({
+        env: { GRAFT_HOME: "/tmp/graft", SYNARA_HOME: "/tmp/synara" },
+      }),
+    ).toBe(Path.resolve("/tmp/graft"));
+  });
+
   it("defaults new installs to ~/.graft", () => {
     expect(DEFAULT_SYNARA_HOME_DIRECTORY_NAME).toBe(".graft");
     expect(LEGACY_SYNARA_HOME_DIRECTORY_NAME).toBe(".synara");
@@ -115,15 +123,15 @@ describe("resolveSynaraHomeDirectory", () => {
     ).toBe(Path.resolve("/tmp/custom-synara"));
   });
 
-  it("reuses an existing ~/.synara when ~/.graft has not been created", () => {
+  it("does not select Synara storage when the Graft root is absent", () => {
     const homeDirectory = makeTempDir();
     FS.mkdirSync(Path.join(homeDirectory, ".synara"));
     expect(resolveSynaraHomeDirectory({ env: {}, homeDirectory })).toBe(
-      Path.join(homeDirectory, ".synara"),
+      Path.join(homeDirectory, ".graft"),
     );
   });
 
-  it("reuses flavor-specific Synara homes until the Graft-named root exists", () => {
+  it("keeps development storage separate from an existing Synara home", () => {
     const homeDirectory = makeTempDir();
     FS.mkdirSync(Path.join(homeDirectory, ".synara-dev"));
     expect(
@@ -132,6 +140,6 @@ describe("resolveSynaraHomeDirectory", () => {
         homeDirectory,
         directoryName: ".graft-dev",
       }),
-    ).toBe(Path.join(homeDirectory, ".synara-dev"));
+    ).toBe(Path.join(homeDirectory, ".graft-dev"));
   });
 });

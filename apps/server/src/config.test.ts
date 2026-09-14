@@ -118,14 +118,16 @@ describe("resolveDefaultStudioWorkspaceRoot", () => {
     ).toBe("/home/tester/Documents/Graft/Studio");
   });
 
-  it("reuses an existing Documents/Synara workspace when Documents/Graft has not been created", () => {
+  it("keeps new Graft workspaces separate when Documents/Synara exists", () => {
     const homeDir = makeTempDir("graft-chat-workspace-legacy-");
     const legacy = path.join(homeDir, "Documents", "Synara");
     fs.mkdirSync(legacy, { recursive: true });
 
-    expect(resolveDefaultChatWorkspaceRoot({ homeDir, platform: "linux" })).toBe(legacy);
+    expect(resolveDefaultChatWorkspaceRoot({ homeDir, platform: "linux" })).toBe(
+      path.join(homeDir, "Documents", "Graft"),
+    );
     expect(resolveDefaultStudioWorkspaceRoot({ homeDir, platform: "linux" })).toBe(
-      path.join(legacy, "Studio"),
+      path.join(homeDir, "Documents", "Graft", "Studio"),
     );
   });
 

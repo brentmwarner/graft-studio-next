@@ -69,9 +69,10 @@ export function preferExistingPath(preferred: string, legacy: string): string {
  * `app.whenReady()`) is available, and the login-shell environment cache has to land in
  * the same place whichever process wrote it first.
  *
- * `SYNARA_HOME` remains the env override. When nothing is configured, new installs use
- * `~/.graft` (or a flavor-specific `.graft-*` name). Existing `~/.synara` (or `.synara-*`)
- * roots stay in place and are reused until a Graft-named root exists.
+ * `GRAFT_HOME` takes precedence; `SYNARA_HOME` remains a backend compatibility
+ * override. When nothing is configured, new installs use
+ * `~/.graft` (or a flavor-specific `.graft-*` name). Synara roots are never
+ * selected implicitly: a fork must not open or migrate the upstream database.
  */
 export function resolveSynaraHomeDirectory(
   options: {
@@ -85,16 +86,12 @@ export function resolveSynaraHomeDirectory(
 ): string {
   const homeDirectory = options.homeDirectory ?? OS.homedir();
   const explicit = options.configuredHome?.trim();
-  const fromEnv = (options.env ?? process.env)[SYNARA_HOME_ENV_NAME]?.trim();
+  const env = options.env ?? process.env;
+  const fromEnv = env.GRAFT_HOME?.trim() || env[SYNARA_HOME_ENV_NAME]?.trim();
   const configured = explicit || fromEnv;
   if (!configured) {
     const directoryName = options.directoryName ?? DEFAULT_SYNARA_HOME_DIRECTORY_NAME;
-    const preferred = Path.join(homeDirectory, directoryName);
-    const legacyName = legacySynaraHomeDirectoryName(directoryName);
-    if (legacyName === directoryName) {
-      return preferred;
-    }
-    return preferExistingPath(preferred, Path.join(homeDirectory, legacyName));
+    return Path.join(homeDirectory, directoryName);
   }
   return Path.resolve(expandHomePath(configured, homeDirectory));
 }

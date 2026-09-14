@@ -61,14 +61,14 @@ describe("isTrustedMediaPermissionRequest", () => {
   it("rejects subframes and origins other than the live Synara renderer", () => {
     const trusted = {
       isDestroyed: () => false,
-      getURL: () => "synara://app/index.html",
+      getURL: () => "graft://app/index.html",
     };
 
     expect(
       isTrustedMediaPermissionRequest(trusted, trusted, {
         mediaTypes: ["audio"],
         isMainFrame: true,
-        requestingUrl: "synara://app/chat",
+        requestingUrl: "graft://app/chat",
       }),
     ).toBe(true);
     expect(

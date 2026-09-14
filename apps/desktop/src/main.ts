@@ -322,7 +322,8 @@ const desktopFlavor = resolveSynaraDesktopFlavor({
 });
 const desktopIdentity = synaraDesktopIdentity(desktopFlavor);
 const BASE_DIR = resolveSynaraHomeDirectory({
-  configuredHome: process.env.SYNARA_HOME,
+  configuredHome: process.env.GRAFT_HOME,
+  env: {},
   directoryName: desktopIdentity.defaultHomeDirectoryName,
 });
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
@@ -3590,7 +3591,12 @@ function backendEnv(): NodeJS.ProcessEnv {
     SYNARA_MODE: "desktop",
     SYNARA_NO_BROWSER: "1",
     SYNARA_PORT: String(backendPort),
+    GRAFT_HOME: BASE_DIR,
     SYNARA_HOME: BASE_DIR,
+    // The desktop renderer always connects to its own loopback backend. Never
+    // inherit another app's LAN binding or remote-access settings.
+    SYNARA_HOST: "127.0.0.1",
+    SYNARA_ALLOW_INSECURE_REMOTE: "0",
     SYNARA_AUTH_TOKEN: backendAuthToken,
     SYNARA_DESKTOP_SHUTDOWN_TOKEN: DESKTOP_BACKEND_SHUTDOWN_TOKEN,
   };
