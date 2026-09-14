@@ -7,8 +7,8 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { THREAD_ARCHIVE_ICON } from "~/components/ThreadArchiveActionButton";
 import {
+  ARCHIVE_ICON_NAME,
   BELL_ICON_NAME,
   COPY_ICON_NAME,
   EYE_OPEN_ICON_NAME,
@@ -27,8 +27,8 @@ export const THREAD_CONTEXT_MENU_ICONS = {
   handoff: HANDOFF_ICON_NAME,
   copy: COPY_ICON_NAME,
   openInTerminal: TERMINAL_ICON_NAME,
-  // Same glyph as the thread row's hover archive button.
-  archive: renderToStaticMarkup(<THREAD_ARCHIVE_ICON size={24} />),
+  // Same Central glyph as the thread row's hover archive button.
+  archive: ARCHIVE_ICON_NAME,
   // Same glyph as the delete rows in the sidebar project and space menus.
   delete: renderToStaticMarkup(<Trash2 />),
 } as const;
