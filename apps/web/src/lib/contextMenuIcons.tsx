@@ -5,8 +5,6 @@
 // Why: Native menus cannot render React components, so Central glyphs are passed by basename and
 //      other icon sets are rendered to SVG markup from the same components the app shows.
 
-import { renderToStaticMarkup } from "react-dom/server";
-
 import {
   ARCHIVE_ICON_NAME,
   BELL_ICON_NAME,
@@ -16,7 +14,7 @@ import {
   PENCIL_ICON_NAME,
   PIN_ICON_NAME,
   TERMINAL_ICON_NAME,
-  Trash2,
+  TRASH_CAN_ICON_NAME,
 } from "./icons";
 
 export const THREAD_CONTEXT_MENU_ICONS = {
@@ -27,8 +25,9 @@ export const THREAD_CONTEXT_MENU_ICONS = {
   handoff: HANDOFF_ICON_NAME,
   copy: COPY_ICON_NAME,
   openInTerminal: TERMINAL_ICON_NAME,
-  // Same Central glyph as the thread row's hover archive button.
+  // Same Central glyph as ThreadArchiveActionButton / ArchiveIcon.
   archive: ARCHIVE_ICON_NAME,
-  // Same glyph as the delete rows in the sidebar project and space menus.
-  delete: renderToStaticMarkup(<Trash2 />),
+  // Same Central glyph as Trash2 / TrashCanIcon. Basename, not React markup:
+  // native menus rasterize Central names or inline <svg>, not CSS-mask spans.
+  delete: TRASH_CAN_ICON_NAME,
 } as const;

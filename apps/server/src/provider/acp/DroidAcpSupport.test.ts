@@ -304,13 +304,29 @@ describe("resolveDroidAcpAuthMethodId", () => {
     expect(id).toBe("factory-api-key");
   });
 
-  it("falls back to device-pairing", async () => {
+  it("checks the CLI's cached login without starting device pairing", async () => {
     delete process.env.FACTORY_API_KEY;
     const id = await Effect.runPromise(
-      resolveDroidAcpAuthMethodId(initializeWithAuthMethods(["device-pairing"])),
+      resolveDroidAcpAuthMethodId(initializeWithAuthMethods(["device-pairing", "factory-api-key"])),
     );
-    expect(id).toBe("device-pairing");
+    expect(id).toBe("factory-api-key");
   });
+
+  it.each([undefined, "fk-test"])(
+    "rejects interactive-only login even when the API key is %s",
+    async (apiKey) => {
+      if (apiKey === undefined) delete process.env.FACTORY_API_KEY;
+      else process.env.FACTORY_API_KEY = apiKey;
+      const error = await Effect.runPromise(
+        resolveDroidAcpAuthMethodId(initializeWithAuthMethods(["device-pairing"])).pipe(
+          Effect.flip,
+        ),
+      );
+      expect(error).toBeInstanceOf(AcpErrors.AcpRequestError);
+      expect(error.message).toContain("noninteractive authentication is unavailable");
+      expect(error.message).toContain("Sign in with `droid` in a terminal");
+    },
+  );
 
   it("fails when no auth method is available", async () => {
     delete process.env.FACTORY_API_KEY;
