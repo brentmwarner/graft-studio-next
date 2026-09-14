@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { AuthSessionId } from "@synara/contracts";
+import { GraftDesktopRelayStatusSchema } from "@graft/mobile-contract/relay";
 
 import { ServerAuth } from "../auth/Services/ServerAuth";
 import { ServerConfig } from "../config";
@@ -25,6 +26,7 @@ import {
   saveMobileGatewaySettings,
 } from "./mobileGatewaySettings";
 import { discoverNetworkEndpoints } from "./networkEndpoints";
+import { getDesktopRelayEndpoint, getDesktopRelayStatus, setDesktopRelayStatus } from "./relayState";
 
 function jsonResponse(value: unknown, status = 200, headers: Record<string, string> = {}) {
   return HttpServerResponse.jsonUnsafe(value, { status, headers });
@@ -72,6 +74,15 @@ const connectionsHttpRouteLayer = HttpRouter.add(
     const respond = (value: unknown, status = 200) => jsonResponse(value, status, corsHeaders);
     const environment = yield* ServerEnvironment;
     const descriptor = yield* environment.getDescriptor;
+
+    if (request.method === "POST" && url.pathname === "/api/graft/connections/relay") {
+      const parsed = GraftDesktopRelayStatusSchema.safeParse(
+        yield* Effect.promise(() => readJson(request)),
+      );
+      if (!parsed.success) return respond({ error: "Invalid relay status." }, 400);
+      setDesktopRelayStatus(parsed.data);
+      return respond({ ok: true });
+    }
 
     if (request.method === "GET" && url.pathname === "/api/graft/connections/status") {
       const clients = yield* serverAuth.listClientSessions(authenticated.sessionId);
@@ -159,10 +170,11 @@ function connectionsStatus(
 ) {
   const enabled = connectionsEnabled(config);
   const advertisedPort = getMobileLanGatewayPort() ?? getBoundListenPort(config.port);
+  const relayEndpoint = enabled ? getDesktopRelayEndpoint() : null;
   const endpoints = enabled
-    ? discoverNetworkEndpoints(advertisedPort, undefined, {
+    ? [...(relayEndpoint ? [relayEndpoint] : []), ...discoverNetworkEndpoints(advertisedPort, undefined, {
         includeIpv6: mobileLanGatewayAdvertisesIpv6(),
-      })
+      })]
     : [];
   const pairing = getIssuedPairing();
   const devices = connectionsDevicesFromSessions(sessions, environmentLabel);
@@ -184,13 +196,13 @@ function connectionsStatus(
     devices,
     pairingUrl: pairing.pairingUrl,
     pairingExpiresAt: pairing.pairingExpiresAt,
-    relay: { state: "disabled" as const, lastError: null },
+    relay: getDesktopRelayStatus(),
     diagnostics: [
       `enabled=${enabled}`,
       `environment=${environmentLabel} (${environmentId})`,
       `bind=${bindHost}:${enabled ? advertisedPort : "-"}`,
       `endpoints=${endpoints.map((endpoint) => `${endpoint.kind}:${endpoint.httpBaseUrl}`).join(",") || "-"}`,
-      `relay=disabled`,
+      `relay=${getDesktopRelayStatus().state}`,
       `devices=${devices.length}`,
       `pairingExpiresAt=${pairing.pairingExpiresAt ?? "-"}`,
     ].join("\n"),

@@ -41,7 +41,7 @@ export default defineConfig([
       __SYNARA_WINDOWS_UPDATER_PUBLISHER__: JSON.stringify(windowsUpdaterPublisher),
       __SYNARA_MIGRATION_RUNTIME_SOURCE_DIGEST__: JSON.stringify(migrationRuntimeSourceDigest),
     },
-    noExternal: (id) => id.startsWith("@synara/"),
+    noExternal: (id) => id.startsWith("@synara/") || id.startsWith("@graft/"),
   },
   {
     ...shared,

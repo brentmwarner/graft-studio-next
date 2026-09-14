@@ -59,6 +59,10 @@ export const DESKTOP_IPC_CHANNELS = {
     state: "desktop:appsnap-state",
   },
   connections: {
+    getRelayAccount: "desktop:connections-relay-account",
+    signInRelay: "desktop:connections-relay-sign-in",
+    signOutRelay: "desktop:connections-relay-sign-out",
+    syncRelay: "desktop:connections-relay-sync",
     getKeepHostAwake: "desktop:connections-get-keep-host-awake",
     setKeepHostAwake: "desktop:connections-set-keep-host-awake",
     syncWake: "desktop:connections-sync-wake",

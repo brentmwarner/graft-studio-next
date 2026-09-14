@@ -47,7 +47,7 @@ describe("network endpoint discovery", () => {
     expect(classifyNetworkAddress(address, family)).toBe(expected);
   });
 
-  it("deduplicates, excludes unusable addresses, and prefers Tailnet then LAN then loopback", () => {
+  it("prefers LAN pairing without requiring the phone to run Tailscale", () => {
     const interfaces: NetworkInterfaceMap = {
       en1: [entry("192.168.1.20"), entry("8.8.8.8")],
       en0: [entry("192.168.1.20"), entry("10.0.0.9")],
@@ -59,15 +59,31 @@ describe("network endpoint discovery", () => {
     });
 
     expect(endpoints.map(({ kind, address }) => ({ kind, address }))).toEqual([
-      { kind: "tailnet", address: "100.70.80.90" },
-      { kind: "tailnet", address: "fd7a:115c:a1e0::42" },
       { kind: "lan", address: "10.0.0.9" },
       { kind: "lan", address: "192.168.1.20" },
+      { kind: "tailnet", address: "100.70.80.90" },
+      { kind: "tailnet", address: "fd7a:115c:a1e0::42" },
       { kind: "loopback", address: "127.0.0.1" },
     ]);
-    expect(endpoints[1]?.httpBaseUrl).toBe("http://[fd7a:115c:a1e0::42]:47831");
-    expect(preferredPairingEndpoint(endpoints)?.address).toBe("100.70.80.90");
+    expect(endpoints[3]?.httpBaseUrl).toBe("http://[fd7a:115c:a1e0::42]:47831");
+    expect(preferredPairingEndpoint(endpoints)?.address).toBe("10.0.0.9");
     expect(endpoints.some((endpoint) => endpoint.address === "0.0.0.0")).toBe(false);
+  });
+
+  it("keeps a connected phone on the address it reached after pairing", () => {
+    const endpoints = discoverNetworkEndpoints(
+      47831,
+      {
+        en0: [entry("192.168.1.20")],
+        tailscale0: [entry("100.70.80.90")],
+      },
+      { defaultRouteInterface: null },
+    );
+    for (const endpoint of endpoints) {
+      expect(preferredPairingEndpoint(endpoints, endpoint.httpBaseUrl)).toEqual(endpoint);
+    }
+    expect(preferredPairingEndpoint(endpoints, "http://untrusted.example:47831")?.kind).toBe("lan");
+    expect(preferredPairingEndpoint(endpoints, "http://192.168.1.20:9999")?.kind).toBe("lan");
   });
 
   it("prefers Wi-Fi over Docker and VM bridges for LAN pairing", () => {

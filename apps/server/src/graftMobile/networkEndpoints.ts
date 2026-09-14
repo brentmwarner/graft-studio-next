@@ -30,8 +30,8 @@ export type DiscoverNetworkEndpointsOptions = {
  */
 const KIND_PRIORITY: Record<GraftRemoteEndpointKind, number> = {
   relay: -1,
-  tailnet: 0,
-  lan: 1,
+  lan: 0,
+  tailnet: 1,
   loopback: 2,
   https: 3,
 };
@@ -105,7 +105,11 @@ export function discoverNetworkEndpoints(
 
 export function preferredPairingEndpoint(
   endpoints: readonly DiscoveredNetworkEndpoint[],
+  connectedHttpBaseUrl?: string,
 ): DiscoveredNetworkEndpoint | null {
+  // Keep the endpoint the phone actually reached, without trusting an arbitrary Host header.
+  const connected = endpoints.find((endpoint) => endpoint.httpBaseUrl === connectedHttpBaseUrl);
+  if (connected) return connected;
   return sortEndpointsByPreference(endpoints)[0] ?? null;
 }
 

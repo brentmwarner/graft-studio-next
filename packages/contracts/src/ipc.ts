@@ -684,6 +684,10 @@ export interface DesktopBridge {
     onState: (listener: (state: DesktopAppSnapState) => void) => () => void;
   };
   connections?: {
+    getRelayAccount: () => Promise<{ signedIn: boolean; signingIn: boolean; error: string | null }>;
+    signInRelay: () => Promise<void>;
+    signOutRelay: () => Promise<void>;
+    syncRelay: () => Promise<void>;
     getKeepHostAwake: () => Promise<boolean>;
     setKeepHostAwake: (
       keepHostAwake: boolean,
