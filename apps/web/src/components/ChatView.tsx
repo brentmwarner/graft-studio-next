@@ -4708,7 +4708,7 @@ export default function ChatView({
           side="top"
           triggerVariant="ghost"
           triggerClassName={cn(
-            "h-7 rounded-full py-1",
+            "h-7 rounded-full px-2 py-1 sm:px-2.5",
             COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
           )}
           showResetToHome={Boolean(
@@ -4732,7 +4732,7 @@ export default function ChatView({
           side="top"
           triggerVariant="ghost"
           triggerClassName={cn(
-            "h-7 rounded-full py-1",
+            "h-7 rounded-full px-2 py-1 sm:px-2.5",
             COMPOSER_FOLDER_PICKER_CAPSULE_HOVER_CLASS_NAME,
           )}
           selectionMode="project"
