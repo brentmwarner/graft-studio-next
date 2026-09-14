@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import { SYNARA_DESKTOP_ORIGIN } from "@synara/shared/desktopIdentity";
 import { DateTime, Effect, Exit, Layer, Scope } from "effect";
 import { SYNARA_DESKTOP_ORIGIN } from "@synara/shared/desktopIdentity";
 import { HttpRouter } from "effect/unstable/http";

@@ -8,6 +8,11 @@ import {
 } from "@synara/shared/desktopIdentity";
 import { describe, expect, it } from "vitest";
 
+import {
+  SYNARA_CANARY_DESKTOP_ORIGIN,
+  SYNARA_DESKTOP_ORIGIN,
+} from "@synara/shared/desktopIdentity";
+
 import type { ServerConfigShape } from "./config";
 import {
   isTrustedAppOrigin,
