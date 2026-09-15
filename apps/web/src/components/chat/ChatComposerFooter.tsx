@@ -269,10 +269,7 @@ export function ChatComposerFooter({
                 {submission.connecting || submission.busy || submission.preparingImages ? (
                   <Loader2Icon aria-hidden="true" className="size-3 animate-spin" />
                 ) : (
-                  <ComposerSendArrowIcon
-                    aria-hidden="true"
-                    className="size-5 shrink-0 translate-y-px"
-                  />
+                  <ComposerSendArrowIcon aria-hidden="true" className="size-4.5 shrink-0" />
                 )}
               </Button>
             </>

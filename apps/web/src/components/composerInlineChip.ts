@@ -8,6 +8,7 @@
 //          background + color variants; everything else composes from those.
 
 import { cn } from "~/lib/utils";
+import { SKILL_ICON_NAME } from "~/lib/icons";
 import {
   COMPOSER_EDITOR_LINE_HEIGHT_CLASS_NAME,
   COMPOSER_EDITOR_TEXT_CLASS_NAME,
@@ -161,7 +162,7 @@ export const COMPOSER_ATTACHMENT_CHIP_CLASS_NAME =
 
 // ── Skill helpers ─────────────────────────────────────────────────────
 /** Central icon basename shared by every skill token (editor + timeline). */
-export const COMPOSER_INLINE_SKILL_CHIP_ICON_NAME = "blocks";
+export const COMPOSER_INLINE_SKILL_CHIP_ICON_NAME = SKILL_ICON_NAME;
 
 function formatComposerInlineTokenLabel(name: string): string {
   return name

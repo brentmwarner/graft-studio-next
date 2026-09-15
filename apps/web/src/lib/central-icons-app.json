@@ -1,0 +1,266 @@
+{
+  "archive": {
+    "source": "Codex",
+    "glyph": "archive-light-16"
+  },
+  "arrow-down": {
+    "source": "Codex",
+    "glyph": "arrow-down-lg-light-16"
+  },
+  "arrow-left": {
+    "source": "Codex",
+    "glyph": "arrow-left-lg-light-16"
+  },
+  "arrow-out-of-box": {
+    "source": "Codex",
+    "glyph": "open-link-light-16"
+  },
+  "arrow-redo-down": {
+    "source": "Codex",
+    "glyph": "arrow-uturn-right-light-16"
+  },
+  "arrow-right": {
+    "source": "Codex",
+    "glyph": "arrow-right-lg-light-16"
+  },
+  "arrow-undo-up": {
+    "source": "Codex",
+    "glyph": "arrow-uturn-left-light-16"
+  },
+  "arrow-up": {
+    "source": "Codex",
+    "glyph": "arrow-up-md-light-16"
+  },
+  "arrow-up-right": {
+    "source": "Codex",
+    "glyph": "arrow-up-right-md-light-16"
+  },
+  "arrows-repeat-right-left": {
+    "source": "Codex",
+    "glyph": "arrow-left-arrow-right-light-16"
+  },
+  "bell": {
+    "source": "Codex",
+    "glyph": "bell-light-16"
+  },
+  "brain-1": {
+    "source": "Codex",
+    "glyph": "brain-light-16"
+  },
+  "branch": {
+    "source": "Codex",
+    "glyph": "branch-light-16"
+  },
+  "bug": {
+    "source": "Codex",
+    "glyph": "ladybug-light-16"
+  },
+  "building-blocks": {
+    "source": "Synara",
+    "glyph": "central-icons-reversed/building-blocks.svg"
+  },
+  "chain-link-3": {
+    "source": "Codex",
+    "glyph": "link-light-16"
+  },
+  "changes": {
+    "source": "Codex",
+    "glyph": "square-plus-minus-light-16"
+  },
+  "chat-bubble-7": {
+    "source": "Codex",
+    "glyph": "chat-bubble-light-16"
+  },
+  "checkmark-1": {
+    "source": "Codex",
+    "glyph": "checkmark-md-light-16"
+  },
+  "chevron-bottom": {
+    "source": "Codex",
+    "glyph": "chevron-down-md-light-16"
+  },
+  "chevron-grabber-vertical": {
+    "source": "Codex",
+    "glyph": "chevron-up-chevron-down-sm-light-16"
+  },
+  "chevron-left": {
+    "source": "Codex",
+    "glyph": "chevron-left-md-light-16"
+  },
+  "chevron-right": {
+    "source": "Codex",
+    "glyph": "chevron-right-md-light-16"
+  },
+  "circle-check": {
+    "source": "Codex",
+    "glyph": "checkmark-circle-light-16"
+  },
+  "circle-questionmark": {
+    "source": "Codex",
+    "glyph": "circle-questionmark-light-16"
+  },
+  "circle-x": {
+    "source": "Codex",
+    "glyph": "circle-xmark-light-16"
+  },
+  "clock": {
+    "source": "Codex",
+    "glyph": "clock-light-16"
+  },
+  "code": {
+    "source": "Codex",
+    "glyph": "code-light-16"
+  },
+  "console": {
+    "source": "Codex",
+    "glyph": "terminal-light-16"
+  },
+  "cross-medium": {
+    "source": "Codex",
+    "glyph": "xmark-md-light-16"
+  },
+  "dot-grid-1x3-horizontal": {
+    "source": "Codex",
+    "glyph": "ellipsis-horizontal-light-16"
+  },
+  "dot-grid-2x3": {
+    "source": "Codex",
+    "glyph": "drag-light-16"
+  },
+  "edit-big": {
+    "source": "Codex",
+    "glyph": "square-and-pencil-light-16"
+  },
+  "eraser": {
+    "source": "Codex",
+    "glyph": "eraser-light-16"
+  },
+  "exclamation-circle": {
+    "source": "Codex",
+    "glyph": "circle-exclamation-mark-light-16"
+  },
+  "exclamation-triangle": {
+    "source": "Codex",
+    "glyph": "triangle-exclamation-mark-light-16"
+  },
+  "eye-open": {
+    "source": "Codex",
+    "glyph": "eye-light-16"
+  },
+  "files": {
+    "source": "Codex",
+    "glyph": "document-light-16"
+  },
+  "filter-2": {
+    "source": "Codex",
+    "glyph": "filter-light-16"
+  },
+  "flag-1": {
+    "source": "Codex",
+    "glyph": "flag-light-16"
+  },
+  "folder-1": {
+    "source": "Codex",
+    "glyph": "folder-light-16"
+  },
+  "folder-add-right": {
+    "source": "Codex",
+    "glyph": "folder-badge-plus-light-16"
+  },
+  "folder-open": {
+    "source": "Codex",
+    "glyph": "folder-open-light-16"
+  },
+  "folders": {
+    "source": "Codex",
+    "glyph": "folder-on-folder-light-16"
+  },
+  "info-simple": {
+    "source": "Codex",
+    "glyph": "info-circle-light-16"
+  },
+  "keyboard": {
+    "source": "Codex",
+    "glyph": "keyboard-light-20"
+  },
+  "lab": {
+    "source": "Codex",
+    "glyph": "flask-light-16"
+  },
+  "macbook": {
+    "source": "Codex",
+    "glyph": "laptop-light-16"
+  },
+  "magnifying-glass": {
+    "source": "Codex",
+    "glyph": "magnifying-glass-lg-light-16"
+  },
+  "microphone": {
+    "source": "Codex",
+    "glyph": "microphone-light-16"
+  },
+  "minus-medium": {
+    "source": "Codex",
+    "glyph": "minus-md-light-16"
+  },
+  "paperclip-1": {
+    "source": "Codex",
+    "glyph": "paperclip-light-16"
+  },
+  "pencil": {
+    "source": "Codex",
+    "glyph": "pencil-light-16"
+  },
+  "people": {
+    "source": "Codex",
+    "glyph": "person-2-light-16"
+  },
+  "phone": {
+    "source": "Codex",
+    "glyph": "smartphone-light-16"
+  },
+  "pin": {
+    "source": "Codex",
+    "glyph": "pin-light-16"
+  },
+  "plugin-1": {
+    "source": "Codex",
+    "glyph": "plugin-light-16"
+  },
+  "plus-medium": {
+    "source": "Codex",
+    "glyph": "plus-lg-light-16"
+  },
+  "pull-request": {
+    "source": "Codex",
+    "glyph": "pull-request-open-light-16"
+  },
+  "raising-hand-5-finger": {
+    "source": "Codex",
+    "glyph": "hand-light-16"
+  },
+  "settings-gear-1": {
+    "source": "Codex",
+    "glyph": "gear-light-16"
+  },
+  "settings-slider-three": {
+    "source": "Codex",
+    "glyph": "sliders-light-16"
+  },
+  "sidebar-simple-left-square": {
+    "source": "Codex",
+    "glyph": "sidebar-light-16"
+  },
+  "square-behind-square-1": {
+    "source": "Codex",
+    "glyph": "square-on-square-light-16"
+  },
+  "trash-can": {
+    "source": "Codex",
+    "glyph": "trash-light-16"
+  },
+  "world": {
+    "source": "Codex",
+    "glyph": "globe-light-16"
+  }
+}

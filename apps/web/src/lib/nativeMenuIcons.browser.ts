@@ -8,6 +8,7 @@ import { getCentralIconUrl } from "./central-icons";
 import { THREAD_CONTEXT_MENU_ICONS } from "./contextMenuIcons";
 import { withNativeMenuIcons } from "./nativeMenuIcons";
 import roundIconNames from "./central-icons-round.json";
+import appIcons from "./central-icons-app.json";
 
 const threadMenuItems = Object.entries(THREAD_CONTEXT_MENU_ICONS).map(([id, icon]) => ({
   id,
@@ -16,9 +17,10 @@ const threadMenuItems = Object.entries(THREAD_CONTEXT_MENU_ICONS).map(([id, icon
 }));
 
 describe("Central context menu icons", () => {
-  it("renders every migrated legacy glyph and thread action as a visible Retina icon", async () => {
+  it("renders every app glyph, legacy glyph, and thread action as a visible Retina icon", async () => {
     const items = await withNativeMenuIcons([
       ...threadMenuItems,
+      ...Object.keys(appIcons).map((name) => ({ id: name, label: name, icon: name })),
       ...roundIconNames.map((name) => ({ id: name, label: name, icon: name })),
     ]);
     for (const item of items) {

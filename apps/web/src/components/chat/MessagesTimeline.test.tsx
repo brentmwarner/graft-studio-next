@@ -504,8 +504,8 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(folderMarkup).toContain("/central-icons-round/folder-1.svg");
-    expect(folderMarkup).not.toContain("/central-icons-round/plugin-1.svg");
+    expect(folderMarkup).toContain("/central-icons-app/folder-1.svg");
+    expect(folderMarkup).not.toContain("/central-icons-app/plugin-1.svg");
 
     const tsxMarkup = renderToStaticMarkup(
       <MessagesTimeline
@@ -528,7 +528,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(tsxMarkup).toContain("/central-icons-round/react.svg");
-    expect(tsxMarkup).not.toContain("/central-icons-round/folder-1.svg");
+    expect(tsxMarkup).not.toContain("/central-icons-app/folder-1.svg");
 
     const pluginMarkup = renderToStaticMarkup(
       <MessagesTimeline
@@ -551,7 +551,7 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(pluginMarkup).toContain("/central-icons-round/plugin-1.svg");
+    expect(pluginMarkup).toContain("/central-icons-app/plugin-1.svg");
   });
 
   it("renders edit beside copy for user messages", async () => {
@@ -1054,7 +1054,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup).toContain("Terminal 1 lines 1-5");
-    expect(markup).toContain("/central-icons-round/console.svg");
+    expect(markup).toContain("/central-icons-app/console.svg");
     expect(markup).toContain("yoo what&#x27;s ");
     expect(markup).toContain("<strong>bold</strong>");
   });

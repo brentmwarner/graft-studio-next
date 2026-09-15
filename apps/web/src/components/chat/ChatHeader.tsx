@@ -18,13 +18,14 @@ import type { ThreadPrimarySurface } from "../../types";
 import GitActionsControl from "../GitActionsControl";
 import {
   ArrowRightIcon,
+  BottombarHiddenBottomWideIcon,
   CheckIcon,
   GitBranchIcon,
   HandoffIcon,
   HistoryIcon,
   MessageCircleIcon,
   PanelExpandIcon,
-  PanelRightCloseIcon,
+  SidebarHiddenRightWideIcon,
   PlusIcon,
   TerminalIcon,
   XIcon,
@@ -58,6 +59,7 @@ import {
   type EditorRailChatTabSnapshot,
 } from "../../editorViewState";
 import { cn } from "~/lib/utils";
+import { shortcutLabelForCommand } from "~/keybindings";
 import { useOpenFavoriteEditorShortcut } from "~/hooks/useOpenFavoriteEditorShortcut";
 import type { RepoDiffTotals } from "~/hooks/useRepoDiffTotals";
 import { ProviderIcon } from "../ProviderIcon";
@@ -85,8 +87,8 @@ interface ChatHeaderProps {
   hideSidebarControls?: boolean;
   hideHandoffControls?: boolean;
   // Empty-draft landings hide all thread-scoped chrome (title, Hand off, project
-  // scripts, git/open-in) — the chat hasn't started yet — keeping only the sidebar
-  // cluster plus the Environment and right-panel toggles.
+  // scripts, git/open-in, Environment) until the chat starts, keeping the sidebar
+  // navigation and the terminal/right-panel toggles available.
   minimalChrome?: boolean;
   isGitRepo: boolean;
   openInTarget: string | null;
@@ -115,6 +117,10 @@ interface ChatHeaderProps {
   // Open-in-editor + git-actions + diff-toggle cluster into one Environment button that
   // drives the Environment panel; otherwise the legacy cluster is rendered.
   environment?: EnvironmentToggleState | null;
+  terminalToggle?: {
+    open: boolean;
+    onToggle: () => void;
+  } | null;
   chatLayoutAction?: {
     kind: "split" | "maximize";
     label: string;
@@ -535,6 +541,7 @@ export function ChatHeader({
   surfaceMode: surfaceModeProp,
   isSidechat: isSidechatProp,
   environment: environmentProp,
+  terminalToggle,
   chatLayoutAction: chatLayoutActionProp,
   changeThreadAction: changeThreadActionProp,
   editorChatControls: editorChatControlsProp,
@@ -613,6 +620,32 @@ export function ChatHeader({
   // without a multi-pane dock (split/editor surfaces) keep the legacy diff-only
   // behavior until they gain their own launcher surface.
   const togglesRightDock = onToggleRightDock !== undefined;
+  const terminalShortcutLabel = shortcutLabelForCommand(keybindings, "terminal.toggle");
+  const terminalToggleControl = terminalToggle ? (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Toggle
+            className={cn(
+              CHAT_HEADER_TOGGLE_CLASS_NAME,
+              "!size-7 [&_svg,&_[data-slot=central-icon]]:mx-0",
+            )}
+            pressed={terminalToggle.open}
+            onPressedChange={terminalToggle.onToggle}
+            aria-label="Toggle bottom terminal"
+            variant="default"
+            size="xs"
+          >
+            <SurfaceChipIcon icon={BottombarHiddenBottomWideIcon} className="size-4" />
+          </Toggle>
+        }
+      />
+      <TooltipPopup side="bottom">
+        {terminalToggle.open ? "Hide terminal" : "Open terminal"}
+        {terminalShortcutLabel ? ` (${terminalShortcutLabel})` : null}
+      </TooltipPopup>
+    </Tooltip>
+  ) : null;
   const rightPanelToggleControl = showDiffToggle ? (
     <Tooltip>
       <TooltipTrigger
@@ -640,7 +673,7 @@ export function ChatHeader({
                 deletions={diffDeletions}
               />
             ) : null}
-            <SurfaceChipIcon icon={PanelRightCloseIcon} className="size-4" />
+            <SurfaceChipIcon icon={SidebarHiddenRightWideIcon} className="size-4" />
           </Toggle>
         }
       />
@@ -894,7 +927,8 @@ export function ChatHeader({
             Falls back to the legacy controls when no environment is resolved. */}
         {environment ? (
           <>
-            <EnvironmentToggle environment={environment} />
+            {!minimalChrome ? <EnvironmentToggle environment={environment} /> : null}
+            {terminalToggleControl}
             {rightPanelToggleControl}
           </>
         ) : (
@@ -917,6 +951,7 @@ export function ChatHeader({
                 onRegisterCommitAndPushTrigger={onRegisterCommitAndPushTrigger}
               />
             ) : null}
+            {terminalToggleControl}
             {rightPanelToggleControl}
           </>
         )}

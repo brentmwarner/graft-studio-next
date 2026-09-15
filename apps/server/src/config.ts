@@ -13,7 +13,6 @@ import path from "node:path";
 import pathPosix from "node:path/posix";
 import pathWin32 from "node:path/win32";
 
-
 import {
   ensurePrivateDirectorySync,
   ensurePrivateFileSync,
