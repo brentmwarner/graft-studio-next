@@ -158,12 +158,12 @@ describe("agent gateway MCP injection", () => {
     assert.isTrue(configHasTomlTableHeader("  [ mcp_servers . graft ]", "[mcp_servers.graft]"));
     assert.isTrue(configHasTomlTableHeader('[mcp_servers."graft"]', "[mcp_servers.graft]"));
     assert.isTrue(configHasTomlTableHeader("['mcp_servers'.'graft']", "[mcp_servers.graft]"));
-    assert.isTrue(configHasTomlTableHeader('[mcp_servers."syn\\u0061ra"]', "[mcp_servers.graft]"));
+    assert.isTrue(configHasTomlTableHeader('[mcp_servers."gr\\u0061ft"]', "[mcp_servers.graft]"));
     assert.isTrue(
       configHasTomlTableHeader('["shell_environment_policy"]', "[shell_environment_policy]"),
     );
     assert.isFalse(configHasTomlTableHeader('["mcp_servers.graft"]', "[mcp_servers.graft]"));
-    assert.isFalse(configHasTomlTableHeader('[mcp_servers."syn\\qara"]', "[mcp_servers.graft]"));
+    assert.isFalse(configHasTomlTableHeader('[mcp_servers."gr\\qft"]', "[mcp_servers.graft]"));
     // A commented-out example block must not count as the table being present.
     assert.isFalse(configHasTomlTableHeader("# [mcp_servers.graft]", "[mcp_servers.graft]"));
     assert.isFalse(
