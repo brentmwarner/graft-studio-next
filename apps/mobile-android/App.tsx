@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BackHandler, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { MenuProvider } from "./src/components/MenuProvider";
 import { NavDrawerLayout } from "./src/components/NavDrawer";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { NewChatScreen } from "./src/screens/NewChatScreen";
@@ -184,6 +185,8 @@ function GraftApp() {
                 onBack={backToHome}
                 onCancel={session.cancelTurn}
                 onLoadDiff={session.loadDiff}
+                onLoadDiffFile={session.loadDiffFile}
+                onLoadUsage={session.loadUsage}
                 onLoadModels={session.loadModels}
                 onRefresh={session.refresh}
                 onResolveApproval={session.resolveApproval}
@@ -218,7 +221,9 @@ function GraftApp() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <GraftApp />
+      <MenuProvider>
+        <GraftApp />
+      </MenuProvider>
     </SafeAreaProvider>
   );
 }

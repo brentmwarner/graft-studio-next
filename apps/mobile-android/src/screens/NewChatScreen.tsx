@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import type { GraftModelOption } from "@graft/mobile-contract";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -22,12 +21,6 @@ import type { InboxProjectGroup } from "../state/mobileViewModels";
 import { graftRadius, useGraftPalette } from "../theme/tokens";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
-import { ComposerConfigMenu } from "./thread/ComposerConfigMenu";
-import {
-  ApprovalPickerSheet,
-  ComposerActionsSheet,
-  ModelPickerSheet,
-} from "./thread/ThreadSheets";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 
 export interface NewChatCreateRequest {
@@ -81,10 +74,6 @@ export function NewChatScreen({
   const [selectedProjectId, setSelectedProjectId] = useState(
     initialProjectId ?? projects[0]?.id,
   );
-  const [showActions, setShowActions] = useState(false);
-  const [showApproval, setShowApproval] = useState(false);
-  const [showIntelligence, setShowIntelligence] = useState(false);
-  const [showModels, setShowModels] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
 
   const selectedProject = useMemo(
@@ -311,9 +300,13 @@ export function NewChatScreen({
             isSending={isCreating}
             onCancel={() => undefined}
             onDraftChange={setDraft}
-            onOpenActions={() => setShowActions(true)}
-            onOpenApproval={() => setShowApproval(true)}
-            onOpenModel={() => setShowIntelligence(true)}
+            menuConfig={{
+              currentApproval, approvalOptions, currentModel, models: availableModels,
+              efforts, resolvedEffort, enabled: isConnected && !isCreating,
+              onSelectApproval: (policy) => { setSelectedApproval(policy); return true; },
+              onSelectModel: (model) => { setSelectedModelId(model.id); setSelectedProviderId(model.providerId); return true; },
+              onSelectEffort: setSelectedEffort,
+            }}
             onSend={() => void send()}
             resolvedEffort={resolvedEffort}
           />
@@ -358,49 +351,6 @@ export function NewChatScreen({
         </ScrollView>
       </BottomSheet>
 
-      <ComposerActionsSheet
-        hasApprovalOptions={approvalOptions.length > 0}
-        onClose={() => setShowActions(false)}
-        onOpenApproval={() => setShowApproval(true)}
-        onOpenModel={() => setShowIntelligence(true)}
-        visible={showActions}
-      />
-      <ApprovalPickerSheet
-        currentApproval={currentApproval}
-        onClose={() => setShowApproval(false)}
-        onSelect={setSelectedApproval}
-        options={approvalOptions}
-        visible={showApproval}
-      />
-      <ComposerConfigMenu
-        currentModel={currentModel}
-        efforts={efforts}
-        onClose={() => setShowIntelligence(false)}
-        onOpenModel={() => {
-          setShowIntelligence(false);
-          setShowModels(true);
-        }}
-        onSelectEffort={setSelectedEffort}
-        onSpeedPress={() =>
-          Alert.alert("Speed", "Normal is currently the supported host speed.")
-        }
-        resolvedEffort={resolvedEffort}
-        visible={showIntelligence}
-      />
-      <ModelPickerSheet
-        currentModel={currentModel}
-        efforts={efforts}
-        models={availableModels}
-        onClose={() => setShowModels(false)}
-        onSelectEffort={setSelectedEffort}
-        onSelectModel={(modelOption) => {
-          setSelectedModelId(modelOption.id);
-          setSelectedProviderId(modelOption.providerId);
-          setShowModels(false);
-        }}
-        resolvedEffort={resolvedEffort}
-        visible={showModels}
-      />
     </KeyboardAvoidingView>
   );
 }

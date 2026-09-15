@@ -1,12 +1,14 @@
+import type { TranscriptItem } from "./mobileViewModels";
+
 /// Distance from the bottom edge, in points, at which we consider the
 /// transcript "at the latest" again — hide the jump button and resume
-/// following. Mirrors `TranscriptView.nearBottomDistance` on iOS.
-export const NEAR_BOTTOM_DISTANCE = 60;
+/// following. Keep a small tolerance for native rounding.
+export const NEAR_BOTTOM_DISTANCE = 24;
 
 /// How far off the bottom a *drag* has to travel before we surface the jump
 /// button. Deliberately above `NEAR_BOTTOM_DISTANCE` so the two form a
-/// hysteresis band. Mirrors `TranscriptView.awayDistance` on iOS.
-export const AWAY_FROM_BOTTOM_DISTANCE = 180;
+/// hysteresis band. A short deliberate drag is enough to stop following.
+export const AWAY_FROM_BOTTOM_DISTANCE = 64;
 
 export interface FollowLatchInput {
   /// `contentSize.height - (contentOffset.y + layoutMeasurement.height)`.
@@ -35,4 +37,22 @@ export function nextFollowLatch({
     return true;
   }
   return isAway;
+}
+
+/** Tool/reasoning/status churn must not look like a newly arrived message. */
+export function transcriptFollowContent(items: readonly TranscriptItem[]) {
+  let messageCount = 0;
+  let lastMessageId = "";
+  let lastMessageText = "";
+  for (const item of items) {
+    if (item.kind !== "user" && !(item.kind === "assistant" && item.text)) continue;
+    messageCount += 1;
+    lastMessageId = item.id;
+    lastMessageText = item.text;
+  }
+  const tail = items.at(-1);
+  return {
+    messageCount, lastMessageId, lastMessageText,
+    streaming: tail?.kind === "assistant" && Boolean(tail.text) && tail.streaming,
+  };
 }

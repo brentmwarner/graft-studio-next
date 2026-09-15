@@ -1,7 +1,6 @@
 import type { GraftTimelineEvent } from "@graft/mobile-contract";
 import { memo, useMemo, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
 
 import { ActivityCard } from "../../components/ActivityCard";
 import {
@@ -11,7 +10,7 @@ import {
 } from "../../state/mobileViewModels";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ReasoningBlock } from "./ReasoningBlock";
-import { ROW_ENTER, ToolActivityStrip, ToolRow } from "./ToolActivity";
+import { ToolActivityStrip, ToolRow } from "./ToolActivity";
 import { StreamingMarkdownMessage } from "./StreamingMarkdownMessage";
 
 const NO_ITEMS: readonly TranscriptItem[] = [];
@@ -76,13 +75,9 @@ export const TranscriptRow = memo(function TranscriptRow({
       );
     case "assistant":
       return (
-        <Animated.View
-          entering={item.streaming ? ROW_ENTER : undefined}
-          style={styles.assistantRow}
-        >
+        <View style={styles.assistantRow}>
           <ReasoningBlock
             reasoning={item.reasoning}
-            streaming={item.streaming && !item.text}
           />
           {item.text ? (
             <StreamingMarkdownMessage
@@ -90,13 +85,13 @@ export const TranscriptRow = memo(function TranscriptRow({
               streaming={item.streaming}
             />
           ) : null}
-        </Animated.View>
+        </View>
       );
     case "tool":
       return (
-        <Animated.View entering={item.running ? ROW_ENTER : undefined}>
+        <View>
           <ToolRow item={item} />
-        </Animated.View>
+        </View>
       );
     case "toolGroup":
       return <ToolActivityStrip item={item} />;

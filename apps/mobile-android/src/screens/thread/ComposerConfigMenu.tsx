@@ -1,192 +1,106 @@
-import { Ionicons } from "@expo/vector-icons";
-import type { GraftModelOption } from "@graft/mobile-contract";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { GraftApprovalPolicyOption, GraftModelOption } from "@graft/mobile-contract";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 
-import { PressScale } from "../../components/PressScale";
-import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { AnchoredMenu, MenuCaption, MenuItem } from "../../components/AnchoredMenu";
 import { displayName } from "./displayName";
 
-const EFFORT_ORDER = [
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-  "ultra",
-  "ultracode",
-] as const;
-
-function orderEfforts(efforts: readonly string[]): string[] {
-  const rank = new Map(EFFORT_ORDER.map((effort, index) => [effort, index]));
-  return [...efforts].sort(
-    (left, right) =>
-      (rank.get(left as (typeof EFFORT_ORDER)[number]) ?? 999) -
-      (rank.get(right as (typeof EFFORT_ORDER)[number]) ?? 999),
-  );
-}
-
-export function ComposerConfigMenu({
-  currentModel,
-  efforts,
-  onClose,
-  onOpenModel,
-  onSelectEffort,
-  onSpeedPress,
-  resolvedEffort,
-  visible,
-}: {
+export type ComposerMenuPage = "options" | "intelligence" | "models" | "permissions";
+export interface ComposerMenuConfig {
+  readonly currentApproval: string | undefined;
+  readonly approvalOptions: readonly GraftApprovalPolicyOption[];
   readonly currentModel: GraftModelOption | undefined;
+  readonly models: readonly GraftModelOption[];
   readonly efforts: readonly string[];
-  readonly onClose: () => void;
-  readonly onOpenModel: () => void;
-  readonly onSelectEffort: (effort: string) => void;
-  readonly onSpeedPress: () => void;
   readonly resolvedEffort: string | undefined;
-  readonly visible: boolean;
-}) {
-  const insets = useSafeAreaInsets();
-  const palette = useGraftPalette();
-
-  return (
-    <Modal
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-      transparent
-      visible={visible}
-    >
-      <View style={styles.root}>
-        <Pressable
-          accessibilityLabel="Close intelligence menu"
-          accessibilityRole="button"
-          onPress={onClose}
-          style={StyleSheet.absoluteFill}
-        />
-        <View
-          style={[
-            styles.menu,
-            {
-              backgroundColor: palette.floatingSurface,
-              borderColor: palette.border,
-              bottom: insets.bottom + 110,
-            },
-          ]}
-        >
-          <Text style={[styles.label, { color: palette.foregroundSubtle }]}>
-            Intelligence
-          </Text>
-          {orderEfforts(efforts).map((effort) => (
-            <PressScale
-              accessibilityLabel={`${displayName(effort)} intelligence`}
-              key={effort}
-              onPress={() => onSelectEffort(effort)}
-            >
-              <View style={styles.optionRow}>
-                <Text
-                  style={[styles.optionText, { color: palette.foreground }]}
-                >
-                  {displayName(effort)}
-                </Text>
-                {effort === resolvedEffort ? (
-                  <Ionicons
-                    color={palette.foreground}
-                    name="checkmark"
-                    size={22}
-                  />
-                ) : null}
-              </View>
-            </PressScale>
-          ))}
-
-          <View
-            style={[styles.separator, { backgroundColor: palette.border }]}
-          />
-
-          <PressScale accessibilityLabel="Choose model" onPress={onOpenModel}>
-            <View style={styles.detailRow}>
-              <View style={styles.detailCopy}>
-                <Text
-                  style={[styles.detailTitle, { color: palette.foreground }]}
-                >
-                  Model
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.detailValue,
-                    { color: palette.foregroundSubtle },
-                  ]}
-                >
-                  {currentModel?.label ?? "Model"}
-                </Text>
-              </View>
-              <Ionicons
-                color={palette.foreground}
-                name="chevron-forward"
-                size={20}
-              />
-            </View>
-          </PressScale>
-
-          <PressScale accessibilityLabel="Speed" onPress={onSpeedPress}>
-            <View style={styles.detailRow}>
-              <View style={styles.detailCopy}>
-                <Text
-                  style={[styles.detailTitle, { color: palette.foreground }]}
-                >
-                  Speed
-                </Text>
-                <Text
-                  style={[
-                    styles.detailValue,
-                    { color: palette.foregroundSubtle },
-                  ]}
-                >
-                  Normal
-                </Text>
-              </View>
-              <Ionicons
-                color={palette.foreground}
-                name="chevron-forward"
-                size={20}
-              />
-            </View>
-          </PressScale>
-        </View>
-      </View>
-    </Modal>
-  );
+  readonly enabled: boolean;
+  readonly onSelectApproval: (policy: string) => boolean | Promise<boolean>;
+  readonly onSelectModel: (model: GraftModelOption) => boolean | Promise<boolean>;
+  readonly onSelectEffort: (effort: string) => void;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  menu: {
-    borderRadius: graftRadius.large,
-    borderWidth: StyleSheet.hairlineWidth,
-    boxShadow: "0 14px 34px rgba(0, 0, 0, 0.16)",
-    left: 16,
-    maxHeight: "74%",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    position: "absolute",
-    width: 190,
-  },
-  label: { fontSize: 14, marginBottom: 6 },
-  optionRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 42,
-  },
-  optionText: { fontSize: 16, fontWeight: "600" },
-  separator: { height: StyleSheet.hairlineWidth, marginVertical: 8 },
-  detailRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    minHeight: 60,
-  },
-  detailCopy: { flex: 1, gap: 3 },
-  detailTitle: { fontSize: 16, fontWeight: "600" },
-  detailValue: { fontSize: 14 },
-});
+const EFFORT_ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"];
+
+export function ComposerConfigMenu({ config, initialPage, trigger }: {
+  readonly config: ComposerMenuConfig;
+  readonly initialPage: ComposerMenuPage;
+  readonly trigger: (open: () => void) => ReactElement;
+}) {
+  const [page, setPage] = useState(initialPage);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  const generation = useRef(0);
+  const applying = useRef(false);
+  const enabled = config.enabled && !pending;
+  useEffect(() => () => { generation.current += 1; }, []);
+
+  async function select(action: () => boolean | Promise<boolean>, close: () => void) {
+    if (applying.current || !config.enabled) return;
+    applying.current = true;
+    const request = generation.current;
+    setPending(true);
+    setError(undefined);
+    try {
+      const accepted = await action();
+      if (request !== generation.current) return;
+      if (accepted) close();
+      else setError("Couldn’t apply this change. Try again.");
+    } catch {
+      if (request === generation.current) setError("Couldn’t apply this change. Try again.");
+    } finally {
+      applying.current = false;
+      setPending(false);
+    }
+  }
+
+  function contents(close: () => void) {
+    switch (page) {
+      case "options":
+        return <>
+          <MenuCaption>Composer options</MenuCaption>
+          <MenuItem label="Model and effort" detail={config.currentModel?.label} disclosure onPress={() => setPage("intelligence")} />
+          {config.approvalOptions.length > 0 ? <MenuItem label="Permissions" disclosure onPress={() => setPage("permissions")} /> : null}
+        </>;
+      case "permissions":
+        return <>
+          <MenuCaption>Permissions</MenuCaption>
+          {config.approvalOptions.map((option) => <MenuItem key={option.value} label={option.label} detail={option.description}
+            selected={option.value === config.currentApproval} enabled={enabled}
+            onPress={() => void select(() => config.onSelectApproval(option.value), close)} />)}
+        </>;
+      case "models":
+        return <>
+          <MenuItem label="‹ Model and effort" enabled={!pending} onPress={() => setPage("intelligence")} />
+          {config.models.map((model) => <MenuItem key={`${model.providerId}:${model.id}`} label={model.label}
+            detail={model.providerLabel ?? displayName(model.providerId)} enabled={enabled}
+            selected={model.id === config.currentModel?.id && model.providerId === config.currentModel.providerId}
+            onPress={() => void select(() => config.onSelectModel(model), close)} />)}
+        </>;
+      case "intelligence":
+        return <>
+          <MenuItem label="Model" detail={config.currentModel?.label ?? "Choose model"} disclosure enabled={!pending} onPress={() => setPage("models")} />
+          {config.efforts.length > 0 ? <MenuCaption>Reasoning effort</MenuCaption> : null}
+          {[...config.efforts].sort((a, b) => {
+            const rank = (effort: string) => { const index = EFFORT_ORDER.indexOf(effort); return index < 0 ? 999 : index; };
+            return rank(a) - rank(b);
+          }).map((effort) => <MenuItem key={effort} label={displayName(effort)} selected={effort === config.resolvedEffort} enabled={enabled}
+            onPress={() => { config.onSelectEffort(effort); close(); }} />)}
+        </>;
+      default: {
+        const exhaustive: never = page;
+        return exhaustive;
+      }
+    }
+  }
+
+  return <AnchoredMenu trigger={trigger} onOpenChange={(open) => {
+    generation.current += 1;
+    if (open) { setPage(initialPage); setError(undefined); }
+  }}>
+    {(close) => <>
+      {contents(close)}
+      {!config.enabled ? <MenuCaption>Reconnect to change settings.</MenuCaption> : null}
+      {pending ? <MenuCaption>Applying…</MenuCaption> : null}
+      {error ? <MenuCaption>{error}</MenuCaption> : null}
+    </>}
+  </AnchoredMenu>;
+}

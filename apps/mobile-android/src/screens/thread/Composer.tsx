@@ -12,6 +12,7 @@ import {
 import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
 
 type TrailingMode = "idle" | "send" | "stop" | "stop-and-send";
@@ -122,9 +123,7 @@ export function Composer({
   isSending,
   onCancel,
   onDraftChange,
-  onOpenActions,
-  onOpenApproval,
-  onOpenModel,
+  menuConfig,
   onSend,
   resolvedEffort,
 }: {
@@ -143,9 +142,7 @@ export function Composer({
   readonly isSending: boolean;
   readonly onCancel: (runId: string) => void;
   readonly onDraftChange: (text: string) => void;
-  readonly onOpenActions: () => void;
-  readonly onOpenApproval: () => void;
-  readonly onOpenModel: () => void;
+  readonly menuConfig: ComposerMenuConfig;
   readonly onSend: () => void;
   readonly resolvedEffort: string | undefined;
 }) {
@@ -177,45 +174,57 @@ export function Composer({
     <View style={styles.dock}>
       <View style={styles.chipRow}>
         {currentModel || availableModels.length > 0 ? (
-          <PressScale
-            accessibilityLabel="Model and reasoning effort"
-            onPress={onOpenModel}
-          >
-            <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-              <Text
-                numberOfLines={1}
-                style={[styles.modelName, { color: palette.foreground }]}
+          <ComposerConfigMenu
+            config={menuConfig}
+            initialPage="intelligence"
+            trigger={(open) => (
+              <PressScale
+                accessibilityLabel="Model and reasoning effort"
+                onPress={open}
               >
-                {currentModel?.label ??
-                  currentModelName?.replace("[1m]", "") ??
-                  "Model"}
-                {resolvedEffort ? ` ${displayName(resolvedEffort)}` : ""}
-              </Text>
-            </View>
-          </PressScale>
+                <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.modelName, { color: palette.foreground }]}
+                  >
+                    {currentModel?.label ??
+                      currentModelName?.replace("[1m]", "") ??
+                      "Model"}
+                    {resolvedEffort ? ` ${displayName(resolvedEffort)}` : ""}
+                  </Text>
+                </View>
+              </PressScale>
+          )}
+        />
         ) : null}
         {hasApprovalOptions ? (
           canChangeApproval ? (
-            <PressScale
-              accessibilityLabel="Permissions"
-              onPress={onOpenApproval}
-            >
-              <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.chipText,
-                    {
-                      color: approvalIsElevated
-                        ? palette.warning
-                        : palette.foreground,
-                    },
-                  ]}
+            <ComposerConfigMenu
+              config={menuConfig}
+              initialPage="permissions"
+              trigger={(open) => (
+                <PressScale
+                  accessibilityLabel="Permissions"
+                  onPress={open}
                 >
-                  {currentApprovalLabel}
-                </Text>
-              </View>
-            </PressScale>
+                  <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.chipText,
+                        {
+                          color: approvalIsElevated
+                            ? palette.warning
+                            : palette.foreground,
+                        },
+                      ]}
+                    >
+                      {currentApprovalLabel}
+                    </Text>
+                  </View>
+                </PressScale>
+              )}
+            />
           ) : (
             <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
               <Text
@@ -230,14 +239,20 @@ export function Composer({
       </View>
 
       <View style={styles.composerRow}>
-        <PressScale
-          accessibilityLabel="Composer options"
-          onPress={onOpenActions}
-        >
-          <FloatingSurface style={styles.addButton}>
-            <Ionicons color={palette.foreground} name="add" size={28} />
-          </FloatingSurface>
-        </PressScale>
+        <ComposerConfigMenu
+          config={menuConfig}
+          initialPage="options"
+          trigger={(open) => (
+            <PressScale
+              accessibilityLabel="Composer options"
+              onPress={open}
+            >
+              <FloatingSurface style={styles.addButton}>
+                <Ionicons color={palette.foreground} name="add" size={28} />
+              </FloatingSurface>
+            </PressScale>
+          )}
+        />
 
         <FloatingSurface
           style={[

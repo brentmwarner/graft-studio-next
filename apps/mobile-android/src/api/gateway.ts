@@ -6,6 +6,8 @@ import {
   GraftPairExchangeResponseSchema,
   GraftRemoteErrorSchema,
   GraftRemoteHealthSchema,
+  GraftThreadUsageSchema,
+  type GraftThreadUsage,
   type GraftEnvironmentSnapshot,
   type GraftPairExchangeRequest,
   type GraftPairingPayload,
@@ -38,6 +40,7 @@ export interface PairingClientInfo {
 }
 
 export interface GatewayClient {
+  usage(session: GraftSessionCredential, threadId: string): Promise<GraftThreadUsage>;
   health(baseUrl: string): Promise<GraftRemoteHealth>;
   pair(
     pairing: GraftPairingPayload,
@@ -173,6 +176,21 @@ export function createGatewayClient(
         );
       }
       return parsed.data.session;
+    },
+
+    async usage(session, threadId) {
+      const url = new URL(endpoint(session.httpBaseUrl, "/v1/usage"));
+      url.searchParams.set("threadId", threadId);
+      const response = await request(fetcher, url.toString(), {
+        headers: { authorization: `Bearer ${session.bearerToken}` },
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw errorFromResponse(response, body);
+      const parsed = GraftThreadUsageSchema.safeParse(body);
+      if (!parsed.success || parsed.data.threadId !== threadId) {
+        throw new GatewayError("The host returned invalid usage data.", "invalid_response", response.status);
+      }
+      return parsed.data;
     },
 
     async snapshot(session, threadId) {

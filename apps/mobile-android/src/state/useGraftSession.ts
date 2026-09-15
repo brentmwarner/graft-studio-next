@@ -492,6 +492,14 @@ export function useGraftSession() {
     scheduleSnapshot(true);
   }, [scheduleSnapshot]);
 
+  const loadUsage = useCallback(async (threadId: string) => {
+    const session = sessionRef.current;
+    if (!session) throw new Error("Reconnect to view account usage.");
+    const usage = await gateway.usage(session, threadId);
+    if (sessionRef.current?.sessionId !== session.sessionId) throw new Error("The connection changed.");
+    return usage;
+  }, []);
+
   const loadModels = useCallback(async () => {
     try {
       const result = await runSocketCommand(
@@ -523,6 +531,17 @@ export function useGraftSession() {
     } catch {
       // No diff is a normal state, and older hosts may not support this read.
     }
+  }, []);
+
+  const loadDiffFile = useCallback(async (threadId: string, path: string) => {
+    const sessionId = sessionRef.current?.sessionId;
+    const result = await runSocketCommand(
+      socketRef.current,
+      { type: "diff.get", diffId: threadId, filePath: path },
+      "diff.get.result",
+    );
+    if (sessionRef.current?.sessionId !== sessionId) return undefined;
+    return result.diff;
   }, []);
 
   const setThreadModel = useCallback(
@@ -755,7 +774,9 @@ export function useGraftSession() {
     closeThread,
     createThread,
     loadDiff,
+    loadDiffFile,
     loadModels,
+    loadUsage,
     openThread,
     pair,
     pendingSendThreadId,

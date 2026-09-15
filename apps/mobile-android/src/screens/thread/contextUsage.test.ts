@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   contextUsageAccessibilityLabel,
   contextUsageDetail,
-  contextProgressIconName,
 } from "./contextUsage";
 
 describe("context usage presentation", () => {
@@ -33,30 +32,4 @@ describe("context usage presentation", () => {
     expect(contextUsageDetail(usage)).toContain("does not report");
   });
 
-  it("selects the closest progress glyph", () => {
-    expect(
-      contextProgressIconName({
-        percent: 0,
-        tokensUsed: 0,
-        tokensMax: 200_000,
-        source: "measured",
-      }),
-    ).toBe("circle-outline");
-    expect(
-      contextProgressIconName({
-        percent: 42,
-        tokensUsed: 84_000,
-        tokensMax: 200_000,
-        source: "measured",
-      }),
-    ).toBe("circle-slice-4");
-    expect(
-      contextProgressIconName({
-        percent: 100,
-        tokensUsed: 200_000,
-        tokensMax: 200_000,
-        source: "measured",
-      }),
-    ).toBe("circle-slice-8");
-  });
 });

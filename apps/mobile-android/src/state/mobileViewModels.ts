@@ -117,6 +117,16 @@ function isQuietToolRunRow(item: TranscriptItem): boolean {
   return false;
 }
 
+// Legacy hosts suffix cumulative frames; Synara already sends the message ID.
+export function transcriptMessageId(id: string): string {
+  return id.replace(/:(?:delta:\d+|complete)$/, "");
+}
+
+function assistantRowId(event: GraftTimelineEvent): string {
+  const channel = event.kind === "thinking.delta" ? "reasoning" : "assistant";
+  return `${channel}:${transcriptMessageId(event.id)}`;
+}
+
 function normalizedText(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
@@ -271,7 +281,10 @@ export function buildTranscriptItems(
     Extract<TranscriptItem, { kind: "tool" }>
   >();
   const activityItems = new Map<string, TranscriptActivityItem>();
-  const statusItems = new Map<string, TranscriptActivityItem>();
+  const assistantItems = new Map<string, Extract<TranscriptItem, { kind: "assistant" }>>();
+  const completedMessages = new Set<string>();
+  const assistantRunIds = new Map<string, string | undefined>();
+  const optimisticIds = new Set(liveEvents.filter((event) => event.cursor === 0).map((event) => event.id));
   let currentAssistant:
     | Extract<TranscriptItem, { kind: "assistant" }>
     | undefined;
@@ -293,24 +306,20 @@ export function buildTranscriptItems(
     currentAssistant = undefined;
   }
 
-  function clearStatusFor(event: GraftTimelineEvent): void {
-    if (!event.runId) return;
-    const statusItem = statusItems.get(event.runId);
-    if (!statusItem) return;
-    const index = items.indexOf(statusItem);
-    if (index >= 0) items.splice(index, 1);
-    statusItems.delete(event.runId);
-  }
-
   function assistantFor(event: GraftTimelineEvent) {
-    if (currentAssistant) return currentAssistant;
+    const id = assistantRowId(event);
+    const existing = assistantItems.get(id);
+    if (existing) return existing;
+    settleAssistant();
     const item: Extract<TranscriptItem, { kind: "assistant" }> = {
-      id: claimId(usedIds, `assistant:${event.runId ?? event.id}`),
+      id,
       kind: "assistant",
       text: "",
       reasoning: "",
       streaming: true,
     };
+    assistantItems.set(id, item);
+    assistantRunIds.set(id, event.runId);
     items.push(item);
     currentAssistant = item;
     return item;
@@ -325,9 +334,8 @@ export function buildTranscriptItems(
       case "user.message": {
         const text = event.text?.trim() ?? "";
         if (!text) break;
-        settleAssistant();
         const normalized = normalizedText(text);
-        const optimistic = event.cursor === 0;
+        const optimistic = optimisticIds.has(event.id);
         // Only `sendMessage` creates cursor-zero events. Pair one such event
         // with one authoritative event, regardless of which arrived
         // first. Same-source repeats remain distinct user turns.
@@ -344,6 +352,7 @@ export function buildTranscriptItems(
           };
           break;
         }
+        settleAssistant();
         items.push({
           id: claimId(usedIds, `user:${event.id}`),
           kind: "user",
@@ -352,69 +361,35 @@ export function buildTranscriptItems(
         userEchoCandidate = { normalizedText: normalized, optimistic };
         break;
       }
-      case "assistant.delta": {
-        const text = event.text ?? "";
-        if (text) {
-          clearStatusFor(event);
-          const previous = items.at(-1);
-          // A newly refreshed snapshot can already contain the completed
-          // assistant message while its cumulative live delta is still in the
-          // socket tail. The optimistic user echo between them is reconciled
-          // above, leaving the settled assistant as the previous visible row.
-          // Reusing that exact response avoids a one-frame duplicate without
-          // collapsing identical answers from genuinely separate turns.
-          if (
-            !currentAssistant &&
-            previous?.kind === "assistant" &&
-            normalizedText(previous.text) === normalizedText(text)
-          ) {
-            break;
-          }
-          assistantFor(event).text = text;
-        }
-        break;
-      }
-      case "assistant.message": {
-        const text = event.text?.trim() ?? "";
-        if (text) clearStatusFor(event);
-        if (currentAssistant) {
-          if (text) currentAssistant.text = text;
-          settleAssistant();
-          break;
-        }
-        if (!text) break;
-        const duplicate = items.some(
-          (item) =>
-            item.kind === "assistant" &&
-            normalizedText(item.text) === normalizedText(text),
-        );
-        if (!duplicate) {
-          items.push({
-            id: claimId(usedIds, `assistant:${event.id}`),
-            kind: "assistant",
-            text,
-            reasoning: "",
-            streaming: false,
-          });
-        }
-        break;
-      }
+      case "assistant.delta":
+      case "assistant.message":
       case "thinking.delta": {
         const text = event.text ?? "";
-        if (text) assistantFor(event).reasoning = text;
+        const id = assistantRowId(event);
+        if (!text.trim() && !assistantItems.has(id)) break;
+        const item = assistantFor(event);
+        // A delayed/replayed delta cannot turn a completed reply back into a
+        // live row or replace its authoritative final text with a prefix.
+        if (event.kind !== "assistant.message" && completedMessages.has(item.id)) break;
+        if (event.kind === "thinking.delta") item.reasoning = text;
+        else if (text) item.text = text;
+        item.streaming = event.kind !== "assistant.message";
+        if (event.kind === "assistant.message") {
+          completedMessages.add(item.id);
+          if (currentAssistant === item) currentAssistant = undefined;
+        }
         break;
       }
       case "tool.start":
       case "tool.update":
       case "tool.end": {
-        clearStatusFor(event);
-        settleAssistant();
         const existing = toolItems.get(event.id);
         if (existing) {
           existing.name = event.toolName ?? existing.name;
           existing.detail = event.text ?? existing.detail;
           existing.running = event.kind !== "tool.end";
         } else {
+          settleAssistant();
           const item: TranscriptToolItem = {
             id: claimId(usedIds, `tool:${event.id}`),
             kind: "tool",
@@ -430,12 +405,16 @@ export function buildTranscriptItems(
       }
       case "run.status":
         if (isTerminalRunStatus(event.runStatus)) {
-          clearStatusFor(event);
-          settleAssistant();
+          for (const item of assistantItems.values()) {
+            const runId = assistantRunIds.get(item.id);
+            if (event.runId && runId && event.runId !== runId) continue;
+            item.streaming = false;
+            completedMessages.add(item.id);
+            if (currentAssistant === item) currentAssistant = undefined;
+          }
         }
         break;
       case "error": {
-        clearStatusFor(event);
         settleAssistant();
         const text = event.text?.trim() || "Something went wrong.";
         const last = items.at(-1);
@@ -448,25 +427,10 @@ export function buildTranscriptItems(
         }
         break;
       }
-      case "status": {
-        const text = event.text?.trim() ?? "";
-        if (!text) break;
-        const statusKey = event.runId ?? event.id;
-        const existing = statusItems.get(statusKey);
-        if (existing) {
-          existing.text = text;
-        } else {
-          const item: TranscriptActivityItem = {
-            id: claimId(usedIds, `status:${statusKey}`),
-            kind: "activity",
-            eventId: event.id,
-            text,
-          };
-          statusItems.set(statusKey, item);
-          items.push(item);
-        }
+      // Transient phases have one owner: the thread's live status. Persisting
+      // them as rows repeats "Thinking" and moves replies when they disappear.
+      case "status":
         break;
-      }
       // Structured activity the agent performed. Plans and todo lists are
       // revised repeatedly under the same part id, so these update in place —
       // appending would stack a dozen near-identical plan cards down the turn.
@@ -480,14 +444,13 @@ export function buildTranscriptItems(
       case "image": {
         const text = event.text?.trim() ?? "";
         if (!text && !event.data) break;
-        clearStatusFor(event);
-        settleAssistant();
         const existing = activityItems.get(event.id);
         if (existing) {
           if (event.data) existing.data = event.data;
           if (text) existing.text = text;
           break;
         }
+        settleAssistant();
         const item: TranscriptActivityItem = {
           id: claimId(usedIds, `activity:${event.id}`),
           kind: "activity",

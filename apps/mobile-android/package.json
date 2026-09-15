@@ -15,6 +15,7 @@
     "doctor": "expo-doctor"
   },
   "dependencies": {
+    "@expo/ui": "~57.0.15",
     "@expo/vector-icons": "^15.1.1",
     "@graft/mobile-contract": "workspace:*",
     "expo": "~57.0.13",
@@ -40,7 +41,9 @@
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@types/react": "~19.2.2",
+    "@types/react-test-renderer": "^19.3.0",
     "expo-doctor": "^1.20.1",
+    "react-test-renderer": "19.2.3",
     "typescript": "~6.0.3",
     "vitest": "^3.0.8"
   }

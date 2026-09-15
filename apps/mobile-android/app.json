@@ -10,7 +10,7 @@
     "icon": "./assets/icon.png",
     "android": {
       "package": "studio.graft.mobile",
-      "predictiveBackGestureEnabled": true,
+      "predictiveBackGestureEnabled": false,
       "permissions": ["CAMERA"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

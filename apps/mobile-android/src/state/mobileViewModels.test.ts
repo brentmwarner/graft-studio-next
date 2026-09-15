@@ -4,7 +4,7 @@ import type {
 } from "@graft/mobile-contract";
 import { describe, expect, it } from "vitest";
 
-import { livePhraseFromItems, shouldShowStreamingFooter } from "./liveStatus";
+import { livePhraseFromItems, transcriptLiveStatus } from "./liveStatus";
 import {
   buildTranscriptItems,
   groupProjects,
@@ -76,17 +76,18 @@ describe("mobile view models", () => {
       [event(1, "user.message", "Make Android match iOS")],
       [
         event(2, "thinking.delta", "Inspecting the views"),
-        event(3, "assistant.delta", "I am"),
-        event(4, "assistant.delta", "I am working on it."),
+        { ...event(3, "assistant.delta", "I am"), id: "reply" },
+        { ...event(4, "assistant.delta", "I am working on it."), id: "reply" },
       ],
     );
 
     expect(items).toMatchObject([
       { kind: "user", text: "Make Android match iOS" },
+      { kind: "assistant", text: "", reasoning: "Inspecting the views", streaming: false },
       {
         kind: "assistant",
         text: "I am working on it.",
-        reasoning: "Inspecting the views",
+        reasoning: "",
         streaming: true,
       },
     ]);
@@ -268,18 +269,13 @@ describe("mobile view models", () => {
     expect(after[0]).not.toBe(before[0]);
   });
 
-  it("falls back to the host's text when a payload has no card", () => {
+  it("keeps transient status out of transcript rows", () => {
     const items = buildTranscriptItems(
       [],
       [{ ...event(1, "status", "Compacting conversation") }],
       0,
     );
-    expect(items).toEqual([
-      expect.objectContaining({
-        kind: "activity",
-        text: "Compacting conversation",
-      }),
-    ]);
+    expect(items).toEqual([]);
   });
 
   it("removes a transient status when the run produces visible output", () => {
@@ -391,7 +387,7 @@ describe("mobile view models", () => {
         event(1, "user.message", "continue"),
         event(2, "assistant.message", "Done"),
       ],
-      [optimistic, event(3, "assistant.delta", "Done")],
+      [optimistic, { ...event(3, "assistant.delta", "Done"), id: "event-2" }],
     );
 
     expect(items.filter((item) => item.kind === "assistant")).toHaveLength(1);
@@ -532,8 +528,14 @@ describe("live status phrases", () => {
     ).toBe("Thinking");
   });
 
-  it("keeps the footer visible throughout the active turn", () => {
-    expect(shouldShowStreamingFooter(true)).toBe(true);
-    expect(shouldShowStreamingFooter(false)).toBe(false);
+  it("shows one status only while working without visible reply text", () => {
+    const input = { items: [], isWorking: true, isConnected: true, needsInput: false };
+    expect(transcriptLiveStatus(input)).toEqual({ phrase: "Thinking", animating: true });
+    expect(transcriptLiveStatus({ ...input, isWorking: false })).toBeNull();
+    expect(transcriptLiveStatus({ ...input, isConnected: false })).toEqual({ phrase: "Reconnecting…", animating: false });
+    expect(transcriptLiveStatus({ ...input, needsInput: true })).toEqual({ phrase: "Waiting for you", animating: false });
+    for (const streaming of [true, false]) {
+      expect(transcriptLiveStatus({ ...input, items: [{ id: "a", kind: "assistant", text: "Answer", reasoning: "", streaming }] })).toBeNull();
+    }
   });
 });
