@@ -1,15 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { GraftModelOption } from "@graft/mobile-contract";
 import { useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { iosGlassCornerRadius } from "../../chrome/liquidGlass";
 
 import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { ComposerAttachMenu } from "./ComposerAttachMenu";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
+import { useComposerAttachments } from "./useComposerAttachments";
+import type { ComposerAttachment } from "./composerAttachments";
 
 type TrailingMode = "idle" | "send" | "stop" | "stop-and-send";
 
@@ -127,7 +139,9 @@ export function Composer({
 }) {
   const palette = useGraftPalette();
   const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const attach = useComposerAttachments();
   const hasDraft = Boolean(draft.trim());
+  const hasAttachments = attach.attachments.length > 0;
 
   let trailingMode: TrailingMode = "idle";
   if (activeRunId) {
@@ -157,8 +171,10 @@ export function Composer({
         currentApprovalLabel={currentApprovalLabel}
         currentModel={currentModel}
         currentModelName={currentModelName}
+        attach={attach}
         draft={draft}
         hasApprovalOptions={hasApprovalOptions}
+        hasAttachments={hasAttachments}
         hasDraft={hasDraft}
         isComposerFocused={isComposerFocused}
         isConnected={isConnected}
@@ -224,18 +240,17 @@ export function Composer({
         ) : null}
       </View>
 
+      {attach.error ? (
+        <Text style={[styles.attachError, { color: palette.danger }]}>{attach.error}</Text>
+      ) : null}
+      {hasAttachments ? (
+        <AttachmentStrip attachments={attach.attachments} onRemove={attach.remove} />
+      ) : null}
+
       <View style={styles.composerRow}>
-        <ComposerConfigMenu
-          config={menuConfig}
-          initialPage="options"
-          trigger={(open) => (
-            <PressScale accessibilityLabel="Composer options" onPress={open}>
-              <FloatingSurface style={styles.addButton}>
-                <Ionicons color={palette.foreground} name="add" size={28} />
-              </FloatingSurface>
-            </PressScale>
-          )}
-        />
+        <FloatingSurface style={styles.addButton}>
+          <ComposerAttachMenu attach={attach} />
+        </FloatingSurface>
 
         <FloatingSurface
           style={[
@@ -267,14 +282,42 @@ export function Composer({
 
 const IOS_COMPOSER_HEIGHT = 46;
 
+function AttachmentStrip({
+  attachments,
+  onRemove,
+}: {
+  readonly attachments: readonly ComposerAttachment[];
+  readonly onRemove: (id: string) => void;
+}) {
+  return (
+    <View style={iosStyles.strip}>
+      {attachments.map((attachment) => (
+        <View key={attachment.id} style={iosStyles.thumbWrap}>
+          <Image source={{ uri: attachment.uri }} style={iosStyles.thumb} />
+          <Pressable
+            accessibilityLabel={`Remove ${attachment.name}`}
+            hitSlop={8}
+            onPress={() => onRemove(attachment.id)}
+            style={iosStyles.thumbRemove}
+          >
+            <Ionicons color="#FFFFFF" name="close" size={11} />
+          </Pressable>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function IosComposer({
   approvalIsElevated,
+  attach,
   canChangeApproval,
   currentApprovalLabel,
   currentModel,
   currentModelName,
   draft,
   hasApprovalOptions,
+  hasAttachments,
   hasDraft,
   isComposerFocused,
   isConnected,
@@ -286,12 +329,14 @@ function IosComposer({
   trailing,
 }: {
   readonly approvalIsElevated: boolean;
+  readonly attach: ReturnType<typeof useComposerAttachments>;
   readonly canChangeApproval: boolean;
   readonly currentApprovalLabel: string;
   readonly currentModel: GraftModelOption | undefined;
   readonly currentModelName: string | undefined;
   readonly draft: string;
   readonly hasApprovalOptions: boolean;
+  readonly hasAttachments: boolean;
   readonly hasDraft: boolean;
   readonly isComposerFocused: boolean;
   readonly isConnected: boolean;
@@ -303,7 +348,7 @@ function IosComposer({
   readonly trailing: ReactNode;
 }) {
   const palette = useGraftPalette();
-  const expanded = isComposerFocused || hasDraft;
+  const expanded = isComposerFocused || hasDraft || hasAttachments;
   const radius = iosGlassCornerRadius(IOS_COMPOSER_HEIGHT);
 
   const permissions = hasApprovalOptions ? (
@@ -370,6 +415,12 @@ function IosComposer({
           },
         ]}
       >
+        {attach.error ? (
+          <Text style={[iosStyles.attachError, { color: palette.danger }]}>{attach.error}</Text>
+        ) : null}
+        {hasAttachments ? (
+          <AttachmentStrip attachments={attach.attachments} onRemove={attach.remove} />
+        ) : null}
         <TextInput
           accessibilityLabel="Message"
           editable={isConnected}
@@ -386,17 +437,7 @@ function IosComposer({
         />
         {expanded ? (
           <View style={iosStyles.controls}>
-            <ComposerConfigMenu
-              config={menuConfig}
-              initialPage="options"
-              trigger={(open) => (
-                <PressScale accessibilityLabel="Composer options" onPress={open}>
-                  <View style={iosStyles.plus}>
-                    <Ionicons color={palette.foreground} name="add" size={22} />
-                  </View>
-                </PressScale>
-              )}
-            />
+            <ComposerAttachMenu attach={attach} compact />
             {permissions}
             <View style={iosStyles.grow} />
             {modelTrigger}
@@ -411,6 +452,11 @@ function IosComposer({
 }
 
 const iosStyles = StyleSheet.create({
+  attachError: {
+    fontSize: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
   capsule: {
     overflow: "hidden",
     paddingBottom: 7,
@@ -455,9 +501,36 @@ const iosStyles = StyleSheet.create({
     justifyContent: "center",
     width: 32,
   },
+  strip: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+  },
+  thumb: {
+    borderRadius: 8,
+    height: 44,
+    width: 44,
+  },
+  thumbRemove: {
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 8,
+    height: 16,
+    justifyContent: "center",
+    position: "absolute",
+    right: -4,
+    top: -4,
+    width: 16,
+  },
+  thumbWrap: {
+    height: 44,
+    width: 44,
+  },
 });
 
 const styles = StyleSheet.create({
+  attachError: { fontSize: 12, paddingHorizontal: 4 },
   dock: { gap: 7 },
   chipRow: {
     alignItems: "center",

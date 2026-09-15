@@ -4,7 +4,10 @@
     "slug": "graft-mobile-android",
     "scheme": "graft",
     "version": "0.1.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -12,14 +15,17 @@
       "bundleIdentifier": "studio.graft.mobile.expo",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow Graft to scan a pairing QR code shown by Graft Studio.",
+        "NSCameraUsageDescription": "Allow Graft to scan a pairing QR code or take a photo to attach.",
+        "NSPhotoLibraryUsageDescription": "Allow Graft to attach photos from your library.",
         "CADisableMinimumFrameDurationOnPhone": true
       }
     },
     "android": {
       "package": "studio.graft.mobile",
       "predictiveBackGestureEnabled": false,
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "CAMERA"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -29,8 +35,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Graft to scan a pairing QR code shown by Graft Studio.",
+          "cameraPermission": "Allow Graft to scan a pairing QR code or take a photo to attach.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Graft to attach photos from your library.",
+          "cameraPermission": "Allow Graft to take a photo to attach to a message."
         }
       ],
       "expo-secure-store",
@@ -58,7 +71,9 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-asset"
     ],
     "extra": {
       "eas": {

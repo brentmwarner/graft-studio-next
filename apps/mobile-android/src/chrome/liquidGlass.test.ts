@@ -42,6 +42,7 @@ describe("iosSystemNameForIcon", () => {
     expect(iosSystemNameForIcon("chevron-back")).toBe("chevron.left");
     expect(iosSystemNameForIcon("ellipsis-horizontal")).toBe("ellipsis");
     expect(iosSystemNameForIcon("create-outline")).toBe("square.and.pencil");
+    expect(iosSystemNameForIcon("person-circle-outline")).toBe("person.crop.circle");
     expect(iosSystemNameForIcon("missing")).toBeUndefined();
   });
 });

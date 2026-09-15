@@ -12,159 +12,98 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import type { AccountAuth } from "../auth/useAccountAuth";
+import { BottomSheet } from "../components/BottomSheet";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { GlassActionPill } from "../components/GlassActionPill";
 import { PressScale } from "../components/PressScale";
 import { Wordmark } from "../components/Wordmark";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
-import { IosWelcomePairing, useIosPairingStep } from "./IosWelcomePairing";
+import { IosWelcomePairing } from "./IosWelcomePairing";
 import { QrScanner } from "./QrScanner";
 
 interface PairingScreenProps {
+  readonly account?: AccountAuth;
   readonly error?: string;
   readonly initialInput?: string;
   readonly isPairing: boolean;
   readonly onPair: (input: string) => Promise<void>;
 }
 
-export function PairingScreen({ error, initialInput, isPairing, onPair }: PairingScreenProps) {
+export function PairingScreen({
+  account,
+  error,
+  initialInput,
+  isPairing,
+  onPair,
+}: PairingScreenProps) {
   const palette = useGraftPalette();
-  const insets = useSafeAreaInsets();
   const [input, setInput] = useState(initialInput ?? "");
   const [isScanning, setIsScanning] = useState(false);
-  const pairingStep = useIosPairingStep(Boolean(initialInput));
+  const [showPairing, setShowPairing] = useState(
+    Boolean(initialInput) && (Platform.OS !== "ios" || Boolean(account?.isSignedIn)),
+  );
   const isIos = Platform.OS === "ios";
 
   useEffect(() => {
     if (initialInput) setInput(initialInput);
   }, [initialInput]);
 
-  if (isIos && pairingStep.step === "welcome") {
-    return (
-      <IosWelcomePairing
-        error={error}
-        isPairing={isPairing}
-        onOpenPairing={() => pairingStep.setStep("form")}
-      />
-    );
-  }
+  useEffect(() => {
+    if (isIos && account?.isSignedIn && initialInput) setShowPairing(true);
+  }, [account?.isSignedIn, initialInput, isIos]);
+
+  const form = (
+    <PairingForm
+      error={error}
+      input={input}
+      isIos={isIos}
+      isPairing={isPairing}
+      onInputChange={setInput}
+      onPair={() => void onPair(input)}
+      onScan={() => setIsScanning(true)}
+    />
+  );
 
   return (
     <>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            {
-              paddingTop: insets.top + graftSpacing.four,
-              paddingBottom: insets.bottom + graftSpacing.four,
-            },
-          ]}
-          keyboardShouldPersistTaps="handled"
-        >
-          {isIos ? null : <Wordmark />}
-          <View style={styles.intro}>
-            {isIos ? null : (
-              <Text style={[styles.eyebrow, { color: palette.foregroundSubtle }]}>
-                ANDROID REMOTE
-              </Text>
-            )}
-            <Text style={[styles.title, { color: palette.foreground }]}>
-              {isIos ? "Pair with Studio" : "Your work, away from your desk."}
-            </Text>
-            <Text style={[styles.body, { color: palette.foregroundMuted }]}>
-              {isIos
-                ? "Open Graft Studio on your Mac, then scan or paste the pairing link."
-                : "Pair securely with Graft Studio. Your computer stays authoritative; this phone becomes a lightweight remote view."}
-            </Text>
-          </View>
-
-          <FloatingSurface style={styles.formSurface}>
-            <View style={styles.form}>
-              <Text style={[styles.label, { color: palette.foreground }]}>Pairing link</Text>
-              <TextInput
-                accessibilityLabel="Graft pairing link"
-                autoCapitalize="none"
-                autoComplete="off"
-                autoCorrect={false}
-                editable={!isPairing}
-                multiline
-                onChangeText={setInput}
-                placeholder="graft://pair?v=1&host=…"
-                placeholderTextColor={palette.foregroundSubtle}
-                selectionColor={palette.foreground}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: palette.subtle,
-                    borderColor: error ? palette.danger : palette.border,
-                    color: palette.foreground,
-                  },
-                ]}
-                value={input}
-              />
-              {error ? (
-                <View style={styles.errorRow}>
-                  <Ionicons color={palette.danger} name="alert-circle-outline" size={17} />
-                  <Text style={[styles.error, { color: palette.danger }]}>{error}</Text>
-                </View>
-              ) : null}
-
-              {isIos ? (
-                <View style={styles.iosPrimary}>
-                  <GlassActionPill
-                    disabled={!input.trim()}
-                    icon="link-outline"
-                    isBusy={isPairing}
-                    onPress={() => void onPair(input)}
-                    title={isPairing ? "Pairing…" : "Pair with Studio"}
-                  />
-                </View>
-              ) : (
-                <PressScale
-                  accessibilityLabel={isPairing ? "Pairing" : "Pair with Graft"}
-                  disabled={isPairing || !input.trim()}
-                  onPress={() => void onPair(input)}
-                  style={[styles.primaryButton, { backgroundColor: palette.foreground }]}
-                >
-                  <Text style={[styles.primaryButtonText, { color: palette.background }]}>
-                    {isPairing ? "Pairing…" : "Pair with Graft"}
-                  </Text>
-                  <Ionicons
-                    color={palette.background}
-                    name={isPairing ? "ellipsis-horizontal" : "arrow-forward"}
-                    size={19}
-                  />
-                </PressScale>
-              )}
-
+      {isIos && account ? (
+        <>
+          <IosWelcomePairing
+            account={account}
+            isPairing={isPairing}
+            onOpenPairing={() => setShowPairing(true)}
+            pairingError={error}
+          />
+          <BottomSheet
+            maxHeightRatio={0.86}
+            onClose={() => setShowPairing(false)}
+            title="Pair with Studio"
+            trailingAccessory={
               <PressScale
-                accessibilityLabel="Scan pairing QR code"
-                disabled={isPairing}
-                onPress={() => setIsScanning(true)}
-                style={[styles.scanButton, { borderColor: palette.border }]}
+                accessibilityLabel={isPairing ? "Pairing" : "Pair"}
+                disabled={isPairing || !input.trim()}
+                onPress={() => void onPair(input)}
               >
-                <Ionicons color={palette.foreground} name="scan" size={20} />
-                <Text style={[styles.scanButtonText, { color: palette.foreground }]}>
-                  Scan QR code
+                <Text
+                  style={{
+                    color: isPairing || !input.trim() ? palette.foregroundSubtle : palette.foreground,
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
+                >
+                  Pair
                 </Text>
               </PressScale>
-            </View>
-          </FloatingSurface>
-
-          <View style={styles.privacyRow}>
-            <Ionicons color={palette.foregroundSubtle} name="lock-closed-outline" size={14} />
-            <Text style={[styles.privacy, { color: palette.foregroundSubtle }]}>
-              {isIos
-                ? "Session credentials stay in the iOS Keychain."
-                : "Session credentials stay in Android secure storage."}
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            }
+            visible={showPairing}
+          >
+            {form}
+          </BottomSheet>
+        </>
+      ) : (
+        form
+      )}
 
       <Modal
         animationType="fade"
@@ -185,6 +124,168 @@ export function PairingScreen({ error, initialInput, isPairing, onPair }: Pairin
   );
 }
 
+function PairingForm({
+  error,
+  input,
+  isIos,
+  isPairing,
+  onInputChange,
+  onPair,
+  onScan,
+}: {
+  readonly error?: string;
+  readonly input: string;
+  readonly isIos: boolean;
+  readonly isPairing: boolean;
+  readonly onInputChange: (value: string) => void;
+  readonly onPair: () => void;
+  readonly onScan: () => void;
+}) {
+  const palette = useGraftPalette();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={styles.flex}
+    >
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          isIos
+            ? styles.sheetContent
+            : {
+                paddingTop: insets.top + graftSpacing.four,
+                paddingBottom: insets.bottom + graftSpacing.four,
+              },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {isIos ? null : <Wordmark />}
+        {isIos ? null : (
+          <View style={styles.intro}>
+            <Text style={[styles.eyebrow, { color: palette.foregroundSubtle }]}>
+              ANDROID REMOTE
+            </Text>
+            <Text style={[styles.title, { color: palette.foreground }]}>
+              Your work, away from your desk.
+            </Text>
+            <Text style={[styles.body, { color: palette.foregroundMuted }]}>
+              Pair securely with Graft Studio. Your computer stays authoritative; this phone becomes
+              a lightweight remote view.
+            </Text>
+          </View>
+        )}
+
+        {isIos ? (
+          <PressScale
+            accessibilityLabel="Scan QR code"
+            disabled={isPairing}
+            onPress={onScan}
+            style={[styles.scanPrimary, { backgroundColor: palette.foreground }]}
+          >
+            <Ionicons color={palette.background} name="scan" size={19} />
+            <Text style={[styles.scanPrimaryText, { color: palette.background }]}>
+              Scan QR code
+            </Text>
+          </PressScale>
+        ) : null}
+
+        <FloatingSurface style={styles.formSurface}>
+          <View style={styles.form}>
+            <Text style={[styles.label, { color: palette.foreground }]}>
+              {isIos ? "Or paste the link" : "Pairing link"}
+            </Text>
+            <TextInput
+              accessibilityLabel="Graft pairing link"
+              autoCapitalize="none"
+              autoComplete="off"
+              autoCorrect={false}
+              editable={!isPairing}
+              multiline
+              onChangeText={onInputChange}
+              placeholder="graft://pair?v=1&host=…"
+              placeholderTextColor={palette.foregroundSubtle}
+              selectionColor={palette.foreground}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: palette.subtle,
+                  borderColor: error ? palette.danger : palette.border,
+                  color: palette.foreground,
+                },
+              ]}
+              value={input}
+            />
+            {error ? (
+              <View style={styles.errorRow}>
+                <Ionicons color={palette.danger} name="alert-circle-outline" size={17} />
+                <Text style={[styles.error, { color: palette.danger }]}>{error}</Text>
+              </View>
+            ) : null}
+
+            {isIos ? (
+              <Text style={[styles.helper, { color: palette.foregroundSubtle }]}>
+                Paste the link from Graft Studio → Settings → Mobile Pairing.
+              </Text>
+            ) : (
+              <>
+                <PressScale
+                  accessibilityLabel={isPairing ? "Pairing" : "Pair with Graft"}
+                  disabled={isPairing || !input.trim()}
+                  onPress={onPair}
+                  style={[styles.primaryButton, { backgroundColor: palette.foreground }]}
+                >
+                  <Text style={[styles.primaryButtonText, { color: palette.background }]}>
+                    {isPairing ? "Pairing…" : "Pair with Graft"}
+                  </Text>
+                  <Ionicons
+                    color={palette.background}
+                    name={isPairing ? "ellipsis-horizontal" : "arrow-forward"}
+                    size={19}
+                  />
+                </PressScale>
+                <PressScale
+                  accessibilityLabel="Scan pairing QR code"
+                  disabled={isPairing}
+                  onPress={onScan}
+                  style={[styles.scanButton, { borderColor: palette.border }]}
+                >
+                  <Ionicons color={palette.foreground} name="scan" size={20} />
+                  <Text style={[styles.scanButtonText, { color: palette.foreground }]}>
+                    Scan QR code
+                  </Text>
+                </PressScale>
+              </>
+            )}
+          </View>
+        </FloatingSurface>
+
+        {isIos ? null : (
+          <View style={styles.privacyRow}>
+            <Ionicons color={palette.foregroundSubtle} name="lock-closed-outline" size={14} />
+            <Text style={[styles.privacy, { color: palette.foregroundSubtle }]}>
+              Session credentials stay in Android secure storage.
+            </Text>
+          </View>
+        )}
+
+        {isIos ? (
+          <View style={styles.iosPrimary}>
+            <GlassActionPill
+              disabled={!input.trim()}
+              icon="link-outline"
+              isBusy={isPairing}
+              onPress={onPair}
+              title={isPairing ? "Pairing…" : "Pair with Studio"}
+            />
+          </View>
+        ) : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -193,6 +294,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: graftSpacing.three,
+  },
+  sheetContent: {
+    justifyContent: "flex-start",
+    paddingBottom: graftSpacing.three,
+    paddingTop: graftSpacing.one,
   },
   intro: {
     marginBottom: graftSpacing.three,
@@ -238,6 +344,11 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     textAlignVertical: "top",
   },
+  helper: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 10,
+  },
   errorRow: {
     alignItems: "flex-start",
     flexDirection: "row",
@@ -275,6 +386,20 @@ const styles = StyleSheet.create({
   scanButtonText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  scanPrimary: {
+    alignItems: "center",
+    borderRadius: graftRadius.medium,
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "center",
+    marginBottom: graftSpacing.two,
+    minHeight: 52,
+  },
+  scanPrimaryText: {
+    fontSize: 16.5,
+    fontWeight: "600",
+    letterSpacing: -0.3,
   },
   privacyRow: {
     alignItems: "center",

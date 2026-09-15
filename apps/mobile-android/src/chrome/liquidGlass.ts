@@ -11,6 +11,7 @@ const IOS_SYSTEM_NAMES: Readonly<Record<string, string>> = {
   "git-branch-outline": "arrow.triangle.branch",
   "link-outline": "link",
   menu: "line.3.horizontal",
+  "person-circle-outline": "person.crop.circle",
   search: "magnifyingglass",
   "settings-outline": "gearshape",
 };

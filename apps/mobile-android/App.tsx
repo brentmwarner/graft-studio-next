@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { BackHandler, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { isAccountAuthCallback } from "./src/auth/accountAuth";
+import { useAccountAuth } from "./src/auth/useAccountAuth";
 import { MenuProvider } from "./src/components/MenuProvider";
 import { NavDrawerLayout } from "./src/components/NavDrawer";
 import { HomeScreen } from "./src/screens/HomeScreen";
@@ -27,6 +29,7 @@ type AppRoute =
 
 function GraftApp() {
   const palette = useGraftPalette();
+  const account = useAccountAuth();
   const session = useGraftSession();
   const [route, setRoute] = useState<AppRoute>({ name: "home" });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -37,11 +40,11 @@ function GraftApp() {
 
   useEffect(() => {
     void Linking.getInitialURL().then((url) => {
-      if (url) session.receivePairingLink(url);
+      if (url && !isAccountAuthCallback(url)) session.receivePairingLink(url);
     });
 
     const subscription = Linking.addEventListener("url", ({ url }) => {
-      session.receivePairingLink(url);
+      if (!isAccountAuthCallback(url)) session.receivePairingLink(url);
     });
     return () => subscription.remove();
   }, [session.receivePairingLink]);
@@ -90,6 +93,7 @@ function GraftApp() {
       {session.state.status === "loading" ? <SplashScreen /> : null}
       {session.state.status === "unpaired" || session.state.status === "pairing" ? (
         <PairingScreen
+          account={account}
           error={session.state.error}
           initialInput={session.state.pendingInput}
           isPairing={session.state.status === "pairing"}
@@ -205,6 +209,7 @@ function GraftApp() {
             )}
           </NavDrawerLayout>
           <SettingsScreen
+            account={account}
             connectionState={paired.connectionState}
             onClose={() => setShowSettings(false)}
             onUnpair={session.unpair}

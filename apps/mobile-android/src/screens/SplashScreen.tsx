@@ -1,6 +1,6 @@
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 
-import { GraftGlassMark } from "../components/GraftGlassMark";
+import { GraftMark } from "../components/GraftMark";
 import { Wordmark } from "../components/Wordmark";
 import { graftSpacing, useGraftPalette } from "../theme/tokens";
 
@@ -11,7 +11,7 @@ export function SplashScreen() {
     <View style={[styles.container, { backgroundColor: palette.background }]}>
       {Platform.OS === "ios" ? (
         <>
-          <GraftGlassMark size={88} />
+          <GraftMark />
           <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
         </>
       ) : (

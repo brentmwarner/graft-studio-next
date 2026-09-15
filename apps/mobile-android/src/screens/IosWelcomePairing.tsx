@@ -1,30 +1,39 @@
-import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { accountMonogram } from "../auth/accountAuth";
+import type { AccountAuth } from "../auth/useAccountAuth";
+import { DitherWaveBackground } from "../components/DitherWaveBackground";
+import { FloatingSurface } from "../components/FloatingSurface";
 import { GlassActionPill } from "../components/GlassActionPill";
-import { GraftGlassMark } from "../components/GraftGlassMark";
-import { OnboardingRibbon } from "../components/OnboardingRibbon";
+import { GraftMark } from "../components/GraftMark";
+import { PressScale } from "../components/PressScale";
 import { graftSpacing, useGraftPalette } from "../theme/tokens";
+import { welcomeFootnote, welcomePrimaryAction } from "./welcomeCopy";
 
 interface IosWelcomePairingProps {
-  readonly error?: string;
+  readonly account: AccountAuth;
   readonly isPairing: boolean;
   readonly onOpenPairing: () => void;
+  readonly pairingError?: string;
 }
 
-/// First-run welcome — native `WelcomeView` layout: glass mark, brand,
-/// value line, 56pt black-glass Pair pill, Keychain footnote.
+/// First-run welcome — native `WelcomeView`: official mark, Continue with
+/// Graft, then a quiet inset Pair pill after account sign-in.
 export function IosWelcomePairing({
-  error,
+  account,
   isPairing,
   onOpenPairing,
+  pairingError,
 }: IosWelcomePairingProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
-  const footnote = error
-    ? error
-    : "Open Graft Studio on your Mac,\nthen scan or paste the pairing link.";
+  const primary = welcomePrimaryAction(account.isSignedIn);
+  const footnote = welcomeFootnote({
+    authError: account.lastError,
+    isSignedIn: account.isSignedIn,
+    pairingError,
+  });
 
   return (
     <View
@@ -37,40 +46,83 @@ export function IosWelcomePairing({
         },
       ]}
     >
-      <OnboardingRibbon />
+      <DitherWaveBackground />
       <View style={styles.hero}>
-        <GraftGlassMark />
-        <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
-        <Text style={[styles.pitch, { color: palette.foregroundSubtle }]}>
-          Control your Graft Studio from anywhere.
+        <GraftMark />
+        <Text accessibilityRole="header" style={[styles.brand, { color: palette.foreground }]}>
+          Graft
         </Text>
       </View>
 
       <View style={styles.actions}>
-        <GlassActionPill
-          icon="link-outline"
-          isBusy={isPairing}
-          onPress={onOpenPairing}
-          title="Pair with Studio"
-        />
+        {primary === "pair" ? (
+          <>
+            <AccountChip
+              displayName={account.displayName}
+              email={account.email}
+              onSignOut={account.signOut}
+            />
+            <GlassActionPill
+              icon="link-outline"
+              isBusy={isPairing}
+              onPress={onOpenPairing}
+              title="Pair with Studio"
+            />
+          </>
+        ) : (
+          <GlassActionPill
+            icon="person-circle-outline"
+            isBusy={account.isSigningIn}
+            onPress={() => {
+              void account.signIn();
+            }}
+            title="Continue with Graft"
+          />
+        )}
         <Text
           style={[
             styles.footnote,
-            { color: error ? palette.danger : palette.foregroundSubtle },
+            { color: footnote.tone === "danger" ? palette.danger : palette.foregroundSubtle },
           ]}
         >
-          {footnote}
+          {footnote.text}
         </Text>
       </View>
     </View>
   );
 }
 
-export function useIosPairingStep(hasInitialInput: boolean) {
-  const [step, setStep] = useState<"welcome" | "form">(
-    hasInitialInput ? "form" : "welcome",
+function AccountChip({
+  displayName,
+  email,
+  onSignOut,
+}: {
+  readonly displayName?: string;
+  readonly email?: string;
+  readonly onSignOut: () => void;
+}) {
+  const palette = useGraftPalette();
+
+  return (
+    <FloatingSurface interactive={false} style={styles.chip}>
+      <View
+        style={[styles.monogram, { backgroundColor: palette.subtle }]}
+      >
+        <Text style={[styles.monogramText, { color: palette.foreground }]}>
+          {accountMonogram(displayName, email)}
+        </Text>
+      </View>
+      <Text
+        numberOfLines={1}
+        style={[styles.chipEmail, { color: palette.foregroundMuted }]}
+      >
+        {email ?? "Signed in"}
+      </Text>
+      <PressScale accessibilityLabel="Sign out" onPress={onSignOut}>
+        <Text style={[styles.signOut, { color: palette.foreground }]}>Sign out</Text>
+      </PressScale>
+    </FloatingSurface>
   );
-  return { setStep, step } as const;
 }
 
 const styles = StyleSheet.create({
@@ -84,6 +136,21 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     marginTop: graftSpacing.three,
   },
+  chip: {
+    alignItems: "center",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 10,
+    maxWidth: "100%",
+    minHeight: 38,
+    paddingLeft: 6,
+    paddingRight: 16,
+    paddingVertical: 6,
+  },
+  chipEmail: {
+    flexShrink: 1,
+    fontSize: 13,
+  },
   footnote: {
     fontSize: 13,
     lineHeight: 18,
@@ -94,13 +161,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
-  pitch: {
-    fontSize: 16,
-    marginTop: graftSpacing.one,
-    paddingHorizontal: graftSpacing.four,
-    textAlign: "center",
+  monogram: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 26,
+    justifyContent: "center",
+    width: 26,
+  },
+  monogramText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   root: {
     flex: 1,
+  },
+  signOut: {
+    fontSize: 13,
+    fontWeight: "500",
+    paddingLeft: 4,
   },
 });
