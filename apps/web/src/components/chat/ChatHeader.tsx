@@ -87,8 +87,8 @@ interface ChatHeaderProps {
   hideSidebarControls?: boolean;
   hideHandoffControls?: boolean;
   // Empty-draft landings hide all thread-scoped chrome (title, Hand off, project
-  // scripts, git/open-in) — the chat hasn't started yet — keeping only the sidebar
-  // cluster plus the Environment and right-panel toggles.
+  // scripts, git/open-in, Environment) until the chat starts, keeping the sidebar
+  // navigation and the terminal/right-panel toggles available.
   minimalChrome?: boolean;
   isGitRepo: boolean;
   openInTarget: string | null;
@@ -927,7 +927,7 @@ export function ChatHeader({
             Falls back to the legacy controls when no environment is resolved. */}
         {environment ? (
           <>
-            <EnvironmentToggle environment={environment} />
+            {!minimalChrome ? <EnvironmentToggle environment={environment} /> : null}
             {terminalToggleControl}
             {rightPanelToggleControl}
           </>

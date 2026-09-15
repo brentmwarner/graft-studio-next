@@ -10,6 +10,7 @@ The export retains the original geometry and `currentColor` paint.
 The Environment menu uses Central's `bullet-list`, the right sidebar toggle uses
 `sidebar-hidden-right-wide`, and the bottom terminal toggle uses
 `bottombar-hidden-bottom-wide`. These resolve through the Central fallback sets.
+The Environment toggle stays hidden on empty-chat landings until the chat starts.
 
 Skills deliberately retain Synara's original `building-blocks` artwork, copied
 unchanged from `public/central-icons-reversed/building-blocks.svg`. The shared

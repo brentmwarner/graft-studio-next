@@ -7901,10 +7901,14 @@ describe("ChatView transcript geometry (full app)", () => {
     });
 
     try {
+      const environmentToggle = page.getByRole("button", { name: "Toggle environment panel" });
+      await expect.element(page.getByTestId("empty-landing-heading")).toBeVisible();
+      await expect.element(environmentToggle).not.toBeInTheDocument();
       const prompt = "Keep the first message on screen";
       useComposerDraftStore.getState().setPrompt(THREAD_ID, prompt);
       const sendButton = await waitForSendButton();
       expect(sendButton.disabled).toBe(false);
+      await expect.element(environmentToggle).not.toBeInTheDocument();
       sendButton.click();
       const startCommand = await vi.waitFor(() => {
         const command = wsRequests
@@ -7917,6 +7921,7 @@ describe("ChatView transcript geometry (full app)", () => {
       const messageSelector = `[data-message-id="${message.messageId}"][data-message-role="user"]`;
       const expectTranscript = async () => {
         await waitForLayout();
+        await expect.element(environmentToggle).toBeVisible();
         expect(document.querySelectorAll(messageSelector)).toHaveLength(1);
         expect(document.querySelector(messageSelector)?.textContent).toContain(prompt);
         expect(document.querySelector('[data-empty-landing-composer-block="true"]')).toBeNull();
@@ -7972,6 +7977,8 @@ describe("ChatView transcript geometry (full app)", () => {
 
     try {
       await expect.element(page.getByTestId("empty-landing-heading")).toBeInTheDocument();
+      const environmentToggle = page.getByRole("button", { name: "Toggle environment panel" });
+      await expect.element(environmentToggle).not.toBeInTheDocument();
       const pendingTurn = {
         turnId: TurnId.makeUnsafe("first-turn-starting"),
         state: "running" as const,
@@ -7984,6 +7991,7 @@ describe("ChatView transcript geometry (full app)", () => {
       fixture.snapshot = { ...fixture.snapshot, threads: [pendingThread] };
       useStore.getState().syncServerThreadDetailHotPath(pendingThread);
       await waitForLayout();
+      await expect.element(environmentToggle).toBeVisible();
       expect(document.querySelector('[data-testid="empty-landing-heading"]')).toBeNull();
       const transcriptPane = document.querySelector('[data-chat-transcript-pane="true"]');
       expect(transcriptPane).not.toBeNull();
@@ -8050,6 +8058,9 @@ describe("ChatView transcript geometry (full app)", () => {
       try {
         expect(document.querySelector('[data-testid="empty-landing-heading"]')).not.toBeNull();
         expect(document.querySelector('[data-empty-landing-composer-block="true"]')).not.toBeNull();
+        await expect
+          .element(page.getByRole("button", { name: "Toggle environment panel" }))
+          .not.toBeInTheDocument();
       } finally {
         await mounted.cleanup();
       }
