@@ -13,6 +13,7 @@ import {
   serverProfileTokenStatsQueryOptions,
 } from "~/lib/serverReactQuery";
 import { CentralIcon } from "~/lib/central-icons";
+import { SKILL_ICON_NAME } from "~/lib/icons";
 import { ProviderIcon } from "~/components/ProviderIcon";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -217,7 +218,7 @@ function ProfileContent({
                   <span className="flex min-w-0 items-center gap-2.5">
                     <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/60">
                       <CentralIcon
-                        name={skill.kind === "agent" ? "group-1" : "blocks"}
+                        name={skill.kind === "agent" ? "group-1" : SKILL_ICON_NAME}
                         className="size-3"
                       />
                     </span>

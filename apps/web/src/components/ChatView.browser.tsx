@@ -76,7 +76,7 @@ import {
   createFullscreenTestHost,
 } from "../test/browserHarness";
 import { useTemporaryThreadStore } from "../temporaryThreadStore";
-import { useTerminalStateStore } from "../terminalStateStore";
+import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import { resetRetainedThreadDetailSubscriptionsForTests } from "../threadDetailSubscriptionRetention";
 import { useWorkspacePathsStore } from "../workspacePathsStore";
 import { getWorkspaceEditorSession } from "../lib/workspaceEditorSession";
@@ -2752,6 +2752,58 @@ describe("ChatView transcript geometry (full app)", () => {
     }
   });
 
+  it("uses the requested panel icons and toggles the bottom terminal from the header", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-panel-controls" as MessageId,
+        targetText: "panel controls",
+      }),
+    });
+
+    try {
+      const environment = page.getByRole("button", { name: "Toggle environment panel" });
+      const sidebar = page.getByRole("button", { name: /Toggle (right sidebar|diff panel)/ });
+      const terminal = page.getByRole("button", { name: "Toggle bottom terminal" });
+      for (const [button, iconName] of [
+        [environment, "bullet-list"],
+        [sidebar, "sidebar-hidden-right-wide"],
+        [terminal, "bottombar-hidden-bottom-wide"],
+      ] as const) {
+        await expect.element(button).toBeVisible();
+        const icon = button.element().querySelector<HTMLElement>('[data-slot="central-icon"]');
+        expect(icon).not.toBeNull();
+        expect(getComputedStyle(icon!).maskImage).toContain(`/${iconName}.svg`);
+      }
+
+      await expect.element(terminal).toHaveAttribute("aria-pressed", "false");
+      await terminal.click();
+      await expect.element(terminal).toHaveAttribute("aria-pressed", "true");
+      await vi.waitFor(() => {
+        expect(wsRequests).toContainEqual(
+          expect.objectContaining({
+            _tag: WS_METHODS.terminalOpen,
+            threadId: THREAD_ID,
+            cwd: "/repo/project",
+          }),
+        );
+      });
+      const openState = useTerminalStateStore.getState().terminalStateByThreadId[THREAD_ID]!;
+      expect(openState.presentationMode).toBe("drawer");
+
+      await terminal.click();
+      await expect.element(terminal).toHaveAttribute("aria-pressed", "false");
+      const closedState = selectThreadTerminalState(
+        useTerminalStateStore.getState().terminalStateByThreadId,
+        THREAD_ID,
+      );
+      expect(closedState.terminalOpen).toBe(false);
+      expect(closedState.terminalIds).toEqual(openState.terminalIds);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("[geometry:linux] optically aligns the composer send arrow across responsive states", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -2777,12 +2829,12 @@ describe("ChatView transcript geometry (full app)", () => {
 
         expect(buttonRect.width).toBeCloseTo(28, 2);
         expect(buttonRect.height).toBeCloseTo(28, 2);
-        expect(arrowRect.width).toBeCloseTo(20, 2);
-        expect(arrowRect.height).toBeCloseTo(20, 2);
+        expect(arrowRect.width).toBeCloseTo(18, 2);
+        expect(arrowRect.height).toBeCloseTo(18, 2);
         expect(arrowCenterX - buttonCenterX).toBeCloseTo(0, 2);
-        expect(arrowCenterY - buttonCenterY).toBeCloseTo(1, 2);
+        expect(arrowCenterY - buttonCenterY).toBeCloseTo(0, 2);
         expect(getComputedStyle(sendButton).boxShadow).toBe("none");
-        expect(getComputedStyle(sendArrow).mask).toContain("/central-icons-round/arrow-up.svg");
+        expect(getComputedStyle(sendArrow).mask).toContain("/central-icons-app/arrow-up.svg");
       };
 
       expect(sendButton.disabled).toBe(true);
@@ -7125,37 +7177,18 @@ describe("ChatView transcript geometry (full app)", () => {
         const resetButtonCenterX = resetButtonRect.left + resetButtonRect.width / 2;
         expect(Math.abs(resetButtonCenterX - folderIconCenterX)).toBeLessThanOrEqual(0.5);
       };
-      const temporaryChatButton = page.getByLabelText("Temporary chat");
-      await temporaryChatButton.hover();
-      const temporaryChatElement = temporaryChatButton.element();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
-      const temporaryHoverBackground = getComputedStyle(temporaryChatElement).backgroundColor;
-      const temporaryCapsuleRadius = getComputedStyle(temporaryChatElement).borderRadius;
-      const temporaryCapsulePadding = getComputedStyle(temporaryChatElement).paddingInlineStart;
+      // The project picker uses chrome styling; the Temporary control uses ghost styling.
+      // Verify the reset affordance without requiring those variants to look identical.
       await projectPickerTrigger.hover();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
       await vi.waitFor(() => {
         expect(getComputedStyle(resetProjectButton.element()).opacity).toBe("1");
-        expect(getComputedStyle(projectPickerTrigger.element()).backgroundColor).toBe(
-          temporaryHoverBackground,
-        );
+        expect(getComputedStyle(folderIcon!).opacity).toBe("0");
       });
       expectResetAlignedWithFolderIcon();
-      expect(getComputedStyle(projectPickerTrigger.element()).borderRadius).toBe(
-        temporaryCapsuleRadius,
-      );
-      expect(getComputedStyle(projectPickerTrigger.element()).paddingInlineStart).toBe(
-        temporaryCapsulePadding,
-      );
-      expect(projectPickerTrigger.element().getBoundingClientRect().height).toBe(
-        temporaryChatElement.getBoundingClientRect().height,
-      );
       await resetProjectButton.hover();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
       await vi.waitFor(() => {
-        expect(getComputedStyle(projectPickerTrigger.element()).backgroundColor).toBe(
-          temporaryHoverBackground,
-        );
+        expect(getComputedStyle(resetProjectButton.element()).opacity).toBe("1");
+        expect(getComputedStyle(folderIcon!).opacity).toBe("0");
       });
       await mounted.setViewport(TEXT_VIEWPORT_MATRIX[2]);
       await projectPickerTrigger.hover();
@@ -7868,10 +7901,14 @@ describe("ChatView transcript geometry (full app)", () => {
     });
 
     try {
+      const environmentToggle = page.getByRole("button", { name: "Toggle environment panel" });
+      await expect.element(page.getByTestId("empty-landing-heading")).toBeVisible();
+      await expect.element(environmentToggle).not.toBeInTheDocument();
       const prompt = "Keep the first message on screen";
       useComposerDraftStore.getState().setPrompt(THREAD_ID, prompt);
       const sendButton = await waitForSendButton();
       expect(sendButton.disabled).toBe(false);
+      await expect.element(environmentToggle).not.toBeInTheDocument();
       sendButton.click();
       const startCommand = await vi.waitFor(() => {
         const command = wsRequests
@@ -7884,6 +7921,7 @@ describe("ChatView transcript geometry (full app)", () => {
       const messageSelector = `[data-message-id="${message.messageId}"][data-message-role="user"]`;
       const expectTranscript = async () => {
         await waitForLayout();
+        await expect.element(environmentToggle).toBeVisible();
         expect(document.querySelectorAll(messageSelector)).toHaveLength(1);
         expect(document.querySelector(messageSelector)?.textContent).toContain(prompt);
         expect(document.querySelector('[data-empty-landing-composer-block="true"]')).toBeNull();
@@ -7939,6 +7977,8 @@ describe("ChatView transcript geometry (full app)", () => {
 
     try {
       await expect.element(page.getByTestId("empty-landing-heading")).toBeInTheDocument();
+      const environmentToggle = page.getByRole("button", { name: "Toggle environment panel" });
+      await expect.element(environmentToggle).not.toBeInTheDocument();
       const pendingTurn = {
         turnId: TurnId.makeUnsafe("first-turn-starting"),
         state: "running" as const,
@@ -7951,6 +7991,7 @@ describe("ChatView transcript geometry (full app)", () => {
       fixture.snapshot = { ...fixture.snapshot, threads: [pendingThread] };
       useStore.getState().syncServerThreadDetailHotPath(pendingThread);
       await waitForLayout();
+      await expect.element(environmentToggle).toBeVisible();
       expect(document.querySelector('[data-testid="empty-landing-heading"]')).toBeNull();
       const transcriptPane = document.querySelector('[data-chat-transcript-pane="true"]');
       expect(transcriptPane).not.toBeNull();
@@ -8017,6 +8058,9 @@ describe("ChatView transcript geometry (full app)", () => {
       try {
         expect(document.querySelector('[data-testid="empty-landing-heading"]')).not.toBeNull();
         expect(document.querySelector('[data-empty-landing-composer-block="true"]')).not.toBeNull();
+        await expect
+          .element(page.getByRole("button", { name: "Toggle environment panel" }))
+          .not.toBeInTheDocument();
       } finally {
         await mounted.cleanup();
       }

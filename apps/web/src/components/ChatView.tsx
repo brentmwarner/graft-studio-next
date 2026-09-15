@@ -5399,6 +5399,14 @@ export default function ChatView({
           rightDockOpen={rightDockOpen}
           {...(onToggleRightDock ? { onToggleRightDock } : {})}
           environment={isEditorRail ? null : environmentHeaderState}
+          terminalToggle={
+            !isEditorRail && !isTerminalPrimarySurface && threadWorkspaceCwd
+              ? {
+                  open: terminalState.terminalOpen,
+                  onToggle: toggleTerminalVisibility,
+                }
+              : null
+          }
           surfaceMode={surfaceMode}
           chatLayoutAction={
             surfaceMode === "single" && onSplitSurface

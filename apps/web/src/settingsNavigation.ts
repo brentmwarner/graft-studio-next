@@ -3,6 +3,8 @@
 // Layer: Route/UI support
 // Exports: section ids, nav items, and search normalization helper
 
+import { SKILL_ICON_NAME } from "./lib/icons";
+
 export const SETTINGS_SECTION_IDS = [
   "general",
   "profile",
@@ -40,7 +42,7 @@ export type SettingsNavItem = {
   group: SettingsNavGroupId;
   label: string;
   description: string;
-  /** Basename of a SVG under `/central-icons-reversed`. */
+  /** Central icon basename resolved by the shared icon registry. */
   icon: string;
   eyebrow: string;
 };
@@ -158,7 +160,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     group: "coding",
     label: "Agent skills",
     description: "Review reusable workflows discovered across all configured providers.",
-    icon: "blocks",
+    icon: SKILL_ICON_NAME,
     eyebrow: "Reusable workflows",
   },
   {

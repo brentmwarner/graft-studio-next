@@ -41,7 +41,7 @@ export function AppNavigationButtons({ className }: { className?: string }) {
             />
           }
         >
-          <ArrowLeftIcon className="size-5" />
+          <ArrowLeftIcon className="size-4" />
         </TooltipTrigger>
         <TooltipPopup side="bottom">Back ({backShortcutLabel})</TooltipPopup>
       </Tooltip>
@@ -59,7 +59,7 @@ export function AppNavigationButtons({ className }: { className?: string }) {
             />
           }
         >
-          <ArrowRightIcon className="size-5" />
+          <ArrowRightIcon className="size-4" />
         </TooltipTrigger>
         <TooltipPopup side="bottom">Forward ({forwardShortcutLabel})</TooltipPopup>
       </Tooltip>

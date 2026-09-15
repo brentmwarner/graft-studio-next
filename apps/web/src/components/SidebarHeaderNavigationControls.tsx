@@ -12,15 +12,14 @@ import { cn } from "~/lib/utils";
  *
  * It renders in two distinct places — inside the OPEN sidebar header (where it
  * slides off-canvas with the sidebar) and in host top bars AFTER an off-canvas
- * close (chat/settings/plugin headers). Keeping it in ONE component is
- * what makes those two states visually identical: same trigger tone, icon size,
- * and gap, so toggling the sidebar never changes the button's brightness or the
- * cluster spacing. The wrapper layout (hidden/md:flex, ml-auto, …) varies per host,
- * so it is passed in via `className`; the inner controls stay constant.
+ * close (chat/settings/plugin headers). Sharing this component keeps the trigger
+ * tone and icon sizes consistent. In the open sidebar, the
+ * host stretches this row so the arrows align with its trailing edge. Collapsed
+ * headers keep a compact group with space between the toggle and the arrows.
  */
 export function SidebarLeadingControls({ className }: { className?: string }) {
   return (
-    <div className={cn("flex shrink-0 items-center gap-0.5", className)}>
+    <div className={cn("flex min-w-0 shrink-0 items-center justify-between gap-4", className)}>
       <SidebarTrigger
         className="size-7 shrink-0 text-muted-foreground/75 hover:text-foreground"
         aria-label="Toggle thread sidebar"
