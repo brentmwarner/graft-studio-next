@@ -73,7 +73,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-asset"
+      "expo-asset",
+      "./plugins/withIosSceneLifecycle.js"
     ],
     "extra": {
       "eas": {
