@@ -52,7 +52,8 @@ it("renders running reasoning and tools without another live indicator", async (
       ),
     );
   });
-  const dotLoaders = renderer.root.findAll((node) => node.type === "DotMatrix");
+  const isType = (node: { type: unknown }, name: string) => node.type === name;
+  const dotLoaders = renderer.root.findAll((node) => isType(node, "DotMatrix"));
   expect(dotLoaders).toHaveLength(1);
   expect(
     renderer.root.findAll((node) => node.props.accessibilityLiveRegion === "polite"),
@@ -61,14 +62,15 @@ it("renders running reasoning and tools without another live indicator", async (
 });
 
 it("updates a status phrase without remounting its dot loader", async () => {
+  const isType = (node: { type: unknown }, name: string) => node.type === name;
   await act(() => {
     renderer = create(createElement(LiveStatusLine, { phrase: "Thinking" }));
   });
-  const indicator = renderer.root.find((node) => node.type === "DotMatrix");
+  const indicator = renderer.root.find((node) => isType(node, "DotMatrix"));
   await act(() => renderer.update(createElement(LiveStatusLine, { phrase: "Reading files" })));
-  expect(renderer.root.find((node) => node.type === "DotMatrix")).toBe(indicator);
+  expect(renderer.root.find((node) => isType(node, "DotMatrix"))).toBe(indicator);
   await act(() =>
     renderer.update(createElement(LiveStatusLine, { phrase: "Waiting for you", animating: false })),
   );
-  expect(renderer.root.findAll((node) => node.type === "DotMatrix")).toHaveLength(0);
+  expect(renderer.root.findAll((node) => isType(node, "DotMatrix"))).toHaveLength(0);
 });

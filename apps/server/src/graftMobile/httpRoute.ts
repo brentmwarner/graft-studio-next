@@ -423,7 +423,15 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
               });
               return;
             }
-            seedGraftMobileLiveEventState(liveState, snapshot.value);
+            // Seed only when reconnecting mid-stream (snapshot behind this
+            // live event). Seeding an up-to-date snapshot marks the first
+            // assistant frame as already covered and forces snapshot_required
+            // on a fresh connection before any text can stream.
+            if (event.sequence > snapshot.value.snapshotSequence) {
+              seedGraftMobileLiveEventState(liveState, snapshot.value);
+            } else {
+              liveState.snapshotCursorByThreadId.set(event.payload.threadId, 0);
+            }
           }
           const mobileEvent = toMobileLiveEvent(liveState, event);
           yield* mobileEvent

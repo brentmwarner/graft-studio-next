@@ -17,7 +17,8 @@ vi.mock("../../components/AnchoredMenu", () => ({
 const model = { id: "codex", providerId: "codex", label: "Codex" };
 let renderer: ReactTestRenderer | undefined;
 let config: ComposerMenuConfig;
-const items = () => renderer!.root.findAll((node) => node.type === "Item");
+const isType = (node: { type: unknown }, name: string) => node.type === name;
+const items = () => renderer!.root.findAll((node) => isType(node, "Item"));
 const item = (label: string) => items().find((node) => node.props.label === label)!;
 async function mount(page: ComposerMenuPage) {
   await act(() => {

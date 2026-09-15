@@ -11,7 +11,8 @@ vi.mock("../../components/MarkdownMessage", () => ({ MarkdownMessage: "Markdown"
 let renderer: ReactTestRenderer | undefined;
 const frame = (content: string, streaming = true) =>
   createElement(StreamingMarkdownMessage, { content, streaming });
-const visible = () => renderer!.root.find((node) => node.type === "Markdown").props.children;
+const isType = (node: { type: unknown }, name: string) => node.type === name;
+const visible = () => renderer!.root.find((node) => isType(node, "Markdown")).props.children;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -43,7 +44,9 @@ describe("streaming text delivery", () => {
     });
     const target = `Start ${"received text 😀 ".repeat(500)}`;
     await act(() => renderer!.update(frame(target)));
-    await act(() => vi.advanceTimersByTime(32));
+    await act(() => {
+      vi.advanceTimersByTime(32);
+    });
     expect(visible()).toBe(target);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -53,10 +56,14 @@ describe("streaming text delivery", () => {
       renderer = create(frame("A"));
     });
     await act(() => renderer!.update(frame("A B")));
-    await act(() => vi.advanceTimersByTime(16));
+    await act(() => {
+      vi.advanceTimersByTime(16);
+    });
     await act(() => renderer!.update(frame("A B C")));
     expect(visible()).toBe("A");
-    await act(() => vi.advanceTimersByTime(16));
+    await act(() => {
+      vi.advanceTimersByTime(16);
+    });
     expect(visible()).toBe("A B C");
   });
 
@@ -77,7 +84,9 @@ describe("streaming text delivery", () => {
     await act(() => renderer!.update(frame("Original pending")));
     await act(() => renderer!.update(frame("Corrected")));
     expect(visible()).toBe("Corrected");
-    await act(() => vi.advanceTimersByTime(32));
+    await act(() => {
+      vi.advanceTimersByTime(32);
+    });
     expect(visible()).toBe("Corrected");
   });
 

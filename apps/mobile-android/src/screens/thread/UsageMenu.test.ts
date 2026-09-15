@@ -36,8 +36,9 @@ vi.mock("../../components/AnchoredMenu", () => ({
 }));
 let renderer: ReactTestRenderer | undefined;
 const content = () => JSON.stringify(renderer!.toJSON());
+const isType = (node: { type: unknown }, name: string) => node.type === name;
 const changeOpen = (open: boolean) =>
-  renderer!.root.find((node) => node.type === "Popup").props.onOpenChange(open);
+  renderer!.root.find((node) => isType(node, "Popup")).props.onOpenChange(open);
 const response = (remainingPercent: number): GraftThreadUsage => ({
   threadId: "a",
   allowance: {
@@ -92,5 +93,5 @@ it("shows the legacy host fallback instead of an empty meter", async () => {
   });
   await act(async () => changeOpen(true));
   expect(content()).toContain("Account usage isn’t available on this host yet.");
-  expect(renderer!.root.findAll((node) => node.type === "Bar")).toHaveLength(0);
+  expect(renderer!.root.findAll((node) => isType(node, "Bar"))).toHaveLength(0);
 });
