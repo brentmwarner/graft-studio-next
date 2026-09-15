@@ -1,6 +1,6 @@
-import type { ConfigContext, ExpoConfig } from "expo/config";
+import type { ConfigContext } from "expo/config";
 
-export default function configureApp({ config }: ConfigContext): ExpoConfig {
+export default function configureApp({ config }: ConfigContext): ConfigContext["config"] {
   if (process.env.EAS_BUILD_PROFILE !== "preview") return config;
 
   // Preview APKs connect to local and tailnet HTTP hosts during device testing.
