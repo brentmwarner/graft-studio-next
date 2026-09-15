@@ -151,6 +151,33 @@ describe("mobile relay", () => {
     ]);
   });
 
+  it("forwards authenticated attachment upload and cancellation under mobile routes", async () => {
+    const test = await fixture();
+    for (const action of ["upload", "cancel"]) {
+      const path = `/v1/attachments/${action}`;
+      test.peers[0]!.send(
+        JSON.stringify({
+          type: "http",
+          requestId: action,
+          method: "POST",
+          path,
+          headers: {
+            authorization: "Bearer mobile-session",
+            "content-type": "application/octet-stream",
+          },
+          bodyBase64: Buffer.from("attachment payload").toString("base64"),
+        }),
+      );
+      await expect
+        .poll(() =>
+          test.frames.find((frame) => frame.type === "http-response" && frame.requestId === action),
+        )
+        .toMatchObject({ status: 200 });
+      expect(test.received).toContainEqual({ path, authorization: "Bearer mobile-session" });
+      expect(relayLocalUrl("http://127.0.0.1:5000", path, true)).toBeNull();
+    }
+  });
+
   it("reconnects after an uplink drop and forwards a resumed phone session", async () => {
     const test = await fixture();
     test.peers[0]!.terminate();

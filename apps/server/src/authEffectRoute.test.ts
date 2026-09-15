@@ -6,6 +6,7 @@ import path from "node:path";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { AuthSessionId } from "@graft/contracts";
+import { GRAFT_ATTACHMENT_UPLOAD_PATH, GRAFT_ATTACHMENT_CANCEL_PATH } from "@graft/mobile-contract";
 import {
   ATTACHMENT_CANCEL_ROUTE_PATH,
   ATTACHMENT_UPLOAD_ROUTE_PATH,
@@ -34,6 +35,7 @@ import {
   type ProviderAdapterRegistryShape,
 } from "./provider/Services/ProviderAdapterRegistry";
 import { ServerSettingsService } from "./serverSettings";
+import { startMobileLanGateway, stopMobileLanGateway } from "./graftMobile/lanGateway";
 
 const currentSessionId = AuthSessionId.makeUnsafe("11111111-1111-4111-8111-111111111111");
 const otherSessionId = AuthSessionId.makeUnsafe("22222222-2222-4222-8222-222222222222");
@@ -119,6 +121,7 @@ async function withAuthEffectServer(
   overrides?: {
     readonly providerAdapterRegistry?: ProviderAdapterRegistryShape;
     readonly serverSettingsLayer?: Layer.Layer<ServerSettingsService>;
+    readonly mobileGateway?: boolean;
   },
 ): Promise<void> {
   const scope = await Effect.runPromise(Scope.make("sequential"));
@@ -163,10 +166,14 @@ async function withAuthEffectServer(
         scope,
       ),
     );
-    const address = (nodeServer as http.Server | null)?.address();
-    if (!address || typeof address !== "object") throw new Error("Expected server address");
-    await run(`http://127.0.0.1:${address.port}`);
+    const main = nodeServer as http.Server | null;
+    const address = main?.address();
+    if (!main || !address || typeof address !== "object")
+      throw new Error("Expected server address");
+    const port = overrides?.mobileGateway ? await startMobileLanGateway(main) : address.port;
+    await run(`http://127.0.0.1:${port}`);
   } finally {
+    if (overrides?.mobileGateway) await stopMobileLanGateway();
     await Effect.runPromise(Scope.close(scope, Exit.void));
   }
 }
@@ -433,91 +440,108 @@ describe("binaryUploadEffectRouteLayer", () => {
     }
   });
 
-  it("rejects ambient cookie uploads without an origin and accepts explicit bearer auth", async () => {
-    const attachmentsDir = fs.mkdtempSync(path.join(os.tmpdir(), "graft-upload-route-"));
-    const config = {
-      host: "0.0.0.0",
-      publicUrl: new URL("https://graft.example.test/"),
-      attachmentsDir,
-    } as ServerConfigShape;
-    try {
-      await withAuthEffectServer(
-        config,
-        makeServerAuth({ count: 0 }),
-        async (serverOrigin) => {
-          const params = new URLSearchParams({
-            type: "image",
-            threadId: "thread-1",
-            name: "screen.png",
-            mimeType: "image/png",
-          });
-          const url = `${serverOrigin}${ATTACHMENT_UPLOAD_ROUTE_PATH}?${params.toString()}`;
-          const cookieResponse = await fetch(url, {
-            method: "POST",
-            headers: { Cookie: "graft_session=cookie-token" },
-            body: Uint8Array.from([1]),
-          });
-          expect(cookieResponse.status).toBe(403);
-          expect(fs.readdirSync(attachmentsDir)).toEqual([]);
+  it.each([
+    {
+      label: "desktop",
+      uploadPath: ATTACHMENT_UPLOAD_ROUTE_PATH,
+      cancelPath: ATTACHMENT_CANCEL_ROUTE_PATH,
+      mobileGateway: false,
+    },
+    {
+      label: "mobile LAN",
+      uploadPath: GRAFT_ATTACHMENT_UPLOAD_PATH,
+      cancelPath: GRAFT_ATTACHMENT_CANCEL_PATH,
+      mobileGateway: true,
+    },
+  ])(
+    "authenticates and bounds uploads and cancellation through $label",
+    async ({ uploadPath, cancelPath, mobileGateway }) => {
+      const attachmentsDir = fs.mkdtempSync(path.join(os.tmpdir(), "graft-upload-route-"));
+      const config = {
+        host: "0.0.0.0",
+        publicUrl: new URL("https://graft.example.test/"),
+        attachmentsDir,
+      } as ServerConfigShape;
+      try {
+        await withAuthEffectServer(
+          config,
+          makeServerAuth({ count: 0 }),
+          async (serverOrigin) => {
+            const params = new URLSearchParams({
+              type: "image",
+              threadId: "thread-1",
+              name: "screen.png",
+              mimeType: "image/png",
+            });
+            const url = `${serverOrigin}${uploadPath}?${params.toString()}`;
+            const cookieResponse = await fetch(url, {
+              method: "POST",
+              headers: { Cookie: "graft_session=cookie-token" },
+              body: Uint8Array.from([1]),
+            });
+            expect(cookieResponse.status).toBe(403);
+            expect(fs.readdirSync(attachmentsDir)).toEqual([]);
 
-          const oversizedStatus = await new Promise<number>((resolve, reject) => {
-            const target = new URL(url);
-            const request = http.request(
-              {
-                hostname: target.hostname,
-                port: target.port,
-                path: `${target.pathname}${target.search}`,
+            const oversizedStatus = await new Promise<number>((resolve, reject) => {
+              const target = new URL(url);
+              const request = http.request(
+                {
+                  hostname: target.hostname,
+                  port: target.port,
+                  path: `${target.pathname}${target.search}`,
+                  method: "POST",
+                  headers: {
+                    Authorization: "Bearer bearer-token",
+                    "Content-Length": String(10 * 1024 * 1024 + 1),
+                  },
+                },
+                (response) => {
+                  response.resume();
+                  response.once("end", () => resolve(response.statusCode ?? 0));
+                },
+              );
+              request.once("error", reject);
+              request.end();
+            });
+            expect(oversizedStatus).toBe(413);
+            expect(fs.readdirSync(attachmentsDir)).toEqual([]);
+
+            const bearerResponse = await fetch(url, {
+              method: "POST",
+              headers: { Authorization: "Bearer bearer-token" },
+              body: Uint8Array.from([1]),
+            });
+            const bearerPayload = (await bearerResponse.json()) as {
+              readonly error?: unknown;
+              readonly id?: unknown;
+            };
+            expect(bearerResponse.status, JSON.stringify(bearerPayload)).toBe(201);
+            expect(bearerPayload).toEqual(expect.objectContaining({ type: "image", sizeBytes: 1 }));
+            expect(
+              fs
+                .readdirSync(path.join(attachmentsDir, "objects"), { recursive: true })
+                .some((entry) => String(entry).endsWith(`${String(bearerPayload.id)}.png`)),
+            ).toBe(true);
+            expect(fs.readdirSync(path.join(attachmentsDir, ".staging"))).toEqual([]);
+
+            const cancel = () =>
+              fetch(`${serverOrigin}${cancelPath}`, {
                 method: "POST",
                 headers: {
                   Authorization: "Bearer bearer-token",
-                  "Content-Length": String(10 * 1024 * 1024 + 1),
+                  "Content-Type": "application/json",
                 },
-              },
-              (response) => {
-                response.resume();
-                response.once("end", () => resolve(response.statusCode ?? 0));
-              },
-            );
-            request.once("error", reject);
-            request.end();
-          });
-          expect(oversizedStatus).toBe(413);
-          expect(fs.readdirSync(attachmentsDir)).toEqual([]);
-
-          const bearerResponse = await fetch(url, {
-            method: "POST",
-            headers: { Authorization: "Bearer bearer-token" },
-            body: Uint8Array.from([1]),
-          });
-          const bearerPayload = (await bearerResponse.json()) as {
-            readonly error?: unknown;
-            readonly id?: unknown;
-          };
-          expect(bearerResponse.status, JSON.stringify(bearerPayload)).toBe(201);
-          expect(bearerPayload).toEqual(expect.objectContaining({ type: "image", sizeBytes: 1 }));
-          expect(
-            fs
-              .readdirSync(path.join(attachmentsDir, "objects"), { recursive: true })
-              .some((entry) => String(entry).endsWith(`${String(bearerPayload.id)}.png`)),
-          ).toBe(true);
-          expect(fs.readdirSync(path.join(attachmentsDir, ".staging"))).toEqual([]);
-
-          const cancel = () =>
-            fetch(`${serverOrigin}${ATTACHMENT_CANCEL_ROUTE_PATH}`, {
-              method: "POST",
-              headers: {
-                Authorization: "Bearer bearer-token",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ attachmentId: bearerPayload.id }),
-            });
-          expect((await cancel()).status).toBe(200);
-          expect((await cancel()).status).toBe(200);
-        },
-        binaryUploadEffectRouteLayer,
-      );
-    } finally {
-      fs.rmSync(attachmentsDir, { recursive: true, force: true });
-    }
-  });
+                body: JSON.stringify({ attachmentId: bearerPayload.id }),
+              });
+            expect((await cancel()).status).toBe(200);
+            expect((await cancel()).status).toBe(200);
+          },
+          binaryUploadEffectRouteLayer,
+          { mobileGateway },
+        );
+      } finally {
+        fs.rmSync(attachmentsDir, { recursive: true, force: true });
+      }
+    },
+  );
 });

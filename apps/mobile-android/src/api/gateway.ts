@@ -1,5 +1,7 @@
 import {
   GRAFT_MOBILE_PROTOCOL_VERSION,
+  GRAFT_ATTACHMENT_UPLOAD_PATH,
+  GRAFT_ATTACHMENT_CANCEL_PATH,
   GraftEnvironmentSnapshotSchema,
   GraftAttachmentSchema,
   type GraftAttachment,
@@ -123,7 +125,7 @@ async function request(
 export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayClient {
   return {
     async uploadAttachment(session, threadId, attachment, body) {
-      const url = new URL(endpoint(session.httpBaseUrl, "/api/attachments/upload"));
+      const url = new URL(endpoint(session.httpBaseUrl, GRAFT_ATTACHMENT_UPLOAD_PATH));
       for (const [key, value] of Object.entries({
         threadId,
         type: attachment.type,
@@ -158,7 +160,7 @@ export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayC
     async cancelAttachment(session, attachmentId) {
       const response = await request(
         fetcher,
-        endpoint(session.httpBaseUrl, "/api/attachments/cancel"),
+        endpoint(session.httpBaseUrl, GRAFT_ATTACHMENT_CANCEL_PATH),
         {
           method: "POST",
           headers: {

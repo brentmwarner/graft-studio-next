@@ -39,6 +39,25 @@ private struct UserBubble: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
+            ForEach(item.attachments) { attachment in
+                HStack {
+                    Spacer(minLength: 56)
+                    HStack(spacing: 10) {
+                        Image(systemName: attachment.type == "image" ? "photo" : "doc")
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(attachment.name)
+                                .lineLimit(2)
+                            Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.sizeBytes), countStyle: .file))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.subheadline)
+                    .padding(12)
+                    .background(DS.Color.bubbleFill, in: .rect(cornerRadius: DS.Radius.bubble))
+                    .accessibilityElement(children: .combine)
+                }
+            }
             if !item.images.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
                     Spacer(minLength: 56)

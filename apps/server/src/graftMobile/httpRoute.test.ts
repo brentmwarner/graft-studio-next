@@ -38,7 +38,8 @@ it("authenticates thread usage, selects its provider, and returns only public me
       id === "thread-usage"
         ? Option.some({
             thread: {
-              modelSelection: { provider: "codex", model: "codex" },
+              modelSelection: { provider: "claudeAgent", model: "stale-model" },
+              session: { providerName: "codex", status: "ready" },
               activities: [
                 {
                   kind: "context-window.updated",

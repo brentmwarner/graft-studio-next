@@ -31,6 +31,7 @@ final class TranscriptItem: Identifiable {
     /// Images attached to this row: agent screenshots/tool images, user
     /// composer attachments, or markdown/path refs in prose.
     var images: [ChatImage] = []
+    var attachments: [TimelineAttachment] = []
     /// Playable clips referenced in this row's prose (agent media paths).
     var videos: [ChatVideo] = []
     /// Web links in assistant prose surfaced as preview cards below the text.
@@ -87,9 +88,10 @@ final class TranscriptItem: Identifiable {
         refreshDerivedFlags()
     }
 
-    static func user(_ text: String) -> TranscriptItem {
+    static func user(_ text: String, attachments: [TimelineAttachment] = []) -> TranscriptItem {
         let item = TranscriptItem(kind: .user)
         item.text = text
+        item.attachments = attachments
         return item
     }
 
@@ -231,6 +233,7 @@ final class TranscriptItem: Identifiable {
             richContentAttached = false
         }
         reasoning = other.reasoning
+        attachments = other.attachments
         if !other.images.isEmpty { images = other.images }
         if !other.videos.isEmpty { videos = other.videos }
         if !other.linkPreviews.isEmpty { linkPreviews = other.linkPreviews }

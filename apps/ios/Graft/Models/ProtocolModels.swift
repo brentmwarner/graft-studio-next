@@ -412,6 +412,14 @@ struct HostResponseEnvelope: Codable, Sendable {
 
 // MARK: - Timeline Events
 
+struct TimelineAttachment: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let type: String
+    let name: String
+    let mimeType: String
+    let sizeBytes: Int
+}
+
 struct TimelineEvent: Codable, Sendable, Equatable, Identifiable {
     let id: String
     let cursor: Int
@@ -427,6 +435,7 @@ struct TimelineEvent: Codable, Sendable, Equatable, Identifiable {
     let questionId: String?
     let diffId: String?
     let runStatus: String?
+    let attachments: [TimelineAttachment]?
 }
 
 // MARK: - Command Receipt

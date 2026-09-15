@@ -16,6 +16,8 @@ import { z } from "zod";
  */
 
 export const GRAFT_MOBILE_PROTOCOL_VERSION = 1 as const;
+export const GRAFT_ATTACHMENT_UPLOAD_PATH = "/v1/attachments/upload" as const;
+export const GRAFT_ATTACHMENT_CANCEL_PATH = "/v1/attachments/cancel" as const;
 
 export const GRAFT_MOBILE_CAPABILITIES = [
   "projects",

@@ -33,7 +33,8 @@ the provider while keeping models and effort within that provider selectable.
 ## Verification
 
 - Android: 132 tests passed on the integrated main branch.
-- Mobile host: 103 tests passed.
+- Mobile host and attachment routes: 112 tests passed, including upload/cancel
+  through the LAN gateway and authenticated relay forwarding.
 - Mobile protocol: 21 tests passed.
 - Shared web context/disclosure consumers: 23 tests passed.
 - Protocol fixture and iOS local-network checks: 9 tests passed; 34 fixtures in sync.
@@ -49,3 +50,9 @@ the provider while keeping models and effort within that provider selectable.
 The microphone and attachment modules require a new APK. The preview profile
 builds a standalone release APK for the existing EAS project; it permits local
 HTTP hosts for testing. Production retains the HTTPS-only policy.
+
+Mobile attachment transfers use authenticated `/v1/attachments` routes, which
+remain inside the LAN/relay mobile boundary. iOS keeps attachment metadata in
+snapshot and live rows and displays filenames and sizes, including turns with
+no text. Swift tests cover decoding, reconciliation, and optimistic rows; they
+require an iOS build environment and were not run on this Linux host.

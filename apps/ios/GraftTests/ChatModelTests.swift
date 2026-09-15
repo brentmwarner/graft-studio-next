@@ -19,7 +19,8 @@ final class ChatModelTests: XCTestCase {
         toolName: String? = nil,
         approvalId: String? = nil,
         questionId: String? = nil,
-        runStatus: String? = nil
+        runStatus: String? = nil,
+        attachments: [TimelineAttachment]? = nil
     ) -> TimelineEvent {
         TimelineEvent(
             id: id,
@@ -33,12 +34,40 @@ final class ChatModelTests: XCTestCase {
             approvalId: approvalId,
             questionId: questionId,
             diffId: nil,
-            runStatus: runStatus
+            runStatus: runStatus,
+            attachments: attachments
         )
     }
 
     private func makeChat() -> ChatModel {
         ChatModel(threadId: "t1", title: "Test thread")
+    }
+
+    func testAttachmentMetadataSurvivesDecodingLiveEventsAndSnapshots() throws {
+        let json = #"{"id":"attachment-turn","cursor":1,"kind":"user.message","threadId":"t1","createdAt":0,"attachments":[{"id":"file-1","type":"file","name":"notes.txt","mimeType":"text/plain","sizeBytes":5}]}"#
+        let message = try JSONDecoder().decode(TimelineEvent.self, from: Data(json.utf8))
+        let chat = makeChat()
+        chat.fold(message)
+        XCTAssertEqual(chat.items.count, 1)
+        let original = try XCTUnwrap(chat.items.first)
+        XCTAssertEqual(original.attachments.first?.name, "notes.txt")
+        XCTAssertTrue(original.text.isEmpty)
+
+        chat.applyReconciledItems(ChatModel.itemize([message]))
+        XCTAssertTrue(chat.items.first === original)
+        XCTAssertEqual(chat.items.first?.attachments, message.attachments)
+        chat.fold(message)
+        XCTAssertEqual(chat.items.count, 1)
+    }
+
+    func testMixedAttachmentMessageDoesNotConsumeAnUnrelatedOptimisticTextRow() {
+        let chat = makeChat()
+        chat.applyReconciledItems([.user("Review this")])
+        let attachment = TimelineAttachment(id: "image-1", type: "image", name: "photo.png", mimeType: "image/png", sizeBytes: 100)
+        chat.fold(event(id: "photo-turn", cursor: 1, kind: "user.message", text: "Review this", attachments: [attachment]))
+        XCTAssertEqual(chat.items.count, 2)
+        XCTAssertEqual(chat.items.last?.attachments, [attachment])
+        XCTAssertEqual(ChatModel.itemize([event(id: "photo-turn", cursor: 1, kind: "user.message", text: "Review this", attachments: [attachment])]).first?.attachments, [attachment])
     }
 
     // MARK: Itemization

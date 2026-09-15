@@ -136,7 +136,7 @@ it("uploads binary data using the paired session and preserves attachment metada
     await createGatewayClient(fetcher).uploadAttachment(session, "thread/a b", attachment, body),
   ).toEqual(attachment);
   const [url, init] = fetcher.mock.calls[0]!;
-  expect(new URL(url).pathname).toBe("/api/attachments/upload");
+  expect(new URL(url).pathname).toBe("/v1/attachments/upload");
   expect(new URL(url).searchParams.get("threadId")).toBe("thread/a b");
   expect(new URL(url).searchParams.get("name")).toBe(attachment.name);
   expect(init?.body).toEqual(await body.arrayBuffer());
@@ -149,6 +149,7 @@ it("authenticates cancellation and reports host attachment errors", async () => 
     Response.json({ cancelled: true }),
   );
   await createGatewayClient(fetcher).cancelAttachment(session, "host-file");
+  expect(new URL(fetcher.mock.calls[0]![0]).pathname).toBe("/v1/attachments/cancel");
   expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
     method: "POST",
     body: JSON.stringify({ attachmentId: "host-file" }),

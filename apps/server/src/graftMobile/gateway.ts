@@ -334,7 +334,7 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
 
 export const loadMobileUsage = Effect.fn(function* (threadId: string) {
   const { thread } = yield* loadThreadDetail(threadId);
-  const providerId = thread.modelSelection.provider;
+  const providerId = mobileThreadProvider(thread);
   const snapshots = yield* listProviderUsage({ provider: providerId }).pipe(
     Effect.catch(() => Effect.succeed([])),
   );

@@ -325,17 +325,19 @@ final class ChatModel: Identifiable {
 
     private func foldUserMessage(_ event: TimelineEvent) {
         let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let attachments = event.attachments ?? []
+        guard !text.isEmpty || !attachments.isEmpty else { return }
         let source = Self.sourceID(for: event)
         if items.contains(where: { $0.sourceID == source }) { return }
         // Only a local optimistic row may match by text.
         if let lastUser = items.last(where: { $0.kind == .user }), lastUser.sourceID == nil,
-           lastUser.normalizedMergeText == TranscriptItem.normalizeForMerge(text) {
+           lastUser.normalizedMergeText == TranscriptItem.normalizeForMerge(text),
+           lastUser.attachments == attachments {
             lastUser.sourceID = source
             return
         }
         settleCurrentAssistant()
-        let item = TranscriptItem.user(text)
+        let item = TranscriptItem.user(text, attachments: attachments)
         item.sourceID = source
         items.append(item)
         isStreaming = true
@@ -591,9 +593,10 @@ final class ChatModel: Identifiable {
                 settle(current)
                 current = nil
                 let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty {
+                let attachments = event.attachments ?? []
+                if !text.isEmpty || !attachments.isEmpty {
                     let images = ChatImageExtractor.sources(inText: text)
-                    let item = TranscriptItem.user(text)
+                    let item = TranscriptItem.user(text, attachments: attachments)
                     item.sourceID = sourceID(for: event)
                     if !images.isEmpty { item.images = images.map(ChatImage.init) }
                     result.append(item)
