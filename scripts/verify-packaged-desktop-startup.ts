@@ -264,7 +264,6 @@ export function createPackagedDesktopSmokeEnvironment(
     XDG_CACHE_HOME: join(root, "xdg-cache"),
     XDG_DATA_HOME: join(root, "xdg-data"),
     GRAFT_HOME: join(root, "graft-home"),
-    GRAFT_HOME: join(root, "graft-home"),
     GRAFT_DISABLE_AUTO_UPDATE: "1",
     ELECTRON_ENABLE_LOGGING: "1",
   };

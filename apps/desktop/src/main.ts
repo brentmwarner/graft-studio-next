@@ -3593,7 +3593,6 @@ function backendEnv(): NodeJS.ProcessEnv {
     GRAFT_NO_BROWSER: "1",
     GRAFT_PORT: String(backendPort),
     GRAFT_HOME: BASE_DIR,
-    GRAFT_HOME: BASE_DIR,
     // The desktop renderer always connects to its own loopback backend. Never
     // inherit another app's LAN binding or remote-access settings.
     GRAFT_BIND_HOST: "127.0.0.1",

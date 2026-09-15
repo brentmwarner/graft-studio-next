@@ -352,8 +352,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         });
 
         assert.equal(env.GRAFT_HOME, resolve("/tmp/my-graft"));
-        assert.equal(env.GRAFT_HOME, resolve("/tmp/my-graft"));
-        assert.equal(env.GRAFT_HOME, resolve("/tmp/my-graft"));
       }),
     );
   });

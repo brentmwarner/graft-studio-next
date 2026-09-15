@@ -216,7 +216,6 @@ export function createDevRunnerEnv({
       VITE_WS_URL: `ws://${formattedClientHost}:${serverPort}`,
       VITE_DEV_SERVER_URL: devUrl?.toString() ?? `http://localhost:${webPort}`,
       GRAFT_HOME: resolvedBaseDir,
-      GRAFT_HOME: resolvedBaseDir,
       GRAFT_BIND_HOST: serverHost,
     };
 
