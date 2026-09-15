@@ -8,6 +8,7 @@ import { HttpRouter } from "effect/unstable/http";
 import { expect, it, vi } from "vitest";
 
 import { AuthError, ServerAuth, type AuthRequest } from "../auth/Services/ServerAuth";
+import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
@@ -74,6 +75,10 @@ it("authenticates thread usage, selects its provider, and returns only public me
               Layer.succeed(OrchestrationEngineService, {} as never),
               Layer.succeed(ProjectionSnapshotQuery, {
                 getThreadDetailSnapshotById: getDetail,
+              } as never),
+              Layer.succeed(CheckpointDiffQuery, {
+                getTurnDiff: () => Effect.succeed({ diff: "" }),
+                getFullThreadDiff: () => Effect.succeed({ diff: "" }),
               } as never),
               Layer.succeed(ServerAuth, {
                 authenticateHttpRequest: (request: AuthRequest) =>

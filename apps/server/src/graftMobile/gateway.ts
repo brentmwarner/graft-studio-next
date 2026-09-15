@@ -27,6 +27,7 @@ import {
 import { autoRuntimeModeSelectionIssue } from "@synara/shared/runtimeMode";
 import { Data, Effect, Option } from "effect";
 
+import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
@@ -362,6 +363,7 @@ export const executeMobileCommand = Effect.fn(function* (
 ): Effect.fn.Return<
   GraftMobileCommandResult,
   unknown,
+  | CheckpointDiffQuery
   | OrchestrationEngineService
   | ProjectionSnapshotQuery
   | ProviderDiscoveryService
