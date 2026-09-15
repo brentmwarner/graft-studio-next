@@ -121,7 +121,7 @@ export function classifySshFailure(stderr: string): SshRemoteError {
   } else if (/node.*(?:not found|no such file)|requires Node\.js/iu.test(stderr)) {
     code = "install_failed";
     message =
-      "The remote machine needs Node.js 22.19+, 24.10+, or a newer supported release, available to SSH commands.";
+      "The remote machine needs Node.js 22.19+, 23.11+, 24.10+, or a newer supported release, available to SSH commands.";
   } else if (normalized.includes("unsupported") && /platform|linux|glibc/iu.test(stderr)) {
     code = "incompatible_host";
     message =

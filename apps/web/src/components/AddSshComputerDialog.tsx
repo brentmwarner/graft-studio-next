@@ -96,8 +96,8 @@ export function AddSshComputerDialog({
               />
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Requires Linux x64 and Node.js 22.19+ or 24.10+. Synara sets up the remote service
-              when you connect. Your SSH keys stay on this computer.
+              Requires Linux x64 and Node.js 22.19+, 23.11+, or 24.10+. Synara sets up the remote
+              service when you connect. Your SSH keys stay on this computer.
             </p>
             {save.isError ? (
               <p role="alert" className="text-xs leading-relaxed text-destructive">

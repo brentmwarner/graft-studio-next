@@ -103,6 +103,9 @@ export class SshHostInstaller {
     if (result.exitCode !== 0) throw this.classifyBootstrapFailure(result.stderr);
     let bootstrap = this.parseBootstrap(result.stdout);
     if (bootstrap.daemonVersion !== this.options.hostVersion) {
+      if (bootstrap.activeRunCount > 0 || bootstrap.activePtyCount > 0) {
+        return bootstrap;
+      }
       if (!installedCurrentVersion) {
         await this.install(target, signal);
         installedCurrentVersion = true;

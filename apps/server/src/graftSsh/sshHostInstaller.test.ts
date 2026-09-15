@@ -157,6 +157,75 @@ describe("SSH bootstrap diagnostics", () => {
     });
   });
 
+  it("defers a host upgrade while remote runs or PTYs are active", async () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-host-busy-upgrade-"));
+    roots.push(root);
+    const archive = join(root, "host.tar.gz");
+    writeFileSync(archive, "archive");
+    const commands: string[] = [];
+    const runner: SshCommandRunner = async (executable, arguments_) => {
+      const command = arguments_.at(-1) ?? "";
+      commands.push(`${executable} ${command}`);
+      if (command.includes("graft-host bootstrap")) {
+        return ok(
+          JSON.stringify({
+            ...bootstrapPayload("0.2.1"),
+            activeRunCount: 1,
+            activePtyCount: 0,
+          }),
+        );
+      }
+      return { exitCode: 1, stdout: "", stderr: `unexpected ${command}` };
+    };
+    const installer = new SshHostInstaller({
+      hostArchivePath: archive,
+      hostVersion: GRAFT_HOST_VERSION,
+      runner,
+    });
+    await expect(installer.bootstrap("test@machine")).resolves.toMatchObject({
+      daemonVersion: "0.2.1",
+      activeRunCount: 1,
+    });
+    expect(
+      commands.some((command) => command.startsWith("scp") || command.includes("sh -s --")),
+    ).toBe(false);
+  });
+
+  it("upgrades an idle host whose daemon version does not match", async () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-host-idle-upgrade-"));
+    roots.push(root);
+    const archive = join(root, "host.tar.gz");
+    writeFileSync(archive, "archive");
+    let bootstraps = 0;
+    let installs = 0;
+    const runner: SshCommandRunner = async (executable, arguments_) => {
+      const command = arguments_.at(-1) ?? "";
+      if (executable.endsWith("scp") || executable === "scp" || command.startsWith("sh -s --")) {
+        installs += 1;
+        return ok();
+      }
+      if (command.includes("graft-host bootstrap")) {
+        bootstraps += 1;
+        return ok(
+          JSON.stringify(bootstrapPayload(bootstraps === 1 ? "0.2.1" : GRAFT_HOST_VERSION)),
+        );
+      }
+      if (command.includes("GRAFT_HOST_UNSUPPORTED_PLATFORM")) return ok();
+      if (command.includes(GRAFT_HOST_SERVER_ENTRY) && command.includes("hostbin")) return ok();
+      return { exitCode: 1, stdout: "", stderr: `unexpected ${command}` };
+    };
+    const installer = new SshHostInstaller({
+      hostArchivePath: archive,
+      hostVersion: GRAFT_HOST_VERSION,
+      runner,
+    });
+    await expect(installer.bootstrap("test@machine")).resolves.toMatchObject({
+      daemonVersion: GRAFT_HOST_VERSION,
+    });
+    expect(bootstraps).toBe(2);
+    expect(installs).toBeGreaterThanOrEqual(2);
+  });
+
   it("checks the remote runtime before copying an archive", async () => {
     const root = mkdtempSync(join(tmpdir(), "graft-host-preflight-"));
     roots.push(root);

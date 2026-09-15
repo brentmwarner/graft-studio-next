@@ -150,4 +150,29 @@ describe("SSH HTTP failures", () => {
       });
     },
   );
+
+  it("rejects an overlong directory path with HTTP 400", async () => {
+    await withServer(async (origin) => {
+      const response = await fetch(
+        `${origin}/api/graft/ssh/machines/example/directory?token=test-owner-token&path=${"x".repeat(600)}`,
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "Invalid request" });
+    });
+  });
+
+  it("rejects malformed project add input with HTTP 400", async () => {
+    await withServer(async (origin) => {
+      const response = await fetch(
+        `${origin}/api/graft/ssh/machines/example/projects?token=test-owner-token`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: "/srv/repo" }),
+        },
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "Invalid request" });
+    });
+  });
 });

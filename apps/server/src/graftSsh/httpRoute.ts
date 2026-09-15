@@ -33,6 +33,9 @@ function sshErrorResponse(error: unknown, headers: Record<string, string> = {}) 
       headers,
     );
   }
+  if (Schema.isSchemaError(error)) {
+    return jsonResponse({ error: "Invalid request" }, 400, headers);
+  }
   return jsonResponse(
     { error: error instanceof Error ? error.message : "SSH request failed" },
     500,

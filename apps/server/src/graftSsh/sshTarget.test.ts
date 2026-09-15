@@ -42,7 +42,7 @@ describe("SSH failure guidance", () => {
     ["Host key verification failed", "host_key_verification_failed", "Terminal"],
     ["ssh: connect to host example port 22: Operation timed out", "network_unreachable", "VPN"],
     ["tailnet policy does not permit you to SSH", "ssh_access_denied", "policy"],
-    ["env: node: No such file or directory", "install_failed", "Node.js"],
+    ["env: node: No such file or directory", "install_failed", "23.11+"],
     ["GRAFT_HOST_UNSUPPORTED_PLATFORM", "incompatible_host", "Linux"],
   ])("explains %s", (stderr, code, guidance) => {
     const failure = classifySshFailure(stderr!);

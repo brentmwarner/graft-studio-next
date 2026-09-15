@@ -192,7 +192,7 @@ describe("SshRemoteConnectionManager", () => {
       await expect(manager.connect(saved.id)).rejects.toThrow("SSH process did not exit");
     }
     await expect(manager.deleteMachine(saved.id)).resolves.toBe(true);
-    expect(revocationCount).toBe(1);
+    expect(revocationCount).toBe(retryDisconnect ? 2 : 1);
     expect(secretStore.values.size).toBe(0);
     await new Promise<void>((resolveClose, rejectClose) => {
       httpServer.close((error) => {
@@ -545,6 +545,114 @@ describe("SshRemoteConnectionManager", () => {
       expect(manager.activeConnection(machine.id)).toBeNull();
     });
     expect(manager.listMachineSummaries()[0]?.connected).toBe(false);
+  });
+
+  it("revokes the desktop session when disconnecting an established connection", async () => {
+    const environmentId = "host-fedora-disconnect-revoke";
+    const bearer = "desktop-bearer-value-0000000000000000005";
+    let revocationCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.health)) {
+          return new Response(
+            JSON.stringify({
+              service: "graft-host",
+              protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+              daemonVersion: "0.2.0",
+              environmentId,
+              environmentLabel: "Fedora workstation",
+              platform: { os: "linux", arch: "x64", libc: "glibc" },
+              port: 47_831,
+              capabilities: ["projects", "diagnostics"],
+              cursor: 0,
+              replayFloor: 0,
+              activeRunCount: 0,
+              activePtyCount: 0,
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.enroll)) {
+          return new Response(
+            JSON.stringify({
+              protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+              session: {
+                sessionId: "session-disconnect-revoke",
+                environmentId,
+                profile: "desktop_occupancy",
+                clientId: "desktop-client-01",
+                clientLabel: "Brent's Mac",
+                grants: ["projects", "diagnostics"],
+                createdAt: 1,
+                expiresAt: Date.now() + 10_000,
+                lastSeenAt: 1,
+                revokedAt: null,
+              },
+              bearer,
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.session) && init?.method === "DELETE") {
+          revocationCount += 1;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response(null, { status: 404 });
+      }),
+    );
+    const bootstrap = {
+      protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+      environmentId,
+      environmentLabel: "Fedora workstation",
+      daemonVersion: "0.2.0",
+      platform: { os: "linux", arch: "x64", libc: "glibc" },
+      port: 47_831,
+      enrollmentToken: "enrollment-token-value-000000000000000005",
+      enrollmentExpiresAt: Date.now() + 10_000,
+      activeRunCount: 0,
+      activePtyCount: 0,
+    } as const;
+    const commandRunner = vi.fn<SshCommandRunner>(async (_executable, arguments_) =>
+      arguments_[0] === "-G"
+        ? {
+            stdout: "hostname fedora\nuser brent\nport 22\nproxyjump none\n",
+            stderr: "",
+            exitCode: 0,
+          }
+        : {
+            stdout: JSON.stringify(bootstrap),
+            stderr: "",
+            exitCode: 0,
+          },
+    );
+    const storePath = join(tmpdir(), `graft-ssh-manager-${randomUUID()}.json`);
+    paths.push(storePath);
+    const manager = new SshRemoteConnectionManager({
+      machineStore: new SshMachineStore(storePath),
+      secretStore: new MemorySecretStore(),
+      hostArchivePath: "/unused/host.tgz",
+      hostVersion: "0.2.0",
+      clientId: "desktop-client-01",
+      clientLabel: "Brent's Mac",
+      clientVersion: "0.2.0",
+      commandRunner,
+      createTunnel: (options) =>
+        new ManagedSshTunnel({
+          ...options,
+          localPort: 43_126,
+          spawnProcess: () => new FakeTunnelProcess(),
+        }),
+    });
+    const machine = manager.saveMachine({
+      label: "Fedora",
+      sshTarget: "fedora",
+    });
+    await manager.connect(machine.id);
+    await manager.disconnect(machine.id);
+    expect(revocationCount).toBe(1);
+    expect(manager.activeConnection(machine.id)).toBeNull();
   });
 });
 

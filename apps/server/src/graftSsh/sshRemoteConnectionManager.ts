@@ -75,14 +75,6 @@ export class SshRemoteConnectionManager {
   }
 
   async deleteMachine(id: string): Promise<boolean> {
-    const activeConnection = this.activeConnections.get(id);
-    if (activeConnection) {
-      try {
-        await this.revokeSession(activeConnection.routes.httpBaseUrl, activeConnection.bearer);
-      } catch {
-        // Remote revoke is best-effort so an unreachable host can still be removed.
-      }
-    }
     await this.disconnect(id);
     const deleted = this.options.machineStore.delete(id);
     if (!deleted) return false;
@@ -280,7 +272,14 @@ export class SshRemoteConnectionManager {
   async disconnect(machineId: string): Promise<void> {
     this.attempts.get(machineId)?.abort();
     await this.connecting.get(machineId)?.catch(() => undefined);
-    await this.activeConnections.get(machineId)?.close();
+    const connection = this.activeConnections.get(machineId);
+    if (!connection) return;
+    try {
+      await this.revokeSession(connection.routes.httpBaseUrl, connection.bearer);
+    } catch {
+      // Remote revoke is best-effort so an unreachable host can still disconnect.
+    }
+    await connection.close();
   }
 
   async closeAll(): Promise<void> {
