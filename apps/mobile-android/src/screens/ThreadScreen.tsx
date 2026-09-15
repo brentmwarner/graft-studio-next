@@ -173,6 +173,7 @@ export function ThreadScreen({
   );
   const pendingApproval = model.approval;
   const pendingQuestion = model.question;
+  const isThreadLoaded = snapshot?.selectedTranscript?.threadId === thread.id;
   const liveStatus = transcriptLiveStatus({
     items: model.items,
     isWorking: Boolean(isSending || pendingSend || model.activeRunId),
@@ -251,7 +252,8 @@ export function ThreadScreen({
             // (`insets.bottom + 116`) — at 12 the last line settled inside the
             // gradient, which is what "the end of the conversation should be
             // readable above the composer" was asking for.
-            paddingBottom: Math.max(insets.bottom + 126, bottomChromeHeight + 24),
+            paddingBottom:
+              Platform.OS === "ios" ? 24 : Math.max(insets.bottom + 126, bottomChromeHeight + 24),
             paddingTop: headerBottom + 30,
           },
           model.items.length === 0 ? styles.emptyTranscript : null,
@@ -281,6 +283,7 @@ export function ThreadScreen({
         removeClippedSubviews={false}
         renderItem={renderTranscriptRow}
         scrollEventThrottle={16}
+        style={styles.flex}
         windowSize={11}
         ListFooterComponent={
           <View style={styles.liveStatusSlot}>
@@ -288,8 +291,13 @@ export function ThreadScreen({
           </View>
         }
         ListEmptyComponent={
-          isRefreshing ? (
-            <ActivityIndicator color={palette.foregroundSubtle} />
+          !isThreadLoaded ? (
+            <View style={styles.loadingThread}>
+              <ActivityIndicator color={palette.foregroundSubtle} />
+              <Text style={[styles.emptyText, { color: palette.foregroundSubtle }]}>
+                Loading thread…
+              </Text>
+            </View>
           ) : (
             <Text style={[styles.emptyText, { color: palette.foregroundSubtle }]}>
               Start the conversation below.
@@ -299,7 +307,6 @@ export function ThreadScreen({
       />
 
       <EdgeFade edge="top" style={[styles.topFade, { height: headerBottom + 38 }]} />
-      {/* Preserve the PR14 row's 8 dp centering space around its 44 dp controls. */}
       <View style={[styles.topBar, { top: headerTop - 8 }]}>
         <CircleIconButton
           accessibilityLabel="Back to projects"
@@ -307,28 +314,40 @@ export function ThreadScreen({
           iconSize={20}
           onPress={onBack}
         />
-        <FloatingSurface style={styles.threadHeader}>
-          <Text numberOfLines={1} style={[styles.threadHeading, { color: palette.foreground }]}>
+        {Platform.OS === "ios" ? (
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={[styles.iosThreadHeading, { color: palette.foreground }]}
+          >
             {thread.title}
           </Text>
-          <View style={styles.threadContext}>
-            <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={12} />
-            <Text
-              numberOfLines={1}
-              style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
-            >
-              {projectName}
+        ) : (
+          <FloatingSurface style={styles.threadHeader}>
+            <Text numberOfLines={1} style={[styles.threadHeading, { color: palette.foreground }]}>
+              {thread.title}
             </Text>
-            <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={12} />
-            <Text
-              numberOfLines={1}
-              style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
-            >
-              {hostLabel}
-            </Text>
-          </View>
-        </FloatingSurface>
-        <FloatingSurface style={styles.threadActions}>
+            <View style={styles.threadContext}>
+              <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={12} />
+              <Text
+                numberOfLines={1}
+                style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
+              >
+                {projectName}
+              </Text>
+              <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={12} />
+              <Text
+                numberOfLines={1}
+                style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
+              >
+                {hostLabel}
+              </Text>
+            </View>
+          </FloatingSurface>
+        )}
+        <FloatingSurface
+          style={Platform.OS === "ios" ? styles.iosThreadActions : styles.threadActions}
+        >
           <UsageMenu
             key={`${thread.id}:${model.currentThread.providerId}`}
             threadId={thread.id}
@@ -347,33 +366,36 @@ export function ThreadScreen({
               </PressScale>
             )}
           />
-          <AnchoredMenu
-            trigger={(open) => (
-              <PressScale accessibilityLabel="Thread options" onPress={open}>
-                <View style={styles.headerActionButton}>
-                  <Ionicons color={palette.foreground} name="ellipsis-vertical" size={18} />
-                </View>
-              </PressScale>
-            )}
-          >
-            {(close) => (
-              <MenuItem
-                label="Refresh"
-                onPress={() => {
-                  close();
-                  void onRefresh();
-                }}
-              />
-            )}
-          </AnchoredMenu>
+          {Platform.OS === "ios" ? null : (
+            <AnchoredMenu
+              trigger={(open) => (
+                <PressScale accessibilityLabel="Thread options" onPress={open}>
+                  <View style={styles.headerActionButton}>
+                    <Ionicons color={palette.foreground} name="ellipsis-vertical" size={18} />
+                  </View>
+                </PressScale>
+              )}
+            >
+              {(close) => (
+                <MenuItem
+                  label="Refresh"
+                  onPress={() => {
+                    close();
+                    void onRefresh();
+                  }}
+                />
+              )}
+            </AnchoredMenu>
+          )}
         </FloatingSurface>
       </View>
 
       <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 116 }]} />
       <View
-        onLayout={handleBottomChromeLayout}
+        onLayout={Platform.OS === "android" ? handleBottomChromeLayout : undefined}
         style={[
           styles.bottomChrome,
+          Platform.OS === "ios" ? styles.iosBottomChrome : styles.androidBottomChrome,
           {
             paddingBottom: composerBottomPadding(insets.bottom, keyboardVisible),
           },
@@ -502,6 +524,7 @@ const styles = StyleSheet.create({
   transcript: { flexGrow: 1, gap: 16, paddingHorizontal: 16 },
   emptyTranscript: { justifyContent: "center" },
   emptyText: { fontSize: 14, textAlign: "center" },
+  loadingThread: { alignItems: "center", gap: 10 },
   topFade: { top: 0 },
   topBar: {
     alignItems: "center",
@@ -520,6 +543,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 18,
   },
+  iosThreadHeading: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    paddingHorizontal: 8,
+    textAlign: "center",
+  },
   threadHeader: {
     flex: 1,
     height: THREAD_HEADER_HEIGHT,
@@ -535,6 +566,13 @@ const styles = StyleSheet.create({
     height: THREAD_HEADER_HEIGHT,
     overflow: "hidden",
   },
+  iosThreadActions: {
+    alignItems: "center",
+    borderRadius: 22,
+    height: THREAD_HEADER_HEIGHT,
+    justifyContent: "center",
+    width: THREAD_HEADER_HEIGHT,
+  },
   headerActionButton: {
     alignItems: "center",
     height: THREAD_HEADER_HEIGHT,
@@ -543,8 +581,13 @@ const styles = StyleSheet.create({
   },
   bottomFade: { bottom: 0 },
   bottomChrome: {
-    bottom: 0,
     gap: 10,
+  },
+  iosBottomChrome: {
+    marginHorizontal: 12,
+  },
+  androidBottomChrome: {
+    bottom: 0,
     left: 12,
     position: "absolute",
     right: 12,

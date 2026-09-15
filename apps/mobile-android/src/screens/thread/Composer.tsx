@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -325,7 +326,6 @@ export function Composer({
               {/* Keep the same editor mounted through focus and recording transitions. */}
               <TextInput
                 ref={inputRef}
-                accessibilityLabel="Message"
                 editable={isConnected && !isSending && !voice.isActive}
                 maxLength={100_000}
                 multiline
@@ -336,7 +336,13 @@ export function Composer({
                 }}
                 onFocus={() => setIsComposerFocused(true)}
                 onSubmitEditing={onSend}
-                placeholder={isConnected ? `Work on ${hostLabel}` : "Reconnecting…"}
+                placeholder={
+                  isConnected
+                    ? Platform.OS === "ios"
+                      ? "Message Graft"
+                      : `Work on ${hostLabel}`
+                    : "Reconnecting…"
+                }
                 placeholderTextColor={palette.foregroundSubtle}
                 scrollEnabled={expanded && contentHeight > editorMaxHeight}
                 style={[

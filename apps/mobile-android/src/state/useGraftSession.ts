@@ -24,7 +24,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
 import { createGatewayClient, GatewayError } from "../api/gateway";
 import {
@@ -40,6 +40,8 @@ import {
 import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
 import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
+import { developmentSessionEndpoint } from "./developmentSessionEndpoint";
+import { withGatewayConnection } from "./sessionConnectionState";
 
 interface LoadingState {
   readonly status: "loading";
@@ -316,7 +318,7 @@ export function useGraftSession() {
       onMessage: handleHostMessage,
       onStateChange: (connectionState) => {
         setState((current) =>
-          current.status === "paired" ? { ...current, connectionState } : current,
+          current.status === "paired" ? withGatewayConnection(current, connectionState) : current,
         );
       },
     });
@@ -332,12 +334,18 @@ export function useGraftSession() {
     let active = true;
 
     void loadSession()
-      .then(async (session) => {
+      .then(async (storedSession) => {
         if (!active) return;
-        if (!session) {
+        if (!storedSession) {
           setState({ status: "unpaired" });
           return;
         }
+        const session = developmentSessionEndpoint({
+          host: process.env.EXPO_PUBLIC_GRAFT_SIMULATOR_HOST,
+          isDevelopment: __DEV__,
+          isDevice: Device.isDevice,
+          session: storedSession,
+        });
 
         sessionRef.current = session;
 
@@ -398,12 +406,19 @@ export function useGraftSession() {
         await gateway.health(pairing.host);
 
         const deviceId = await getDeviceIdentity();
-        const session = await gateway.pair(pairing, {
+        const issuedSession = await gateway.pair(pairing, {
           appVersion: Application.nativeApplicationVersion ?? "0.1.0",
           deviceId,
           deviceLabel: Device.deviceName ?? undefined,
+          platform: Platform.OS === "ios" ? "ios" : "android",
         });
-        await saveSession(session);
+        await saveSession(issuedSession);
+        const session = developmentSessionEndpoint({
+          host: process.env.EXPO_PUBLIC_GRAFT_SIMULATOR_HOST,
+          isDevelopment: __DEV__,
+          isDevice: Device.isDevice,
+          session: issuedSession,
+        });
         sessionRef.current = session;
         snapshotCursorRef.current = 0;
 

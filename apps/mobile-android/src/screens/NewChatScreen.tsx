@@ -211,7 +211,12 @@ export function NewChatScreen({
           contentContainerStyle={styles.heroContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          style={[styles.hero, { top: insets.top + 84, bottom: bottomChromeHeight + 12 }]}
+          style={[
+            styles.hero,
+            Platform.OS === "ios"
+              ? { marginTop: insets.top + 84, marginBottom: 12 }
+              : { top: insets.top + 84, bottom: bottomChromeHeight + 12 },
+          ]}
         >
           <Text style={[styles.heroTitle, { color: palette.foreground }]}>Let&apos;s work on</Text>
           <PressScale accessibilityLabel="Choose project" onPress={() => setShowProjects(true)}>
@@ -293,9 +298,13 @@ export function NewChatScreen({
 
         <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 116 }]} />
         <View
-          onLayout={({ nativeEvent }) => setBottomChromeHeight(nativeEvent.layout.height)}
+          onLayout={
+            Platform.OS === "android"
+              ? ({ nativeEvent }) => setBottomChromeHeight(nativeEvent.layout.height)
+              : undefined
+          }
           style={[
-            styles.bottomChrome,
+            Platform.OS === "ios" ? styles.iosBottomChrome : styles.androidBottomChrome,
             {
               paddingBottom: composerBottomPadding(insets.bottom, keyboardVisible),
             },
@@ -420,9 +429,8 @@ const styles = StyleSheet.create({
   headerContext: { alignItems: "center", flexDirection: "row", gap: 4 },
   headerContextText: { flexShrink: 1, fontSize: 11 },
   hero: {
-    left: 20,
-    position: "absolute",
-    right: 20,
+    flex: 1,
+    marginHorizontal: 20,
   },
   heroContent: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   heroTitle: { fontSize: 19, fontWeight: "700", marginBottom: 14 },
@@ -451,7 +459,10 @@ const styles = StyleSheet.create({
   modeDivider: { borderRightWidth: 1 },
   modeText: { fontSize: 14, fontWeight: "600" },
   bottomFade: { bottom: 0 },
-  bottomChrome: {
+  iosBottomChrome: {
+    marginHorizontal: 14,
+  },
+  androidBottomChrome: {
     bottom: 0,
     left: 14,
     position: "absolute",

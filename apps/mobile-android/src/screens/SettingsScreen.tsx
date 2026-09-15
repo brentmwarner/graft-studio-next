@@ -1,13 +1,19 @@
 import type { GraftSessionCredential } from "@graft/mobile-contract";
+import * as Application from "expo-application";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
+import type { AccountAuth } from "../auth/useAccountAuth";
 import { BottomSheet } from "../components/BottomSheet";
 import { useGraftPalette } from "../theme/tokens";
 
-const APP_VERSION = "0.1.0";
+const APP_VERSION = [Application.nativeApplicationVersion ?? "—", Application.nativeBuildVersion]
+  .filter(Boolean)
+  .join(" (")
+  .concat(Application.nativeBuildVersion ? ")" : "");
 
 interface SettingsScreenProps {
+  readonly account?: AccountAuth;
   readonly connectionState: GatewayConnectionState;
   readonly onClose: () => void;
   readonly onUnpair: () => Promise<void>;
@@ -23,6 +29,7 @@ function SectionHeader({ title }: { readonly title: string }) {
 }
 
 export function SettingsScreen({
+  account,
   connectionState,
   onClose,
   onUnpair,
@@ -83,6 +90,28 @@ export function SettingsScreen({
             )}
           </Pressable>
         </View>
+
+        {account?.isSignedIn && account.email ? (
+          <>
+            <SectionHeader title="Account" />
+            <View style={[styles.group, { backgroundColor: palette.subtle }]}>
+              <View style={styles.row}>
+                <Text style={[styles.key, { color: palette.foreground }]}>Email</Text>
+                <Text numberOfLines={1} style={[styles.value, { color: palette.foregroundSubtle }]}>
+                  {account.email}
+                </Text>
+              </View>
+              <View style={[styles.separator, { backgroundColor: palette.border }]} />
+              <Pressable accessibilityRole="button" onPress={account.signOut}>
+                {({ pressed }) => (
+                  <View style={[styles.row, { opacity: pressed ? 0.55 : 1 }]}>
+                    <Text style={[styles.key, { color: palette.danger }]}>Sign out</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
+          </>
+        ) : null}
 
         <SectionHeader title="About" />
         <View style={[styles.group, { backgroundColor: palette.subtle }]}>

@@ -10,10 +10,11 @@ import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
 
 interface QrScannerProps {
   readonly onClose: () => void;
+  readonly onPasteInstead?: () => void;
   readonly onScan: (value: string) => void;
 }
 
-export function QrScanner({ onClose, onScan }: QrScannerProps) {
+export function QrScanner({ onClose, onPasteInstead, onScan }: QrScannerProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
@@ -76,6 +77,15 @@ export function QrScanner({ onClose, onScan }: QrScannerProps) {
           Open Graft Studio on your computer and show its mobile pairing QR code.
         </Text>
       </View>
+      {onPasteInstead ? (
+        <PressScale
+          accessibilityLabel="Paste pairing link instead"
+          onPress={onPasteInstead}
+          style={[styles.pasteInstead, { bottom: insets.bottom + graftSpacing.two }]}
+        >
+          <Text style={styles.pasteInsteadText}>Paste link instead</Text>
+        </PressScale>
+      ) : null}
     </View>
   );
 }
@@ -166,4 +176,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
+  pasteInstead: {
+    alignSelf: "center",
+    backgroundColor: "rgba(9, 9, 11, 0.78)",
+    borderColor: "rgba(255, 255, 255, 0.18)",
+    borderRadius: graftRadius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    position: "absolute",
+  },
+  pasteInsteadText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
 });

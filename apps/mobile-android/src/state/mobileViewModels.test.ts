@@ -7,6 +7,7 @@ import {
   groupProjects,
   groupToolRuns,
   mergeTimelineEvents,
+  recentThreads,
   reconcileTranscriptItems,
   type TranscriptItem,
   type TranscriptToolItem,
@@ -65,6 +66,37 @@ describe("mobile view models", () => {
           { id: "thread-b", title: "Zebra", showsAttentionDot: false },
         ],
       },
+    ]);
+  });
+
+  it("ranks drawer recents like native iOS", () => {
+    const snapshot = {
+      projects: [{ id: "project-1", name: "Graft", kind: "repo" }],
+      threads: [
+        { id: "placeholder", projectId: "project-1", title: "New thread", updatedAt: 9 },
+        { id: "named", projectId: "project-1", title: "Polish remote inbox", updatedAt: 4 },
+        {
+          id: "running",
+          projectId: "project-1",
+          title: "Untitled",
+          updatedAt: 3,
+          status: "running",
+        },
+        {
+          id: "blocked",
+          projectId: "project-1",
+          title: "Needs a decision",
+          updatedAt: 1,
+          status: "needs_attention",
+        },
+      ],
+      activeRuns: [],
+    } as unknown as GraftEnvironmentSnapshot;
+
+    expect(recentThreads(snapshot).map((thread) => thread.id)).toEqual([
+      "blocked",
+      "running",
+      "named",
     ]);
   });
 

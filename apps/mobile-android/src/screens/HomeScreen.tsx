@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { GraftEnvironmentSnapshot, GraftSessionCredential } from "@graft/mobile-contract";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -30,6 +30,7 @@ interface HomeScreenProps {
   readonly onOpenThread: (thread: InboxThreadItem) => void;
   readonly onRefresh: () => Promise<void>;
   readonly onUnpair: () => Promise<void>;
+  readonly searchFocusNonce?: number;
   readonly session: GraftSessionCredential;
   readonly snapshot: GraftEnvironmentSnapshot | null;
 }
@@ -129,15 +130,23 @@ export function HomeScreen({
   onOpenThread,
   onRefresh,
   onUnpair,
+  searchFocusNonce = 0,
   session,
   snapshot,
 }: HomeScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
+  const searchRef = useRef<TextInput>(null);
   const [searchText, setSearchText] = useState("");
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<ReadonlySet<string>>(new Set());
   const projects = useMemo(() => groupProjects(snapshot, searchText), [searchText, snapshot]);
   const isConnected = connectionState === "connected";
+
+  useEffect(() => {
+    if (searchFocusNonce === 0) return;
+    const timer = setTimeout(() => searchRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [searchFocusNonce]);
 
   function toggleProject(projectId: string) {
     setCollapsedProjectIds((current) => {
@@ -206,7 +215,7 @@ export function HomeScreen({
       </ScrollView>
 
       <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 82 }]} />
-      <View style={[styles.topBar, { paddingTop: insets.top }]}>
+      <View style={[styles.topBar, { top: insets.top }]}>
         <CircleIconButton accessibilityLabel="Menu" icon="menu" onPress={onOpenMenu} />
         <View style={styles.titleLockup}>
           <Text style={[styles.screenTitle, { color: palette.foreground }]}>Projects</Text>
@@ -245,6 +254,7 @@ export function HomeScreen({
         <FloatingSurface style={styles.searchPill}>
           <Ionicons color={palette.foregroundSubtle} name="search" size={20} />
           <TextInput
+            ref={searchRef}
             accessibilityLabel="Search chats"
             autoCapitalize="none"
             autoCorrect={false}
@@ -256,9 +266,9 @@ export function HomeScreen({
           />
         </FloatingSurface>
         <PressScale accessibilityLabel="New chat" onPress={() => onNewChat()}>
-          <View style={[styles.composeButton, { backgroundColor: palette.foreground }]}>
-            <Ionicons color={palette.background} name="create-outline" size={22} />
-          </View>
+          <FloatingSurface style={styles.composeButton} tintColor="#09090B">
+            <Ionicons color="#FFFFFF" name="create-outline" size={22} />
+          </FloatingSurface>
         </PressScale>
       </View>
     </View>
