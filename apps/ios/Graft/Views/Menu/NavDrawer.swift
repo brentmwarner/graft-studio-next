@@ -468,7 +468,7 @@ private struct NavDrawerConnectionRow: View {
         recentThreads: [
             InboxThreadItem(
                 id: "t1",
-                title: "Audit Graft against T3 Code",
+                title: "Audit Graft against competing tools",
                 showsAttentionDot: true,
                 pr: ThreadPrInfo(number: 201, state: .open)
             ),
@@ -479,7 +479,7 @@ private struct NavDrawerConnectionRow: View {
                 pr: ThreadPrInfo(number: 195, state: .merged)
             ),
             InboxThreadItem(
-                id: "t3",
+                id: "t9",
                 title: "Wire approval prompts on mobile",
                 showsAttentionDot: false,
                 pr: ThreadPrInfo(number: 188, state: .changesRequested)

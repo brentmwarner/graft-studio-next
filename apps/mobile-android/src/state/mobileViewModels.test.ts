@@ -149,7 +149,7 @@ describe("mobile view models", () => {
     };
 
     expect(
-      groupToolRuns([message, tool("t1"), tool("t2"), tool("t3", true)]).map(
+      groupToolRuns([message, tool("t1"), tool("t2"), tool("t9", true)]).map(
         (row) => row.kind,
       ),
     ).toEqual(["assistant", "toolGroup"]);
@@ -171,7 +171,7 @@ describe("mobile view models", () => {
     };
 
     expect(
-      groupToolRuns([tool("t1"), thinking, tool("t2"), status, tool("t3")]).map(
+      groupToolRuns([tool("t1"), thinking, tool("t2"), status, tool("t9")]).map(
         (row) => row.kind,
       ),
     ).toEqual(["toolGroup"]);
@@ -197,7 +197,7 @@ describe("mobile view models", () => {
         tool("t1"),
         tool("t2"),
         message,
-        tool("t3"),
+        tool("t9"),
         tool("t4"),
       ]).map((row) => row.kind),
     ).toEqual(["toolGroup", "assistant", "toolGroup"]);

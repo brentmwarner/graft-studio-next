@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Remote inbox — project hierarchy matching the Graft Mobile product surface
-/// (T3-style Remote projects list), not the Fetch chat home.
+/// (hierarchical remote projects list), not the Fetch chat home.
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @State private var searchText = ""
@@ -493,9 +493,9 @@ private func homeErrorMessage(_ error: GraftError) -> String {
             id: "1",
             name: "graft-studio",
             threads: [
-                InboxThreadItem(id: "t1", title: "Audit Graft against T3 Code", showsAttentionDot: true),
+                InboxThreadItem(id: "t1", title: "Audit Graft against competing tools", showsAttentionDot: true),
                 InboxThreadItem(id: "t2", title: "Audit capability coverage for Graft", showsAttentionDot: false),
-                InboxThreadItem(id: "t3", title: "Plan Graft Mobile remote access", showsAttentionDot: false),
+                InboxThreadItem(id: "t9", title: "Plan Graft Mobile remote access", showsAttentionDot: false),
             ]
         ),
         InboxProjectGroup(
