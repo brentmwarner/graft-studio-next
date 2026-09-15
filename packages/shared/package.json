@@ -315,6 +315,10 @@
     "./searchQuery": {
       "types": "./src/searchQuery.ts",
       "import": "./src/searchQuery.ts"
+    },
+    "./contextWindow": {
+      "types": "./src/contextWindow.ts",
+      "import": "./src/contextWindow.ts"
     }
   },
   "scripts": {

@@ -9,6 +9,7 @@ import {
   type GraftMobileHostMessage,
   type GraftRemoteErrorCode,
   type GraftRunSummary,
+  type GraftThreadUsage,
 } from "@graft/mobile-contract";
 import {
   CommandId,
@@ -31,11 +32,11 @@ import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
 import { ProviderDiscoveryService } from "../provider/Services/ProviderDiscoveryService";
+import { listProviderUsage } from "../providerUsage";
 import { ServerSettingsService } from "../serverSettings";
 import {
   MOBILE_PROVIDER_ORDER,
   defaultModelForProvider,
-  toMobileDiff,
   toMobileModels,
   toMobilePendingApprovals,
   toMobilePendingQuestions,
@@ -47,6 +48,8 @@ import {
   toMobileTranscript,
   withMobileEffort,
 } from "./protocolAdapter";
+import { loadMobileDiff } from "./diff";
+import { toMobileAllowance, toMobileContextUsage } from "./usage";
 
 const PROJECTION_WAIT_MS = 5_000;
 const PROJECTION_POLL_MS = 25;
@@ -245,6 +248,21 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
     return yield* fail("not_found", "Thread not found.");
   }
   return detail.value;
+});
+
+export const loadMobileUsage = Effect.fn(function* (threadId: string) {
+  const { thread } = yield* loadThreadDetail(threadId);
+  const providerId = thread.modelSelection.provider;
+  const snapshots = yield* listProviderUsage({ provider: providerId }).pipe(
+    Effect.catch(() => Effect.succeed([])),
+  );
+  const contextUsage = toMobileContextUsage(thread.activities);
+  const usage: GraftThreadUsage = {
+    threadId,
+    ...(contextUsage ? { contextUsage } : {}),
+    allowance: toMobileAllowance(providerId, snapshots.find((item) => item.provider === providerId)),
+  };
+  return usage;
 });
 
 const waitForThreadShell = Effect.fn(function* (threadId: string, minimumSequence: number) {
@@ -583,7 +601,7 @@ export const executeMobileCommand = Effect.fn(function* (
       const detail = yield* loadThreadDetail(command.diffId);
       return {
         type: "diff.get.result",
-        diff: toMobileDiff(command.diffId, detail.thread.checkpoints.at(-1)),
+        diff: yield* loadMobileDiff(command.diffId, detail.thread.checkpoints.at(-1), command.filePath),
       };
     }
     case "cursor.replay": {

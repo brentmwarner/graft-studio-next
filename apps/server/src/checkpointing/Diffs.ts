@@ -16,6 +16,9 @@ type ParsedPatches = ReturnType<PierreDiffsModule["parsePatchFiles"]>;
 // it on first parse instead; later parses reuse the same module namespace.
 const loadPierreDiffs: () => Promise<PierreDiffsModule> = lazyModule(() => import("@pierre/diffs"));
 
+/** Reuse the parser and highlighter without loading their grammars on server startup. */
+export const loadDiffTools = () => Effect.promise(() => loadPierreDiffs());
+
 export interface TurnDiffFileSummary {
   readonly path: string;
   readonly kind: string;

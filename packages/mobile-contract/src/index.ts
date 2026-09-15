@@ -191,6 +191,30 @@ export const GraftContextUsageSchema = z.object({
 });
 export type GraftContextUsage = z.infer<typeof GraftContextUsageSchema>;
 
+/** Account limits are separate from the current thread's context occupancy. */
+export const GraftProviderAllowanceSchema = z.object({
+  providerId: z.string().min(1),
+  status: z.enum(["ok", "needs-auth", "unsupported", "error"]),
+  updatedAt: z.string().optional(),
+  stale: z.boolean(),
+  planName: z.string().optional(),
+  limits: z.array(
+    z.object({
+      label: z.string(),
+      remainingPercent: z.number().min(0).max(100),
+      resetsAt: z.string().optional(),
+    }),
+  ),
+});
+export type GraftProviderAllowance = z.infer<typeof GraftProviderAllowanceSchema>;
+
+export const GraftThreadUsageSchema = z.object({
+  threadId: z.string().min(1),
+  contextUsage: GraftContextUsageSchema.optional(),
+  allowance: GraftProviderAllowanceSchema,
+});
+export type GraftThreadUsage = z.infer<typeof GraftThreadUsageSchema>;
+
 export const GraftThreadSummarySchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1),
@@ -464,9 +488,34 @@ export const GraftQuestionRequestSchema = z.object({
 });
 export type GraftQuestionRequest = z.infer<typeof GraftQuestionRequestSchema>;
 
+export const GraftDiffTokenSchema = z.object({
+  text: z.string(),
+  lightColor: z.string().optional(),
+  darkColor: z.string().optional(),
+  changed: z.boolean().optional(),
+});
+export const GraftDiffLineSchema = z.object({
+  kind: z.enum(["context", "addition", "deletion"]),
+  text: z.string(),
+  oldLine: z.number().int().positive().optional(),
+  newLine: z.number().int().positive().optional(),
+  tokens: z.array(GraftDiffTokenSchema).optional(),
+});
+export type GraftDiffLine = z.infer<typeof GraftDiffLineSchema>;
+export const GraftDiffHunkSchema = z.object({
+  oldStart: z.number().int().nonnegative(),
+  newStart: z.number().int().nonnegative(),
+  collapsedBefore: z.number().int().nonnegative(),
+  lines: z.array(GraftDiffLineSchema),
+});
+export type GraftDiffHunk = z.infer<typeof GraftDiffHunkSchema>;
+
 export const GraftDiffFileSummarySchema = z.object({
   path: z.string().min(1),
   status: z.enum(["added", "modified", "deleted", "renamed"]),
+  previousPath: z.string().optional(),
+  hunks: z.array(GraftDiffHunkSchema).optional(),
+  detailStatus: z.enum(["ready", "binary", "unavailable", "truncated"]).optional(),
   additions: z.number().int().nonnegative().optional(),
   deletions: z.number().int().nonnegative().optional(),
 });
@@ -730,6 +779,7 @@ export const GraftMobileCommandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("diff.get"),
     diffId: z.string().min(1),
+    filePath: z.string().min(1).optional(),
   }),
   z.object({
     type: z.literal("cursor.replay"),
