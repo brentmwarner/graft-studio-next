@@ -40,9 +40,12 @@ export const StreamingMarkdownMessage = memo(function StreamingMarkdownMessage({
     }
   }, [content, showImmediately]);
 
-  useEffect(() => () => {
-    if (timerRef.current !== null) clearTimeout(timerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   const visibleContent = showImmediately ? content : displayedContent;
   return visibleContent ? <MarkdownMessage>{visibleContent}</MarkdownMessage> : null;

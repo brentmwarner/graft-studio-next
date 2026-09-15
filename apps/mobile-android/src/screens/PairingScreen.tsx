@@ -25,12 +25,7 @@ interface PairingScreenProps {
   readonly onPair: (input: string) => Promise<void>;
 }
 
-export function PairingScreen({
-  error,
-  initialInput,
-  isPairing,
-  onPair,
-}: PairingScreenProps) {
+export function PairingScreen({ error, initialInput, isPairing, onPair }: PairingScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
   const [input, setInput] = useState(initialInput ?? "");
@@ -65,16 +60,14 @@ export function PairingScreen({
               Your work, away from your desk.
             </Text>
             <Text style={[styles.body, { color: palette.foregroundMuted }]}>
-              Pair securely with Graft Studio. Your computer stays
-              authoritative; this phone becomes a lightweight remote view.
+              Pair securely with Graft Studio. Your computer stays authoritative; this phone becomes
+              a lightweight remote view.
             </Text>
           </View>
 
           <FloatingSurface style={styles.formSurface}>
             <View style={styles.form}>
-              <Text style={[styles.label, { color: palette.foreground }]}>
-                Pairing link
-              </Text>
+              <Text style={[styles.label, { color: palette.foreground }]}>Pairing link</Text>
               <TextInput
                 accessibilityLabel="Graft pairing link"
                 autoCapitalize="none"
@@ -98,14 +91,8 @@ export function PairingScreen({
               />
               {error ? (
                 <View style={styles.errorRow}>
-                  <Ionicons
-                    color={palette.danger}
-                    name="alert-circle-outline"
-                    size={17}
-                  />
-                  <Text style={[styles.error, { color: palette.danger }]}>
-                    {error}
-                  </Text>
+                  <Ionicons color={palette.danger} name="alert-circle-outline" size={17} />
+                  <Text style={[styles.error, { color: palette.danger }]}>{error}</Text>
                 </View>
               ) : null}
 
@@ -113,17 +100,9 @@ export function PairingScreen({
                 accessibilityLabel={isPairing ? "Pairing" : "Pair with Graft"}
                 disabled={isPairing || !input.trim()}
                 onPress={() => void onPair(input)}
-                style={[
-                  styles.primaryButton,
-                  { backgroundColor: palette.foreground },
-                ]}
+                style={[styles.primaryButton, { backgroundColor: palette.foreground }]}
               >
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { color: palette.background },
-                  ]}
-                >
+                <Text style={[styles.primaryButtonText, { color: palette.background }]}>
                   {isPairing ? "Pairing…" : "Pair with Graft"}
                 </Text>
                 <Ionicons
@@ -140,9 +119,7 @@ export function PairingScreen({
                 style={[styles.scanButton, { borderColor: palette.border }]}
               >
                 <Ionicons color={palette.foreground} name="scan" size={20} />
-                <Text
-                  style={[styles.scanButtonText, { color: palette.foreground }]}
-                >
+                <Text style={[styles.scanButtonText, { color: palette.foreground }]}>
                   Scan QR code
                 </Text>
               </PressScale>
@@ -150,11 +127,7 @@ export function PairingScreen({
           </FloatingSurface>
 
           <View style={styles.privacyRow}>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="lock-closed-outline"
-              size={14}
-            />
+            <Ionicons color={palette.foregroundSubtle} name="lock-closed-outline" size={14} />
             <Text style={[styles.privacy, { color: palette.foregroundSubtle }]}>
               Session credentials stay in Android secure storage.
             </Text>

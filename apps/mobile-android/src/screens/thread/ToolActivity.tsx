@@ -68,7 +68,11 @@ export const ToolRow = memo(function ToolRow({
       onPress={() => setExpanded((value) => !value)}
     >
       <View style={styles.toolRow}>
-        <Ionicons color={palette.foregroundSubtle} name={item.running ? "terminal-outline" : "checkmark-circle-outline"} size={17} />
+        <Ionicons
+          color={palette.foregroundSubtle}
+          name={item.running ? "terminal-outline" : "checkmark-circle-outline"}
+          size={17}
+        />
         <View style={styles.toolCopy}>
           <Text style={[styles.toolTitle, { color: palette.foregroundMuted }]}>{item.name}</Text>
         </View>
@@ -82,10 +86,7 @@ export const ToolRow = memo(function ToolRow({
         ) : null}
       </View>
       {expanded && item.detail ? (
-        <Text
-          selectable
-          style={[styles.toolDetail, { color: palette.foregroundSubtle }]}
-        >
+        <Text selectable style={[styles.toolDetail, { color: palette.foregroundSubtle }]}>
           {item.detail}
         </Text>
       ) : null}

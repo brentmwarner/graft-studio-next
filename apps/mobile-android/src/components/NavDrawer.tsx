@@ -2,11 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
@@ -45,16 +41,8 @@ function DrawerRow({ icon, label, onPress, trailing }: DrawerRowProps) {
   const palette = useGraftPalette();
   const content = (
     <View style={styles.row}>
-      <Ionicons
-        color={palette.foreground}
-        name={icon}
-        size={21}
-        style={styles.rowIcon}
-      />
-      <Text
-        numberOfLines={1}
-        style={[styles.rowLabel, { color: palette.foreground }]}
-      >
+      <Ionicons color={palette.foreground} name={icon} size={21} style={styles.rowIcon} />
+      <Text numberOfLines={1} style={[styles.rowLabel, { color: palette.foreground }]}>
         {label}
       </Text>
       {trailing}
@@ -63,9 +51,7 @@ function DrawerRow({ icon, label, onPress, trailing }: DrawerRowProps) {
 
   return onPress ? (
     <Pressable accessibilityRole="button" onPress={onPress}>
-      {({ pressed }) => (
-        <View style={{ opacity: pressed ? 0.55 : 1 }}>{content}</View>
-      )}
+      {({ pressed }) => <View style={{ opacity: pressed ? 0.55 : 1 }}>{content}</View>}
     </Pressable>
   ) : (
     content
@@ -122,8 +108,7 @@ export function NavDrawerLayout({
           progress.value = Math.min(1, Math.max(0, next));
         },
         onPanResponderRelease: (_event, gesture) => {
-          const projected =
-            progress.value + gesture.vx * VELOCITY_PROJECTION;
+          const projected = progress.value + gesture.vx * VELOCITY_PROJECTION;
           const shouldOpen = projected > 0.5;
           progress.value = withSpring(shouldOpen ? 1 : 0, SPRING);
           if (shouldOpen !== isOpenRef.current) {
@@ -169,28 +154,18 @@ export function NavDrawerLayout({
               style={[
                 styles.connectionDot,
                 {
-                  backgroundColor: isConnected
-                    ? palette.success
-                    : palette.foregroundSubtle,
+                  backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
                 },
               ]}
             />
           }
         />
         <View style={styles.spacer} />
-        <DrawerRow
-          icon="settings-outline"
-          label="Settings"
-          onPress={onSettings}
-        />
+        <DrawerRow icon="settings-outline" label="Settings" onPress={onSettings} />
       </View>
 
       <Animated.View
-        style={[
-          styles.content,
-          { backgroundColor: palette.background },
-          contentStyle,
-        ]}
+        style={[styles.content, { backgroundColor: palette.background }, contentStyle]}
       >
         {children}
 

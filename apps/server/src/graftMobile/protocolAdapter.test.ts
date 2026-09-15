@@ -13,7 +13,11 @@ import {
 } from "@synara/contracts";
 import { describe, expect, it } from "vitest";
 
-import { makeGraftMobileLiveEventState, seedGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  makeGraftMobileLiveEventState,
+  seedGraftMobileLiveEventState,
+  toMobileLiveEvent,
+} from "./liveEvents";
 import {
   toMobileModels,
   toMobileProject,
@@ -246,14 +250,25 @@ describe("Graft mobile protocol adapter", () => {
     const resumed = makeGraftMobileLiveEventState();
     seedGraftMobileLiveEventState(resumed, {
       snapshotSequence: 1,
-      thread: { ...thread(), messages: [{
-        ...thread().messages[1]!, id: MessageId.makeUnsafe("message-assistant"),
-        role: "assistant", text: "Hello", streaming: true,
-      }] },
+      thread: {
+        ...thread(),
+        messages: [
+          {
+            ...thread().messages[1]!,
+            id: MessageId.makeUnsafe("message-assistant"),
+            role: "assistant",
+            text: "Hello",
+            streaming: true,
+          },
+        ],
+      },
     });
     expect(toMobileLiveEvent(resumed, event(1, "Hello"))).toBeNull();
     expect(toMobileLiveEvent(resumed, event(2, " world"))).toMatchObject({ text: "Hello world" });
-    expect(toMobileLiveEvent(resumed, event(3, "", false))).toMatchObject({ kind: "assistant.message", text: "Hello world" });
+    expect(toMobileLiveEvent(resumed, event(3, "", false))).toMatchObject({
+      kind: "assistant.message",
+      text: "Hello world",
+    });
 
     expect(toMobileLiveEvent(state, event(1, "Hello"))).toMatchObject({
       kind: "assistant.delta",

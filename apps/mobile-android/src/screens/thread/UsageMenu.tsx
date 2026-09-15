@@ -18,7 +18,12 @@ function resetLabel(value: string): string {
   return `Resets ${date.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
 }
 
-function UsageMeter({ title, value, detail, percent }: {
+function UsageMeter({
+  title,
+  value,
+  detail,
+  percent,
+}: {
   readonly title: string;
   readonly value: string;
   readonly detail?: string;
@@ -32,7 +37,11 @@ function UsageMeter({ title, value, detail, percent }: {
         <Text style={[styles.usageValue, { color: palette.foreground }]}>{value}</Text>
       </View>
       {percent !== undefined && Number.isFinite(percent) ? (
-        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
           <Host style={styles.progressBar} ignoreSafeAreaKeyboardInsets>
             <LinearProgressIndicator
               progress={Math.max(0, Math.min(100, percent)) / 100}
@@ -46,12 +55,19 @@ function UsageMeter({ title, value, detail, percent }: {
           </Host>
         </View>
       ) : null}
-      {detail ? <Text style={[styles.usageDetail, { color: palette.foregroundSubtle }]}>{detail}</Text> : null}
+      {detail ? (
+        <Text style={[styles.usageDetail, { color: palette.foregroundSubtle }]}>{detail}</Text>
+      ) : null}
     </View>
   );
 }
 
-export function UsageMenu({ threadId, contextUsage, onLoadUsage, trigger }: {
+export function UsageMenu({
+  threadId,
+  contextUsage,
+  onLoadUsage,
+  trigger,
+}: {
   readonly threadId: string;
   readonly contextUsage: GraftContextUsage | undefined;
   readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
@@ -62,7 +78,12 @@ export function UsageMenu({ threadId, contextUsage, onLoadUsage, trigger }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const generation = useRef(0);
-  useEffect(() => () => { generation.current += 1; }, []);
+  useEffect(
+    () => () => {
+      generation.current += 1;
+    },
+    [],
+  );
 
   async function load() {
     const request = ++generation.current;
@@ -73,9 +94,12 @@ export function UsageMenu({ threadId, contextUsage, onLoadUsage, trigger }: {
       const result = await onLoadUsage(threadId);
       if (request === generation.current) setUsage(result);
     } catch (cause) {
-      if (request === generation.current) setError(cause instanceof GatewayError && cause.status === 404
-        ? "Account usage isn’t available on this host yet."
-        : "Couldn’t load account usage.");
+      if (request === generation.current)
+        setError(
+          cause instanceof GatewayError && cause.status === 404
+            ? "Account usage isn’t available on this host yet."
+            : "Couldn’t load account usage.",
+        );
     } finally {
       if (request === generation.current) setLoading(false);
     }
@@ -84,37 +108,82 @@ export function UsageMenu({ threadId, contextUsage, onLoadUsage, trigger }: {
   const context = usage ? usage.contextUsage : contextUsage;
   const measured = context?.source === "measured";
   const allowance = usage?.allowance;
-  return <AnchoredMenu trigger={trigger} onOpenChange={(open) => {
-    if (open) void load();
-    else generation.current += 1;
-  }}>
-    {() => <>
-      <UsageMeter title="Context window" value={measured ? `${context.percent}% used` : "Not reported"}
-        percent={measured ? context.percent : undefined}
-        detail={measured ? contextUsageTokenDetail(context) : "Context measurements appear when the provider reports them."} />
-      <View style={[styles.separator, { backgroundColor: palette.border }]} />
-      <MenuCaption>{allowance ? `${displayName(allowance.providerId)} account${allowance.planName ? ` · ${allowance.planName}` : ""}` : "Account usage"}</MenuCaption>
-      {loading ? <MenuCaption>Checking allowance…</MenuCaption> : null}
-      {allowance?.limits.map((limit, index) => <UsageMeter key={`${limit.label}:${index}`}
-        title={limit.label === "5h" ? "5-hour limit" : limit.label}
-        value={`${Math.round(limit.remainingPercent)}% remaining`} percent={limit.remainingPercent}
-        detail={limit.resetsAt ? resetLabel(limit.resetsAt) : undefined} />)}
-      {allowance?.stale ? <MenuCaption>{`Last reported${allowance.updatedAt ? ` ${new Date(allowance.updatedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""} · may be out of date`}</MenuCaption> : null}
-      {allowance && allowance.limits.length === 0 ? <MenuCaption>{allowance.status === "needs-auth"
-        ? "Sign in to the provider on your host to see allowance."
-        : allowance.status === "error" ? "Provider usage is temporarily unavailable."
-          : "This provider doesn’t report account allowance."}</MenuCaption> : null}
-      {error ? <><MenuCaption>{error}</MenuCaption><MenuItem label="Try again" onPress={() => void load()} /></> : null}
-    </>}
-  </AnchoredMenu>;
+  return (
+    <AnchoredMenu
+      trigger={trigger}
+      onOpenChange={(open) => {
+        if (open) void load();
+        else generation.current += 1;
+      }}
+    >
+      {() => (
+        <>
+          <UsageMeter
+            title="Context window"
+            value={measured ? `${context.percent}% used` : "Not reported"}
+            percent={measured ? context.percent : undefined}
+            detail={
+              measured
+                ? contextUsageTokenDetail(context)
+                : "Context measurements appear when the provider reports them."
+            }
+          />
+          <View style={[styles.separator, { backgroundColor: palette.border }]} />
+          <MenuCaption>
+            {allowance
+              ? `${displayName(allowance.providerId)} account${allowance.planName ? ` · ${allowance.planName}` : ""}`
+              : "Account usage"}
+          </MenuCaption>
+          {loading ? <MenuCaption>Checking allowance…</MenuCaption> : null}
+          {allowance?.limits.map((limit, index) => (
+            <UsageMeter
+              key={`${limit.label}:${index}`}
+              title={limit.label === "5h" ? "5-hour limit" : limit.label}
+              value={`${Math.round(limit.remainingPercent)}% remaining`}
+              percent={limit.remainingPercent}
+              detail={limit.resetsAt ? resetLabel(limit.resetsAt) : undefined}
+            />
+          ))}
+          {allowance?.stale ? (
+            <MenuCaption>{`Last reported${allowance.updatedAt ? ` ${new Date(allowance.updatedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""} · may be out of date`}</MenuCaption>
+          ) : null}
+          {allowance && allowance.limits.length === 0 ? (
+            <MenuCaption>
+              {allowance.status === "needs-auth"
+                ? "Sign in to the provider on your host to see allowance."
+                : allowance.status === "error"
+                  ? "Provider usage is temporarily unavailable."
+                  : "This provider doesn’t report account allowance."}
+            </MenuCaption>
+          ) : null}
+          {error ? (
+            <>
+              <MenuCaption>{error}</MenuCaption>
+              <MenuItem label="Try again" onPress={() => void load()} />
+            </>
+          ) : null}
+        </>
+      )}
+    </AnchoredMenu>
+  );
 }
-
 
 const styles = StyleSheet.create({
   usageRow: { gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  usageHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  usageHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   usageTitle: { flex: 1, fontSize: 12, fontWeight: "500", lineHeight: 16 },
-  usageValue: { flexShrink: 1, textAlign: "right", fontSize: 14, fontWeight: "600", lineHeight: 20 },
+  usageValue: {
+    flexShrink: 1,
+    textAlign: "right",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
   progressBar: { height: 6, alignSelf: "stretch" },
   usageDetail: { fontSize: 12, lineHeight: 17 },
   separator: { height: StyleSheet.hairlineWidth, marginHorizontal: 12, marginVertical: 4 },

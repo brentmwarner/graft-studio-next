@@ -5,13 +5,7 @@ import type {
   GraftQuestionRequest,
 } from "@graft/mobile-contract";
 import { useState } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
@@ -25,31 +19,20 @@ export function ApprovalPrompt({
 }) {
   const palette = useGraftPalette();
   return (
-    <View
-      style={[styles.interactionCard, { backgroundColor: palette.elevated }]}
-    >
+    <View style={[styles.interactionCard, { backgroundColor: palette.elevated }]}>
       <View style={styles.interactionHeading}>
-        <Ionicons
-          color={palette.foreground}
-          name="shield-half-outline"
-          size={18}
-        />
+        <Ionicons color={palette.foreground} name="shield-half-outline" size={18} />
         <Text style={[styles.interactionTitle, { color: palette.foreground }]}>
           Approval needed
         </Text>
       </View>
-      <Text
-        style={[styles.interactionDetail, { color: palette.foregroundMuted }]}
-      >
+      <Text style={[styles.interactionDetail, { color: palette.foregroundMuted }]}>
         {approval.title}
       </Text>
       {approval.detail ? (
         <Text
           numberOfLines={3}
-          style={[
-            styles.interactionCaption,
-            { color: palette.foregroundSubtle },
-          ]}
+          style={[styles.interactionCaption, { color: palette.foregroundSubtle }]}
         >
           {approval.detail}
         </Text>
@@ -82,18 +65,13 @@ export function QuestionPrompt({
   onResolve,
   question,
 }: {
-  readonly onResolve: (answer: {
-    readonly optionId?: string;
-    readonly text?: string;
-  }) => void;
+  readonly onResolve: (answer: { readonly optionId?: string; readonly text?: string }) => void;
   readonly question: GraftQuestionRequest;
 }) {
   const palette = useGraftPalette();
   const [answer, setAnswer] = useState("");
   return (
-    <View
-      style={[styles.interactionCard, { backgroundColor: palette.elevated }]}
-    >
+    <View style={[styles.interactionCard, { backgroundColor: palette.elevated }]}>
       <Text style={[styles.interactionTitle, { color: palette.foreground }]}>
         {question.prompt}
       </Text>
@@ -103,9 +81,7 @@ export function QuestionPrompt({
           onPress={() => onResolve({ optionId: option.id })}
           style={[styles.optionButton, { borderColor: palette.border }]}
         >
-          <Text style={[styles.optionText, { color: palette.foreground }]}>
-            {option.label}
-          </Text>
+          <Text style={[styles.optionText, { color: palette.foreground }]}>{option.label}</Text>
         </Pressable>
       ))}
       {question.allowFreeform !== false ? (
@@ -128,12 +104,7 @@ export function QuestionPrompt({
               if (text) onResolve({ text });
             }}
           >
-            <View
-              style={[
-                styles.answerButton,
-                { backgroundColor: palette.foreground },
-              ]}
-            >
+            <View style={[styles.answerButton, { backgroundColor: palette.foreground }]}>
               <Ionicons color={palette.background} name="arrow-up" size={17} />
             </View>
           </PressScale>

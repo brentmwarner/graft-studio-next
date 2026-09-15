@@ -16,11 +16,7 @@ const CONNECT_TIMEOUT_MS = 15_000;
 const PING_INTERVAL_MS = 25_000;
 const MAX_RECONNECT_DELAY_MS = 15_000;
 
-export type GatewayConnectionState =
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "disconnected";
+export type GatewayConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 interface ReactNativeWebSocketOptions {
   readonly headers?: Readonly<Record<string, string>>;
@@ -97,10 +93,7 @@ export class GatewaySocket {
     this.afterCursor = afterCursor;
     this.desired = true;
 
-    if (
-      !changedSession &&
-      (this.state === "connecting" || this.state === "connected")
-    ) {
+    if (!changedSession && (this.state === "connecting" || this.state === "connected")) {
       return;
     }
     if (changedSession) this.closeSocket();
@@ -111,42 +104,31 @@ export class GatewaySocket {
     this.afterCursor = cursor;
   }
 
-  async command(
-    command: GraftMobileCommand,
-  ): Promise<GraftMobileCommandResult | undefined> {
+  async command(command: GraftMobileCommand): Promise<GraftMobileCommandResult | undefined> {
     await this.ensureConnected();
     const commandId = Crypto.randomUUID();
 
-    return await new Promise<GraftMobileCommandResult | undefined>(
-      (resolve, reject) => {
-        const timeout = setTimeout(() => {
-          this.pendingCommands.delete(commandId);
-          reject(
-            new GatewaySocketError(
-              "The Graft host did not respond in time.",
-              "timeout",
-            ),
-          );
-        }, COMMAND_TIMEOUT_MS);
+    return await new Promise<GraftMobileCommandResult | undefined>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingCommands.delete(commandId);
+        reject(new GatewaySocketError("The Graft host did not respond in time.", "timeout"));
+      }, COMMAND_TIMEOUT_MS);
 
-        this.pendingCommands.set(commandId, { resolve, reject, timeout });
-        try {
-          this.send({
-            envelope: "command",
-            commandId,
-            command,
-          });
-        } catch (error) {
-          clearTimeout(timeout);
-          this.pendingCommands.delete(commandId);
-          reject(
-            error instanceof Error
-              ? error
-              : new GatewaySocketError("Could not send the command."),
-          );
-        }
-      },
-    );
+      this.pendingCommands.set(commandId, { resolve, reject, timeout });
+      try {
+        this.send({
+          envelope: "command",
+          commandId,
+          command,
+        });
+      } catch (error) {
+        clearTimeout(timeout);
+        this.pendingCommands.delete(commandId);
+        reject(
+          error instanceof Error ? error : new GatewaySocketError("Could not send the command."),
+        );
+      }
+    });
   }
 
   disconnect(): void {
@@ -160,16 +142,11 @@ export class GatewaySocket {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (
-      this.state === "connected" &&
-      this.socket?.readyState === WebSocket.OPEN
-    ) {
+    if (this.state === "connected" && this.socket?.readyState === WebSocket.OPEN) {
       return;
     }
     if (!this.session) {
-      throw new GatewaySocketError(
-        "Pair with Graft Studio before sending a message.",
-      );
+      throw new GatewaySocketError("Pair with Graft Studio before sending a message.");
     }
     if (!this.desired) {
       this.desired = true;
@@ -184,12 +161,7 @@ export class GatewaySocket {
         reject,
         timeout: setTimeout(() => {
           this.connectionWaiters.delete(waiter);
-          reject(
-            new GatewaySocketError(
-              "Could not connect to Graft Studio in time.",
-              "timeout",
-            ),
-          );
+          reject(new GatewaySocketError("Could not connect to Graft Studio in time.", "timeout"));
         }, CONNECT_TIMEOUT_MS),
       };
       this.connectionWaiters.add(waiter);
@@ -203,8 +175,7 @@ export class GatewaySocket {
     this.clearReconnectTimer();
     this.setState(isReconnect ? "reconnecting" : "connecting");
 
-    const WebSocketConstructor =
-      WebSocket as unknown as ReactNativeWebSocketConstructor;
+    const WebSocketConstructor = WebSocket as unknown as ReactNativeWebSocketConstructor;
     const socket = new WebSocketConstructor(buildWebSocketUrl(session), null, {
       headers: { Authorization: `Bearer ${session.bearerToken}` },
     });
@@ -237,9 +208,7 @@ export class GatewaySocket {
       this.socket = null;
       this.stopPing();
       this.setState("disconnected");
-      const error = new GatewaySocketError(
-        "The connection to Graft Studio closed.",
-      );
+      const error = new GatewaySocketError("The connection to Graft Studio closed.");
       this.rejectPending(error);
       this.rejectConnectionWaiters(error);
       if (this.desired) this.scheduleReconnect();
@@ -285,10 +254,7 @@ export class GatewaySocket {
         break;
       }
       case "event":
-        this.afterCursor = Math.max(
-          this.afterCursor ?? 0,
-          message.event.cursor,
-        );
+        this.afterCursor = Math.max(this.afterCursor ?? 0, message.event.cursor);
         break;
       case "error":
         if (message.error.commandId) {
@@ -319,10 +285,7 @@ export class GatewaySocket {
 
   private scheduleReconnect(): void {
     if (!this.desired || this.reconnectTimer) return;
-    const baseDelay = Math.min(
-      MAX_RECONNECT_DELAY_MS,
-      1_000 * 2 ** this.reconnectAttempt,
-    );
+    const baseDelay = Math.min(MAX_RECONNECT_DELAY_MS, 1_000 * 2 ** this.reconnectAttempt);
     const delay = Math.round(baseDelay * (0.75 + Math.random() * 0.5));
     this.reconnectAttempt += 1;
     this.setState("reconnecting");

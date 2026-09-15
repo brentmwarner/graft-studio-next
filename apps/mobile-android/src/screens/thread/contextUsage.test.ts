@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  contextUsageAccessibilityLabel,
-  contextUsageDetail,
-} from "./contextUsage";
+import { contextUsageAccessibilityLabel, contextUsageDetail } from "./contextUsage";
 
 describe("context usage presentation", () => {
   it("formats measured usage for assistive text and the detail dialog", () => {
@@ -26,10 +23,7 @@ describe("context usage presentation", () => {
       source: "unknown" as const,
     };
 
-    expect(contextUsageAccessibilityLabel(usage)).toBe(
-      "Context usage unavailable",
-    );
+    expect(contextUsageAccessibilityLabel(usage)).toBe("Context usage unavailable");
     expect(contextUsageDetail(usage)).toContain("does not report");
   });
-
 });

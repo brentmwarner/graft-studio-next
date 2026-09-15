@@ -88,9 +88,7 @@ describe("mobileRemote pairing helpers", () => {
   it("rejects unrelated URLs and query-string credentials", () => {
     const query = "v=1&host=http://127.0.0.1:4783&token=abcdefghijklmnopqrstuv";
     expect(parseGraftPairingUrl(`graft://connect?${query}`)).toBeNull();
-    expect(
-      parseGraftPairingUrl(`https://example.test/not-pair?${query}`),
-    ).toBeNull();
+    expect(parseGraftPairingUrl(`https://example.test/not-pair?${query}`)).toBeNull();
     expect(parseGraftPairingUrl(`graft://pair?${query}`)).toBeNull();
     expect(
       parseGraftPairingUrl(
@@ -121,14 +119,12 @@ describe("mobileRemote pairing helpers", () => {
     };
 
     expect(GraftPairingPayloadSchema.safeParse(valid).success).toBe(true);
-    expect(
-      GraftPairingPayloadSchema.safeParse({ ...valid, host: "ftp://host/path" })
-        .success,
-    ).toBe(false);
-    expect(
-      GraftPairingPayloadSchema.safeParse({ ...valid, token: "too-short" })
-        .success,
-    ).toBe(false);
+    expect(GraftPairingPayloadSchema.safeParse({ ...valid, host: "ftp://host/path" }).success).toBe(
+      false,
+    );
+    expect(GraftPairingPayloadSchema.safeParse({ ...valid, token: "too-short" }).success).toBe(
+      false,
+    );
     expect(
       GraftPairingPayloadSchema.safeParse({
         ...valid,
@@ -154,12 +150,8 @@ describe("mobileRemote pairing helpers", () => {
   });
 
   it("maps http hosts to ws bases", () => {
-    expect(toWebSocketBaseUrl("http://192.168.1.8:4783/")).toBe(
-      "ws://192.168.1.8:4783",
-    );
-    expect(toWebSocketBaseUrl("https://mac.tailnet.ts.net")).toBe(
-      "wss://mac.tailnet.ts.net",
-    );
+    expect(toWebSocketBaseUrl("http://192.168.1.8:4783/")).toBe("ws://192.168.1.8:4783");
+    expect(toWebSocketBaseUrl("https://mac.tailnet.ts.net")).toBe("wss://mac.tailnet.ts.net");
   });
 });
 
@@ -252,10 +244,9 @@ describe("mobileRemote push registration schemas", () => {
         deviceId: "attacker-selected-device",
       }).success,
     ).toBe(false);
-    expect(
-      GraftPushUnregistrationRequestSchema.safeParse({ deviceId: "device-1" })
-        .success,
-    ).toBe(false);
+    expect(GraftPushUnregistrationRequestSchema.safeParse({ deviceId: "device-1" }).success).toBe(
+      false,
+    );
   });
 
   it("keeps raw APNs token material out of registration metadata", () => {
@@ -279,9 +270,7 @@ describe("mobileRemote fixtures", () => {
     expect(names.length).toBeGreaterThan(10);
     for (const name of names) {
       const schema = schemaForFixture(name);
-      const parsed = schema.safeParse(
-        readJson(join(fixturesRoot, "valid", name)),
-      );
+      const parsed = schema.safeParse(readJson(join(fixturesRoot, "valid", name)));
       expect(parsed.success, `${name} should parse`).toBe(true);
     }
   });
@@ -291,9 +280,7 @@ describe("mobileRemote fixtures", () => {
     expect(names.length).toBeGreaterThan(5);
     for (const name of names) {
       const schema = schemaForFixture(name);
-      const parsed = schema.safeParse(
-        readJson(join(fixturesRoot, "invalid", name)),
-      );
+      const parsed = schema.safeParse(readJson(join(fixturesRoot, "invalid", name)));
       expect(parsed.success, `${name} should fail`).toBe(false);
     }
   });
@@ -365,9 +352,7 @@ describe("mobileRemote exhaustive helpers", () => {
       { envelope: "snapshot_required", reason: "resync" },
     ];
     for (const message of messages) {
-      expect(GraftMobileHostMessageSchema.parse(message).envelope).toBe(
-        message.envelope,
-      );
+      expect(GraftMobileHostMessageSchema.parse(message).envelope).toBe(message.envelope);
       expect(describeMobileHostMessage(message)).toBe(message.envelope);
     }
   });

@@ -10,5 +10,10 @@ export function ContextProgressRing({
   readonly palette: GraftPalette;
   readonly usage: GraftContextUsage | undefined;
 }) {
-  return <ProgressRing palette={palette} percent={usage?.source === "measured" ? usage.percent : undefined} />;
+  return (
+    <ProgressRing
+      palette={palette}
+      percent={usage?.source === "measured" ? usage.percent : undefined}
+    />
+  );
 }

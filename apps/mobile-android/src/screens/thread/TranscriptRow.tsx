@@ -39,11 +39,7 @@ export function useReconciledTranscript(
 
 /// Hoisted so `FlatList` sees the same function identity every render — an
 /// inline `renderItem` re-renders every mounted cell regardless of `React.memo`.
-export function renderTranscriptRow({
-  item,
-}: {
-  readonly item: TranscriptItem;
-}) {
+export function renderTranscriptRow({ item }: { readonly item: TranscriptItem }) {
   return <TranscriptRow item={item} />;
 }
 
@@ -61,13 +57,8 @@ export const TranscriptRow = memo(function TranscriptRow({
     case "user":
       return (
         <View style={styles.userRow}>
-          <View
-            style={[styles.userBubble, { backgroundColor: palette.bubble }]}
-          >
-            <Text
-              selectable
-              style={[styles.userText, { color: palette.foreground }]}
-            >
+          <View style={[styles.userBubble, { backgroundColor: palette.bubble }]}>
+            <Text selectable style={[styles.userText, { color: palette.foreground }]}>
               {item.text}
             </Text>
           </View>
@@ -76,14 +67,9 @@ export const TranscriptRow = memo(function TranscriptRow({
     case "assistant":
       return (
         <View style={styles.assistantRow}>
-          <ReasoningBlock
-            reasoning={item.reasoning}
-          />
+          <ReasoningBlock reasoning={item.reasoning} />
           {item.text ? (
-            <StreamingMarkdownMessage
-              content={item.text}
-              streaming={item.streaming}
-            />
+            <StreamingMarkdownMessage content={item.text} streaming={item.streaming} />
           ) : null}
         </View>
       );
@@ -99,10 +85,7 @@ export const TranscriptRow = memo(function TranscriptRow({
       return <ActivityCard item={item} />;
     case "error":
       return (
-        <Text
-          selectable
-          style={[styles.centeredNote, { color: palette.danger }]}
-        >
+        <Text selectable style={[styles.centeredNote, { color: palette.danger }]}>
           {item.text}
         </Text>
       );

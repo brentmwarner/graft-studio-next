@@ -1,13 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { GraftModelOption } from "@graft/mobile-contract";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
@@ -41,21 +35,13 @@ function ComposerTrailingControls({
         importantForAccessibility="no"
         style={[styles.micHint, { opacity: isConnected ? 1 : 0.35 }]}
       >
-        <Ionicons
-          color={palette.foregroundMuted}
-          name="mic-outline"
-          size={23}
-        />
+        <Ionicons color={palette.foregroundMuted} name="mic-outline" size={23} />
       </View>
     );
   }
 
   const sendButton = (
-    <PressScale
-      accessibilityLabel="Send message"
-      disabled={!canSend}
-      onPress={onSend}
-    >
+    <PressScale accessibilityLabel="Send message" disabled={!canSend} onPress={onSend}>
       <View
         style={[
           styles.sendButton,
@@ -78,12 +64,8 @@ function ComposerTrailingControls({
 
   const stopButton = (
     <PressScale accessibilityLabel="Stop response" onPress={onCancel}>
-      <View
-        style={[styles.sendButton, { backgroundColor: palette.foreground }]}
-      >
-        <View
-          style={[styles.stopGlyph, { backgroundColor: palette.background }]}
-        />
+      <View style={[styles.sendButton, { backgroundColor: palette.foreground }]}>
+        <View style={[styles.stopGlyph, { backgroundColor: palette.background }]} />
       </View>
     </PressScale>
   );
@@ -94,12 +76,7 @@ function ComposerTrailingControls({
     <View style={styles.trailingControls}>
       <PressScale accessibilityLabel="Stop response" onPress={onCancel}>
         <View style={styles.secondaryStopButton}>
-          <View
-            style={[
-              styles.stopGlyph,
-              { backgroundColor: palette.foregroundMuted },
-            ]}
-          />
+          <View style={[styles.stopGlyph, { backgroundColor: palette.foregroundMuted }]} />
         </View>
       </PressScale>
       {sendButton}
@@ -178,24 +155,16 @@ export function Composer({
             config={menuConfig}
             initialPage="intelligence"
             trigger={(open) => (
-              <PressScale
-                accessibilityLabel="Model and reasoning effort"
-                onPress={open}
-              >
+              <PressScale accessibilityLabel="Model and reasoning effort" onPress={open}>
                 <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.modelName, { color: palette.foreground }]}
-                  >
-                    {currentModel?.label ??
-                      currentModelName?.replace("[1m]", "") ??
-                      "Model"}
+                  <Text numberOfLines={1} style={[styles.modelName, { color: palette.foreground }]}>
+                    {currentModel?.label ?? currentModelName?.replace("[1m]", "") ?? "Model"}
                     {resolvedEffort ? ` ${displayName(resolvedEffort)}` : ""}
                   </Text>
                 </View>
               </PressScale>
-          )}
-        />
+            )}
+          />
         ) : null}
         {hasApprovalOptions ? (
           canChangeApproval ? (
@@ -203,19 +172,14 @@ export function Composer({
               config={menuConfig}
               initialPage="permissions"
               trigger={(open) => (
-                <PressScale
-                  accessibilityLabel="Permissions"
-                  onPress={open}
-                >
+                <PressScale accessibilityLabel="Permissions" onPress={open}>
                   <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
                     <Text
                       numberOfLines={1}
                       style={[
                         styles.chipText,
                         {
-                          color: approvalIsElevated
-                            ? palette.warning
-                            : palette.foreground,
+                          color: approvalIsElevated ? palette.warning : palette.foreground,
                         },
                       ]}
                     >
@@ -227,10 +191,7 @@ export function Composer({
             />
           ) : (
             <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-              <Text
-                numberOfLines={1}
-                style={[styles.chipText, { color: palette.foreground }]}
-              >
+              <Text numberOfLines={1} style={[styles.chipText, { color: palette.foreground }]}>
                 {currentApprovalLabel}
               </Text>
             </View>
@@ -243,10 +204,7 @@ export function Composer({
           config={menuConfig}
           initialPage="options"
           trigger={(open) => (
-            <PressScale
-              accessibilityLabel="Composer options"
-              onPress={open}
-            >
+            <PressScale accessibilityLabel="Composer options" onPress={open}>
               <FloatingSurface style={styles.addButton}>
                 <Ionicons color={palette.foreground} name="add" size={28} />
               </FloatingSurface>

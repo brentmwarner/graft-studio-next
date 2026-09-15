@@ -33,11 +33,7 @@ import {
 } from "../api/gatewaySocket";
 import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
-import {
-  clearSession,
-  loadSession,
-  saveSession,
-} from "../storage/sessionRepository";
+import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
 
 interface LoadingState {
   readonly status: "loading";
@@ -67,11 +63,7 @@ export interface PairedState {
   readonly error?: string;
 }
 
-export type GraftSessionState =
-  | LoadingState
-  | UnpairedState
-  | PairingState
-  | PairedState;
+export type GraftSessionState = LoadingState | UnpairedState | PairingState | PairedState;
 
 export interface CreateThreadOptions {
   readonly approvalPolicy?: string;
@@ -97,10 +89,7 @@ function withRun(
   if (!snapshot) return null;
   return {
     ...snapshot,
-    activeRuns: [
-      run,
-      ...snapshot.activeRuns.filter((candidate) => candidate.id !== run.id),
-    ],
+    activeRuns: [run, ...snapshot.activeRuns.filter((candidate) => candidate.id !== run.id)],
   };
 }
 
@@ -111,9 +100,7 @@ function withThread(
   if (!snapshot) return null;
   return {
     ...snapshot,
-    threads: snapshot.threads.map((candidate) =>
-      candidate.id === thread.id ? thread : candidate,
-    ),
+    threads: snapshot.threads.map((candidate) => (candidate.id === thread.id ? thread : candidate)),
   };
 }
 
@@ -122,9 +109,7 @@ function requireResult<TType extends GraftMobileCommandResult["type"]>(
   type: TType,
 ): Extract<GraftMobileCommandResult, { type: TType }> {
   if (result?.type !== type) {
-    throw new GatewaySocketError(
-      "Graft Studio returned an unexpected response.",
-    );
+    throw new GatewaySocketError("Graft Studio returned an unexpected response.");
   }
   return result as Extract<GraftMobileCommandResult, { type: TType }>;
 }
@@ -146,19 +131,14 @@ async function runSocketCommand<TType extends GraftMobileCommandResult["type"]>(
   command: Parameters<GatewaySocket["command"]>[0],
   resultType: TType,
 ): Promise<Extract<GraftMobileCommandResult, { type: TType }>> {
-  return requireResult(
-    await requireSocket(socket).command(command),
-    resultType,
-  );
+  return requireResult(await requireSocket(socket).command(command), resultType);
 }
 
 function updatePaired(
   setState: Dispatch<SetStateAction<GraftSessionState>>,
   update: PairedUpdater,
 ): void {
-  setState((current) =>
-    current.status === "paired" ? update(current) : current,
-  );
+  setState((current) => (current.status === "paired" ? update(current) : current));
 }
 
 function setPairedError(
@@ -173,15 +153,11 @@ function setPairedError(
 
 export function useGraftSession() {
   const [state, setState] = useState<GraftSessionState>({ status: "loading" });
-  const [pendingSendThreadId, setPendingSendThreadId] = useState<
-    string | undefined
-  >();
+  const [pendingSendThreadId, setPendingSendThreadId] = useState<string | undefined>();
   const sessionRef = useRef<GraftSessionCredential | null>(null);
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
   const socketRef = useRef<GatewaySocket | null>(null);
-  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /// Latest cursor the authoritative snapshot covers. Mirrors the iOS
   /// `AppModel` guard: a streamed frame the snapshot already accounts for
   /// doesn't need another HTTP round trip, and reading it from a ref keeps the
@@ -196,17 +172,12 @@ export function useGraftSession() {
   const snapshotRequestRef = useRef(0);
 
   const refreshSnapshot = useCallback(
-    async (
-      session: GraftSessionCredential,
-      threadId: string | undefined,
-      showRefresh: boolean,
-    ) => {
+    async (session: GraftSessionCredential, threadId: string | undefined, showRefresh: boolean) => {
       const requestId = (snapshotRequestRef.current += 1);
 
       if (showRefresh) {
         setState((current) =>
-          current.status === "paired" &&
-          current.session.sessionId === session.sessionId
+          current.status === "paired" && current.session.sessionId === session.sessionId
             ? { ...current, isRefreshing: true, error: undefined }
             : current,
         );
@@ -218,8 +189,7 @@ export function useGraftSession() {
         socketRef.current?.updateCursor(snapshot.cursor);
         snapshotCursorRef.current = snapshot.cursor;
         setState((current) =>
-          current.status === "paired" &&
-          current.session.sessionId === session.sessionId
+          current.status === "paired" && current.session.sessionId === session.sessionId
             ? {
                 ...current,
                 snapshot,
@@ -238,8 +208,7 @@ export function useGraftSession() {
         // surfacing it would show an error banner over a healthy transcript.
         if (snapshotRequestRef.current !== requestId) return;
         setState((current) =>
-          current.status === "paired" &&
-          current.session.sessionId === session.sessionId
+          current.status === "paired" && current.session.sessionId === session.sessionId
             ? {
                 ...current,
                 isRefreshing: false,
@@ -283,9 +252,7 @@ export function useGraftSession() {
             current.status === "paired"
               ? {
                   ...current,
-                  liveEvents: [...current.liveEvents, message.event].slice(
-                    -2_000,
-                  ),
+                  liveEvents: [...current.liveEvents, message.event].slice(-2_000),
                 }
               : current,
           );
@@ -299,9 +266,7 @@ export function useGraftSession() {
           break;
         case "error":
           setState((current) =>
-            current.status === "paired"
-              ? { ...current, error: message.error.message }
-              : current,
+            current.status === "paired" ? { ...current, error: message.error.message } : current,
           );
           if (message.error.code === "device_revoked") {
             // Tear the transport down synchronously, before awaiting the
@@ -341,9 +306,7 @@ export function useGraftSession() {
       onMessage: handleHostMessage,
       onStateChange: (connectionState) => {
         setState((current) =>
-          current.status === "paired"
-            ? { ...current, connectionState }
-            : current,
+          current.status === "paired" ? { ...current, connectionState } : current,
         );
       },
     });
@@ -396,10 +359,7 @@ export function useGraftSession() {
       const session = sessionRef.current;
       if (!session) return;
       if (nextState === "active") {
-        socketRef.current?.connect(
-          session,
-          snapshotCursorRef.current || undefined,
-        );
+        socketRef.current?.connect(session, snapshotCursorRef.current || undefined);
         scheduleSnapshot(true);
       } else if (nextState === "background") {
         socketRef.current?.disconnect();
@@ -475,9 +435,7 @@ export function useGraftSession() {
         current.status === "paired"
           ? {
               ...current,
-              liveEvents: current.liveEvents.filter(
-                (event) => event.threadId === threadId,
-              ),
+              liveEvents: current.liveEvents.filter((event) => event.threadId === threadId),
             }
           : current,
       );
@@ -496,7 +454,8 @@ export function useGraftSession() {
     const session = sessionRef.current;
     if (!session) throw new Error("Reconnect to view account usage.");
     const usage = await gateway.usage(session, threadId);
-    if (sessionRef.current?.sessionId !== session.sessionId) throw new Error("The connection changed.");
+    if (sessionRef.current?.sessionId !== session.sessionId)
+      throw new Error("The connection changed.");
     return usage;
   }, []);
 
@@ -636,16 +595,12 @@ export function useGraftSession() {
       } catch (error) {
         updatePaired(setState, (current) => ({
           ...current,
-          liveEvents: current.liveEvents.filter(
-            (event) => event.id !== optimisticId,
-          ),
+          liveEvents: current.liveEvents.filter((event) => event.id !== optimisticId),
           error: messageFor(error),
         }));
         return false;
       } finally {
-        setPendingSendThreadId((current) =>
-          current === threadId ? undefined : current,
-        );
+        setPendingSendThreadId((current) => (current === threadId ? undefined : current));
       }
     },
     [scheduleSnapshot],
@@ -694,9 +649,7 @@ export function useGraftSession() {
                   ...current.snapshot,
                   threads: [
                     result.thread,
-                    ...current.snapshot.threads.filter(
-                      (thread) => thread.id !== result.thread.id,
-                    ),
+                    ...current.snapshot.threads.filter((thread) => thread.id !== result.thread.id),
                   ],
                 },
               }
@@ -761,9 +714,7 @@ export function useGraftSession() {
       setState({ status: "unpaired" });
     } catch (error) {
       setState((current) =>
-        current.status === "paired"
-          ? { ...current, error: messageFor(error) }
-          : current,
+        current.status === "paired" ? { ...current, error: messageFor(error) } : current,
       );
     }
   }, []);

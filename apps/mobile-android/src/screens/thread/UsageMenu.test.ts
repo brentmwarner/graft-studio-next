@@ -7,27 +7,64 @@ import { GatewayError } from "../../api/gateway";
 import { UsageMenu } from "./UsageMenu";
 
 vi.mock("expo/fetch", () => ({ fetch: globalThis.fetch }));
-vi.mock("react-native", () => ({ View: "View", Text: "Text", StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 } }));
+vi.mock("react-native", () => ({
+  View: "View",
+  Text: "Text",
+  StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
+}));
 vi.mock("@expo/ui/jetpack-compose", () => ({ Host: "Host", LinearProgressIndicator: "Bar" }));
-vi.mock("@expo/ui/jetpack-compose/modifiers", () => ({ fillMaxWidth: () => ({}), height: () => ({}) }));
+vi.mock("@expo/ui/jetpack-compose/modifiers", () => ({
+  fillMaxWidth: () => ({}),
+  height: () => ({}),
+}));
 vi.mock("../../theme/tokens", () => ({ useGraftPalette: () => ({}) }));
 vi.mock("../../components/AnchoredMenu", () => ({
-  AnchoredMenu: ({ children, onOpenChange }: { children: (close: () => void) => ReactNode; onOpenChange: (open: boolean) => void }) =>
-    createElement("Popup", { onOpenChange }, children(() => onOpenChange(false))),
-  MenuCaption: "Caption", MenuItem: "Item",
+  AnchoredMenu: ({
+    children,
+    onOpenChange,
+  }: {
+    children: (close: () => void) => ReactNode;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    createElement(
+      "Popup",
+      { onOpenChange },
+      children(() => onOpenChange(false)),
+    ),
+  MenuCaption: "Caption",
+  MenuItem: "Item",
 }));
 let renderer: ReactTestRenderer | undefined;
 const content = () => JSON.stringify(renderer!.toJSON());
-const changeOpen = (open: boolean) => renderer!.root.find((node) => node.type === "Popup").props.onOpenChange(open);
-const response = (remainingPercent: number): GraftThreadUsage => ({ threadId: "a", allowance: {
-  providerId: "codex", stale: false, status: "ok", limits: [{ label: "Weekly", remainingPercent }],
-} });
+const changeOpen = (open: boolean) =>
+  renderer!.root.find((node) => node.type === "Popup").props.onOpenChange(open);
+const response = (remainingPercent: number): GraftThreadUsage => ({
+  threadId: "a",
+  allowance: {
+    providerId: "codex",
+    stale: false,
+    status: "ok",
+    limits: [{ label: "Weekly", remainingPercent }],
+  },
+});
 async function mount(onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>) {
-  await act(() => { renderer = create(createElement(UsageMenu, { threadId: "a", contextUsage: undefined,
-    trigger: () => createElement("Trigger"), onLoadUsage })); });
+  await act(() => {
+    renderer = create(
+      createElement(UsageMenu, {
+        threadId: "a",
+        contextUsage: undefined,
+        trigger: () => createElement("Trigger"),
+        onLoadUsage,
+      }),
+    );
+  });
 }
 beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
-afterEach(async () => { if (renderer) await act(() => renderer!.unmount()); renderer = undefined; vi.unstubAllGlobals(); });
+afterEach(async () => {
+  if (renderer) await act(() => renderer!.unmount());
+  renderer = undefined;
+  vi.unstubAllGlobals();
+});
 
 it("loads allowance only when opened and never invents context usage", async () => {
   const load = vi.fn(async () => response(64));
@@ -50,7 +87,9 @@ it("ignores an earlier opening's late response", async () => {
   expect(content()).not.toContain("10% remaining");
 });
 it("shows the legacy host fallback instead of an empty meter", async () => {
-  await mount(async () => { throw new GatewayError("Not found", "invalid_response", 404); });
+  await mount(async () => {
+    throw new GatewayError("Not found", "invalid_response", 404);
+  });
   await act(async () => changeOpen(true));
   expect(content()).toContain("Account usage isn’t available on this host yet.");
   expect(renderer!.root.findAll((node) => node.type === "Bar")).toHaveLength(0);

@@ -9,7 +9,8 @@ vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => motion.reduc
 vi.mock("../../components/MarkdownMessage", () => ({ MarkdownMessage: "Markdown" }));
 
 let renderer: ReactTestRenderer | undefined;
-const frame = (content: string, streaming = true) => createElement(StreamingMarkdownMessage, { content, streaming });
+const frame = (content: string, streaming = true) =>
+  createElement(StreamingMarkdownMessage, { content, streaming });
 const visible = () => renderer!.root.find((node) => node.type === "Markdown").props.children;
 beforeEach(() => {
   vi.useFakeTimers();
@@ -25,15 +26,21 @@ afterEach(async () => {
 
 describe("streaming text delivery", () => {
   it("preserves received text immediately when mounting or remounting", async () => {
-    await act(() => { renderer = create(frame("Already received")); });
+    await act(() => {
+      renderer = create(frame("Already received"));
+    });
     expect(visible()).toBe("Already received");
     await act(() => renderer!.unmount());
-    await act(() => { renderer = create(frame("Already received and continued")); });
+    await act(() => {
+      renderer = create(frame("Already received and continued"));
+    });
     expect(visible()).toBe("Already received and continued");
   });
 
   it("renders a large received batch in full within 32ms", async () => {
-    await act(() => { renderer = create(frame("Start")); });
+    await act(() => {
+      renderer = create(frame("Start"));
+    });
     const target = `Start ${"received text 😀 ".repeat(500)}`;
     await act(() => renderer!.update(frame(target)));
     await act(() => vi.advanceTimersByTime(32));
@@ -42,7 +49,9 @@ describe("streaming text delivery", () => {
   });
 
   it("does not postpone the commit when more tokens arrive", async () => {
-    await act(() => { renderer = create(frame("A")); });
+    await act(() => {
+      renderer = create(frame("A"));
+    });
     await act(() => renderer!.update(frame("A B")));
     await act(() => vi.advanceTimersByTime(16));
     await act(() => renderer!.update(frame("A B C")));
@@ -52,7 +61,9 @@ describe("streaming text delivery", () => {
   });
 
   it("flushes the final response immediately and cancels pending work", async () => {
-    await act(() => { renderer = create(frame("A")); });
+    await act(() => {
+      renderer = create(frame("A"));
+    });
     await act(() => renderer!.update(frame("A B")));
     await act(() => renderer!.update(frame("A B C", false)));
     expect(visible()).toBe("A B C");
@@ -60,7 +71,9 @@ describe("streaming text delivery", () => {
   });
 
   it("replaces corrected text immediately without replaying the old tail", async () => {
-    await act(() => { renderer = create(frame("Original")); });
+    await act(() => {
+      renderer = create(frame("Original"));
+    });
     await act(() => renderer!.update(frame("Original pending")));
     await act(() => renderer!.update(frame("Corrected")));
     expect(visible()).toBe("Corrected");
@@ -70,14 +83,18 @@ describe("streaming text delivery", () => {
 
   it("shows all received text immediately with reduced motion", async () => {
     motion.reduced = true;
-    await act(() => { renderer = create(frame("A")); });
+    await act(() => {
+      renderer = create(frame("A"));
+    });
     await act(() => renderer!.update(frame("A B C")));
     expect(visible()).toBe("A B C");
     expect(vi.getTimerCount()).toBe(0);
   });
 
   it("cancels the pending commit when the row unmounts", async () => {
-    await act(() => { renderer = create(frame("A")); });
+    await act(() => {
+      renderer = create(frame("A"));
+    });
     await act(() => renderer!.update(frame("A B")));
     await act(() => renderer!.unmount());
     renderer = undefined;

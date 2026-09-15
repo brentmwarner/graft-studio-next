@@ -54,9 +54,7 @@ await Promise.all([
   requireDirectory(contractRoot, "Graft mobile contract"),
 ]);
 
-const androidPackage = JSON.parse(
-  await readFile(join(androidRoot, "package.json"), "utf8"),
-);
+const androidPackage = JSON.parse(await readFile(join(androidRoot, "package.json"), "utf8"));
 if (androidPackage.dependencies?.["@graft/mobile-contract"] !== "workspace:*") {
   throw new Error("Android must depend on @graft/mobile-contract via workspace:*");
 }

@@ -52,7 +52,9 @@ export function transcriptFollowContent(items: readonly TranscriptItem[]) {
   }
   const tail = items.at(-1);
   return {
-    messageCount, lastMessageId, lastMessageText,
+    messageCount,
+    lastMessageId,
+    lastMessageText,
     streaming: tail?.kind === "assistant" && Boolean(tail.text) && tail.streaming,
   };
 }

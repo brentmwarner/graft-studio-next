@@ -21,31 +21,72 @@ vi.mock("../providerUsage", () => ({ listProviderUsage: vi.fn() }));
 
 it("authenticates thread usage, selects its provider, and returns only public meter data", async () => {
   const now = "2026-09-14T12:00:00.000Z";
-  const source = { provider: "codex" as const, updatedAt: now, status: "ok" as const, source: "provider-api",
-    limits: [{ window: "Weekly", usedPercent: 36, windowDurationMins: 10080 }], usageLines: [], detail: "private diagnostic" };
+  const source = {
+    provider: "codex" as const,
+    updatedAt: now,
+    status: "ok" as const,
+    source: "provider-api",
+    limits: [{ window: "Weekly", usedPercent: 36, windowDurationMins: 10080 }],
+    usageLines: [],
+    detail: "private diagnostic",
+  };
   vi.mocked(listProviderUsage).mockReturnValue(Effect.succeed([source]));
-  const getDetail = vi.fn((id: string) => Effect.succeed(id === "thread-usage" ? Option.some({
-    thread: { modelSelection: { provider: "codex", model: "codex" }, activities: [
-      { kind: "context-window.updated", payload: { usedTokens: 25000, maxTokens: 100000 }, createdAt: now },
-    ] },
-  }) : Option.none()));
+  const getDetail = vi.fn((id: string) =>
+    Effect.succeed(
+      id === "thread-usage"
+        ? Option.some({
+            thread: {
+              modelSelection: { provider: "codex", model: "codex" },
+              activities: [
+                {
+                  kind: "context-window.updated",
+                  payload: { usedTokens: 25000, maxTokens: 100000 },
+                  createdAt: now,
+                },
+              ],
+            },
+          })
+        : Option.none(),
+    ),
+  );
   const scope = await Effect.runPromise(Scope.make("sequential"));
   let server: http.Server | null = null;
   try {
-    await Effect.runPromise(Scope.provide(Effect.gen(function* () {
-      const host = yield* NodeHttpServer.make(() => { server = http.createServer(); return server; }, { port: 0, host: "127.0.0.1" });
-      yield* host.serve(yield* HttpRouter.toHttpEffect(graftMobileRouteLayer));
-    }).pipe(Effect.provide(Layer.mergeAll(
-      NodeServices.layer,
-      Layer.succeed(ServerConfig, {} as never),
-      Layer.succeed(ServerEnvironment, {} as never),
-      Layer.succeed(ServerSettingsService, {} as never),
-      Layer.succeed(ProviderDiscoveryService, {} as never),
-      Layer.succeed(OrchestrationEngineService, {} as never),
-      Layer.succeed(ProjectionSnapshotQuery, { getThreadDetailSnapshotById: getDetail } as never),
-      Layer.succeed(ServerAuth, { authenticateHttpRequest: (request: AuthRequest) => request.headers.authorization === "Bearer usage-test"
-        ? Effect.succeed({ sessionId: "test", role: "client" }) : Effect.fail(new AuthError({ message: "Sign in required", status: 401 })) } as never),
-    ))), scope));
+    await Effect.runPromise(
+      Scope.provide(
+        Effect.gen(function* () {
+          const host = yield* NodeHttpServer.make(
+            () => {
+              server = http.createServer();
+              return server;
+            },
+            { port: 0, host: "127.0.0.1" },
+          );
+          yield* host.serve(yield* HttpRouter.toHttpEffect(graftMobileRouteLayer));
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              NodeServices.layer,
+              Layer.succeed(ServerConfig, {} as never),
+              Layer.succeed(ServerEnvironment, {} as never),
+              Layer.succeed(ServerSettingsService, {} as never),
+              Layer.succeed(ProviderDiscoveryService, {} as never),
+              Layer.succeed(OrchestrationEngineService, {} as never),
+              Layer.succeed(ProjectionSnapshotQuery, {
+                getThreadDetailSnapshotById: getDetail,
+              } as never),
+              Layer.succeed(ServerAuth, {
+                authenticateHttpRequest: (request: AuthRequest) =>
+                  request.headers.authorization === "Bearer usage-test"
+                    ? Effect.succeed({ sessionId: "test", role: "client" })
+                    : Effect.fail(new AuthError({ message: "Sign in required", status: 401 })),
+              } as never),
+            ),
+          ),
+        ),
+        scope,
+      ),
+    );
     const address = (server as http.Server | null)?.address();
     if (!address || typeof address !== "object") throw new Error("No test server address");
     const base = `http://127.0.0.1:${address.port}/v1/usage`;
@@ -60,7 +101,8 @@ it("authenticates thread usage, selects its provider, and returns only public me
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
-    expect(GraftThreadUsageSchema.parse(body)).toMatchObject({ threadId: "thread-usage",
+    expect(GraftThreadUsageSchema.parse(body)).toMatchObject({
+      threadId: "thread-usage",
       contextUsage: { percent: 25, source: "measured" },
       allowance: { providerId: "codex", limits: [{ label: "Weekly", remainingPercent: 64 }] },
     });

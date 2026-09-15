@@ -1,5 +1,9 @@
 import type { GraftRunStatus, GraftTimelineEvent } from "@graft/mobile-contract";
-import type { OrchestrationEvent, OrchestrationSessionStatus, OrchestrationThreadDetailSnapshot } from "@synara/contracts";
+import type {
+  OrchestrationEvent,
+  OrchestrationSessionStatus,
+  OrchestrationThreadDetailSnapshot,
+} from "@synara/contracts";
 
 import { toMobileActivityEvent } from "./protocolAdapter";
 

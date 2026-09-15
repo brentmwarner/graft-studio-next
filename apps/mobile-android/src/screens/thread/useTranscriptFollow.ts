@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import type {
+  FlatList,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from "react-native";
 
 import type { TranscriptItem } from "../../state/mobileViewModels";
 import { nextFollowLatch, transcriptFollowContent } from "../../state/transcriptFollow";
 
-export function useTranscriptFollow(threadId: string, items: readonly TranscriptItem[], canStream: boolean) {
+export function useTranscriptFollow(
+  threadId: string,
+  items: readonly TranscriptItem[],
+  canStream: boolean,
+) {
   const listRef = useRef<FlatList<TranscriptItem>>(null);
   const contentHeightRef = useRef(0);
   const isAwayRef = useRef(false);
@@ -32,13 +41,16 @@ export function useTranscriptFollow(threadId: string, items: readonly Transcript
     frameRef.current = null;
   }, []);
 
-  const scheduleFollow = useCallback((animated: boolean) => {
-    cancelFollowFrame();
-    frameRef.current = requestAnimationFrame(() => {
-      frameRef.current = null;
-      if (!isAwayRef.current && !isDraggingRef.current) scrollToBottom(animated);
-    });
-  }, [cancelFollowFrame, scrollToBottom]);
+  const scheduleFollow = useCallback(
+    (animated: boolean) => {
+      cancelFollowFrame();
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        if (!isAwayRef.current && !isDraggingRef.current) scrollToBottom(animated);
+      });
+    },
+    [cancelFollowFrame, scrollToBottom],
+  );
 
   useLayoutEffect(() => {
     cancelFollowFrame();
@@ -61,15 +73,20 @@ export function useTranscriptFollow(threadId: string, items: readonly Transcript
 
   useEffect(() => cancelFollowFrame, [cancelFollowFrame]);
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    contentHeightRef.current = contentSize.height;
-    setAway(nextFollowLatch({
-      distanceFromBottom: contentSize.height - contentOffset.y - layoutMeasurement.height,
-      isAway: isAwayRef.current,
-      isUserDragging: isDraggingRef.current,
-    }));
-  }, [setAway]);
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      contentHeightRef.current = contentSize.height;
+      setAway(
+        nextFollowLatch({
+          distanceFromBottom: contentSize.height - contentOffset.y - layoutMeasurement.height,
+          isAway: isAwayRef.current,
+          isUserDragging: isDraggingRef.current,
+        }),
+      );
+    },
+    [setAway],
+  );
 
   const handleScrollBeginDrag = useCallback(() => {
     cancelFollowFrame();
@@ -81,24 +98,33 @@ export function useTranscriptFollow(threadId: string, items: readonly Transcript
     isDraggingRef.current = false;
   }, []);
 
-  const handleScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    handleScroll(event);
-    // A fling is still user scrolling. MomentumScrollEnd releases this guard.
-    if (!event.nativeEvent.velocity?.y) isDraggingRef.current = false;
-  }, [handleScroll]);
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handleScroll(event);
+      // A fling is still user scrolling. MomentumScrollEnd releases this guard.
+      if (!event.nativeEvent.velocity?.y) isDraggingRef.current = false;
+    },
+    [handleScroll],
+  );
 
-  const handleContentSizeChange = useCallback((_width: number, height: number) => {
-    contentHeightRef.current = height;
-    const shouldFollow = pendingContentRef.current || streamingRef.current;
-    pendingContentRef.current = false;
-    if (shouldFollow && !isAwayRef.current && !isDraggingRef.current) scheduleFollow(false);
-  }, [scheduleFollow]);
+  const handleContentSizeChange = useCallback(
+    (_width: number, height: number) => {
+      contentHeightRef.current = height;
+      const shouldFollow = pendingContentRef.current || streamingRef.current;
+      pendingContentRef.current = false;
+      if (shouldFollow && !isAwayRef.current && !isDraggingRef.current) scheduleFollow(false);
+    },
+    [scheduleFollow],
+  );
 
-  const handleListLayout = useCallback((_event: LayoutChangeEvent) => {
-    // Keyboard/viewport changes preserve the bottom only if already following.
-    pendingContentRef.current = true;
-    scheduleFollow(false);
-  }, [scheduleFollow]);
+  const handleListLayout = useCallback(
+    (_event: LayoutChangeEvent) => {
+      // Keyboard/viewport changes preserve the bottom only if already following.
+      pendingContentRef.current = true;
+      scheduleFollow(false);
+    },
+    [scheduleFollow],
+  );
 
   const jumpToLatest = useCallback(() => {
     isDraggingRef.current = false;
@@ -108,8 +134,15 @@ export function useTranscriptFollow(threadId: string, items: readonly Transcript
   }, [scheduleFollow, setAway]);
 
   return {
-    handleContentSizeChange, handleListLayout, handleScroll,
-    handleScrollBeginDrag, handleScrollEndDrag, handleScrollSettled,
-    isAwayFromBottom, jumpToLatest, listRef, pinToBottomForSend: jumpToLatest,
+    handleContentSizeChange,
+    handleListLayout,
+    handleScroll,
+    handleScrollBeginDrag,
+    handleScrollEndDrag,
+    handleScrollSettled,
+    isAwayFromBottom,
+    jumpToLatest,
+    listRef,
+    pinToBottomForSend: jumpToLatest,
   };
 }

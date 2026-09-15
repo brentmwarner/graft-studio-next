@@ -23,35 +23,22 @@ export function QrScanner({ onClose, onScan }: QrScannerProps) {
 
   if (!permission.granted) {
     return (
-      <View
-        style={[styles.permission, { backgroundColor: palette.background }]}
-      >
+      <View style={[styles.permission, { backgroundColor: palette.background }]}>
         <Ionicons name="scan" color={palette.foreground} size={42} />
         <Text style={[styles.permissionTitle, { color: palette.foreground }]}>
           Camera access needed
         </Text>
-        <Text
-          style={[styles.permissionBody, { color: palette.foregroundSubtle }]}
-        >
+        <Text style={[styles.permissionBody, { color: palette.foregroundSubtle }]}>
           Graft uses the camera only to scan the pairing code on your computer.
         </Text>
         <PressScale
           accessibilityLabel="Allow camera access"
           onPress={() => void requestPermission()}
-          style={[
-            styles.permissionButton,
-            { backgroundColor: palette.foreground },
-          ]}
+          style={[styles.permissionButton, { backgroundColor: palette.foreground }]}
         >
-          <Text style={{ color: palette.background, fontWeight: "700" }}>
-            Allow camera
-          </Text>
+          <Text style={{ color: palette.background, fontWeight: "700" }}>Allow camera</Text>
         </PressScale>
-        <PressScale
-          accessibilityLabel="Close camera"
-          onPress={onClose}
-          style={styles.cancelButton}
-        >
+        <PressScale accessibilityLabel="Close camera" onPress={onClose} style={styles.cancelButton}>
           <Text style={{ color: palette.foregroundMuted }}>Cancel</Text>
         </PressScale>
       </View>
@@ -86,8 +73,7 @@ export function QrScanner({ onClose, onScan }: QrScannerProps) {
         <Text style={styles.scannerTitle}>Scan the pairing code</Text>
         <View style={styles.reticle} />
         <Text style={styles.scannerHint}>
-          Open Graft Studio on your computer and show its mobile pairing QR
-          code.
+          Open Graft Studio on your computer and show its mobile pairing QR code.
         </Text>
       </View>
     </View>

@@ -1,16 +1,12 @@
 import type { GraftContextUsage } from "@graft/mobile-contract";
 
-export function contextUsageAccessibilityLabel(
-  usage: GraftContextUsage | undefined,
-): string {
+export function contextUsageAccessibilityLabel(usage: GraftContextUsage | undefined): string {
   return usage?.source === "measured"
     ? `Context: ${usage.percent}% used`
     : "Context usage unavailable";
 }
 
-export function contextUsageDetail(
-  usage: GraftContextUsage | undefined,
-): string {
+export function contextUsageDetail(usage: GraftContextUsage | undefined): string {
   if (!usage || usage.source === "unknown") {
     return "This provider does not report context-window usage yet.";
   }

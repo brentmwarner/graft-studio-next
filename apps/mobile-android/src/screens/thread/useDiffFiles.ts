@@ -25,7 +25,7 @@ export function useDiffFiles(
 
   const request = useCallback(async (path: string, retry = false) => {
     const diff = diffRef.current;
-    if (!diff || requested.current.has(path) && !retry) return;
+    if (!diff || (requested.current.has(path) && !retry)) return;
     const active = generation.current;
     requested.current.add(path);
     setFiles((current) => ({ ...current, [path]: { loading: true } }));
@@ -35,11 +35,16 @@ export function useDiffFiles(
       const file = response?.files.find((entry) => entry.path === path);
       // A checkpoint that advanced during the request must not be mixed with this sheet's totals.
       const matches = response?.runId === diff.runId && response?.updatedAt === diff.updatedAt;
-      setFiles((current) => ({ ...current, [path]: matches && file
-        ? { file, failed: file.detailStatus === "unavailable" }
-        : { failed: true } }));
+      setFiles((current) => ({
+        ...current,
+        [path]:
+          matches && file
+            ? { file, failed: file.detailStatus === "unavailable" }
+            : { failed: true },
+      }));
     } catch {
-      if (active === generation.current) setFiles((current) => ({ ...current, [path]: { failed: true } }));
+      if (active === generation.current)
+        setFiles((current) => ({ ...current, [path]: { failed: true } }));
     }
   }, []);
 
@@ -50,7 +55,9 @@ export function useDiffFiles(
     const first = visible ? diffRef.current?.files[0]?.path : undefined;
     setExpanded(new Set(first ? [first] : []));
     if (first) void request(first);
-    return () => { generation.current += 1; };
+    return () => {
+      generation.current += 1;
+    };
     // Equivalent summary objects from background refreshes must not collapse the reader's files.
   }, [revision, visible, request]);
 

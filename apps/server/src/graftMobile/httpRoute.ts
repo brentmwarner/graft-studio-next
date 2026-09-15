@@ -32,7 +32,11 @@ import {
   loadMobileUsage,
   makeGraftMobileGatewayState,
 } from "./gateway";
-import { makeGraftMobileLiveEventState, seedGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  makeGraftMobileLiveEventState,
+  seedGraftMobileLiveEventState,
+  toMobileLiveEvent,
+} from "./liveEvents";
 
 const MOBILE_JSON_BODY_MAX_BYTES = 256 * 1024;
 
@@ -253,11 +257,20 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         return errorResponse(remoteError("validation_failed", "A thread ID is required."), 400);
       }
       return yield* loadMobileUsage(threadId).pipe(
-        Effect.map((usage) => HttpServerResponse.jsonUnsafe(usage, { headers: { "cache-control": "no-store" } })),
-        Effect.catch((error) => Effect.succeed(errorResponse(
-          remoteError(error instanceof GraftMobileCommandError ? error.code : "internal", "Could not load thread usage."),
-          error instanceof GraftMobileCommandError && error.code === "not_found" ? 404 : 500,
-        ))),
+        Effect.map((usage) =>
+          HttpServerResponse.jsonUnsafe(usage, { headers: { "cache-control": "no-store" } }),
+        ),
+        Effect.catch((error) =>
+          Effect.succeed(
+            errorResponse(
+              remoteError(
+                error instanceof GraftMobileCommandError ? error.code : "internal",
+                "Could not load thread usage.",
+              ),
+              error instanceof GraftMobileCommandError && error.code === "not_found" ? 404 : 500,
+            ),
+          ),
+        ),
       );
     }
 
@@ -391,24 +404,37 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
 
     const domainEvents = yield* engine.subscribeDomainEvents;
     yield* domainEvents.pipe(
-      Stream.runForEach((event) => Effect.gen(function* () {
-        if (!welcomed) return;
-        if (event.type === "thread.message-sent" && event.payload.role === "assistant"
-          && !liveState.snapshotCursorByThreadId.has(event.payload.threadId)) {
-          const snapshot = yield* query.getThreadDetailSnapshotById(event.payload.threadId).pipe(
-            Effect.catch(() => Effect.succeed(Option.none())),
-          );
-          if (Option.isNone(snapshot)) {
-            yield* send({ envelope: "snapshot_required", reason: "resync", message: "Refreshing the conversation." });
-            return;
+      Stream.runForEach((event) =>
+        Effect.gen(function* () {
+          if (!welcomed) return;
+          if (
+            event.type === "thread.message-sent" &&
+            event.payload.role === "assistant" &&
+            !liveState.snapshotCursorByThreadId.has(event.payload.threadId)
+          ) {
+            const snapshot = yield* query
+              .getThreadDetailSnapshotById(event.payload.threadId)
+              .pipe(Effect.catch(() => Effect.succeed(Option.none())));
+            if (Option.isNone(snapshot)) {
+              yield* send({
+                envelope: "snapshot_required",
+                reason: "resync",
+                message: "Refreshing the conversation.",
+              });
+              return;
+            }
+            seedGraftMobileLiveEventState(liveState, snapshot.value);
           }
-          seedGraftMobileLiveEventState(liveState, snapshot.value);
-        }
-        const mobileEvent = toMobileLiveEvent(liveState, event);
-        yield* mobileEvent
-          ? send({ envelope: "event", event: mobileEvent })
-          : send({ envelope: "snapshot_required", reason: "resync", message: "Workspace state changed." });
-      })),
+          const mobileEvent = toMobileLiveEvent(liveState, event);
+          yield* mobileEvent
+            ? send({ envelope: "event", event: mobileEvent })
+            : send({
+                envelope: "snapshot_required",
+                reason: "resync",
+                message: "Workspace state changed.",
+              });
+        }),
+      ),
       Effect.forkScoped,
     );
 

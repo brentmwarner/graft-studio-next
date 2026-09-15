@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { buildTranscriptItems, reconcileTranscriptItems } from "./mobileViewModels";
 
-function frame(id: string, cursor: number, kind: GraftTimelineEvent["kind"], text: string): GraftTimelineEvent {
+function frame(
+  id: string,
+  cursor: number,
+  kind: GraftTimelineEvent["kind"],
+  text: string,
+): GraftTimelineEvent {
   return { id, cursor, kind, text, threadId: "thread", runId: "run", createdAt: cursor };
 }
 
@@ -33,17 +38,24 @@ describe("transcript streaming identity", () => {
       frame("commentary", 3, "assistant.message", "Checking now."),
       frame("answer", 4, "assistant.message", "The result is 42."),
     ];
-    expect(buildTranscriptItems([], events).map((row) => row.kind === "assistant" && row.text))
-      .toEqual(["Checking now.", "The result is 42."]);
+    expect(
+      buildTranscriptItems([], events).map((row) => row.kind === "assistant" && row.text),
+    ).toEqual(["Checking now.", "The result is 42."]);
   });
 
   it("preserves identical answers from separate messages", () => {
-    const events = [frame("a", 1, "assistant.message", "Done"), frame("b", 2, "assistant.message", "Done")];
+    const events = [
+      frame("a", 1, "assistant.message", "Done"),
+      frame("b", 2, "assistant.message", "Done"),
+    ];
     expect(buildTranscriptItems(events, [])).toHaveLength(2);
   });
 
   it("updates a saved message in place when tools follow it", () => {
-    const saved = [frame("reply", 1, "assistant.delta", "Hello"), frame("tool", 2, "tool.start", "Read")];
+    const saved = [
+      frame("reply", 1, "assistant.delta", "Hello"),
+      frame("tool", 2, "tool.start", "Read"),
+    ];
     const tail = [frame("reply", 3, "assistant.message", "Hello there")];
     const before = buildTranscriptItems(saved, [], 2);
     const after = buildTranscriptItems(saved, tail, 2);
@@ -53,20 +65,28 @@ describe("transcript streaming identity", () => {
 
   it("keeps leading whitespace in code when a message completes", () => {
     const text = "    const answer = 42;\n";
-    expect(buildTranscriptItems([], [frame("a", 1, "assistant.message", text)])[0])
-      .toMatchObject({ text });
+    expect(buildTranscriptItems([], [frame("a", 1, "assistant.message", text)])[0]).toMatchObject({
+      text,
+    });
   });
   it("does not restart completed text on a delayed cumulative frame", () => {
-    const items = buildTranscriptItems([], [
-      frame("a", 1, "assistant.message", "The complete answer"),
-      frame("a", 2, "assistant.delta", "The complete"),
-    ]);
+    const items = buildTranscriptItems(
+      [],
+      [
+        frame("a", 1, "assistant.message", "The complete answer"),
+        frame("a", 2, "assistant.delta", "The complete"),
+      ],
+    );
     expect(items).toMatchObject([{ text: "The complete answer", streaming: false }]);
   });
 
   it("does not stop a new run when the previous run's terminal event arrives", () => {
     const reply = { ...frame("reply", 1, "assistant.delta", "New answer"), runId: "new-run" };
-    const stopped = { ...frame("old-status", 2, "run.status", ""), runId: "old-run", runStatus: "completed" as const };
+    const stopped = {
+      ...frame("old-status", 2, "run.status", ""),
+      runId: "old-run",
+      runStatus: "completed" as const,
+    };
     expect(buildTranscriptItems([], [reply, stopped])[0]).toMatchObject({ streaming: true });
   });
 
@@ -78,5 +98,4 @@ describe("transcript streaming identity", () => {
     expect(items).toHaveLength(2);
     expect(items[1]).toMatchObject({ streaming: true, text: "Hello back" });
   });
-
 });

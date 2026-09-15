@@ -260,7 +260,10 @@ export const loadMobileUsage = Effect.fn(function* (threadId: string) {
   const usage: GraftThreadUsage = {
     threadId,
     ...(contextUsage ? { contextUsage } : {}),
-    allowance: toMobileAllowance(providerId, snapshots.find((item) => item.provider === providerId)),
+    allowance: toMobileAllowance(
+      providerId,
+      snapshots.find((item) => item.provider === providerId),
+    ),
   };
   return usage;
 });
@@ -601,7 +604,11 @@ export const executeMobileCommand = Effect.fn(function* (
       const detail = yield* loadThreadDetail(command.diffId);
       return {
         type: "diff.get.result",
-        diff: yield* loadMobileDiff(command.diffId, detail.thread.checkpoints.at(-1), command.filePath),
+        diff: yield* loadMobileDiff(
+          command.diffId,
+          detail.thread.checkpoints.at(-1),
+          command.filePath,
+        ),
       };
     }
     case "cursor.replay": {

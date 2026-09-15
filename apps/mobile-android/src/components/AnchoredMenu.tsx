@@ -9,15 +9,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import {
-  BackHandler,
-  Keyboard,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { graftRadius, useGraftPalette } from "../theme/tokens";
@@ -25,7 +17,11 @@ import { anchoredMenuLayout, type MenuAnchor } from "./anchoredMenuLayout";
 import { FloatingSurface } from "./FloatingSurface";
 import { MenuPortal } from "./MenuProvider";
 
-function MenuOverlay({ anchorRef, children, onClose }: {
+function MenuOverlay({
+  anchorRef,
+  children,
+  onClose,
+}: {
   readonly anchorRef: RefObject<View | null>;
   readonly children: ReactNode;
   readonly onClose: () => void;
@@ -34,7 +30,10 @@ function MenuOverlay({ anchorRef, children, onClose }: {
   const palette = useGraftPalette();
   const rootRef = useRef<View>(null);
   const [geometry, setGeometry] = useState<{
-    anchor: MenuAnchor; width: number; top: number; bottom: number;
+    anchor: MenuAnchor;
+    width: number;
+    top: number;
+    bottom: number;
   }>();
   const [contentHeight, setContentHeight] = useState(0);
   const generation = useRef(0);
@@ -59,7 +58,10 @@ function MenuOverlay({ anchorRef, children, onClose }: {
   }, [anchorRef, insets.bottom, insets.top]);
 
   useEffect(() => {
-    const back = BackHandler.addEventListener("hardwareBackPress", () => { onClose(); return true; });
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
     return () => back.remove();
   }, [onClose]);
 
@@ -74,16 +76,24 @@ function MenuOverlay({ anchorRef, children, onClose }: {
     };
   }, [measure]);
 
-  const layout = geometry ? anchoredMenuLayout({
-    anchor: geometry.anchor,
-    viewportWidth: geometry.width,
-    top: geometry.top,
-    bottom: geometry.bottom,
-    contentHeight: contentHeight || 520,
-  }) : undefined;
+  const layout = geometry
+    ? anchoredMenuLayout({
+        anchor: geometry.anchor,
+        viewportWidth: geometry.width,
+        top: geometry.top,
+        bottom: geometry.bottom,
+        contentHeight: contentHeight || 520,
+      })
+    : undefined;
 
   return (
-    <View ref={rootRef} collapsable={false} onLayout={measure} style={styles.overlay} accessibilityViewIsModal>
+    <View
+      ref={rootRef}
+      collapsable={false}
+      onLayout={measure}
+      style={styles.overlay}
+      accessibilityViewIsModal
+    >
       <Pressable
         accessibilityLabel="Close menu"
         accessibilityRole="button"
@@ -98,7 +108,12 @@ function MenuOverlay({ anchorRef, children, onClose }: {
         ]}
         onAccessibilityEscape={onClose}
       >
-        <FloatingSurface style={[styles.menu, { height: layout?.height ?? 520, backgroundColor: palette.elevated }]}>
+        <FloatingSurface
+          style={[
+            styles.menu,
+            { height: layout?.height ?? 520, backgroundColor: palette.elevated },
+          ]}
+        >
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="always"
@@ -113,7 +128,11 @@ function MenuOverlay({ anchorRef, children, onClose }: {
   );
 }
 
-export function AnchoredMenu({ trigger, children, onOpenChange }: {
+export function AnchoredMenu({
+  trigger,
+  children,
+  onOpenChange,
+}: {
   readonly trigger: (open: () => void) => ReactElement;
   readonly children: (close: () => void) => ReactNode;
   readonly onOpenChange?: (open: boolean) => void;
@@ -129,11 +148,16 @@ export function AnchoredMenu({ trigger, children, onOpenChange }: {
   return (
     <>
       <View ref={anchorRef} collapsable={false}>
-        {trigger(() => { setOpen(true); onOpenChange?.(true); })}
+        {trigger(() => {
+          setOpen(true);
+          onOpenChange?.(true);
+        })}
       </View>
       {open ? (
         <MenuPortal id={id}>
-          <MenuOverlay anchorRef={anchorRef} onClose={close}>{children(close)}</MenuOverlay>
+          <MenuOverlay anchorRef={anchorRef} onClose={close}>
+            {children(close)}
+          </MenuOverlay>
         </MenuPortal>
       ) : null}
     </>
@@ -145,7 +169,14 @@ export function MenuCaption({ children }: { readonly children: string }) {
   return <Text style={[styles.caption, { color: palette.foregroundSubtle }]}>{children}</Text>;
 }
 
-export function MenuItem({ label, detail, selected, disclosure, enabled = true, onPress }: {
+export function MenuItem({
+  label,
+  detail,
+  selected,
+  disclosure,
+  enabled = true,
+  onPress,
+}: {
   readonly label: string;
   readonly detail?: string;
   readonly selected?: boolean;
@@ -162,17 +193,26 @@ export function MenuItem({ label, detail, selected, disclosure, enabled = true, 
       accessibilityState={{ selected, disabled: !enabled }}
       disabled={!enabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.item, {
-        backgroundColor: pressed || selected ? palette.subtle : "transparent",
-        opacity: enabled ? 1 : 0.45,
-      }]}
+      style={({ pressed }) => [
+        styles.item,
+        {
+          backgroundColor: pressed || selected ? palette.subtle : "transparent",
+          opacity: enabled ? 1 : 0.45,
+        },
+      ]}
     >
       <View style={styles.copy}>
         <Text style={[styles.label, { color: palette.foreground }]}>{label}</Text>
-        {detail ? <Text style={[styles.detail, { color: palette.foregroundSubtle }]}>{detail}</Text> : null}
+        {detail ? (
+          <Text style={[styles.detail, { color: palette.foregroundSubtle }]}>{detail}</Text>
+        ) : null}
       </View>
       {selected || disclosure ? (
-        <Ionicons color={palette.foregroundMuted} name={selected ? "checkmark" : "chevron-forward"} size={18} />
+        <Ionicons
+          color={palette.foregroundMuted}
+          name={selected ? "checkmark" : "chevron-forward"}
+          size={18}
+        />
       ) : null}
     </Pressable>
   );
@@ -183,8 +223,22 @@ const styles = StyleSheet.create({
   position: { position: "absolute" },
   menu: { borderRadius: graftRadius.large, overflow: "hidden" },
   content: { padding: 7, gap: 2 },
-  caption: { fontSize: 12, fontWeight: "500", paddingHorizontal: 12, paddingTop: 10, paddingBottom: 7 },
-  item: { minHeight: 44, borderRadius: graftRadius.medium, paddingHorizontal: 12, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: 14 },
+  caption: {
+    fontSize: 12,
+    fontWeight: "500",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 7,
+  },
+  item: {
+    minHeight: 44,
+    borderRadius: graftRadius.medium,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
   copy: { flex: 1, gap: 4 },
   label: { fontSize: 14, fontWeight: "500", lineHeight: 19 },
   detail: { fontSize: 12, lineHeight: 17 },

@@ -21,9 +21,7 @@ export function parsePairingInput(raw: string): GraftPairingPayload {
   try {
     decoded = JSON.parse(input);
   } catch {
-    throw new PairingInputError(
-      "That is not a valid Graft pairing link or payload.",
-    );
+    throw new PairingInputError("That is not a valid Graft pairing link or payload.");
   }
 
   const parsed = GraftPairingPayloadSchema.safeParse(decoded);

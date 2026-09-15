@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  GatewaySocket,
-  GatewaySocketError,
-  buildWebSocketUrl,
-} from "./gatewaySocket";
+import { GatewaySocket, GatewaySocketError, buildWebSocketUrl } from "./gatewaySocket";
 
 vi.mock("expo-crypto", () => ({ randomUUID: () => "command-id" }));
 

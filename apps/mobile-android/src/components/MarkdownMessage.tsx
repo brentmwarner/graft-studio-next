@@ -24,10 +24,7 @@ function tableCells(line: string): readonly string[] {
     .map((cell) => cell.trim());
 }
 
-function tableAt(
-  lines: readonly string[],
-  startIndex: number,
-): MarkdownTable | undefined {
+function tableAt(lines: readonly string[], startIndex: number): MarkdownTable | undefined {
   const header = lines[startIndex];
   const separator = lines[startIndex + 1];
   if (!header?.includes("|") || !separator?.includes("|")) return undefined;
@@ -36,9 +33,7 @@ function tableAt(
   if (
     headers.length < 2 ||
     separatorCells.length !== headers.length ||
-    !separatorCells.every((cell) =>
-      /^:?-{3,}:?$/.test(cell.replaceAll(" ", "")),
-    )
+    !separatorCells.every((cell) => /^:?-{3,}:?$/.test(cell.replaceAll(" ", "")))
   ) {
     return undefined;
   }
@@ -55,11 +50,7 @@ function tableAt(
   return { endIndex, headers, rows };
 }
 
-function inlineNodes(
-  text: string,
-  accent: string,
-  codeBackground: string,
-): readonly ReactNode[] {
+function inlineNodes(text: string, accent: string, codeBackground: string): readonly ReactNode[] {
   const expression = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
   const nodes: ReactNode[] = [];
   let cursor = 0;
@@ -76,10 +67,7 @@ function inlineNodes(
       );
     } else if (token.startsWith("`")) {
       nodes.push(
-        <Text
-          key={key++}
-          style={[styles.inlineCode, { backgroundColor: codeBackground }]}
-        >
+        <Text key={key++} style={[styles.inlineCode, { backgroundColor: codeBackground }]}>
           {token.slice(1, -1)}
         </Text>,
       );
@@ -106,9 +94,7 @@ function inlineNodes(
 /// Memoized: the transcript re-renders its streaming tail on every token, and
 /// re-parsing every settled message's Markdown each time is what made long
 /// threads unusable.
-export const MarkdownMessage = memo(function MarkdownMessage({
-  children,
-}: MarkdownMessageProps) {
+export const MarkdownMessage = memo(function MarkdownMessage({ children }: MarkdownMessageProps) {
   const palette = useGraftPalette();
   const blocks = useMemo(() => markdownBlocks(children), [children]);
 
@@ -122,19 +108,11 @@ export const MarkdownMessage = memo(function MarkdownMessage({
               style={[styles.codeBlock, { backgroundColor: palette.code }]}
             >
               {block.language ? (
-                <Text
-                  style={[
-                    styles.codeLanguage,
-                    { color: palette.foregroundSubtle },
-                  ]}
-                >
+                <Text style={[styles.codeLanguage, { color: palette.foregroundSubtle }]}>
                   {block.language}
                 </Text>
               ) : null}
-              <Text
-                selectable
-                style={[styles.codeText, { color: palette.foregroundMuted }]}
-              >
+              <Text selectable style={[styles.codeText, { color: palette.foregroundMuted }]}>
                 {block.value}
               </Text>
             </View>
@@ -146,11 +124,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
           <Fragment key={`text-${blockIndex}`}>
             {(() => {
               const rendered: ReactNode[] = [];
-              for (
-                let lineIndex = 0;
-                lineIndex < lines.length;
-                lineIndex += 1
-              ) {
+              for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
                 const line = lines[lineIndex] ?? "";
                 const table = tableAt(lines, lineIndex);
                 if (table) {
@@ -159,12 +133,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                       key={`table-${lineIndex}`}
                       style={[styles.table, { borderColor: palette.border }]}
                     >
-                      <View
-                        style={[
-                          styles.tableRow,
-                          { backgroundColor: palette.subtle },
-                        ]}
-                      >
+                      <View style={[styles.tableRow, { backgroundColor: palette.subtle }]}>
                         {table.headers.map((cell, cellIndex) => (
                           <Text
                             key={`header-${cellIndex}`}
@@ -221,9 +190,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                 const ordered = /^\s*(\d+)\.\s+(.+)$/.exec(line);
                 const quote = /^>\s?(.*)$/.exec(line);
                 if (!line.trim()) {
-                  rendered.push(
-                    <View key={lineIndex} style={styles.paragraphBreak} />,
-                  );
+                  rendered.push(<View key={lineIndex} style={styles.paragraphBreak} />);
                   continue;
                 }
                 if (heading) {
@@ -241,11 +208,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                         },
                       ]}
                     >
-                      {inlineNodes(
-                        heading[2] ?? "",
-                        palette.info,
-                        palette.code,
-                      )}
+                      {inlineNodes(heading[2] ?? "", palette.info, palette.code)}
                     </Text>,
                   );
                   continue;
@@ -253,27 +216,14 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                 if (bullet || ordered) {
                   rendered.push(
                     <View key={lineIndex} style={styles.listRow}>
-                      <Text
-                        style={[
-                          styles.listMarker,
-                          { color: palette.foregroundMuted },
-                        ]}
-                      >
+                      <Text style={[styles.listMarker, { color: palette.foregroundMuted }]}>
                         {ordered ? `${ordered[1]}.` : "•"}
                       </Text>
                       <Text
                         selectable
-                        style={[
-                          styles.text,
-                          styles.listText,
-                          { color: palette.foreground },
-                        ]}
+                        style={[styles.text, styles.listText, { color: palette.foreground }]}
                       >
-                        {inlineNodes(
-                          bullet?.[1] ?? ordered?.[2] ?? "",
-                          palette.info,
-                          palette.code,
-                        )}
+                        {inlineNodes(bullet?.[1] ?? ordered?.[2] ?? "", palette.info, palette.code)}
                       </Text>
                     </View>,
                   );
@@ -283,23 +233,10 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                   rendered.push(
                     <View
                       key={lineIndex}
-                      style={[
-                        styles.quote,
-                        { borderLeftColor: palette.border },
-                      ]}
+                      style={[styles.quote, { borderLeftColor: palette.border }]}
                     >
-                      <Text
-                        selectable
-                        style={[
-                          styles.text,
-                          { color: palette.foregroundMuted },
-                        ]}
-                      >
-                        {inlineNodes(
-                          quote[1] ?? "",
-                          palette.info,
-                          palette.code,
-                        )}
+                      <Text selectable style={[styles.text, { color: palette.foregroundMuted }]}>
+                        {inlineNodes(quote[1] ?? "", palette.info, palette.code)}
                       </Text>
                     </View>,
                   );

@@ -22,15 +22,22 @@ const MenuPortalContext = createContext<MenuPortalActions | null>(null);
 /** Keeps menus in the app window so opening one preserves the composer keyboard. */
 export function MenuProvider({ children }: PropsWithChildren) {
   const [entry, setEntry] = useState<MenuEntry | null>(null);
-  const actions = useMemo<MenuPortalActions>(() => ({
-    show: setEntry,
-    hide: (id) => setEntry((current) => current?.id === id ? null : current),
-  }), []);
+  const actions = useMemo<MenuPortalActions>(
+    () => ({
+      show: setEntry,
+      hide: (id) => setEntry((current) => (current?.id === id ? null : current)),
+    }),
+    [],
+  );
 
   return (
     <MenuPortalContext.Provider value={actions}>
       <View style={styles.root}>
-        <View style={styles.root} collapsable={false} importantForAccessibility={entry ? "no-hide-descendants" : "auto"}>
+        <View
+          style={styles.root}
+          collapsable={false}
+          importantForAccessibility={entry ? "no-hide-descendants" : "auto"}
+        >
           {children}
         </View>
         {entry?.content}

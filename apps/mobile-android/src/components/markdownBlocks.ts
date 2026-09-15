@@ -24,7 +24,12 @@ export function markdownBlocks(markdown: string): readonly MarkdownBlock[] {
   for (const line of lines) {
     const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (code) {
-      if (marker && marker[1]?.[0] === fence[0] && marker[1].length >= fence.length && !marker[2]?.trim()) {
+      if (
+        marker &&
+        marker[1]?.[0] === fence[0] &&
+        marker[1].length >= fence.length &&
+        !marker[2]?.trim()
+      ) {
         flushCode();
       } else {
         code.push(line);

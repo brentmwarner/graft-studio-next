@@ -1,4 +1,9 @@
-import type { GraftDiffFileSummary, GraftDiffHunk, GraftDiffLine, GraftDiffSummary } from "@graft/mobile-contract";
+import type {
+  GraftDiffFileSummary,
+  GraftDiffHunk,
+  GraftDiffLine,
+  GraftDiffSummary,
+} from "@graft/mobile-contract";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { ThreadId, type OrchestrationCheckpointSummary } from "@synara/contracts";
 import { Effect } from "effect";
@@ -24,15 +29,28 @@ export function mobileFileHunks(file: FileDiffMetadata): GraftDiffHunk[] {
       switch (content.type) {
         case "context":
           for (let index = 0; index < content.lines; index += 1) {
-            lines.push({ kind: "context", text: cleanLine(file.additionLines[content.additionLineIndex + index] ?? ""), oldLine: oldLine++, newLine: newLine++ });
+            lines.push({
+              kind: "context",
+              text: cleanLine(file.additionLines[content.additionLineIndex + index] ?? ""),
+              oldLine: oldLine++,
+              newLine: newLine++,
+            });
           }
           break;
         case "change":
           for (let index = 0; index < content.deletions; index += 1) {
-            lines.push({ kind: "deletion", text: cleanLine(file.deletionLines[content.deletionLineIndex + index] ?? ""), oldLine: oldLine++ });
+            lines.push({
+              kind: "deletion",
+              text: cleanLine(file.deletionLines[content.deletionLineIndex + index] ?? ""),
+              oldLine: oldLine++,
+            });
           }
           for (let index = 0; index < content.additions; index += 1) {
-            lines.push({ kind: "addition", text: cleanLine(file.additionLines[content.additionLineIndex + index] ?? ""), newLine: newLine++ });
+            lines.push({
+              kind: "addition",
+              text: cleanLine(file.additionLines[content.additionLineIndex + index] ?? ""),
+              newLine: newLine++,
+            });
           }
           break;
         default: {
@@ -41,7 +59,12 @@ export function mobileFileHunks(file: FileDiffMetadata): GraftDiffHunk[] {
         }
       }
     }
-    return { oldStart: hunk.deletionStart, newStart: hunk.additionStart, collapsedBefore: hunk.collapsedBefore, lines };
+    return {
+      oldStart: hunk.deletionStart,
+      newStart: hunk.additionStart,
+      collapsedBefore: hunk.collapsedBefore,
+      lines,
+    };
   });
 }
 
@@ -70,8 +93,11 @@ function boundedHunks(hunks: GraftDiffHunk[]) {
 /** Pair replacement rows without highlighting unrelated additions in the same change block. */
 function changedRanges(lines: GraftDiffLine[]): Map<GraftDiffLine, readonly [number, number]> {
   const ranges = new Map<GraftDiffLine, readonly [number, number]>();
-  for (let index = 0; index < lines.length;) {
-    if (lines[index]?.kind !== "deletion") { index += 1; continue; }
+  for (let index = 0; index < lines.length; ) {
+    if (lines[index]?.kind !== "deletion") {
+      index += 1;
+      continue;
+    }
     const removed: GraftDiffLine[] = [];
     const added: GraftDiffLine[] = [];
     while (lines[index]?.kind === "deletion") removed.push(lines[index++]!);
@@ -80,9 +106,17 @@ function changedRanges(lines: GraftDiffLine[]): Map<GraftDiffLine, readonly [num
       const before = removed[pair]!;
       const after = added[pair]!;
       let start = 0;
-      while (start < Math.min(before.text.length, after.text.length) && before.text[start] === after.text[start]) start += 1;
+      while (
+        start < Math.min(before.text.length, after.text.length) &&
+        before.text[start] === after.text[start]
+      )
+        start += 1;
       let suffix = 0;
-      while (suffix < Math.min(before.text.length, after.text.length) - start && before.text.at(-suffix - 1) === after.text.at(-suffix - 1)) suffix += 1;
+      while (
+        suffix < Math.min(before.text.length, after.text.length) - start &&
+        before.text.at(-suffix - 1) === after.text.at(-suffix - 1)
+      )
+        suffix += 1;
       if (start + suffix < Math.max(before.text.length, after.text.length) / 2) continue;
       ranges.set(before, [start, before.text.length - suffix]);
       ranges.set(after, [start, after.text.length - suffix]);
@@ -93,44 +127,63 @@ function changedRanges(lines: GraftDiffLine[]): Map<GraftDiffLine, readonly [num
 
 export const mobilePatchFile = Effect.fn(function* (summary: GraftDiffFileSummary, patch: string) {
   const tools = yield* loadDiffTools();
-  const parsed = yield* Effect.try({ try: () => tools.parsePatchFiles(patch), catch: (cause) => new Error("Could not parse the patch", { cause }) });
+  const parsed = yield* Effect.try({
+    try: () => tools.parsePatchFiles(patch),
+    catch: (cause) => new Error("Could not parse the patch", { cause }),
+  });
   const file = parsed.flatMap((entry) => entry.files).find((entry) => entry.name === summary.path);
   if (!file) return { ...summary, detailStatus: "unavailable" as const };
   const { hunks, truncated } = boundedHunks(mobileFileHunks(file));
   const lines = hunks.flatMap((hunk) => hunk.lines);
   const lang = tools.getFiletypeFromFileName(file.name);
   // Highlight each version independently so removed lines don't corrupt the new file's lexer state.
-  const highlight = Effect.tryPromise({ try: async () => {
-    const highlighter = await tools.getSharedHighlighter({ themes: ["pierre-light", "pierre-dark"], langs: [lang] });
-    const ranges = changedRanges(lines);
-    for (const version of ["old", "new"] as const) {
-      const versionLines = lines.filter((line) => version === "old" ? line.kind !== "addition" : line.kind !== "deletion");
-      const tokens = highlighter.codeToTokensWithThemes(versionLines.map((line) => line.text).join("\n"), {
-        lang, themes: { light: "pierre-light", dark: "pierre-dark" },
+  const highlight = Effect.tryPromise({
+    try: async () => {
+      const highlighter = await tools.getSharedHighlighter({
+        themes: ["pierre-light", "pierre-dark"],
+        langs: [lang],
       });
-      versionLines.forEach((line, index) => {
-        const range = ranges.get(line);
-        let offset = 0;
-        line.tokens = (tokens[index] ?? []).flatMap((token) => {
-          const start = offset;
-          offset += token.content.length;
-          const cuts = [start, offset, ...(range ?? []).filter((cut) => cut > start && cut < offset)].sort((a, b) => a - b);
-          return cuts.slice(0, -1).map((cut, segment) => ({
-            text: token.content.slice(cut - start, cuts[segment + 1]! - start),
-            ...(token.variants.light?.color ? { lightColor: token.variants.light.color } : {}),
-            ...(token.variants.dark?.color ? { darkColor: token.variants.dark.color } : {}),
-            ...(range && cut >= range[0] && cut < range[1] ? { changed: true } : {}),
-          }));
+      const ranges = changedRanges(lines);
+      for (const version of ["old", "new"] as const) {
+        const versionLines = lines.filter((line) =>
+          version === "old" ? line.kind !== "addition" : line.kind !== "deletion",
+        );
+        const tokens = highlighter.codeToTokensWithThemes(
+          versionLines.map((line) => line.text).join("\n"),
+          {
+            lang,
+            themes: { light: "pierre-light", dark: "pierre-dark" },
+          },
+        );
+        versionLines.forEach((line, index) => {
+          const range = ranges.get(line);
+          let offset = 0;
+          line.tokens = (tokens[index] ?? []).flatMap((token) => {
+            const start = offset;
+            offset += token.content.length;
+            const cuts = [
+              start,
+              offset,
+              ...(range ?? []).filter((cut) => cut > start && cut < offset),
+            ].sort((a, b) => a - b);
+            return cuts.slice(0, -1).map((cut, segment) => ({
+              text: token.content.slice(cut - start, cuts[segment + 1]! - start),
+              ...(token.variants.light?.color ? { lightColor: token.variants.light.color } : {}),
+              ...(token.variants.dark?.color ? { darkColor: token.variants.dark.color } : {}),
+              ...(range && cut >= range[0] && cut < range[1] ? { changed: true } : {}),
+            }));
+          });
         });
-      });
-    }
-  }, catch: (cause) => new Error("Could not highlight the patch", { cause }) }).pipe(Effect.catch(() => Effect.void));
+      }
+    },
+    catch: (cause) => new Error("Could not highlight the patch", { cause }),
+  }).pipe(Effect.catch(() => Effect.void));
   if (lines.length > 0) yield* highlight;
   return {
     ...summary,
     ...(file.prevName ? { previousPath: file.prevName } : {}),
     hunks,
-    detailStatus: truncated ? "truncated" as const : "ready" as const,
+    detailStatus: truncated ? ("truncated" as const) : ("ready" as const),
   };
 });
 
@@ -145,14 +198,19 @@ export const loadMobileDiff = Effect.fn(function* (
   const requested = summary.files.find((file) => file.path === filePath);
   if (!requested) return summary;
   const query = yield* CheckpointDiffQuery;
-  const detail = yield* query.getTurnDiff({
-    threadId: ThreadId.makeUnsafe(threadId),
-    fromTurnCount: Math.max(0, checkpoint.checkpointTurnCount - 1),
-    toTurnCount: checkpoint.checkpointTurnCount,
-    ignoreWhitespace: false,
-  }).pipe(
-    Effect.flatMap(({ diff }) => mobilePatchFile(requested, diff)),
-    Effect.catch(() => Effect.succeed({ ...requested, detailStatus: "unavailable" as const })),
-  );
-  return { ...summary, files: summary.files.map((file) => file.path === filePath ? detail : file) } satisfies GraftDiffSummary;
+  const detail = yield* query
+    .getTurnDiff({
+      threadId: ThreadId.makeUnsafe(threadId),
+      fromTurnCount: Math.max(0, checkpoint.checkpointTurnCount - 1),
+      toTurnCount: checkpoint.checkpointTurnCount,
+      ignoreWhitespace: false,
+    })
+    .pipe(
+      Effect.flatMap(({ diff }) => mobilePatchFile(requested, diff)),
+      Effect.catch(() => Effect.succeed({ ...requested, detailStatus: "unavailable" as const })),
+    );
+  return {
+    ...summary,
+    files: summary.files.map((file) => (file.path === filePath ? detail : file)),
+  } satisfies GraftDiffSummary;
 });

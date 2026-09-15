@@ -19,20 +19,12 @@ export function PickerRow({
     <Pressable accessibilityRole="button" onPress={onPress}>
       <View style={[styles.pickerRow, { borderBottomColor: palette.border }]}>
         <View style={styles.pickerCopy}>
-          <Text style={[styles.pickerLabel, { color: palette.foreground }]}>
-            {label}
-          </Text>
+          <Text style={[styles.pickerLabel, { color: palette.foreground }]}>{label}</Text>
           {detail ? (
-            <Text
-              style={[styles.pickerDetail, { color: palette.foregroundSubtle }]}
-            >
-              {detail}
-            </Text>
+            <Text style={[styles.pickerDetail, { color: palette.foregroundSubtle }]}>{detail}</Text>
           ) : null}
         </View>
-        {selected ? (
-          <Ionicons color={palette.accent} name="checkmark" size={20} />
-        ) : null}
+        {selected ? <Ionicons color={palette.accent} name="checkmark" size={20} /> : null}
       </View>
     </Pressable>
   );

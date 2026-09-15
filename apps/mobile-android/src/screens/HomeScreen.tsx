@@ -1,8 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import type {
-  GraftEnvironmentSnapshot,
-  GraftSessionCredential,
-} from "@graft/mobile-contract";
+import type { GraftEnvironmentSnapshot, GraftSessionCredential } from "@graft/mobile-contract";
 import { useMemo, useState } from "react";
 import {
   Alert,
@@ -66,21 +63,13 @@ function ProjectSection({
           style={styles.projectToggle}
         >
           {({ pressed }) => (
-            <View
-              style={[
-                styles.projectToggleContent,
-                { opacity: pressed ? 0.55 : 1 },
-              ]}
-            >
+            <View style={[styles.projectToggleContent, { opacity: pressed ? 0.55 : 1 }]}>
               <Ionicons
                 color={palette.foreground}
                 name={isExpanded ? "folder-open-outline" : "folder-outline"}
                 size={22}
               />
-              <Text
-                numberOfLines={1}
-                style={[styles.projectName, { color: palette.foreground }]}
-              >
+              <Text numberOfLines={1} style={[styles.projectName, { color: palette.foreground }]}>
                 {name}
               </Text>
               <Ionicons
@@ -94,16 +83,9 @@ function ProjectSection({
             </View>
           )}
         </Pressable>
-        <PressScale
-          accessibilityLabel={`New chat in ${name}`}
-          onPress={onCompose}
-        >
+        <PressScale accessibilityLabel={`New chat in ${name}`} onPress={onCompose}>
           <View style={styles.projectCompose}>
-            <Ionicons
-              color={palette.foreground}
-              name="create-outline"
-              size={21}
-            />
+            <Ionicons color={palette.foreground} name="create-outline" size={21} />
           </View>
         </PressScale>
       </View>
@@ -116,9 +98,7 @@ function ProjectSection({
               onPress={() => onOpenThread(thread)}
             >
               {({ pressed }) => (
-                <View
-                  style={[styles.threadRow, { opacity: pressed ? 0.5 : 1 }]}
-                >
+                <View style={[styles.threadRow, { opacity: pressed ? 0.5 : 1 }]}>
                   <Text
                     numberOfLines={2}
                     style={[styles.threadTitle, { color: palette.foreground }]}
@@ -128,10 +108,7 @@ function ProjectSection({
                   {thread.showsAttentionDot ? (
                     <View
                       accessibilityLabel="Needs attention"
-                      style={[
-                        styles.attentionDot,
-                        { backgroundColor: palette.info },
-                      ]}
+                      style={[styles.attentionDot, { backgroundColor: palette.info }]}
                     />
                   ) : null}
                 </View>
@@ -158,13 +135,8 @@ export function HomeScreen({
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
   const [searchText, setSearchText] = useState("");
-  const [collapsedProjectIds, setCollapsedProjectIds] = useState<
-    ReadonlySet<string>
-  >(new Set());
-  const projects = useMemo(
-    () => groupProjects(snapshot, searchText),
-    [searchText, snapshot],
-  );
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<ReadonlySet<string>>(new Set());
+  const projects = useMemo(() => groupProjects(snapshot, searchText), [searchText, snapshot]);
   const isConnected = connectionState === "connected";
 
   function toggleProject(projectId: string) {
@@ -206,25 +178,15 @@ export function HomeScreen({
       >
         {!snapshot && isRefreshing ? (
           <View style={styles.centerState}>
-            <Text
-              style={[styles.stateText, { color: palette.foregroundSubtle }]}
-            >
+            <Text style={[styles.stateText, { color: palette.foregroundSubtle }]}>
               Connecting to Studio…
             </Text>
           </View>
         ) : projects.length === 0 ? (
           <View style={styles.centerState}>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="folder-outline"
-              size={34}
-            />
-            <Text style={[styles.emptyTitle, { color: palette.foreground }]}>
-              No projects yet
-            </Text>
-            <Text
-              style={[styles.stateText, { color: palette.foregroundSubtle }]}
-            >
+            <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={34} />
+            <Text style={[styles.emptyTitle, { color: palette.foreground }]}>No projects yet</Text>
+            <Text style={[styles.stateText, { color: palette.foregroundSubtle }]}>
               Open a project in Graft Studio to see it here.
             </Text>
           </View>
@@ -243,35 +205,21 @@ export function HomeScreen({
         )}
       </ScrollView>
 
-      <EdgeFade
-        edge="top"
-        style={[styles.topFade, { height: insets.top + 82 }]}
-      />
+      <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 82 }]} />
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
-        <CircleIconButton
-          accessibilityLabel="Menu"
-          icon="menu"
-          onPress={onOpenMenu}
-        />
+        <CircleIconButton accessibilityLabel="Menu" icon="menu" onPress={onOpenMenu} />
         <View style={styles.titleLockup}>
-          <Text style={[styles.screenTitle, { color: palette.foreground }]}>
-            Projects
-          </Text>
+          <Text style={[styles.screenTitle, { color: palette.foreground }]}>Projects</Text>
           <View style={styles.connectionRow}>
             <View
               style={[
                 styles.connectionDot,
                 {
-                  backgroundColor: isConnected
-                    ? palette.success
-                    : palette.foregroundSubtle,
+                  backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
                 },
               ]}
             />
-            <Text
-              numberOfLines={1}
-              style={[styles.hostLabel, { color: palette.foregroundSubtle }]}
-            >
+            <Text numberOfLines={1} style={[styles.hostLabel, { color: palette.foregroundSubtle }]}>
               {session.environmentLabel}
             </Text>
           </View>
@@ -284,23 +232,15 @@ export function HomeScreen({
       </View>
 
       {error ? (
-        <FloatingSurface
-          style={[styles.errorBanner, { bottom: insets.bottom + 78 }]}
-        >
+        <FloatingSurface style={[styles.errorBanner, { bottom: insets.bottom + 78 }]}>
           <Ionicons color={palette.warning} name="warning" size={17} />
-          <Text
-            numberOfLines={2}
-            style={[styles.errorText, { color: palette.foregroundMuted }]}
-          >
+          <Text numberOfLines={2} style={[styles.errorText, { color: palette.foregroundMuted }]}>
             {error}
           </Text>
         </FloatingSurface>
       ) : null}
 
-      <EdgeFade
-        edge="bottom"
-        style={[styles.bottomFade, { height: insets.bottom + 92 }]}
-      />
+      <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 92 }]} />
       <View style={[styles.bottomBar, { bottom: insets.bottom + 10 }]}>
         <FloatingSurface style={styles.searchPill}>
           <Ionicons color={palette.foregroundSubtle} name="search" size={20} />
@@ -316,17 +256,8 @@ export function HomeScreen({
           />
         </FloatingSurface>
         <PressScale accessibilityLabel="New chat" onPress={() => onNewChat()}>
-          <View
-            style={[
-              styles.composeButton,
-              { backgroundColor: palette.foreground },
-            ]}
-          >
-            <Ionicons
-              color={palette.background}
-              name="create-outline"
-              size={22}
-            />
+          <View style={[styles.composeButton, { backgroundColor: palette.foreground }]}>
+            <Ionicons color={palette.background} name="create-outline" size={22} />
           </View>
         </PressScale>
       </View>

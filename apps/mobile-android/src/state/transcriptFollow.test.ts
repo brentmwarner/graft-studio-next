@@ -45,11 +45,8 @@ describe("nextFollowLatch", () => {
   it("holds the latch steady inside the hysteresis band", () => {
     // Between the two thresholds nothing changes, so a single sloppy frame
     // can't flicker the jump button in or out.
-    const distanceFromBottom =
-      (NEAR_BOTTOM_DISTANCE + AWAY_FROM_BOTTOM_DISTANCE) / 2;
-    expect(
-      nextFollowLatch({ distanceFromBottom, isAway: true, isUserDragging: true }),
-    ).toBe(true);
+    const distanceFromBottom = (NEAR_BOTTOM_DISTANCE + AWAY_FROM_BOTTOM_DISTANCE) / 2;
+    expect(nextFollowLatch({ distanceFromBottom, isAway: true, isUserDragging: true })).toBe(true);
     expect(
       nextFollowLatch({
         distanceFromBottom,

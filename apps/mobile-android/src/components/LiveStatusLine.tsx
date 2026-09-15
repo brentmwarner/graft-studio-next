@@ -23,11 +23,7 @@ export const LiveStatusLine = memo(function LiveStatusLine({
       style={styles.row}
     >
       {animating ? <RunStatusDotMatrix /> : null}
-      <Host
-        ignoreSafeAreaKeyboardInsets
-        matchContents={{ vertical: true }}
-        style={styles.phrase}
-      >
+      <Host ignoreSafeAreaKeyboardInsets matchContents={{ vertical: true }} style={styles.phrase}>
         <Text
           color={palette.foregroundSubtle}
           maxLines={1}

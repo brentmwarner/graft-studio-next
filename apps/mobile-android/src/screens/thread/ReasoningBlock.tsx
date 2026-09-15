@@ -4,11 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useGraftPalette } from "../../theme/tokens";
 
-export function ReasoningBlock({
-  reasoning,
-}: {
-  readonly reasoning: string;
-}) {
+export function ReasoningBlock({ reasoning }: { readonly reasoning: string }) {
   const palette = useGraftPalette();
   const [expanded, setExpanded] = useState(false);
   if (!reasoning.trim()) return null;
@@ -22,9 +18,7 @@ export function ReasoningBlock({
         onPress={() => setExpanded((value) => !value)}
       >
         <View style={styles.reasoningHeader}>
-          <Text style={[styles.reasoningTitle, { color: palette.foregroundSubtle }]}>
-            Thoughts
-          </Text>
+          <Text style={[styles.reasoningTitle, { color: palette.foregroundSubtle }]}>Thoughts</Text>
           <Ionicons
             color={palette.foregroundSubtle}
             name="chevron-forward"
@@ -34,16 +28,8 @@ export function ReasoningBlock({
         </View>
       </Pressable>
       {expanded ? (
-        <View
-          style={[
-            styles.reasoningExpanded,
-            { borderLeftColor: palette.border },
-          ]}
-        >
-          <Text
-            selectable
-            style={[styles.reasoningText, { color: palette.foregroundSubtle }]}
-          >
+        <View style={[styles.reasoningExpanded, { borderLeftColor: palette.border }]}>
+          <Text selectable style={[styles.reasoningText, { color: palette.foregroundSubtle }]}>
             {reasoning}
           </Text>
         </View>
