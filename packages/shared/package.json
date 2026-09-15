@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./disclosureMotion": {
+      "types": "./src/disclosureMotion.ts",
+      "import": "./src/disclosureMotion.ts"
+    },
     "./model": {
       "types": "./src/model.ts",
       "import": "./src/model.ts"
@@ -311,6 +315,10 @@
     "./searchQuery": {
       "types": "./src/searchQuery.ts",
       "import": "./src/searchQuery.ts"
+    },
+    "./contextWindow": {
+      "types": "./src/contextWindow.ts",
+      "import": "./src/contextWindow.ts"
     }
   },
   "scripts": {

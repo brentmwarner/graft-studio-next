@@ -13,8 +13,14 @@ import {
 } from "@synara/contracts";
 import { describe, expect, it } from "vitest";
 
-import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
 import {
+  makeGraftMobileLiveEventState,
+  seedGraftMobileLiveEventState,
+  toMobileLiveEvent,
+} from "./liveEvents";
+import {
+  mobileThreadProviderLocked,
+  mobileThreadProvider,
   toMobileModels,
   toMobileProject,
   toMobileSnapshot,
@@ -22,6 +28,32 @@ import {
   toMobileTranscript,
   withMobileEffort,
 } from "./protocolAdapter";
+
+describe("mobile provider lock", () => {
+  it("keeps the established session provider when an old client changed model metadata", () => {
+    const shell = threadShell();
+    const mismatched = {
+      ...shell,
+      session: { ...shell.session!, providerName: "codex" },
+    };
+    expect(mobileThreadProvider(mismatched)).toBe("codex");
+    expect(toMobileThread(mismatched).providerId).toBe("codex");
+  });
+
+  it("locks chats with turn, session, or message history even after a session stops", () => {
+    const empty = { ...threadShell(), latestTurn: null, session: null, latestUserMessageAt: null };
+    expect(mobileThreadProviderLocked(empty)).toBe(false);
+    expect(toMobileThread(empty).providerLocked).toBe(false);
+    for (const started of [
+      { ...empty, latestTurn: threadShell().latestTurn },
+      { ...empty, session: threadShell().session },
+      { ...empty, latestUserMessageAt: now },
+    ]) {
+      expect(mobileThreadProviderLocked(started)).toBe(true);
+      expect(toMobileThread(started).providerLocked).toBe(true);
+    }
+  });
+});
 
 const now = "2026-09-09T12:00:00.000Z";
 
@@ -243,6 +275,29 @@ describe("Graft mobile protocol adapter", () => {
         updatedAt: now,
       },
     });
+    const resumed = makeGraftMobileLiveEventState();
+    seedGraftMobileLiveEventState(resumed, {
+      snapshotSequence: 1,
+      thread: {
+        ...thread(),
+        messages: [
+          {
+            ...thread().messages[1]!,
+            id: MessageId.makeUnsafe("message-assistant"),
+            role: "assistant",
+            text: "Hello",
+            streaming: true,
+          },
+        ],
+      },
+    });
+    expect(toMobileLiveEvent(resumed, event(1, "Hello"))).toBeNull();
+    expect(toMobileLiveEvent(resumed, event(2, " world"))).toMatchObject({ text: "Hello world" });
+    expect(toMobileLiveEvent(resumed, event(3, "", false))).toMatchObject({
+      kind: "assistant.message",
+      text: "Hello world",
+    });
+
     expect(toMobileLiveEvent(state, event(1, "Hello"))).toMatchObject({
       kind: "assistant.delta",
       text: "Hello",
@@ -256,4 +311,18 @@ describe("Graft mobile protocol adapter", () => {
       text: "Hello world",
     });
   });
+});
+
+it("projects user attachment metadata in snapshots and live events", () => {
+  const source = thread();
+  const attachment = { id: "upload-1", type: "image" as const, name: "photo.png", mimeType: "image/png", sizeBytes: 42 };
+  const user = { ...source.messages[0]!, text: "", attachments: [attachment] };
+  expect(toMobileTranscript({ ...source, messages: [user] }, 12).events[0]).toMatchObject({ text: "", attachments: [attachment] });
+  const event: OrchestrationEvent = {
+    sequence: 12, eventId: EventId.makeUnsafe("event-file"), aggregateKind: "thread", aggregateId: source.id,
+    occurredAt: now, commandId: null, causationEventId: null, correlationId: null, metadata: {},
+    type: "thread.message-sent",
+    payload: { ...user, messageId: user.id, threadId: source.id },
+  };
+  expect(toMobileLiveEvent(makeGraftMobileLiveEventState(), event)).toMatchObject({ kind: "user.message", text: "", attachments: [attachment] });
 });

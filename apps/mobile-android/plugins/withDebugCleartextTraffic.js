@@ -1,4 +1,4 @@
-const { withDangerousMod } = require("@expo/config-plugins");
+const { withDangerousMod } = require("expo/config-plugins");
 const { writeDebugCleartextManifest } = require("./debugCleartextManifest");
 
 function withDebugCleartextTraffic(config) {

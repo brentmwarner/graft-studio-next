@@ -16,7 +16,7 @@ struct ModelPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if groupedModels.count > 1 {
+                if lockedProviderId == nil && groupedModels.count > 1 {
                     Section {
                         NavigationLink {
                             ProviderPickerList(
@@ -108,7 +108,11 @@ struct ModelPickerSheet: View {
     }
 
     private var displayedProviderId: String? {
-        chosenProviderId ?? currentModel?.providerId
+        lockedProviderId ?? chosenProviderId ?? currentModel?.providerId
+    }
+
+    private var lockedProviderId: String? {
+        app.lockedProviderId(forThread: chat.threadId)
     }
 
     private var displayedProviderTitle: String {
@@ -134,17 +138,16 @@ struct ModelPickerSheet: View {
         }
     }
 
-    /// Models offered for the displayed provider; a thread whose model the
-    /// catalog doesn't know falls back to the full list.
+    /// Never fall back to other providers when this provider's catalog is empty.
     private var currentProviderModels: [ModelOption] {
         guard let providerId = displayedProviderId, !providerId.isEmpty
         else { return app.availableModels }
-        let scoped = app.availableModels.filter { $0.providerId == providerId }
-        return scoped.isEmpty ? app.availableModels : scoped
+        return app.availableModels.filter { $0.providerId == providerId }
     }
 
     /// Switching provider lands on that provider's default model.
     private func selectProvider(_ providerId: String) {
+        guard lockedProviderId == nil else { return }
         chosenProviderId = providerId
         let models = groupedModels.first { $0.providerId == providerId }?.models ?? []
         guard let target = models.first(where: { $0.isDefault == true }) ?? models.first

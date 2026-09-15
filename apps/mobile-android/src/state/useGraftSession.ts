@@ -15,6 +15,7 @@ import {
 import * as Application from "expo-application";
 import * as Crypto from "expo-crypto";
 import * as Device from "expo-device";
+import { File } from "expo-file-system";
 import {
   useCallback,
   useEffect,
@@ -31,6 +32,7 @@ import {
   GatewaySocketError,
   type GatewayConnectionState,
 } from "../api/gatewaySocket";
+import { sendWithAttachments, type ComposerSendOptions } from "../screens/thread/composerAttachmentSend";
 import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
 import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
@@ -450,6 +452,15 @@ export function useGraftSession() {
     scheduleSnapshot(true);
   }, [scheduleSnapshot]);
 
+  const loadUsage = useCallback(async (threadId: string) => {
+    const session = sessionRef.current;
+    if (!session) throw new Error("Reconnect to view account usage.");
+    const usage = await gateway.usage(session, threadId);
+    if (sessionRef.current?.sessionId !== session.sessionId)
+      throw new Error("The connection changed.");
+    return usage;
+  }, []);
+
   const loadModels = useCallback(async () => {
     try {
       const result = await runSocketCommand(
@@ -481,6 +492,17 @@ export function useGraftSession() {
     } catch {
       // No diff is a normal state, and older hosts may not support this read.
     }
+  }, []);
+
+  const loadDiffFile = useCallback(async (threadId: string, path: string) => {
+    const sessionId = sessionRef.current?.sessionId;
+    const result = await runSocketCommand(
+      socketRef.current,
+      { type: "diff.get", diffId: threadId, filePath: path },
+      "diff.get.result",
+    );
+    if (sessionRef.current?.sessionId !== sessionId) return undefined;
+    return result.diff;
   }, []);
 
   const setThreadModel = useCallback(
@@ -537,9 +559,12 @@ export function useGraftSession() {
   );
 
   const sendMessage = useCallback(
-    async (threadId: string, rawText: string, effort?: string) => {
+    async (threadId: string, rawText: string, effort?: string, options: ComposerSendOptions = {}) => {
       const text = rawText.trim();
-      if (!text) return false;
+      const attachments = options.attachments ?? [];
+      if (!text && attachments.length === 0) return false;
+      const session = sessionRef.current;
+      if (!session) return false;
       const optimisticId = Crypto.randomUUID();
       const optimisticEvent: GraftTimelineEvent = {
         id: optimisticId,
@@ -548,36 +573,52 @@ export function useGraftSession() {
         threadId,
         createdAt: Date.now(),
         text,
+        ...(attachments.length ? { attachments: [...attachments] } : {}),
       };
       updatePaired(setState, (current) => ({
         ...current,
         liveEvents: [...current.liveEvents, optimisticEvent],
+        error: undefined,
       }));
       setPendingSendThreadId(threadId);
 
       try {
-        const result = await runSocketCommand(
-          socketRef.current,
-          {
-            type: "turn.start",
-            threadId,
-            text,
-            ...(effort ? { effort } : {}),
+        const result = await sendWithAttachments(
+          attachments,
+          (attachment) => {
+            if (sessionRef.current?.sessionId !== session.sessionId) {
+              throw new GatewaySocketError("The paired session changed. Please send again.");
+            }
+            return gateway.uploadAttachment(session, threadId, attachment, new File(attachment.uri));
           },
-          "turn.start.result",
+          (id) => gateway.cancelAttachment(session, id),
+          (uploaded) => {
+            if (sessionRef.current?.sessionId !== session.sessionId) {
+              throw new GatewaySocketError("The paired session changed. Please send again.");
+            }
+            return runSocketCommand(socketRef.current, {
+              type: "turn.start",
+              threadId,
+              text,
+              ...(effort ? { effort } : {}),
+              ...(uploaded.length ? { attachments: uploaded } : {}),
+              ...(options.interactionMode ? { interactionMode: options.interactionMode } : {}),
+              ...(options.fastMode !== undefined ? { fastMode: options.fastMode } : {}),
+            }, "turn.start.result");
+          },
         );
-        updatePaired(setState, (current) => ({
+        updatePaired(setState, (current) => current.session.sessionId === session.sessionId ? {
           ...current,
           snapshot: withRun(current.snapshot, result.run),
-        }));
+        } : current);
         scheduleSnapshot();
         return true;
       } catch (error) {
-        updatePaired(setState, (current) => ({
+        updatePaired(setState, (current) => current.session.sessionId === session.sessionId ? {
           ...current,
           liveEvents: current.liveEvents.filter((event) => event.id !== optimisticId),
           error: messageFor(error),
-        }));
+        } : current);
         return false;
       } finally {
         setPendingSendThreadId((current) => (current === threadId ? undefined : current));
@@ -705,7 +746,9 @@ export function useGraftSession() {
     closeThread,
     createThread,
     loadDiff,
+    loadDiffFile,
     loadModels,
+    loadUsage,
     openThread,
     pair,
     pendingSendThreadId,

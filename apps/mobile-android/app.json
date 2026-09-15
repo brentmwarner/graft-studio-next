@@ -4,14 +4,19 @@
     "slug": "graft-mobile-android",
     "scheme": "graft",
     "version": "0.1.0",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "android": {
       "package": "studio.graft.mobile",
-      "predictiveBackGestureEnabled": true,
-      "permissions": ["CAMERA"],
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -26,6 +31,14 @@
         }
       ],
       "expo-secure-store",
+      "expo-speech-recognition",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Graft to take photos to attach to messages.",
+          "photosPermission": "Allow Graft to attach photos to messages."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -38,6 +51,12 @@
       ],
       "expo-sqlite",
       "./plugins/withDebugCleartextTraffic.js"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "493cee18-fb3c-4e70-8c69-9d9fa903e962"
+      }
+    },
+    "owner": "brentmwarner"
   }
 }

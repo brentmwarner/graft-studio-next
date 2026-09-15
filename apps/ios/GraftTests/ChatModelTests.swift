@@ -67,17 +67,17 @@ final class ChatModelTests: XCTestCase {
             event(id: "e3", cursor: 3, kind: "assistant.delta", text: "Working on"),
         ])
 
-        XCTAssertEqual(items.count, 2)
-        XCTAssertEqual(items[1].kind, .assistant)
-        XCTAssertTrue(items[1].isStreaming)
+        XCTAssertEqual(items.count, 3)
         XCTAssertEqual(items[1].reasoning, "Considering approach")
-        XCTAssertEqual(items[1].text, "Working on")
+        XCTAssertFalse(items[1].isStreaming)
+        XCTAssertTrue(items[2].isStreaming)
+        XCTAssertEqual(items[2].text, "Working on")
     }
 
     func testItemizeSettlesAssistantOnCompleteMessage() {
         let items = ChatModel.itemize([
             event(id: "e1", cursor: 1, kind: "assistant.delta", text: "Partial"),
-            event(id: "e2", cursor: 2, kind: "assistant.message", text: "Partial plus final"),
+            event(id: "e1", cursor: 2, kind: "assistant.message", text: "Partial plus final"),
         ])
 
         XCTAssertEqual(items.count, 1)
@@ -100,7 +100,7 @@ final class ChatModelTests: XCTestCase {
     func testFoldAssistantDeltaCarriesFullAccumulatedText() {
         let chat = makeChat()
         chat.fold(event(id: "d1", cursor: 1, kind: "assistant.delta", text: "Hello"))
-        chat.fold(event(id: "d2", cursor: 2, kind: "assistant.delta", text: "Hello world"))
+        chat.fold(event(id: "d1", cursor: 2, kind: "assistant.delta", text: "Hello world"))
 
         XCTAssertEqual(chat.items.count, 1)
         XCTAssertEqual(chat.items[0].text, "Hello world")
@@ -111,7 +111,7 @@ final class ChatModelTests: XCTestCase {
     func testFoldAssistantMessageSettlesTurnRow() {
         let chat = makeChat()
         chat.fold(event(id: "d1", cursor: 1, kind: "assistant.delta", text: "Hi"))
-        chat.fold(event(id: "m1", cursor: 2, kind: "assistant.message", text: "Hi there"))
+        chat.fold(event(id: "d1", cursor: 2, kind: "assistant.message", text: "Hi there"))
 
         XCTAssertEqual(chat.items.count, 1)
         XCTAssertEqual(chat.items[0].text, "Hi there")
@@ -131,7 +131,7 @@ final class ChatModelTests: XCTestCase {
         // First frame stands in for the optimistic row `send` appends; the
         // second is the host echoing the same turn back.
         chat.fold(event(id: "u1", cursor: 1, kind: "user.message", text: "Ship it"))
-        chat.fold(event(id: "u2", cursor: 2, kind: "user.message", text: "Ship it"))
+        chat.fold(event(id: "u1", cursor: 2, kind: "user.message", text: "Ship it"))
 
         XCTAssertEqual(chat.items.filter { $0.kind == .user }.count, 1)
     }
@@ -316,8 +316,29 @@ final class ChatModelTests: XCTestCase {
         XCTAssertTrue(chat.items[0].isStreaming)
 
         // A later live delta must keep updating the SAME row, not mint another.
-        chat.fold(event(id: "d2", cursor: 2, kind: "assistant.delta", text: "Streaming more"))
+        chat.fold(event(id: "d1", cursor: 2, kind: "assistant.delta", text: "Streaming more"))
         XCTAssertEqual(chat.items.count, 1)
         XCTAssertEqual(chat.items[0].text, "Streaming more")
     }
+    func testLiveReplyKeepsIdentityWhenSavedTextGrows() {
+        let chat = makeChat()
+        chat.fold(event(id: "reply:delta:5", cursor: 1, kind: "assistant.delta", text: "Hello"))
+        let identity = chat.items[0].id
+        chat.applySnapshot(snapshot(events: [event(id: "reply", cursor: 2, kind: "assistant.message", text: "Hello there")], cursor: 2))
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertEqual(chat.items[0].id, identity)
+        XCTAssertEqual(chat.items[0].text, "Hello there")
+        XCTAssertFalse(chat.items[0].isStreaming)
+    }
+
+    func testSeparateRepliesAreNotOverwrittenOrDeduplicatedByText() {
+        let chat = makeChat()
+        chat.fold(event(id: "commentary", cursor: 1, kind: "assistant.delta", text: "Checking"))
+        chat.fold(event(id: "answer", cursor: 2, kind: "assistant.delta", text: "Done"))
+        chat.fold(event(id: "commentary", cursor: 3, kind: "assistant.message", text: "Checking"))
+        chat.fold(event(id: "answer", cursor: 4, kind: "assistant.message", text: "Done"))
+        chat.fold(event(id: "another", cursor: 5, kind: "assistant.message", text: "Done"))
+        XCTAssertEqual(chat.items.map(\.text), ["Checking", "Done", "Done"])
+    }
+
 }

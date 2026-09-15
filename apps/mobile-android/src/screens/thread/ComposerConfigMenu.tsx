@@ -1,150 +1,269 @@
-import { Ionicons } from "@expo/vector-icons";
-import type { GraftModelOption } from "@graft/mobile-contract";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { GraftApprovalPolicyOption, GraftModelOption, GraftInteractionMode } from "@graft/mobile-contract";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 
-import { PressScale } from "../../components/PressScale";
-import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { AnchoredMenu, MenuCaption, MenuItem } from "../../components/AnchoredMenu";
+import type { AttachmentSource } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
 
-const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max", "ultra", "ultracode"] as const;
-
-function orderEfforts(efforts: readonly string[]): string[] {
-  const rank = new Map(EFFORT_ORDER.map((effort, index) => [effort, index]));
-  return [...efforts].sort(
-    (left, right) =>
-      (rank.get(left as (typeof EFFORT_ORDER)[number]) ?? 999) -
-      (rank.get(right as (typeof EFFORT_ORDER)[number]) ?? 999),
-  );
+export type ComposerMenuPage = "options" | "intelligence" | "models" | "permissions" | "mode" | "speed";
+export interface ComposerMenuConfig {
+  readonly extras?: {
+    readonly attachmentsEnabled: boolean;
+    readonly modesEnabled: boolean;
+    readonly fastModeEnabled: boolean;
+    readonly interactionMode: GraftInteractionMode;
+    readonly fastMode: boolean;
+    readonly busy: boolean;
+    readonly onAttach: (source: AttachmentSource) => void;
+    readonly onSelectMode: (mode: GraftInteractionMode) => void;
+    readonly onSelectFastMode: (enabled: boolean) => void;
+  };
+  readonly currentApproval: string | undefined;
+  readonly approvalOptions: readonly GraftApprovalPolicyOption[];
+  readonly currentModel: GraftModelOption | undefined;
+  readonly models: readonly GraftModelOption[];
+  readonly efforts: readonly string[];
+  readonly resolvedEffort: string | undefined;
+  readonly enabled: boolean;
+  readonly onSelectApproval: (policy: string) => boolean | Promise<boolean>;
+  readonly onSelectModel: (model: GraftModelOption) => boolean | Promise<boolean>;
+  readonly onSelectEffort: (effort: string) => void;
 }
+
+const EFFORT_ORDER = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+  "ultracode",
+];
 
 export function ComposerConfigMenu({
-  currentModel,
-  efforts,
-  onClose,
-  onOpenModel,
-  onSelectEffort,
-  onSpeedPress,
-  resolvedEffort,
-  visible,
+  config,
+  initialPage,
+  trigger,
 }: {
-  readonly currentModel: GraftModelOption | undefined;
-  readonly efforts: readonly string[];
-  readonly onClose: () => void;
-  readonly onOpenModel: () => void;
-  readonly onSelectEffort: (effort: string) => void;
-  readonly onSpeedPress: () => void;
-  readonly resolvedEffort: string | undefined;
-  readonly visible: boolean;
+  readonly config: ComposerMenuConfig;
+  readonly initialPage: ComposerMenuPage;
+  readonly trigger: (open: () => void) => ReactElement;
 }) {
-  const insets = useSafeAreaInsets();
-  const palette = useGraftPalette();
+  const [page, setPage] = useState(initialPage);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  const generation = useRef(0);
+  const applying = useRef(false);
+  const enabled = config.enabled && !pending;
+  useEffect(
+    () => () => {
+      generation.current += 1;
+    },
+    [],
+  );
+
+  async function select(action: () => boolean | Promise<boolean>, close: () => void) {
+    if (applying.current || !config.enabled) return;
+    applying.current = true;
+    const request = generation.current;
+    setPending(true);
+    setError(undefined);
+    try {
+      const accepted = await action();
+      if (request !== generation.current) return;
+      if (accepted) close();
+      else setError("Couldn’t apply this change. Try again.");
+    } catch {
+      if (request === generation.current) setError("Couldn’t apply this change. Try again.");
+    } finally {
+      applying.current = false;
+      setPending(false);
+    }
+  }
+
+  function contents(close: () => void) {
+    switch (page) {
+      case "options":
+        return (
+          <>
+            {([
+              ["files", "Add files", "document-outline"],
+              ["photos", "Photos", "images-outline"],
+              ["camera", "Camera", "camera-outline"],
+            ] as const).map(([source, label, icon]) => (
+              <MenuItem
+                key={source}
+                label={label}
+                icon={icon}
+                enabled={Boolean(config.extras?.attachmentsEnabled && !config.extras.busy)}
+                onPress={() => {
+                  close();
+                  config.extras?.onAttach(source);
+                }}
+              />
+            ))}
+            <MenuItem
+              label="Mode"
+              icon="options-outline"
+              disclosure
+              detail={displayName(config.extras?.interactionMode ?? "default")}
+              enabled={Boolean(config.extras?.modesEnabled && !config.extras.busy)}
+              onPress={() => setPage("mode")}
+            />
+            {config.currentModel?.supportsFastMode ? (
+              <MenuItem
+                label="Speed"
+                icon="flash-outline"
+                disclosure
+                detail={config.extras?.fastMode ? "Fast" : "Normal"}
+                enabled={Boolean(config.extras?.fastModeEnabled && !config.extras.busy)}
+                onPress={() => setPage("speed")}
+              />
+            ) : null}
+            {!config.extras?.attachmentsEnabled || !config.extras?.modesEnabled ? (
+              <MenuCaption>Update Graft Studio to use attachments and modes.</MenuCaption>
+            ) : null}
+          </>
+        );
+      case "mode":
+        return (
+          <>
+            <MenuItem label="‹ Composer options" onPress={() => setPage("options")} />
+            {(["default", "plan", "debug"] as const).map((mode) => (
+              <MenuItem
+                key={mode}
+                label={displayName(mode)}
+                detail={mode === "plan"
+                  ? "Plan the work before making changes"
+                  : mode === "debug" ? "Investigate and fix a problem" : "Work on the task"}
+                selected={config.extras?.interactionMode === mode}
+                enabled={Boolean(config.extras?.modesEnabled && !config.extras.busy)}
+                onPress={() => {
+                  config.extras?.onSelectMode(mode);
+                  close();
+                }}
+              />
+            ))}
+          </>
+        );
+      case "speed":
+        return (
+          <>
+            <MenuItem label="‹ Composer options" onPress={() => setPage("options")} />
+            {[false, true].map((fast) => (
+              <MenuItem
+                key={String(fast)}
+                label={fast ? "Fast" : "Normal"}
+                selected={config.extras?.fastMode === fast}
+                enabled={Boolean(config.extras?.fastModeEnabled && !config.extras.busy)}
+                onPress={() => {
+                  config.extras?.onSelectFastMode(fast);
+                  close();
+                }}
+              />
+            ))}
+          </>
+        );
+      case "permissions":
+        return (
+          <>
+            <MenuCaption>Permissions</MenuCaption>
+            {config.approvalOptions.map((option) => (
+              <MenuItem
+                key={option.value}
+                label={option.label}
+                detail={option.description}
+                selected={option.value === config.currentApproval}
+                enabled={enabled}
+                onPress={() => void select(() => config.onSelectApproval(option.value), close)}
+              />
+            ))}
+          </>
+        );
+      case "models":
+        return (
+          <>
+            <MenuItem
+              label="‹ Model and effort"
+              enabled={!pending}
+              onPress={() => setPage("intelligence")}
+            />
+            {config.models.map((model) => (
+              <MenuItem
+                key={`${model.providerId}:${model.id}`}
+                label={model.label}
+                detail={model.providerLabel ?? displayName(model.providerId)}
+                enabled={enabled}
+                selected={
+                  model.id === config.currentModel?.id &&
+                  model.providerId === config.currentModel.providerId
+                }
+                onPress={() => void select(() => config.onSelectModel(model), close)}
+              />
+            ))}
+          </>
+        );
+      case "intelligence":
+        return (
+          <>
+            <MenuItem
+              label="Model"
+              detail={config.currentModel?.label ?? "Choose model"}
+              disclosure
+              enabled={!pending}
+              onPress={() => setPage("models")}
+            />
+            {config.efforts.length > 0 ? <MenuCaption>Reasoning effort</MenuCaption> : null}
+            {[...config.efforts]
+              .sort((a, b) => {
+                const rank = (effort: string) => {
+                  const index = EFFORT_ORDER.indexOf(effort);
+                  return index < 0 ? 999 : index;
+                };
+                return rank(a) - rank(b);
+              })
+              .map((effort) => (
+                <MenuItem
+                  key={effort}
+                  label={displayName(effort)}
+                  selected={effort === config.resolvedEffort}
+                  enabled={enabled}
+                  onPress={() => {
+                    config.onSelectEffort(effort);
+                    close();
+                  }}
+                />
+              ))}
+          </>
+        );
+      default: {
+        const exhaustive: never = page;
+        return exhaustive;
+      }
+    }
+  }
 
   return (
-    <Modal
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-      transparent
-      visible={visible}
+    <AnchoredMenu
+      trigger={trigger}
+      onOpenChange={(open) => {
+        generation.current += 1;
+        if (open) {
+          setPage(initialPage);
+          setError(undefined);
+        }
+      }}
     >
-      <View style={styles.root}>
-        <Pressable
-          accessibilityLabel="Close intelligence menu"
-          accessibilityRole="button"
-          onPress={onClose}
-          style={StyleSheet.absoluteFill}
-        />
-        <View
-          style={[
-            styles.menu,
-            {
-              backgroundColor: palette.floatingSurface,
-              borderColor: palette.border,
-              bottom: insets.bottom + 110,
-            },
-          ]}
-        >
-          <Text style={[styles.label, { color: palette.foregroundSubtle }]}>Intelligence</Text>
-          {orderEfforts(efforts).map((effort) => (
-            <PressScale
-              accessibilityLabel={`${displayName(effort)} intelligence`}
-              key={effort}
-              onPress={() => onSelectEffort(effort)}
-            >
-              <View style={styles.optionRow}>
-                <Text style={[styles.optionText, { color: palette.foreground }]}>
-                  {displayName(effort)}
-                </Text>
-                {effort === resolvedEffort ? (
-                  <Ionicons color={palette.foreground} name="checkmark" size={22} />
-                ) : null}
-              </View>
-            </PressScale>
-          ))}
-
-          <View style={[styles.separator, { backgroundColor: palette.border }]} />
-
-          <PressScale accessibilityLabel="Choose model" onPress={onOpenModel}>
-            <View style={styles.detailRow}>
-              <View style={styles.detailCopy}>
-                <Text style={[styles.detailTitle, { color: palette.foreground }]}>Model</Text>
-                <Text
-                  numberOfLines={1}
-                  style={[styles.detailValue, { color: palette.foregroundSubtle }]}
-                >
-                  {currentModel?.label ?? "Model"}
-                </Text>
-              </View>
-              <Ionicons color={palette.foreground} name="chevron-forward" size={20} />
-            </View>
-          </PressScale>
-
-          <PressScale accessibilityLabel="Speed" onPress={onSpeedPress}>
-            <View style={styles.detailRow}>
-              <View style={styles.detailCopy}>
-                <Text style={[styles.detailTitle, { color: palette.foreground }]}>Speed</Text>
-                <Text style={[styles.detailValue, { color: palette.foregroundSubtle }]}>
-                  Normal
-                </Text>
-              </View>
-              <Ionicons color={palette.foreground} name="chevron-forward" size={20} />
-            </View>
-          </PressScale>
-        </View>
-      </View>
-    </Modal>
+      {(close) => (
+        <>
+          {contents(close)}
+          {!config.enabled ? <MenuCaption>Reconnect to change settings.</MenuCaption> : null}
+          {pending ? <MenuCaption>Applying…</MenuCaption> : null}
+          {error ? <MenuCaption>{error}</MenuCaption> : null}
+        </>
+      )}
+    </AnchoredMenu>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  menu: {
-    borderRadius: graftRadius.large,
-    borderWidth: StyleSheet.hairlineWidth,
-    boxShadow: "0 14px 34px rgba(0, 0, 0, 0.16)",
-    left: 16,
-    maxHeight: "74%",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    position: "absolute",
-    width: 190,
-  },
-  label: { fontSize: 14, marginBottom: 6 },
-  optionRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 42,
-  },
-  optionText: { fontSize: 16, fontWeight: "600" },
-  separator: { height: StyleSheet.hairlineWidth, marginVertical: 8 },
-  detailRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    minHeight: 60,
-  },
-  detailCopy: { flex: 1, gap: 3 },
-  detailTitle: { fontSize: 16, fontWeight: "600" },
-  detailValue: { fontSize: 14 },
-});

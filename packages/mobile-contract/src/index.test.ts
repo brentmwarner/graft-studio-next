@@ -361,3 +361,15 @@ describe("mobileRemote exhaustive helpers", () => {
     expect(() => assertNeverMobile("nope" as never)).toThrow(/Unhandled/);
   });
 });
+
+it("supports attachments and modes without allowing empty or oversized turns", () => {
+  const attachment = { id: "upload-1", type: "file", name: "notes.txt", mimeType: "text/plain", sizeBytes: 10 };
+  const command = { type: "turn.start", threadId: "thread-1", text: "", attachments: [attachment], interactionMode: "plan", fastMode: true };
+  expect(GraftMobileCommandSchema.parse(command)).toEqual(command);
+  expect(GraftMobileCommandSchema.safeParse({ ...command, attachments: [] }).success).toBe(false);
+  expect(GraftMobileCommandSchema.safeParse({ ...command, interactionMode: "made-up" }).success).toBe(false);
+  expect(GraftMobileCommandSchema.safeParse({ ...command, attachments: [{ ...attachment, id: "../../private" }] }).success).toBe(false);
+  expect(GraftMobileCommandSchema.safeParse({ ...command, attachments: [{ ...attachment, sizeBytes: 26 * 1024 * 1024 }] }).success).toBe(false);
+  expect(GraftMobileCommandSchema.safeParse({ ...command, attachments: Array.from({ length: 9 }, () => attachment) }).success).toBe(false);
+  expect(GraftMobileCommandSchema.parse({ type: "turn.start", threadId: "thread-1", text: "Existing client" })).toEqual({ type: "turn.start", threadId: "thread-1", text: "Existing client" });
+});

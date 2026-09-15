@@ -2,7 +2,10 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import type { ConfigContext } from "expo/config";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import configureApp from "../app.config";
 
 const plugin = createRequire(import.meta.url)("./debugCleartextManifest.js") as {
   writeDebugCleartextManifest: (androidRoot: string) => string;
@@ -11,6 +14,7 @@ const plugin = createRequire(import.meta.url)("./debugCleartextManifest.js") as 
 const roots: string[] = [];
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }
@@ -52,5 +56,26 @@ describe("debug-only Android cleartext", () => {
     };
     expect(expoAndroidCleartext(config)).toBeUndefined();
     expect(config.expo?.plugins).toContain("./plugins/withDebugCleartextTraffic.js");
+  });
+
+  it.each(["production", "development", undefined])("keeps the main manifest policy for %s", (profile) => {
+    vi.stubEnv("EAS_BUILD_PROFILE", profile);
+    const config = configureApp({
+      config: { name: "Graft", slug: "graft-mobile-android" },
+    } as ConfigContext);
+    expect(expoAndroidCleartext({ expo: config })).toBeUndefined();
+  });
+
+  it("allows local HTTP hosts only in the standalone preview profile", () => {
+    vi.stubEnv("EAS_BUILD_PROFILE", "preview");
+    const config = configureApp({
+      config: {
+        name: "Graft",
+        slug: "graft-mobile-android",
+        plugins: ["expo-speech-recognition"],
+      },
+    } as ConfigContext);
+    expect(expoAndroidCleartext({ expo: config })).toBe(true);
+    expect(config.plugins).toContain("expo-speech-recognition");
   });
 });

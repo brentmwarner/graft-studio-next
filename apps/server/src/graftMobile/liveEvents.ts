@@ -1,14 +1,35 @@
 import type { GraftRunStatus, GraftTimelineEvent } from "@graft/mobile-contract";
-import type { OrchestrationEvent, OrchestrationSessionStatus } from "@synara/contracts";
+import type {
+  OrchestrationEvent,
+  OrchestrationSessionStatus,
+  OrchestrationThreadDetailSnapshot,
+} from "@synara/contracts";
 
 import { toMobileActivityEvent } from "./protocolAdapter";
 
 export interface GraftMobileLiveEventState {
   readonly assistantTextByMessageId: Map<string, string>;
+  readonly snapshotCursorByThreadId: Map<string, number>;
 }
 
 export function makeGraftMobileLiveEventState(): GraftMobileLiveEventState {
-  return { assistantTextByMessageId: new Map() };
+  return { assistantTextByMessageId: new Map(), snapshotCursorByThreadId: new Map() };
+}
+
+// Seed once per thread/connection, before folding its first message event.
+// A reconnect can start halfway through a reply; its next delta is a suffix,
+// while mobile clients expect the entire message. The transaction cursor also
+// prevents replaying deltas already included in the seed.
+export function seedGraftMobileLiveEventState(
+  state: GraftMobileLiveEventState,
+  snapshot: OrchestrationThreadDetailSnapshot,
+): void {
+  state.snapshotCursorByThreadId.set(snapshot.thread.id, snapshot.snapshotSequence);
+  for (const message of snapshot.thread.messages) {
+    if (message.role === "assistant" && message.streaming) {
+      state.assistantTextByMessageId.set(message.id, message.text);
+    }
+  }
 }
 
 function timestamp(value: string): number {
@@ -40,6 +61,7 @@ export function toMobileLiveEvent(
   if (event.type === "thread.message-sent") {
     const payload = event.payload;
     if (payload.role === "assistant") {
+      if (event.sequence <= (state.snapshotCursorByThreadId.get(threadId) ?? 0)) return null;
       const previous = state.assistantTextByMessageId.get(payload.messageId) ?? "";
       const text = payload.streaming ? `${previous}${payload.text}` : payload.text || previous;
       if (payload.streaming) state.assistantTextByMessageId.set(payload.messageId, text);
@@ -58,6 +80,9 @@ export function toMobileLiveEvent(
       kind: payload.role === "user" ? "user.message" : "status",
       ...(payload.turnId ? { runId: payload.turnId } : {}),
       text: payload.text,
+      ...(payload.attachments?.length ? {
+        attachments: payload.attachments.filter((attachment) => attachment.type === "image" || attachment.type === "file"),
+      } : {}),
     };
   }
 

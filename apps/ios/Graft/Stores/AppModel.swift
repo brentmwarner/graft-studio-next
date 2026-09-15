@@ -205,8 +205,17 @@ final class AppModel {
         threadEfforts[threadId] = effort
     }
 
-    /// The thread's current model, resolved against the host's catalog; a
-    /// model unknown to the catalog still renders by its id.
+    /// Provider choices are available only before this chat has activity.
+    func lockedProviderId(forThread threadId: String) -> String? {
+        guard let thread = snapshot?.threads.first(where: { $0.id == threadId }) else { return nil }
+        let hasLocalActivity = activeChat.map {
+            $0.threadId == threadId && (!$0.items.isEmpty || $0.isTurnActive || $0.sendTick > 0)
+        } ?? false
+        // Older hosts omit the flag. Existing chats stay on their provider.
+        return thread.providerLocked != false || hasLocalActivity ? thread.providerId : nil
+    }
+
+    /// Resolve by provider and model together; unknown models keep their host label.
     func currentModel(forThread threadId: String) -> ModelOption? {
         guard let thread = snapshot?.threads.first(where: { $0.id == threadId }) else {
             return availableModels.first { $0.isDefault == true }
@@ -215,7 +224,7 @@ final class AppModel {
         if let threadModelName = thread.modelName {
             if let match = availableModels.first(where: {
                 $0.id == threadModelName && $0.providerId == thread.providerId
-            }) ?? availableModels.first(where: { $0.id == threadModelName }) {
+            }) {
                 return match
             }
             return ModelOption(
@@ -229,8 +238,8 @@ final class AppModel {
                 defaultApprovalPolicy: nil
             )
         }
-        return availableModels.first { $0.isDefault == true }
-            ?? availableModels.first
+        let providerModels = availableModels.filter { $0.providerId == thread.providerId }
+        return providerModels.first { $0.isDefault == true } ?? providerModels.first
     }
 
     /// Strip wire-format suffixes ("[1m]") the desktop uses internally.
@@ -253,6 +262,9 @@ final class AppModel {
 
     /// Point the thread at a different model for subsequent turns.
     func setThreadModel(threadId: String, model: ModelOption) async -> Bool {
+        if let providerId = lockedProviderId(forThread: threadId), model.providerId != providerId {
+            return false
+        }
         let envelope = ClientCommandEnvelope(
             command: .threadSetModel(
                 ThreadSetModelCommand(
@@ -356,9 +368,9 @@ final class AppModel {
 
     /// Request a diff summary. `diffId` is typically a thread id (working tree)
     /// or a run id — matching the desktop adapter's lookup rules.
-    func fetchDiff(diffId: String) async -> DiffSummary? {
+    func fetchDiff(diffId: String, filePath: String? = nil) async -> DiffSummary? {
         let envelope = ClientCommandEnvelope(
-            command: .diffGet(DiffGetCommand(diffId: diffId))
+            command: .diffGet(DiffGetCommand(diffId: diffId, filePath: filePath))
         )
         do {
             let response = try await sendCommand(envelope)

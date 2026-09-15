@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BackHandler, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { MenuProvider } from "./src/components/MenuProvider";
 import { NavDrawerLayout } from "./src/components/NavDrawer";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { NewChatScreen } from "./src/screens/NewChatScreen";
@@ -129,37 +130,41 @@ function GraftApp() {
               />
             ) : route.name === "new-chat" ? (
               <NewChatScreen
+                composerFeatures={paired.snapshot?.environment.composerFeatures}
+                error={paired.error}
                 availableModels={paired.availableModels}
                 hostLabel={paired.session.environmentLabel}
                 initialProjectId={route.initialProjectId}
                 isConnected={paired.connectionState === "connected"}
                 onBack={backToHome}
                 onCreate={async (request) => {
-                  const thread = await session.createThread(request.projectId, {
+                  const thread = request.existingThread ?? await session.createThread(request.projectId, {
                     approvalPolicy: request.approvalPolicy,
                     mode: request.mode,
                     model: request.model,
                   });
-                  if (!thread) return false;
+                  if (!thread) return { sent: false };
                   const configuredThread = request.approvalPolicy
                     ? {
                         ...thread,
                         approvalPolicy: request.approvalPolicy,
                       }
                     : thread;
-                  setRoute({
+                  await session.openThread(thread.id);
+                  const sent = await session.sendMessage(thread.id, request.text, request.effort, request.composer);
+                  if (sent) setRoute((current) => current.name === "new-chat" ? {
                     name: "thread",
                     thread: configuredThread,
                     initialEffort: request.effort,
-                  });
-                  await session.openThread(thread.id);
-                  return await session.sendMessage(thread.id, request.text, request.effort);
+                  } : current);
+                  return { sent, thread: configuredThread };
                 }}
                 onLoadModels={session.loadModels}
                 projects={projectGroups}
               />
             ) : (
               <ThreadScreen
+                key={route.thread.id}
                 availableModels={paired.availableModels}
                 connectionState={paired.connectionState}
                 diffSummary={paired.diffs[route.thread.id]}
@@ -171,6 +176,8 @@ function GraftApp() {
                 onBack={backToHome}
                 onCancel={session.cancelTurn}
                 onLoadDiff={session.loadDiff}
+                onLoadDiffFile={session.loadDiffFile}
+                onLoadUsage={session.loadUsage}
                 onLoadModels={session.loadModels}
                 onRefresh={session.refresh}
                 onResolveApproval={session.resolveApproval}
@@ -204,7 +211,9 @@ function GraftApp() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <GraftApp />
+      <MenuProvider>
+        <GraftApp />
+      </MenuProvider>
     </SafeAreaProvider>
   );
 }

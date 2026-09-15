@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { GraftModelOption } from "@graft/mobile-contract";
-import { useEffect, useMemo, useState } from "react";
+import type { GraftModelOption, GraftEnvironmentSummary, GraftInteractionMode, GraftThreadSummary } from "@graft/mobile-contract";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,10 +19,11 @@ import { FloatingSurface } from "../components/FloatingSurface";
 import { PressScale } from "../components/PressScale";
 import type { InboxProjectGroup } from "../state/mobileViewModels";
 import { graftRadius, useGraftPalette } from "../theme/tokens";
+import type { ComposerSendOptions } from "./thread/composerAttachmentSend";
+import { useComposerAttachments } from "./thread/useComposerAttachments";
+import { useVoiceInput } from "./thread/useVoiceInput";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
-import { ComposerConfigMenu } from "./thread/ComposerConfigMenu";
-import { ApprovalPickerSheet, ComposerActionsSheet, ModelPickerSheet } from "./thread/ThreadSheets";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 
 export interface NewChatCreateRequest {
@@ -33,15 +33,19 @@ export interface NewChatCreateRequest {
   readonly model?: GraftModelOption;
   readonly projectId: string;
   readonly text: string;
+  readonly composer: ComposerSendOptions;
+  readonly existingThread?: GraftThreadSummary;
 }
 
 interface NewChatScreenProps {
+  readonly composerFeatures?: GraftEnvironmentSummary["composerFeatures"];
+  readonly error?: string;
   readonly availableModels: readonly GraftModelOption[];
   readonly hostLabel: string;
   readonly initialProjectId?: string;
   readonly isConnected: boolean;
   readonly onBack: () => void;
-  readonly onCreate: (request: NewChatCreateRequest) => Promise<boolean>;
+  readonly onCreate: (request: NewChatCreateRequest) => Promise<{ readonly sent: boolean; readonly thread?: GraftThreadSummary }>;
   readonly onLoadModels: () => Promise<void>;
   readonly projects: readonly InboxProjectGroup[];
 }
@@ -51,6 +55,8 @@ function preferredEffort(efforts: readonly string[]): string | undefined {
 }
 
 export function NewChatScreen({
+  composerFeatures,
+  error,
   availableModels,
   hostLabel,
   initialProjectId,
@@ -62,8 +68,10 @@ export function NewChatScreen({
 }: NewChatScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
+  const headerTop = insets.top + 12;
   const keyboardVisible = useKeyboardVisibility();
   const [draft, setDraft] = useState("");
+  const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [mode, setMode] = useState<"local" | "worktree">("local");
   const [selectedApproval, setSelectedApproval] = useState<string>();
@@ -71,11 +79,13 @@ export function NewChatScreen({
   const [selectedModelId, setSelectedModelId] = useState<string>();
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? projects[0]?.id);
-  const [showActions, setShowActions] = useState(false);
-  const [showApproval, setShowApproval] = useState(false);
-  const [showIntelligence, setShowIntelligence] = useState(false);
-  const [showModels, setShowModels] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
+  const attachments = useComposerAttachments("new-chat");
+  const voice = useVoiceInput("new-chat", !isCreating && !attachments.isPicking, setDraft);
+  const [interactionMode, setInteractionMode] = useState<GraftInteractionMode>("default");
+  const [selectedFastMode, setSelectedFastMode] = useState(false);
+  const sendInFlight = useRef(false);
+  const createdThread = useRef<{ key: string; thread: GraftThreadSummary } | undefined>(undefined);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? projects[0],
@@ -106,7 +116,8 @@ export function NewChatScreen({
     currentApproval !== currentModel.defaultApprovalPolicy,
   );
   const canUseWorktree = selectedProject?.kind === "repo";
-  const canSend = Boolean(draft.trim() && selectedProject && isConnected && !isCreating);
+  const fastMode = Boolean(currentModel?.supportsFastMode && selectedFastMode);
+  const canSend = Boolean((draft.trim() || attachments.attachments.length) && selectedProject && isConnected && !isCreating && !attachments.isPicking && !voice.isActive);
 
   useEffect(() => {
     void onLoadModels();
@@ -121,19 +132,43 @@ export function NewChatScreen({
     if (!canUseWorktree) setMode("local");
   }, [canUseWorktree]);
 
-  async function send() {
-    const text = draft.trim();
-    if (!text || !selectedProject || isCreating) return;
+  async function send(message = draft, fromDictation = false) {
+    const text = message.trim();
+    if ((!text && !attachments.attachments.length) || !selectedProject || !isConnected || sendInFlight.current || attachments.isPicking || (voice.isActive && !fromDictation)) return;
+    sendInFlight.current = true;
     setIsCreating(true);
-    const sent = await onCreate({
-      projectId: selectedProject.id,
-      text,
-      mode,
-      model: currentModel,
-      effort: resolvedEffort,
-      approvalPolicy: currentApproval,
-    });
-    if (!sent) setIsCreating(false);
+    const releaseAttachments = attachments.retainForSend();
+    const key = JSON.stringify([selectedProject.id, mode, currentModel?.providerId, currentModel?.id, currentApproval]);
+    try {
+      const result = await onCreate({
+        projectId: selectedProject.id,
+        text,
+        mode,
+        model: currentModel,
+        effort: resolvedEffort,
+        approvalPolicy: currentApproval,
+        ...(createdThread.current?.key === key ? { existingThread: createdThread.current.thread } : {}),
+        composer: {
+          attachments: attachments.attachments,
+          ...(composerFeatures?.interactionModes ? { interactionMode } : {}),
+          ...(composerFeatures?.fastMode ? { fastMode } : {}),
+        },
+      });
+      if (result.thread) createdThread.current = { key, thread: result.thread };
+      if (result.sent) {
+        attachments.remove(attachments.attachments.map((attachment) => attachment.id));
+        setDraft("");
+      }
+    } finally {
+      releaseAttachments();
+      sendInFlight.current = false;
+      setIsCreating(false);
+    }
+  }
+
+  async function sendDictation() {
+    const text = await voice.stop();
+    if (text) await send(text, true);
   }
 
   return (
@@ -142,7 +177,12 @@ export function NewChatScreen({
       style={[styles.flex, { backgroundColor: palette.background }]}
     >
       <View style={styles.flex}>
-        <View style={styles.hero}>
+        <ScrollView
+          contentContainerStyle={styles.heroContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={[styles.hero, { top: insets.top + 84, bottom: bottomChromeHeight + 12 }]}
+        >
           <Text style={[styles.heroTitle, { color: palette.foreground }]}>Let&apos;s work on</Text>
           <PressScale accessibilityLabel="Choose project" onPress={() => setShowProjects(true)}>
             <View style={styles.projectTrigger}>
@@ -189,10 +229,11 @@ export function NewChatScreen({
               );
             })}
           </View>
-        </View>
+        </ScrollView>
 
         <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 84 }]} />
-        <View style={[styles.topBar, { paddingTop: insets.top }]}>
+        {/* Preserve the original row's 14 dp centering around its 44 dp controls. */}
+        <View style={[styles.topBar, { top: headerTop - 14 }]}>
           <CircleIconButton
             accessibilityLabel="Back to projects"
             icon="chevron-back"
@@ -222,6 +263,7 @@ export function NewChatScreen({
 
         <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 116 }]} />
         <View
+          onLayout={({ nativeEvent }) => setBottomChromeHeight(nativeEvent.layout.height)}
           style={[
             styles.bottomChrome,
             {
@@ -229,7 +271,13 @@ export function NewChatScreen({
             },
           ]}
         >
+          {error ? <Text style={{ color: palette.danger, fontSize: 12, padding: 8 }}>{error}</Text> : null}
           <Composer
+            voice={voice}
+            onSendDictation={() => { void sendDictation(); }}
+            attachments={attachments.attachments}
+            attachmentError={attachments.error}
+            onRemoveAttachment={(id) => attachments.remove([id])}
             activeRunId={undefined}
             approvalIsElevated={approvalIsElevated}
             availableModels={availableModels}
@@ -245,9 +293,36 @@ export function NewChatScreen({
             isSending={isCreating}
             onCancel={() => undefined}
             onDraftChange={setDraft}
-            onOpenActions={() => setShowActions(true)}
-            onOpenApproval={() => setShowApproval(true)}
-            onOpenModel={() => setShowIntelligence(true)}
+            menuConfig={{
+              extras: {
+                attachmentsEnabled: composerFeatures?.attachments === true,
+                modesEnabled: composerFeatures?.interactionModes === true,
+                fastModeEnabled: composerFeatures?.fastMode === true,
+                interactionMode,
+                fastMode,
+                busy: isCreating || attachments.isPicking || voice.isActive,
+                onAttach: (source) => { void attachments.pick(source); },
+                onSelectMode: setInteractionMode,
+                onSelectFastMode: setSelectedFastMode,
+              },
+              currentApproval,
+              approvalOptions,
+              currentModel,
+              models: availableModels,
+              efforts,
+              resolvedEffort,
+              enabled: isConnected && !isCreating,
+              onSelectApproval: (policy) => {
+                setSelectedApproval(policy);
+                return true;
+              },
+              onSelectModel: (model) => {
+                setSelectedModelId(model.id);
+                setSelectedProviderId(model.providerId);
+                return true;
+              },
+              onSelectEffort: setSelectedEffort,
+            }}
             onSend={() => void send()}
             resolvedEffort={resolvedEffort}
           />
@@ -282,48 +357,6 @@ export function NewChatScreen({
           ))}
         </ScrollView>
       </BottomSheet>
-
-      <ComposerActionsSheet
-        hasApprovalOptions={approvalOptions.length > 0}
-        onClose={() => setShowActions(false)}
-        onOpenApproval={() => setShowApproval(true)}
-        onOpenModel={() => setShowIntelligence(true)}
-        visible={showActions}
-      />
-      <ApprovalPickerSheet
-        currentApproval={currentApproval}
-        onClose={() => setShowApproval(false)}
-        onSelect={setSelectedApproval}
-        options={approvalOptions}
-        visible={showApproval}
-      />
-      <ComposerConfigMenu
-        currentModel={currentModel}
-        efforts={efforts}
-        onClose={() => setShowIntelligence(false)}
-        onOpenModel={() => {
-          setShowIntelligence(false);
-          setShowModels(true);
-        }}
-        onSelectEffort={setSelectedEffort}
-        onSpeedPress={() => Alert.alert("Speed", "Normal is currently the supported host speed.")}
-        resolvedEffort={resolvedEffort}
-        visible={showIntelligence}
-      />
-      <ModelPickerSheet
-        currentModel={currentModel}
-        efforts={efforts}
-        models={availableModels}
-        onClose={() => setShowModels(false)}
-        onSelectEffort={setSelectedEffort}
-        onSelectModel={(modelOption) => {
-          setSelectedModelId(modelOption.id);
-          setSelectedProviderId(modelOption.providerId);
-          setShowModels(false);
-        }}
-        resolvedEffort={resolvedEffort}
-        visible={showModels}
-      />
     </KeyboardAvoidingView>
   );
 }
@@ -351,13 +384,11 @@ const styles = StyleSheet.create({
   headerContext: { alignItems: "center", flexDirection: "row", gap: 4 },
   headerContextText: { flexShrink: 1, fontSize: 11 },
   hero: {
-    alignItems: "center",
     left: 20,
     position: "absolute",
     right: 20,
-    top: "48%",
-    transform: [{ translateY: -66 }],
   },
+  heroContent: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   heroTitle: { fontSize: 19, fontWeight: "700", marginBottom: 14 },
   projectTrigger: {
     alignItems: "center",

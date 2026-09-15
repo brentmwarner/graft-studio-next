@@ -1,3 +1,4 @@
+import { assertNeverMobile } from "@graft/mobile-contract";
 import type {
   GraftApprovalPolicyOption,
   GraftApprovalRequest,
@@ -33,6 +34,8 @@ import {
   type ProviderModelDescriptor,
   type RuntimeMode,
 } from "@synara/contracts";
+
+import { toMobileContextUsage } from "./usage";
 
 export const MOBILE_PROVIDER_ORDER = [
   "codex",
@@ -132,6 +135,19 @@ function toMobilePr(thread: OrchestrationThreadShell): GraftThreadSummary["pr"] 
   };
 }
 
+export function mobileThreadProviderLocked(thread: OrchestrationThreadShell): boolean {
+  return Boolean(thread.latestTurn || thread.session || thread.latestUserMessageAt);
+}
+
+export function mobileThreadProvider(thread: OrchestrationThreadShell): ProviderKind {
+  // The session is authoritative if an older client changed only the thread's
+  // model metadata. That must not move an established chat to another provider.
+  return (
+    MOBILE_PROVIDER_ORDER.find((provider) => provider === thread.session?.providerName) ??
+    thread.modelSelection.provider
+  );
+}
+
 export function toMobileThread(thread: OrchestrationThreadShell): GraftThreadSummary {
   const pullRequest = toMobilePr(thread);
   return {
@@ -141,8 +157,11 @@ export function toMobileThread(thread: OrchestrationThreadShell): GraftThreadSum
     updatedAt: timestamp(thread.updatedAt),
     status: toMobileThreadStatus(thread),
     modelName: thread.modelSelection.model,
-    providerId: thread.modelSelection.provider,
+    providerId: mobileThreadProvider(thread),
+    providerLocked: mobileThreadProviderLocked(thread),
     mode: thread.envMode,
+    interactionMode: thread.interactionMode,
+    fastMode: mobileFastMode(thread.modelSelection),
     approvalPolicy: thread.runtimeMode,
     approvalPolicyOptions: [...MOBILE_APPROVAL_POLICY_OPTIONS],
     ...(pullRequest ? { pr: pullRequest } : {}),
@@ -164,6 +183,8 @@ function toMobileRunStatus(
       return "completed";
     case "error":
       return "failed";
+    default:
+      return assertNeverMobile(state);
   }
 }
 
@@ -397,6 +418,10 @@ export function toMobileTranscript(
       ...(message.turnId ? { runId: message.turnId } : {}),
       createdAt: timestamp(message.createdAt),
       text: message.text,
+      ...(message.attachments?.length ? {
+        attachments: message.attachments.filter((attachment) =>
+          attachment.type === "image" || attachment.type === "file"),
+      } : {}),
     };
   });
   const activityEvents = thread.activities.map((activity) =>
@@ -434,6 +459,7 @@ export function toMobileEnvironmentSummary(
     hostVersion: descriptor.serverVersion,
     protocolVersion: 1,
     capabilities,
+    composerFeatures: { attachments: true, interactionModes: true, fastMode: true },
     cursor,
   };
 }
@@ -453,7 +479,11 @@ export function toMobileSnapshot(input: {
   return {
     environment: toMobileEnvironmentSummary(input.descriptor, input.cursor, input.capabilities),
     projects: input.projects.map(toMobileProject),
-    threads: input.threads.map(toMobileThread),
+    threads: input.threads.map((thread) => {
+      const detail = input.details.find((candidate) => candidate.id === thread.id);
+      const contextUsage = detail ? toMobileContextUsage(detail.activities) : undefined;
+      return { ...toMobileThread(thread), ...(contextUsage ? { contextUsage } : {}) };
+    }),
     activeRuns: input.threads
       .map(toMobileRun)
       .filter(
@@ -471,6 +501,7 @@ interface StaticModelDefinition {
   readonly slug: string;
   readonly name: string;
   readonly capabilities: {
+    readonly supportsFastMode?: boolean;
     readonly reasoningEffortLevels: ReadonlyArray<{ readonly value: string }>;
   };
 }
@@ -501,6 +532,7 @@ export function toMobileModels(input: {
       merged.set(model.slug, {
         id: model.slug,
         label: model.name,
+        supportsFastMode: model.capabilities.supportsFastMode ?? false,
         providerId: provider,
         providerLabel: PROVIDER_DISPLAY_NAMES[provider],
         ...(provider !== "pi" && DEFAULT_MODEL_BY_PROVIDER[provider] === model.slug
@@ -517,6 +549,7 @@ export function toMobileModels(input: {
       merged.set(model.slug, {
         id: model.slug,
         label: model.name,
+        supportsFastMode: model.supportsFastMode ?? previous?.supportsFastMode ?? false,
         providerId: provider,
         providerLabel: PROVIDER_DISPLAY_NAMES[provider],
         ...(provider !== "pi" && DEFAULT_MODEL_BY_PROVIDER[provider] === model.slug
@@ -588,5 +621,31 @@ export function withMobileEffort(
             },
           }
         : selection;
+    default:
+      return assertNeverMobile(selection);
+  }
+}
+
+export function mobileFastMode(selection: ModelSelection): boolean {
+  const options = selection.options;
+  return options !== undefined && "fastMode" in options && options.fastMode === true;
+}
+
+export function withMobileFastMode(selection: ModelSelection, fastMode: boolean | undefined): ModelSelection {
+  if (fastMode === undefined) return selection;
+  switch (selection.provider) {
+    case "codex":
+    case "claudeAgent":
+    case "cursor":
+    case "devin":
+      return { ...selection, options: { ...selection.options, fastMode } };
+    case "antigravity":
+    case "grok":
+    case "droid":
+    case "opencode":
+    case "pi":
+      return selection;
+    default:
+      return assertNeverMobile(selection);
   }
 }

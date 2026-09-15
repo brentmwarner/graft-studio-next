@@ -1,42 +1,112 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  advanceToWordBoundary,
-  initialStreamingRevealContent,
-  nextStreamingRevealLength,
-} from "./streamingReveal";
+import { StreamingMarkdownMessage } from "./StreamingMarkdownMessage";
 
-describe("streaming reveal", () => {
-  it("lands a reveal commit on a word boundary", () => {
-    expect(advanceToWordBoundary("Hello streaming world", 8)).toBe(15);
-    expect("Hello streaming world".slice(0, 15)).toBe("Hello streaming");
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => motion.reduced }));
+vi.mock("../../components/MarkdownMessage", () => ({ MarkdownMessage: "Markdown" }));
+
+let renderer: ReactTestRenderer | undefined;
+const frame = (content: string, streaming = true) =>
+  createElement(StreamingMarkdownMessage, { content, streaming });
+const isType = (node: { type: unknown }, name: string) => node.type === name;
+const visible = () => renderer!.root.find((node) => isType(node, "Markdown")).props.children;
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  motion.reduced = false;
+});
+afterEach(async () => {
+  if (renderer) await act(() => renderer!.unmount());
+  renderer = undefined;
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe("streaming text delivery", () => {
+  it("preserves received text immediately when mounting or remounting", async () => {
+    await act(() => {
+      renderer = create(frame("Already received"));
+    });
+    expect(visible()).toBe("Already received");
+    await act(() => renderer!.unmount());
+    await act(() => {
+      renderer = create(frame("Already received and continued"));
+    });
+    expect(visible()).toBe("Already received and continued");
   });
 
-  it("finishes a short unbroken tail instead of stalling", () => {
-    expect(advanceToWordBoundary("hello", 2)).toBe(5);
+  it("renders a large received batch in full within 32ms", async () => {
+    await act(() => {
+      renderer = create(frame("Start"));
+    });
+    const target = `Start ${"received text 😀 ".repeat(500)}`;
+    await act(() => renderer!.update(frame(target)));
+    await act(() => {
+      vi.advanceTimersByTime(32);
+    });
+    expect(visible()).toBe(target);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("hard-cuts a pathological token after the bounded lookahead", () => {
-    const text = "x".repeat(100);
-    expect(advanceToWordBoundary(text, 10)).toBe(10);
+  it("does not postpone the commit when more tokens arrive", async () => {
+    await act(() => {
+      renderer = create(frame("A"));
+    });
+    await act(() => renderer!.update(frame("A B")));
+    await act(() => {
+      vi.advanceTimersByTime(16);
+    });
+    await act(() => renderer!.update(frame("A B C")));
+    expect(visible()).toBe("A");
+    await act(() => {
+      vi.advanceTimersByTime(16);
+    });
+    expect(visible()).toBe("A B C");
   });
 
-  it("accelerates when a sparse provider snapshot creates a backlog", () => {
-    const text = `${"word ".repeat(100)}done`;
-    const quietStep = nextStreamingRevealLength(text.slice(0, 80), 0, 40);
-    const backlogStep = nextStreamingRevealLength(text, 0, 40);
-    expect(backlogStep).toBeGreaterThan(quietStep);
+  it("flushes the final response immediately and cancels pending work", async () => {
+    await act(() => {
+      renderer = create(frame("A"));
+    });
+    await act(() => renderer!.update(frame("A B")));
+    await act(() => renderer!.update(frame("A B C", false)));
+    expect(visible()).toBe("A B C");
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("never advances beyond the cumulative target", () => {
-    expect(nextStreamingRevealLength("Done", 3, 200)).toBe(4);
-    expect(nextStreamingRevealLength("Done", 4, 200)).toBe(4);
+  it("replaces corrected text immediately without replaying the old tail", async () => {
+    await act(() => {
+      renderer = create(frame("Original"));
+    });
+    await act(() => renderer!.update(frame("Original pending")));
+    await act(() => renderer!.update(frame("Corrected")));
+    expect(visible()).toBe("Corrected");
+    await act(() => {
+      vi.advanceTimersByTime(32);
+    });
+    expect(visible()).toBe("Corrected");
   });
 
-  it("starts an animatable active stream empty so its first snapshot is revealed", () => {
-    expect(initialStreamingRevealContent("First provider snapshot", true, false)).toBe("");
-    expect(initialStreamingRevealContent("Settled", false, false)).toBe("Settled");
-    expect(initialStreamingRevealContent("Accessible", true, true)).toBe("Accessible");
-    expect(initialStreamingRevealContent("x".repeat(20_001), true, false)).toHaveLength(20_001);
+  it("shows all received text immediately with reduced motion", async () => {
+    motion.reduced = true;
+    await act(() => {
+      renderer = create(frame("A"));
+    });
+    await act(() => renderer!.update(frame("A B C")));
+    expect(visible()).toBe("A B C");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cancels the pending commit when the row unmounts", async () => {
+    await act(() => {
+      renderer = create(frame("A"));
+    });
+    await act(() => renderer!.update(frame("A B")));
+    await act(() => renderer!.unmount());
+    renderer = undefined;
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

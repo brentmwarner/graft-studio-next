@@ -31,6 +31,8 @@ export interface GraftPalette {
   /// bad — and are the one place green is intentional.
   readonly diffAddBackground: string;
   readonly diffRemoveBackground: string;
+  readonly diffAddEmphasis: string;
+  readonly diffRemoveEmphasis: string;
 }
 
 const light: GraftPalette = {
@@ -56,6 +58,8 @@ const light: GraftPalette = {
   danger: "#B42318",
   diffAddBackground: "rgba(31, 122, 77, 0.10)",
   diffRemoveBackground: "rgba(180, 35, 24, 0.10)",
+  diffAddEmphasis: "rgba(31, 122, 77, 0.18)",
+  diffRemoveEmphasis: "rgba(180, 35, 24, 0.18)",
 };
 
 const dark: GraftPalette = {
@@ -81,6 +85,8 @@ const dark: GraftPalette = {
   danger: "#E37070",
   diffAddBackground: "rgba(94, 230, 163, 0.12)",
   diffRemoveBackground: "rgba(227, 112, 112, 0.12)",
+  diffAddEmphasis: "rgba(94, 230, 163, 0.24)",
+  diffRemoveEmphasis: "rgba(227, 112, 112, 0.24)",
 };
 
 export const graftSpacing = {

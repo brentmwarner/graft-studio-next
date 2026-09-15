@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   DEFAULT_MOBILE_CAPABILITIES,
+  assertNeverMobile,
   type GraftCommandId,
   type GraftEnvironmentSnapshot,
   type GraftMobileCommand,
@@ -9,6 +10,7 @@ import {
   type GraftMobileHostMessage,
   type GraftRemoteErrorCode,
   type GraftRunSummary,
+  type GraftThreadUsage,
 } from "@graft/mobile-contract";
 import {
   CommandId,
@@ -26,16 +28,19 @@ import {
 import { autoRuntimeModeSelectionIssue } from "@synara/shared/runtimeMode";
 import { Data, Effect, Option } from "effect";
 
+import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
-import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
+import { OrchestrationEngineService, type OrchestrationDispatchContext } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
 import { ProviderDiscoveryService } from "../provider/Services/ProviderDiscoveryService";
+import { listProviderUsage } from "../providerUsage";
 import { ServerSettingsService } from "../serverSettings";
 import {
   MOBILE_PROVIDER_ORDER,
   defaultModelForProvider,
-  toMobileDiff,
+  mobileThreadProvider,
+  mobileThreadProviderLocked,
   toMobileModels,
   toMobilePendingApprovals,
   toMobilePendingQuestions,
@@ -46,7 +51,10 @@ import {
   toMobileThread,
   toMobileTranscript,
   withMobileEffort,
+  withMobileFastMode,
 } from "./protocolAdapter";
+import { loadMobileDiff } from "./diff";
+import { toMobileAllowance, toMobileContextUsage } from "./usage";
 
 const PROJECTION_WAIT_MS = 5_000;
 const PROJECTION_POLL_MS = 25;
@@ -173,6 +181,8 @@ function modelSelection(provider: ProviderKind, model: string): ModelSelection {
       return { provider, model };
     case "pi":
       return { provider, model };
+    default:
+      return assertNeverMobile(provider);
   }
 }
 
@@ -235,6 +245,8 @@ function providerDiscoveryInput(
     case "droid":
     case "opencode":
       return { provider, cwd, ...(binaryPath ? { binaryPath } : {}) };
+    default:
+      return assertNeverMobile(provider);
   }
 }
 
@@ -315,6 +327,24 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
     return yield* fail("not_found", "Thread not found.");
   }
   return detail.value;
+});
+
+export const loadMobileUsage = Effect.fn(function* (threadId: string) {
+  const { thread } = yield* loadThreadDetail(threadId);
+  const providerId = thread.modelSelection.provider;
+  const snapshots = yield* listProviderUsage({ provider: providerId }).pipe(
+    Effect.catch(() => Effect.succeed([])),
+  );
+  const contextUsage = toMobileContextUsage(thread.activities);
+  const usage: GraftThreadUsage = {
+    threadId,
+    ...(contextUsage ? { contextUsage } : {}),
+    allowance: toMobileAllowance(
+      providerId,
+      snapshots.find((item) => item.provider === providerId),
+    ),
+  };
+  return usage;
 });
 
 const waitForThreadShell = Effect.fn(function* (threadId: string, minimumSequence: number) {
@@ -408,9 +438,11 @@ export const executeMobileCommand = Effect.fn(function* (
   state: GraftMobileGatewayState,
   commandIdRaw: GraftCommandId,
   command: GraftMobileCommand,
+  context?: OrchestrationDispatchContext,
 ): Effect.fn.Return<
   GraftMobileCommandResult,
   unknown,
+  | CheckpointDiffQuery
   | OrchestrationEngineService
   | ProjectionSnapshotQuery
   | ProviderDiscoveryService
@@ -478,11 +510,18 @@ export const executeMobileCommand = Effect.fn(function* (
     case "thread.set_model": {
       const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
       if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+      const currentProvider = mobileThreadProvider(current.value);
       const selection = yield* resolveSelection({
-        ...(command.providerId ? { providerId: command.providerId } : {}),
+        providerId: command.providerId ?? currentProvider,
         modelId: command.modelId,
         fallback: current.value.modelSelection,
       });
+      if (mobileThreadProviderLocked(current.value) && selection.provider !== currentProvider) {
+        return yield* fail(
+          "conflict",
+          "This chat's provider is locked. Choose a model from the same provider or start a new chat.",
+        );
+      }
       if (
         autoRuntimeModeSelectionIssue({
           runtimeMode: current.value.runtimeMode,
@@ -536,14 +575,16 @@ export const executeMobileCommand = Effect.fn(function* (
           messageId: MessageId.makeUnsafe(randomUUID()),
           role: "user",
           text: command.text,
-          attachments: [],
+          attachments: command.attachments ?? [],
         },
-        modelSelection: withMobileEffort(current.value.modelSelection, command.effort),
+        modelSelection: withMobileFastMode(
+          withMobileEffort(current.value.modelSelection, command.effort), command.fastMode,
+        ),
         runtimeMode: current.value.runtimeMode,
-        interactionMode: current.value.interactionMode,
+        interactionMode: command.interactionMode ?? current.value.interactionMode,
         assistantDeliveryMode: "streaming",
         createdAt,
-      });
+      }, context);
       const projectedRun = yield* waitForActiveRun(command.threadId, result.sequence);
       const run: GraftRunSummary = projectedRun ?? {
         id: commandIdRaw,
@@ -653,7 +694,11 @@ export const executeMobileCommand = Effect.fn(function* (
       const detail = yield* loadThreadDetail(command.diffId);
       return {
         type: "diff.get.result",
-        diff: toMobileDiff(command.diffId, detail.thread.checkpoints.at(-1)),
+        diff: yield* loadMobileDiff(
+          command.diffId,
+          detail.thread.checkpoints.at(-1),
+          command.filePath,
+        ),
       };
     }
     case "cursor.replay": {
@@ -676,5 +721,7 @@ export const executeMobileCommand = Effect.fn(function* (
         type: "snapshot.get.result",
         snapshot: yield* loadMobileSnapshot(command.threadId),
       };
+    default:
+      return assertNeverMobile(command);
   }
 });

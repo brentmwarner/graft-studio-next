@@ -37,7 +37,13 @@ async function assertNoSynaraContractImports(root, label) {
   const violations = [];
   for (const path of await sourceFiles(root)) {
     const contents = await readFile(path, "utf8");
-    if (contents.includes("@synara/contracts") || contents.includes("@synara/shared")) {
+    // Shared disclosure timing is UI-only; mobile still cannot import host
+    // contracts or other shared runtime modules outside the versioned protocol.
+    const protocolImports = contents.replaceAll(
+      /["']@synara\/shared\/disclosureMotion["']/gu,
+      '""',
+    );
+    if (protocolImports.includes("@synara/contracts") || protocolImports.includes("@synara/shared")) {
       violations.push(path.slice(repositoryRoot.length + 1));
     }
   }
