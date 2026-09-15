@@ -6,11 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_GRAFT_HOME_DIRECTORY_NAME,
   GRAFT_HOME_ENV_NAME,
-  LEGACY_HOME_DIRECTORY_NAME,
   expandHomePath,
   isAppHomeDirectoryName,
-  legacyHomeDirectoryName,
-  preferExistingPath,
   resolveGraftHomeDirectory,
 } from "./graftHome";
 
@@ -39,48 +36,17 @@ describe("expandHomePath", () => {
 });
 
 describe("isAppHomeDirectoryName", () => {
-  it("recognizes Graft homes and leftover upstream homes, including flavor suffixes", () => {
+  it("recognizes Graft homes, including flavor suffixes", () => {
     expect(isAppHomeDirectoryName(".graft")).toBe(true);
-    expect(isAppHomeDirectoryName(".synara")).toBe(true);
     expect(isAppHomeDirectoryName(".graft-dev")).toBe(true);
-    expect(isAppHomeDirectoryName(".synara-canary")).toBe(true);
+    expect(isAppHomeDirectoryName(".graft-canary")).toBe(true);
     expect(isAppHomeDirectoryName(".cursor")).toBe(false);
     expect(isAppHomeDirectoryName("graft")).toBe(false);
   });
-});
 
-describe("legacyHomeDirectoryName", () => {
-  it("maps Graft-branded home names back to leftover upstream names", () => {
-    expect(legacyHomeDirectoryName(".graft")).toBe(".synara");
-    expect(legacyHomeDirectoryName(".graft-dev")).toBe(".synara-dev");
-    expect(legacyHomeDirectoryName(".graft-canary")).toBe(".synara-canary");
-    expect(legacyHomeDirectoryName(".custom")).toBe(".custom");
-  });
-});
-
-describe("preferExistingPath", () => {
-  it("keeps the Graft path when neither root exists yet", () => {
-    const root = makeTempDir();
-    const preferred = Path.join(root, "graft");
-    const legacy = Path.join(root, "synara");
-    expect(preferExistingPath(preferred, legacy)).toBe(preferred);
-  });
-
-  it("reuses an existing leftover root when the Graft root is absent", () => {
-    const root = makeTempDir();
-    const preferred = Path.join(root, "graft");
-    const legacy = Path.join(root, "synara");
-    FS.mkdirSync(legacy);
-    expect(preferExistingPath(preferred, legacy)).toBe(legacy);
-  });
-
-  it("does not rewrite an existing Graft root even when a leftover root remains", () => {
-    const root = makeTempDir();
-    const preferred = Path.join(root, "graft");
-    const legacy = Path.join(root, "synara");
-    FS.mkdirSync(preferred);
-    FS.mkdirSync(legacy);
-    expect(preferExistingPath(preferred, legacy)).toBe(preferred);
+  it("does not treat leftover upstream homes as Graft-owned", () => {
+    expect(isAppHomeDirectoryName(".synara")).toBe(false);
+    expect(isAppHomeDirectoryName(".synara-canary")).toBe(false);
   });
 });
 
@@ -88,7 +54,6 @@ describe("resolveGraftHomeDirectory", () => {
   it("defaults new installs to ~/.graft", () => {
     expect(GRAFT_HOME_ENV_NAME).toBe("GRAFT_HOME");
     expect(DEFAULT_GRAFT_HOME_DIRECTORY_NAME).toBe(".graft");
-    expect(LEGACY_HOME_DIRECTORY_NAME).toBe(".synara");
     expect(resolveGraftHomeDirectory({ env: {}, homeDirectory: "/users/tester" })).toBe(
       Path.join("/users/tester", ".graft"),
     );

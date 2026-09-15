@@ -45,7 +45,7 @@ describe("storageOriginMigration", () => {
     expect(globalThis.localStorage.getItem("graft:composer-drafts:v1")).toBe("draft");
   });
 
-  it("rewrites leftover snapshot keys onto the Graft storage prefix", async () => {
+  it("rejects leftover snapshot keys instead of rewriting them onto Graft storage", async () => {
     const { importGraftStorageSnapshot } = await import("./storageOriginMigration");
     expect(
       importGraftStorageSnapshot({
@@ -56,9 +56,9 @@ describe("storageOriginMigration", () => {
           "synara:composer-drafts:v1": "draft",
         },
       }),
-    ).toBe(true);
-    expect(globalThis.localStorage.getItem("graft:theme")).toBe("dark");
-    expect(globalThis.localStorage.getItem("graft:composer-drafts:v1")).toBe("draft");
+    ).toBe(false);
+    expect(globalThis.localStorage.getItem("graft:theme")).toBeNull();
+    expect(globalThis.localStorage.getItem("graft:composer-drafts:v1")).toBeNull();
     expect(globalThis.localStorage.getItem("synara:theme")).toBeNull();
   });
 

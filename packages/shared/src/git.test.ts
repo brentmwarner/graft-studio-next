@@ -19,11 +19,6 @@ describe("isTemporaryWorktreeBranch", () => {
     expect(isTemporaryWorktreeBranch(buildTemporaryWorktreeBranchName())).toBe(true);
   });
 
-  it("matches leftover temporary worktree branches from the previous namespace", () => {
-    expect(isTemporaryWorktreeBranch("synara/deadbeef")).toBe(true);
-    expect(isTemporaryWorktreeBranch(" synara/DEADBEEF ")).toBe(true);
-  });
-
   it("keeps recognizing only exact pre-cutover temporary namespaces", () => {
     for (const namespace of PRE_CUTOVER_NAMESPACE_FIXTURES) {
       expect(isTemporaryWorktreeBranch(`${namespace}/deadbeef`)).toBe(true);
@@ -81,10 +76,7 @@ describe("buildGraftBranchName", () => {
     );
   });
 
-  it("normalizes leftover and pre-cutover prefixes before rebuilding the branch", () => {
-    expect(buildGraftBranchName("synara/refine toolbar actions")).toBe(
-      "graft/refine-toolbar-actions",
-    );
+  it("normalizes pre-cutover prefixes before rebuilding the branch", () => {
     for (const namespace of PRE_CUTOVER_NAMESPACE_FIXTURES) {
       expect(buildGraftBranchName(`${namespace}/refine toolbar actions`)).toBe(
         "graft/refine-toolbar-actions",

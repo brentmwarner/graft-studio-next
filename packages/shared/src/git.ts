@@ -3,7 +3,6 @@
  * Strips quotes, collapses separators, limits to 64 chars.
  */
 export const WORKTREE_BRANCH_PREFIX = "graft";
-const LEGACY_WORKTREE_BRANCH_PREFIX = "synara";
 const TEMP_WORKTREE_BRANCH_PATTERN = /^([a-z0-9][a-z0-9-]*)\/[0-9a-f]{8}$/;
 // Exact 64-bit namespace fingerprints preserve pre-cutover worktrees without
 // retaining retired first-party names in source or matching arbitrary namespaces.
@@ -96,7 +95,6 @@ export function buildGraftBranchName(preferredBranch?: string | null): string {
   const normalizedExisting =
     existingNamespace === "codex" ||
     existingNamespace === WORKTREE_BRANCH_PREFIX ||
-    existingNamespace === LEGACY_WORKTREE_BRANCH_PREFIX ||
     isPreCutoverWorktreeNamespace(existingNamespace)
       ? preferred.slice(separatorIndex + 1)
       : preferred;
@@ -118,9 +116,7 @@ export function isTemporaryWorktreeBranch(branch: string): boolean {
   const namespace = match?.[1];
   return (
     namespace !== undefined &&
-    (namespace === WORKTREE_BRANCH_PREFIX ||
-      namespace === LEGACY_WORKTREE_BRANCH_PREFIX ||
-      isPreCutoverWorktreeNamespace(namespace))
+    (namespace === WORKTREE_BRANCH_PREFIX || isPreCutoverWorktreeNamespace(namespace))
   );
 }
 

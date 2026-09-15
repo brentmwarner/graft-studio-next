@@ -322,23 +322,11 @@ function extractGraftMcpToolName(normalizedCandidate: string): string | null {
   if (normalizedCandidate.startsWith("mcp_graft_")) {
     return `graft_${normalizedCandidate.slice("mcp_graft_".length)}`;
   }
-  if (normalizedCandidate.startsWith("mcp_synara_synara_")) {
-    return `graft_${normalizedCandidate.slice("mcp_synara_synara_".length)}`;
-  }
-  if (normalizedCandidate.startsWith("mcp_synara_")) {
-    return `graft_${normalizedCandidate.slice("mcp_synara_".length)}`;
-  }
   if (normalizedCandidate.startsWith("graft_graft_")) {
     return normalizedCandidate.slice("graft_".length);
   }
   if (normalizedCandidate.startsWith("graft_")) {
     return normalizedCandidate;
-  }
-  if (normalizedCandidate.startsWith("synara_synara_")) {
-    return `graft_${normalizedCandidate.slice("synara_synara_".length)}`;
-  }
-  if (normalizedCandidate.startsWith("synara_")) {
-    return `graft_${normalizedCandidate.slice("synara_".length)}`;
   }
   return null;
 }

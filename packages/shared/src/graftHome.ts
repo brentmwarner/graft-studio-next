@@ -4,13 +4,11 @@
 // Exports: expandHomePath, resolveGraftHomeDirectory, isAppHomeDirectoryName,
 //          GRAFT_HOME_ENV_NAME.
 
-import * as FS from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
 
 export const GRAFT_HOME_ENV_NAME = "GRAFT_HOME";
 export const DEFAULT_GRAFT_HOME_DIRECTORY_NAME = ".graft";
-export const LEGACY_HOME_DIRECTORY_NAME = ".synara";
 
 /** Expands a leading `~` against the user's home directory; other inputs pass through. */
 export function expandHomePath(input: string, homeDirectory: string = OS.homedir()): string {
@@ -23,37 +21,13 @@ export function expandHomePath(input: string, homeDirectory: string = OS.homedir
   return input;
 }
 
-/** True for `.graft`, `.synara`, and flavor suffixes (`.graft-dev`, `.synara-canary`). */
+/** True for `.graft` and flavor suffixes (`.graft-dev`, `.graft-canary`). */
 export function isAppHomeDirectoryName(directoryName: string): boolean {
   const normalized = directoryName.toLowerCase();
   return (
     normalized === DEFAULT_GRAFT_HOME_DIRECTORY_NAME ||
-    normalized === LEGACY_HOME_DIRECTORY_NAME ||
-    normalized.startsWith(`${DEFAULT_GRAFT_HOME_DIRECTORY_NAME}-`) ||
-    normalized.startsWith(`${LEGACY_HOME_DIRECTORY_NAME}-`)
+    normalized.startsWith(`${DEFAULT_GRAFT_HOME_DIRECTORY_NAME}-`)
   );
-}
-
-export function legacyHomeDirectoryName(directoryName: string): string {
-  if (directoryName === DEFAULT_GRAFT_HOME_DIRECTORY_NAME) {
-    return LEGACY_HOME_DIRECTORY_NAME;
-  }
-  if (directoryName.startsWith(`${DEFAULT_GRAFT_HOME_DIRECTORY_NAME}-`)) {
-    return `${LEGACY_HOME_DIRECTORY_NAME}${directoryName.slice(DEFAULT_GRAFT_HOME_DIRECTORY_NAME.length)}`;
-  }
-  return directoryName;
-}
-
-/**
- * Prefer the Graft path; keep reading an existing leftover root when the Graft
- * root has not been created yet. Does not move or delete either root.
- * Any existing Graft path wins, including an empty directory.
- */
-export function preferExistingPath(preferred: string, legacy: string): string {
-  if (FS.existsSync(preferred) || !FS.existsSync(legacy)) {
-    return preferred;
-  }
-  return legacy;
 }
 
 /**
@@ -64,8 +38,9 @@ export function preferExistingPath(preferred: string, legacy: string): string {
  * the same place whichever process wrote it first.
  *
  * `GRAFT_HOME` is the only override. When nothing is configured, new installs use
- * `~/.graft` (or a flavor-specific `.graft-*` name). Upstream leftover roots are never
- * selected implicitly: this product must not open or migrate another app's database.
+ * `~/.graft` (or a flavor-specific `.graft-*` name). Leftover roots from other
+ * products are never selected implicitly: this product must not open or migrate
+ * another app's database.
  */
 export function resolveGraftHomeDirectory(
   options: {

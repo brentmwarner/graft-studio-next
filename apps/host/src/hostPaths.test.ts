@@ -20,10 +20,10 @@ describe("resolveGraftHostPaths", () => {
     expect(resolveGraftHostPaths(dataRoot).graftHome).toBe(join(dataRoot, "graft"));
   });
 
-  it("keeps reading an existing leftover subdirectory instead of creating a new graft home", () => {
+  it("does not adopt an existing leftover subdirectory as the hosted app home", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "graft-host-paths-"));
     roots.push(dataRoot);
     mkdirSync(join(dataRoot, "synara"));
-    expect(resolveGraftHostPaths(dataRoot).graftHome).toBe(join(dataRoot, "synara"));
+    expect(resolveGraftHostPaths(dataRoot).graftHome).toBe(join(dataRoot, "graft"));
   });
 });

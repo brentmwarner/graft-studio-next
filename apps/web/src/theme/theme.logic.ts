@@ -294,9 +294,8 @@ export function getAvailableCodeThemes(variant: ThemeVariant): readonly CodeThem
 
 export function isCodeThemeAvailable(codeThemeId: string, variant: ThemeVariant): boolean {
   const normalizedCodeThemeId = codeThemeId.trim().toLowerCase();
-  const canonicalCodeThemeId = normalizedCodeThemeId === "synara" ? "graft" : normalizedCodeThemeId;
   return CODE_THEME_OPTIONS.some(
-    (option) => option.id === canonicalCodeThemeId && option.variants.includes(variant),
+    (option) => option.id === normalizedCodeThemeId && option.variants.includes(variant),
   );
 }
 
@@ -307,8 +306,7 @@ export function normalizeCodeThemeId(
 ): string {
   const normalizedCodeThemeId =
     typeof codeThemeId === "string" ? codeThemeId.trim().toLowerCase() : "";
-  const canonicalCodeThemeId = normalizedCodeThemeId === "synara" ? "graft" : normalizedCodeThemeId;
-  return isCodeThemeAvailable(canonicalCodeThemeId, variant) ? canonicalCodeThemeId : fallback;
+  return isCodeThemeAvailable(normalizedCodeThemeId, variant) ? normalizedCodeThemeId : fallback;
 }
 
 // ─── Theme normalization ──────────────────────────────────────────────────

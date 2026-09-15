@@ -8,36 +8,8 @@ const MAX_SNAPSHOT_KEY_LENGTH = 512;
 const MAX_SNAPSHOT_VALUE_LENGTH = 16 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024;
 
-function canonicalizeStorageKey(key: string): string {
-  if (key.startsWith("synara:")) return `graft:${key.slice("synara:".length)}`;
-  if (key.startsWith("synara.")) return `graft.${key.slice("synara.".length)}`;
-  return key;
-}
-
 function isImportableStorageKey(key: string): boolean {
-  return (
-    key.startsWith("graft:") ||
-    key.startsWith("graft.") ||
-    key.startsWith("synara:") ||
-    key.startsWith("synara.")
-  );
-}
-
-function migrateLegacyStorageKeys(storage: Storage): void {
-  const keys: string[] = [];
-  for (let index = 0; index < storage.length; index += 1) {
-    const key = storage.key(index);
-    if (key) keys.push(key);
-  }
-  for (const key of keys) {
-    const canonical = canonicalizeStorageKey(key);
-    if (canonical === key) continue;
-    if (storage.getItem(canonical) === null) {
-      const value = storage.getItem(key);
-      if (value !== null) storage.setItem(canonical, value);
-    }
-    storage.removeItem(key);
-  }
+  return key.startsWith("graft:") || key.startsWith("graft.");
 }
 
 function getLocalStorage(): Storage | null {
@@ -74,10 +46,8 @@ export function importGraftStorageSnapshot(
       }
     }
     for (const [key, value] of entries) {
-      const canonical = canonicalizeStorageKey(key);
-      if (storage.getItem(canonical) === null) storage.setItem(canonical, value);
+      if (storage.getItem(key) === null) storage.setItem(key, value);
     }
-    migrateLegacyStorageKeys(storage);
     return true;
   } catch {
     return false;
@@ -93,8 +63,6 @@ export function bootstrapGraftStorageOriginMigration(): void {
     if (snapshot && importGraftStorageSnapshot(snapshot)) {
       void bridge.acknowledgeSnapshot().catch(() => undefined);
     }
-    const storage = getLocalStorage();
-    if (storage) migrateLegacyStorageKeys(storage);
   } catch {
     // Keep the snapshot for a later retry if preload or storage is unavailable.
   }
