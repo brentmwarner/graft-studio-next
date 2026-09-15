@@ -14,7 +14,7 @@ import {
 } from "./desktopIdentity";
 
 describe("desktopIdentity", () => {
-  it("keeps every Graft profile separate from Graft and legacy Graft", () => {
+  it("keeps every Graft profile separate from leftover Synara and legacy Graft", () => {
     const profiles = (["production", "development", "canary"] as const).map((flavor) =>
       graftDesktopIdentity(flavor),
     );
@@ -25,9 +25,9 @@ describe("desktopIdentity", () => {
     ]);
     expect(new Set(profiles.map((identity) => identity.bundleId)).size).toBe(3);
     for (const identity of profiles) {
-      expect(identity.bundleId).not.toMatch(/^com\.emanueledipietro\.graft/);
+      expect(identity.bundleId).not.toMatch(/^com\.emanueledipietro\.synara/);
       expect(identity.bundleId).not.toBe("com.graft.studio");
-      expect(identity.scheme).not.toMatch(/^graft/);
+      expect(identity.scheme).not.toMatch(/^synara/);
     }
   });
 

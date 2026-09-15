@@ -27,8 +27,8 @@ function captureSourceDesktopSpawn(environment, overrides = {}) {
 }
 
 describe("source desktop launch", () => {
-  it("does not adopt an inherited Graft home as Graft's profile", () => {
-    const { spawnProcess } = captureSourceDesktopSpawn({ GRAFT_HOME: "/upstream/graft" });
+  it("does not adopt an inherited leftover Synara home as Graft's profile", () => {
+    const { spawnProcess } = captureSourceDesktopSpawn({ SYNARA_HOME: "/upstream/synara" });
     expect(spawnProcess.mock.calls[0][2].env.GRAFT_HOME).toBe(join("/Users/tester", ".graft-dev"));
   });
 
