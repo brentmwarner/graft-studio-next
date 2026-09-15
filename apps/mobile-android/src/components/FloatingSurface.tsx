@@ -55,9 +55,11 @@ export function FloatingSurface({
 }
 
 const styles = StyleSheet.create({
+  /// Do not set `overflow: "hidden"` on GlassView — that composites the
+  /// material into a flat slab, the same failure as wrapping native
+  /// `GlassSurface` in `compositingGroup()`.
   glass: {
     borderRadius: graftRadius.pill,
-    overflow: "hidden",
   },
   surface: {
     borderRadius: graftRadius.pill,

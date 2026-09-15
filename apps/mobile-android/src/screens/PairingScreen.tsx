@@ -13,13 +13,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { AccountAuth } from "../auth/useAccountAuth";
-import { BottomSheet } from "../components/BottomSheet";
+import { CircleIconButton } from "../components/CircleIconButton";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { GlassActionPill } from "../components/GlassActionPill";
 import { PressScale } from "../components/PressScale";
 import { Wordmark } from "../components/Wordmark";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
 import { IosWelcomePairing } from "./IosWelcomePairing";
+import { iosPairingSurfaceAfter, type IosPairingSurface } from "./iosPairingFlow";
 import { QrScanner } from "./QrScanner";
 
 interface PairingScreenProps {
@@ -37,11 +38,10 @@ export function PairingScreen({
   isPairing,
   onPair,
 }: PairingScreenProps) {
-  const palette = useGraftPalette();
   const [input, setInput] = useState(initialInput ?? "");
   const [isScanning, setIsScanning] = useState(false);
-  const [showPairing, setShowPairing] = useState(
-    Boolean(initialInput) && (Platform.OS !== "ios" || Boolean(account?.isSignedIn)),
+  const [iosSurface, setIosSurface] = useState<IosPairingSurface>(() =>
+    account?.isSignedIn && initialInput ? "paste" : "welcome",
   );
   const isIos = Platform.OS === "ios";
 
@@ -50,7 +50,9 @@ export function PairingScreen({
   }, [initialInput]);
 
   useEffect(() => {
-    if (isIos && account?.isSignedIn && initialInput) setShowPairing(true);
+    if (isIos && account?.isSignedIn && initialInput) {
+      setIosSurface(iosPairingSurfaceAfter("openPairing", true));
+    }
   }, [account?.isSignedIn, initialInput, isIos]);
 
   const form = (
@@ -59,53 +61,51 @@ export function PairingScreen({
       input={input}
       isIos={isIos}
       isPairing={isPairing}
+      onCloseIos={isIos ? () => setIosSurface(iosPairingSurfaceAfter("close")) : undefined}
       onInputChange={setInput}
       onPair={() => void onPair(input)}
-      onScan={() => setIsScanning(true)}
+      onScan={() => {
+        if (isIos) {
+          setIosSurface(iosPairingSurfaceAfter("scanInstead"));
+          return;
+        }
+        setIsScanning(true);
+      }}
     />
   );
 
+  if (isIos && account) {
+    return (
+      <View style={styles.flex}>
+        <IosWelcomePairing
+          account={account}
+          isPairing={isPairing}
+          onOpenPairing={() =>
+            setIosSurface(iosPairingSurfaceAfter("openPairing", Boolean(input.trim())))
+          }
+          pairingError={error}
+        />
+        {iosSurface === "scan" ? (
+          <View style={styles.cover}>
+            <QrScanner
+              onClose={() => setIosSurface(iosPairingSurfaceAfter("close"))}
+              onPasteInstead={() => setIosSurface(iosPairingSurfaceAfter("pasteInstead"))}
+              onScan={(value) => {
+                setInput(value);
+                setIosSurface(iosPairingSurfaceAfter("close"));
+                void onPair(value);
+              }}
+            />
+          </View>
+        ) : null}
+        {iosSurface === "paste" ? <View style={styles.cover}>{form}</View> : null}
+      </View>
+    );
+  }
+
   return (
     <>
-      {isIos && account ? (
-        <>
-          <IosWelcomePairing
-            account={account}
-            isPairing={isPairing}
-            onOpenPairing={() => setShowPairing(true)}
-            pairingError={error}
-          />
-          <BottomSheet
-            maxHeightRatio={0.86}
-            onClose={() => setShowPairing(false)}
-            title="Pair with Studio"
-            trailingAccessory={
-              <PressScale
-                accessibilityLabel={isPairing ? "Pairing" : "Pair"}
-                disabled={isPairing || !input.trim()}
-                onPress={() => void onPair(input)}
-              >
-                <Text
-                  style={{
-                    color:
-                      isPairing || !input.trim() ? palette.foregroundSubtle : palette.foreground,
-                    fontSize: 16,
-                    fontWeight: "600",
-                  }}
-                >
-                  Pair
-                </Text>
-              </PressScale>
-            }
-            visible={showPairing}
-          >
-            {form}
-          </BottomSheet>
-        </>
-      ) : (
-        form
-      )}
-
+      {form}
       <Modal
         animationType="fade"
         onRequestClose={() => setIsScanning(false)}
@@ -130,6 +130,7 @@ function PairingForm({
   input,
   isIos,
   isPairing,
+  onCloseIos,
   onInputChange,
   onPair,
   onScan,
@@ -138,6 +139,7 @@ function PairingForm({
   readonly input: string;
   readonly isIos: boolean;
   readonly isPairing: boolean;
+  readonly onCloseIos?: () => void;
   readonly onInputChange: (value: string) => void;
   readonly onPair: () => void;
   readonly onScan: () => void;
@@ -148,21 +150,40 @@ function PairingForm({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.flex}
+      style={[styles.flex, isIos ? { backgroundColor: palette.background } : null]}
     >
       <ScrollView
         contentContainerStyle={[
           styles.content,
           isIos
-            ? styles.sheetContent
-            : {
-                paddingTop: insets.top + graftSpacing.four,
+            ? {
                 paddingBottom: insets.bottom + graftSpacing.four,
+                paddingTop: insets.top + graftSpacing.one,
+              }
+            : {
+                paddingBottom: insets.bottom + graftSpacing.four,
+                paddingTop: insets.top + graftSpacing.four,
               },
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {isIos ? null : <Wordmark />}
+        {isIos ? (
+          <View style={styles.iosPasteHeader}>
+            {onCloseIos ? (
+              <CircleIconButton
+                accessibilityLabel="Close pairing"
+                icon="chevron-back"
+                onPress={onCloseIos}
+              />
+            ) : null}
+            <Text style={[styles.iosPasteTitle, { color: palette.foreground }]}>
+              Pair with Studio
+            </Text>
+            <View style={styles.iosPasteHeaderSpacer} />
+          </View>
+        ) : (
+          <Wordmark />
+        )}
         {isIos ? null : (
           <View style={styles.intro}>
             <Text style={[styles.eyebrow, { color: palette.foregroundSubtle }]}>
@@ -288,23 +309,31 @@ function PairingForm({
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
+  body: {
+    fontSize: 17,
+    lineHeight: 25,
+    marginTop: graftSpacing.two,
+    maxWidth: 460,
   },
   content: {
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: graftSpacing.three,
   },
-  sheetContent: {
-    justifyContent: "flex-start",
-    paddingBottom: graftSpacing.three,
-    paddingTop: graftSpacing.one,
+  cover: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
   },
-  intro: {
-    marginBottom: graftSpacing.three,
-    marginTop: 44,
-    maxWidth: 520,
+  error: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  errorRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 10,
   },
   eyebrow: {
     fontSize: 12,
@@ -312,28 +341,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     marginBottom: graftSpacing.two,
   },
-  title: {
-    fontSize: 42,
-    fontWeight: "700",
-    letterSpacing: -1.8,
-    lineHeight: 45,
-  },
-  body: {
-    fontSize: 17,
-    lineHeight: 25,
-    marginTop: graftSpacing.two,
-    maxWidth: 460,
-  },
-  formSurface: {
-    borderRadius: graftRadius.sheet,
+  flex: {
+    flex: 1,
   },
   form: {
     padding: graftSpacing.three,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: graftSpacing.one,
+  formSurface: {
+    borderRadius: graftRadius.sheet,
+  },
+  helper: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 10,
   },
   input: {
     borderRadius: graftRadius.medium,
@@ -345,21 +365,31 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     textAlignVertical: "top",
   },
-  helper: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 10,
+  intro: {
+    marginBottom: graftSpacing.three,
+    marginTop: 44,
+    maxWidth: 520,
   },
-  errorRow: {
-    alignItems: "flex-start",
+  iosPasteHeader: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: 7,
-    marginTop: 10,
+    justifyContent: "space-between",
+    marginBottom: graftSpacing.three,
   },
-  error: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
+  iosPasteHeaderSpacer: {
+    width: 44,
+  },
+  iosPasteTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  iosPrimary: {
+    marginTop: graftSpacing.two,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: graftSpacing.one,
   },
   primaryButton: {
     alignItems: "center",
@@ -373,6 +403,16 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 16,
     fontWeight: "700",
+  },
+  privacy: {
+    fontSize: 12,
+  },
+  privacyRow: {
+    alignItems: "center",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 6,
+    marginTop: graftSpacing.three,
   },
   scanButton: {
     alignItems: "center",
@@ -402,17 +442,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: -0.3,
   },
-  privacyRow: {
-    alignItems: "center",
-    alignSelf: "center",
-    flexDirection: "row",
-    gap: 6,
-    marginTop: graftSpacing.three,
-  },
-  privacy: {
-    fontSize: 12,
-  },
-  iosPrimary: {
-    marginTop: graftSpacing.two,
+  title: {
+    fontSize: 42,
+    fontWeight: "700",
+    letterSpacing: -1.8,
+    lineHeight: 45,
   },
 });
