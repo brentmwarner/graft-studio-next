@@ -67,7 +67,7 @@ struct PairingView: View {
                 errorMessage: $errorMessage,
                 isPresented: $isPresented
             )
-            .sheet(isPresented: $isScannerPresented) {
+            .fullScreenCover(isPresented: $isScannerPresented) {
                 QRScannerView(
                     message: scannerMessage,
                     onScannedCode: submitScannedPairing,

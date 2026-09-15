@@ -111,3 +111,22 @@ test("iOS ATS allows local-network HTTP pairing without a global cleartext excep
   assert.equal(tsNet?.NSIncludesSubdomains, true);
   assert.equal(tsNet?.NSExceptionAllowsInsecureHTTPLoads, true);
 });
+
+test("iOS ATS permits the IP ranges advertised by Studio and keeps public IPs protected", async () => {
+  const root = parsePlistDict(await readFile(infoPlistPath, "utf8"));
+  const exceptions = root.NSAppTransportSecurity.NSExceptionDomains;
+  const pairingIPRanges = [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "100.64.0.0/10",
+    "fd7a:115c:a1e0::/48",
+    "127.0.0.0/8",
+    "::1",
+  ];
+
+  assert.deepEqual(Object.keys(exceptions).toSorted(), [...pairingIPRanges, "ts.net"].toSorted());
+  for (const range of pairingIPRanges) {
+    assert.deepEqual(exceptions[range], { NSExceptionAllowsInsecureHTTPLoads: true }, range);
+  }
+});

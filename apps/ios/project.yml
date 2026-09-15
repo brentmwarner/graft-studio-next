@@ -42,6 +42,23 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
+            # iOS 17+ requires explicit IP exceptions in addition to local
+            # networking. Match the LAN/tailnet/loopback ranges advertised by
+            # apps/server/src/graftMobile/networkEndpoints.ts.
+            "10.0.0.0/8":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "172.16.0.0/12":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "192.168.0.0/16":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "100.64.0.0/10":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "fd7a:115c:a1e0::/48":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "127.0.0.0/8":
+              NSExceptionAllowsInsecureHTTPLoads: true
+            "::1":
+              NSExceptionAllowsInsecureHTTPLoads: true
             ts.net:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: true

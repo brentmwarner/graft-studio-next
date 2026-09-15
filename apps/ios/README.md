@@ -54,6 +54,43 @@ open Graft.xcodeproj
 
 Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 
+## Welcome visuals
+
+The welcome screen uses the official vector `GraftMark` and a native two-pass
+Metal rendering of the desktop new-chat scene in
+`apps/web/src/assets/unicorn-scene{,-light}.json`. It preserves the scene's
+black shape input, RGBA8 compositing, UV grid, nine circle glyphs, and animation
+speed, with the vignette colors from `UnicornBackground.tsx` and `index.css`.
+The glyph atlas is bundled as `Graft/Resources/DitherGlyphs.png` from the same
+[Unicorn Studio asset](https://assets.unicorn.studio/media/glyphs/circles.png)
+used by the desktop scene, so rendering works offline.
+
+Reduce Motion displays a still frame and skips the entrance animation. The
+Metal view pauses when the app is inactive; the content's intro timeline ends
+after two seconds instead of invalidating buttons and text on every wave frame.
+
+## QR camera scanning
+
+The pairing scanner opens full screen and requests camera permission before
+checking VisionKit availability. `QRScannerHostController` embeds the scanner
+and starts scanning after its view appears. It pauses while the app is inactive
+or the scanner is dismissed, and preserves the camera while showing invalid-code
+feedback. Denied permission includes a link to Settings; scanner failures show
+the paste-link fallback.
+
+`QRScannerTests` cover permission ordering, presentation, pause/resume, dismissal,
+startup failures, and duplicate-code handling. Camera preview verification needs
+a physical iPhone: open the scanner, check the live image, close it, and reopen it.
+
+## Local pairing connections
+
+Studio advertises HTTP endpoints on LAN, tailnet, and loopback addresses. On
+iOS 17+, [Apple requires explicit IP exceptions](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsallowslocalnetworking);
+the generated Info.plist also declares explicit ATS exceptions for the private
+IPv4, Tailscale IPv6, and loopback ranges Studio discovers. Public IP addresses
+retain the default HTTPS requirement. These ranges are checked by
+`scripts/ios-local-network-ats.node-test.mjs`.
+
 ## Build from the command line
 
 ```bash
@@ -111,6 +148,7 @@ apps/ios/
         WelcomeView.swift              # First-run screen
         PairingView.swift              # Paste / QR pairing flow
         QRScannerView.swift             # VisionKit QR scanner bridge
+        QRScannerHostController.swift   # Camera presentation and lifecycle
       Home/
         HomeView.swift                 # Main screen (threads, runs, approvals)
     Resources/

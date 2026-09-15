@@ -10,6 +10,25 @@ enum QRScannerState: Equatable {
     case denied
     case unavailable(String)
     case invalid(String)
+
+    static func resolve(authorization: AVAuthorizationStatus, isSupported: Bool, isAvailable: Bool) -> Self {
+        switch authorization {
+        case .notDetermined:
+            return .requestingPermission
+        case .denied, .restricted:
+            return .denied
+        case .authorized:
+            guard isSupported else {
+                return .unavailable(String(localized: "This device does not support live QR scanning. Paste the pairing link instead."))
+            }
+            guard isAvailable else {
+                return .unavailable(String(localized: "The camera scanner is not available right now. Paste the pairing link instead."))
+            }
+            return .scanning
+        @unknown default:
+            return .unavailable(String(localized: "The camera scanner is not available right now. Paste the pairing link instead."))
+        }
+    }
 }
 
 @MainActor
@@ -32,6 +51,7 @@ struct QRScannerView: View {
     let onScannedCode: (String) -> Bool
     let onDismiss: () -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var scannerState: QRScannerState = .checking
 
     init(
@@ -57,20 +77,21 @@ struct QRScannerView: View {
                 case .checking, .requestingPermission:
                     ProgressView("Preparing camera...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .scanning:
-                    scannerSurface
-                case .invalid(let message):
-                    scannerSurface
-                        .safeAreaInset(edge: .bottom) {
-                            ScannerStatusBanner(message: message, systemImage: "exclamationmark.triangle")
-                        }
+                case .scanning, .invalid:
+                    QRScannerSurface(
+                        message: scannerMessage,
+                        isActive: scenePhase == .active,
+                        onScannedCode: onScannedCode,
+                        onBecameUnavailable: { scannerState = .unavailable($0) }
+                    )
                 case .denied:
                     ScannerFallbackView(
                         title: String(localized: "Camera Access Needed"),
                         message: String(
                             localized: "Allow camera access in Settings, or paste the pairing link instead."
                         ),
-                        systemImage: "camera.fill"
+                        systemImage: "camera.fill",
+                        showsSettingsButton: true
                     )
                 case .unavailable(let message):
                     ScannerFallbackView(
@@ -80,6 +101,7 @@ struct QRScannerView: View {
                     )
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Scan Pairing QR")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -87,75 +109,72 @@ struct QRScannerView: View {
                     Button("Close", action: onDismiss)
                 }
             }
-            .onAppear(perform: resolveCameraState)
+            .task(id: scenePhase) { await resolveCameraState() }
             .onChange(of: message) { _, newMessage in
                 guard let newMessage, previewState == nil else { return }
-                scannerState = .invalid(newMessage)
-            }
-        }
-    }
-
-    private var scannerSurface: some View {
-        ZStack {
-            QRDataScannerView(
-                onScannedCode: onScannedCode,
-                onBecameUnavailable: { scannerState = .unavailable($0) }
-            )
-            .ignoresSafeArea(edges: .bottom)
-
-            VStack {
-                Spacer()
-                ScannerStatusBanner(
-                    message: String(localized: "Point the camera at a Graft pairing QR code."),
-                    systemImage: "qrcode"
-                )
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(
-            Text(
-                "QR code scanner",
-                comment: "Accessibility label for the live QR scanner"
-            )
-        )
-    }
-
-    private func resolveCameraState() {
-        guard previewState == nil else { return }
-        guard DataScannerViewController.isSupported else {
-            scannerState = .unavailable(
-                String(localized: "This device does not support live QR scanning. Paste the pairing link instead.")
-            )
-            return
-        }
-        guard DataScannerViewController.isAvailable else {
-            scannerState = .unavailable(
-                String(localized: "The camera scanner is not available right now. Paste the pairing link instead.")
-            )
-            return
-        }
-
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            scannerState = .scanning
-        case .notDetermined:
-            scannerState = .requestingPermission
-            AVCaptureDevice.requestAccess(for: .video) { isGranted in
-                Task { @MainActor in
-                    scannerState = isGranted ? .scanning : .denied
+                switch scannerState {
+                case .scanning, .invalid:
+                    scannerState = .invalid(newMessage)
+                default:
+                    break
                 }
             }
-        case .denied, .restricted:
-            scannerState = .denied
-        @unknown default:
-            scannerState = .unavailable(
-                String(localized: "The camera scanner is not available right now. Paste the pairing link instead.")
+        }
+    }
+
+    private var scannerMessage: String? {
+        if case .invalid(let message) = currentState { return message }
+        return nil
+    }
+
+    private func resolveCameraState() async {
+        guard previewState == nil, scenePhase == .active else { return }
+        var authorization = AVCaptureDevice.authorizationStatus(for: .video)
+        if authorization == .notDetermined {
+            scannerState = .requestingPermission
+            _ = await AVCaptureDevice.requestAccess(for: .video)
+            guard !Task.isCancelled else { return }
+            authorization = AVCaptureDevice.authorizationStatus(for: .video)
+        }
+        let resolved = QRScannerState.resolve(
+            authorization: authorization,
+            isSupported: DataScannerViewController.isSupported,
+            isAvailable: DataScannerViewController.isAvailable
+        )
+        // Returning from an interruption should preserve feedback and the same
+        // scanner instance, so an invalid QR can be retried without camera churn.
+        if resolved == .scanning, case .invalid = scannerState { return }
+        scannerState = resolved
+    }
+}
+
+private struct QRScannerSurface: View {
+    let message: String?
+    let isActive: Bool
+    let onScannedCode: (String) -> Bool
+    let onBecameUnavailable: (String) -> Void
+
+    var body: some View {
+        QRDataScannerView(
+            isActive: isActive,
+            onScannedCode: onScannedCode,
+            onBecameUnavailable: onBecameUnavailable
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .bottom)
+        .safeAreaInset(edge: .bottom) {
+            ScannerStatusBanner(
+                message: message ?? String(localized: "Point the camera at a Graft pairing QR code."),
+                systemImage: message == nil ? "qrcode" : "exclamationmark.triangle"
             )
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("QR code scanner", comment: "Accessibility label for the live QR scanner"))
     }
 }
 
 private struct QRDataScannerView: UIViewControllerRepresentable {
+    let isActive: Bool
     let onScannedCode: (String) -> Bool
     let onBecameUnavailable: (String) -> Void
 
@@ -163,7 +182,7 @@ private struct QRDataScannerView: UIViewControllerRepresentable {
         Coordinator(onScannedCode: onScannedCode, onBecameUnavailable: onBecameUnavailable)
     }
 
-    func makeUIViewController(context: Context) -> DataScannerViewController {
+    func makeUIViewController(context: Context) -> QRScannerHostController {
         let scanner = DataScannerViewController(
             recognizedDataTypes: [.barcode(symbologies: [.qr])],
             qualityLevel: .balanced,
@@ -174,34 +193,32 @@ private struct QRDataScannerView: UIViewControllerRepresentable {
             isHighlightingEnabled: true
         )
         scanner.delegate = context.coordinator
-        do {
-            try scanner.startScanning()
-        } catch {
-            context.coordinator.becameUnavailable(message: scannerUnavailableMessage(error))
-        }
-        return scanner
+        let host = QRScannerHostController(
+            scanner: scanner,
+            onBecameUnavailable: context.coordinator.becameUnavailable
+        )
+        context.coordinator.host = host
+        host.setActive(isActive)
+        return host
     }
 
-    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {
+    func updateUIViewController(_ host: QRScannerHostController, context: Context) {
         context.coordinator.onScannedCode = onScannedCode
         context.coordinator.onBecameUnavailable = onBecameUnavailable
-        guard !uiViewController.isScanning else { return }
-        do {
-            try uiViewController.startScanning()
-        } catch {
-            context.coordinator.becameUnavailable(message: scannerUnavailableMessage(error))
-        }
+        host.setActive(isActive)
     }
 
-    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
-        uiViewController.stopScanning()
-        uiViewController.delegate = nil
+    static func dismantleUIViewController(_ host: QRScannerHostController, coordinator: Coordinator) {
+        host.finishScanning()
+        (host.scanner as? DataScannerViewController)?.delegate = nil
+        coordinator.host = nil
     }
 
     @MainActor
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
         var onScannedCode: (String) -> Bool
         var onBecameUnavailable: (String) -> Void
+        weak var host: QRScannerHostController?
         private let resolutionGuard = QRScannerResolutionGuard()
 
         init(
@@ -232,11 +249,11 @@ private struct QRDataScannerView: UIViewControllerRepresentable {
             _ dataScanner: DataScannerViewController,
             becameUnavailableWithError error: DataScannerViewController.ScanningUnavailable
         ) {
-            dataScanner.stopScanning()
-            becameUnavailable(message: scannerUnavailableMessage(error))
+            host?.becameUnavailable(message: scannerUnavailableMessage(error))
         }
 
         func becameUnavailable(message: String) {
+            guard host != nil else { return }
             onBecameUnavailable(message)
         }
 
@@ -248,7 +265,7 @@ private struct QRDataScannerView: UIViewControllerRepresentable {
                 else { continue }
 
                 if resolutionGuard.evaluate(rawValue: payload, onScannedCode: onScannedCode) {
-                    scanner.stopScanning()
+                    host?.finishScanning()
                     return
                 }
             }
@@ -272,21 +289,32 @@ private struct ScannerStatusBanner: View {
 }
 
 private struct ScannerFallbackView: View {
+    @Environment(\.openURL) private var openURL
     let title: String
     let message: String
     let systemImage: String
+    var showsSettingsButton = false
 
     var body: some View {
         ContentUnavailableView {
             Label(title, systemImage: systemImage)
         } description: {
             Text(message)
+        } actions: {
+            if showsSettingsButton {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        openURL(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
         }
         .padding()
     }
 }
 
-private func scannerUnavailableMessage(_ error: Error) -> String {
+func scannerUnavailableMessage(_ error: Error) -> String {
     if let unavailable = error as? DataScannerViewController.ScanningUnavailable {
         return scannerUnavailableMessage(unavailable)
     }
