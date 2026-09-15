@@ -2379,18 +2379,29 @@ describe("ChatView transcript geometry (full app)", () => {
       try {
         for (const id of [1, 2, 3]) {
           await page.getByRole("button", { name: new RegExp(`Choice ${id}`) }).click();
-          if (id < 3)
-            await page.getByRole("button", { name: "Next question", exact: true }).first().click();
+          if (id < 3) {
+            if (navigation !== "auto-advance") {
+              await page
+                .getByRole("button", { name: "Next question", exact: true })
+                .first()
+                .click();
+            }
+            await expect
+              .element(page.getByText(`Choose option ${id + 1}?`, { exact: true }))
+              .toBeVisible();
+          }
         }
         if (navigation === "custom") {
           await userEvent.click(await waitForComposerEditor());
           await userEvent.keyboard("Custom answer");
         }
         const submit = page.getByRole("button", { name: "Submit answers", exact: true });
-        await expect.element(submit).toBeEnabled();
-        const button = submit.element() as HTMLButtonElement;
-        button.click();
-        button.click();
+        if (navigation !== "auto-advance") {
+          await expect.element(submit).toBeEnabled();
+          const button = submit.element() as HTMLButtonElement;
+          button.click();
+          button.click();
+        }
         await vi.waitFor(() => expect(dispatchCommand).toHaveBeenCalledTimes(1));
         await new Promise((resolve) => setTimeout(resolve, 300));
         expect(dispatchCommand).toHaveBeenCalledTimes(1);
