@@ -1,4 +1,4 @@
-import { useColorScheme } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 
 /// Mobile palette tracks the Hermes / iOS design system: monochrome chrome,
 /// no chromatic CTA. Status hues (`success` / `info` / `warning` / `danger`)
@@ -107,6 +107,29 @@ export const graftRadius = {
   pill: 999,
 } as const;
 
+/// Native iOS `DS.Color` — exact Hermes tokens so Expo chrome matches SwiftUI.
+const iosLight: GraftPalette = {
+  ...light,
+  subtle: "#F5F5F7",
+  muted: "#F5F5F7",
+  foreground: "#000000",
+  foregroundMuted: "#303030",
+  foregroundSubtle: "#6E6E73",
+  border: "#E5E5EA",
+  accent: "#000000",
+};
+
+const iosDark: GraftPalette = {
+  ...dark,
+  background: "#000000",
+  elevated: "#0E0E0F",
+  subtle: "#141416",
+  muted: "#303030",
+  fadeMid: "rgba(0, 0, 0, 0.72)",
+};
+
 export function useGraftPalette(): GraftPalette {
-  return useColorScheme() === "dark" ? dark : light;
+  const isDark = useColorScheme() === "dark";
+  if (Platform.OS === "ios") return isDark ? iosDark : iosLight;
+  return isDark ? dark : light;
 }

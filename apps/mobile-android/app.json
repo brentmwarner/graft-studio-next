@@ -4,10 +4,20 @@
     "slug": "graft-mobile-android",
     "scheme": "graft",
     "version": "0.1.0",
-    "platforms": ["android"],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "studio.graft.mobile.expo",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Graft to scan a pairing QR code or take a photo to attach.",
+        "NSPhotoLibraryUsageDescription": "Allow Graft to attach photos from your library.",
+        "NSLocalNetworkUsageDescription": "Connect directly to Graft Studio running on your Mac over your local network.",
+        "CADisableMinimumFrameDurationOnPhone": true
+      }
+    },
     "android": {
       "package": "studio.graft.mobile",
       "predictiveBackGestureEnabled": false,
@@ -21,8 +31,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Graft to scan a pairing QR code shown by Graft Studio.",
+          "cameraPermission": "Allow Graft to scan a pairing QR code or take a photo to attach.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Graft to attach photos from your library.",
+          "cameraPermission": "Allow Graft to take a photo to attach to a message."
         }
       ],
       "expo-secure-store",
@@ -30,6 +47,9 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",
+          "ios": {
+            "image": "./assets/icon.png"
+          },
           "android": {
             "image": "./assets/adaptive-icon.png",
             "imageWidth": 192
@@ -40,11 +60,23 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "deploymentTarget": "26.0"
+          },
           "android": {
             "usesCleartextTraffic": true
           }
         }
-      ]
-    ]
+      ],
+      "expo-web-browser",
+      "expo-asset",
+      "./plugins/withIosSceneLifecycle.js"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "493cee18-fb3c-4e70-8c69-9d9fa903e962"
+      }
+    },
+    "owner": "brentmwarner"
   }
 }
