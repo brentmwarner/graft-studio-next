@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "tsdown";
 
-const sourcemapEnv = process.env.SYNARA_DESKTOP_SOURCEMAP?.trim().toLowerCase();
+const sourcemapEnv = process.env.GRAFT_DESKTOP_SOURCEMAP?.trim().toLowerCase();
 const buildSourcemap = sourcemapEnv === "1" || sourcemapEnv === "true";
 const windowsUpdaterPublisher = process.env.AZURE_TRUSTED_SIGNING_SUBJECT_DN?.trim() ?? "";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -38,10 +38,10 @@ export default defineConfig([
     // asking Rolldown to resolve a package that intentionally does not exist.
     external: ["original-fs"],
     define: {
-      __SYNARA_WINDOWS_UPDATER_PUBLISHER__: JSON.stringify(windowsUpdaterPublisher),
-      __SYNARA_MIGRATION_RUNTIME_SOURCE_DIGEST__: JSON.stringify(migrationRuntimeSourceDigest),
+      __GRAFT_WINDOWS_UPDATER_PUBLISHER__: JSON.stringify(windowsUpdaterPublisher),
+      __GRAFT_MIGRATION_RUNTIME_SOURCE_DIGEST__: JSON.stringify(migrationRuntimeSourceDigest),
     },
-    noExternal: (id) => id.startsWith("@synara/"),
+    noExternal: (id) => id.startsWith("@graft/"),
   },
   {
     ...shared,

@@ -1,4 +1,4 @@
-import type { ServerProviderUsageSnapshot } from "@synara/contracts";
+import type { ServerProviderUsageSnapshot } from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import { deriveProviderUsageDisplayRows } from "~/lib/providerUsageDisplay";

@@ -56,7 +56,7 @@ describe("getCentralIconUrl", () => {
     }
   });
 
-  it("ships every app override and retains Synara's original Skills artwork", () => {
+  it("ships every app override and retains Graft's original Skills artwork", () => {
     for (const name of Object.keys(appIcons)) {
       const asset = getCentralIconUrl(name)!;
       expect(asset).toBe(`/central-icons-app/${name}.svg`);

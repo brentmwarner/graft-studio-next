@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DesktopUpdateActionResult, DesktopUpdateState } from "@synara/contracts";
+import type { DesktopUpdateActionResult, DesktopUpdateState } from "@graft/contracts";
 
 import {
   getArm64IntelBuildWarningDescription,
@@ -89,7 +89,7 @@ describe("desktop update button state", () => {
       status: "error",
       availableVersion: "1.1.0",
       downloadedVersion: null,
-      message: "Synara restarted before the update was installed.",
+      message: "Graft restarted before the update was installed.",
       errorContext: "install",
       canRetry: true,
       installFailureCount: 1,

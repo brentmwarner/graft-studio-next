@@ -37,16 +37,16 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
     const globalEnv = new Set(turboConfig.globalEnv ?? []);
 
     for (const name of [
-      "SYNARA_MODE",
-      "SYNARA_PORT",
-      "SYNARA_HOME",
-      "SYNARA_NO_BROWSER",
-      "SYNARA_AUTH_TOKEN",
-      "SYNARA_PUBLIC_URL",
-      "SYNARA_ALLOW_INSECURE_REMOTE",
-      "SYNARA_HOST",
-      "SYNARA_LOG_WS_EVENTS",
-      "SYNARA_AUTO_BOOTSTRAP_PROJECT_FROM_CWD",
+      "GRAFT_MODE",
+      "GRAFT_PORT",
+      "GRAFT_HOME",
+      "GRAFT_NO_BROWSER",
+      "GRAFT_AUTH_TOKEN",
+      "GRAFT_PUBLIC_URL",
+      "GRAFT_ALLOW_INSECURE_REMOTE",
+      "GRAFT_BIND_HOST",
+      "GRAFT_LOG_WS_EVENTS",
+      "GRAFT_AUTO_BOOTSTRAP_PROJECT_FROM_CWD",
       "VITE_WS_URL",
       "VITE_DEV_SERVER_URL",
     ]) {
@@ -55,12 +55,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
   });
 
   describe("resolveOffset", () => {
-    it.effect("uses explicit SYNARA_PORT_OFFSET when provided", () =>
+    it.effect("uses explicit GRAFT_PORT_OFFSET when provided", () =>
       Effect.sync(() => {
         const result = resolveOffset({ portOffset: 12, devInstance: undefined });
         assert.deepStrictEqual(result, {
           offset: 12,
-          source: "SYNARA_PORT_OFFSET=12",
+          source: "GRAFT_PORT_OFFSET=12",
         });
       }),
     );
@@ -82,7 +82,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           }),
         );
 
-        assert.ok(error.includes("Invalid SYNARA_PORT_OFFSET"));
+        assert.ok(error.includes("Invalid GRAFT_PORT_OFFSET"));
       }),
     );
   });
@@ -137,7 +137,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
     it.effect("rejects invalid boolean environment values", () =>
       Effect.gen(function* () {
         const error = yield* Effect.flip(
-          readDevRunnerBooleanEnvironment({ SYNARA_LOG_WS_EVENTS: "sometimes" }),
+          readDevRunnerBooleanEnvironment({ GRAFT_LOG_WS_EVENTS: "sometimes" }),
         );
 
         assert.match(String(error), /Failed to read boolean development-runner configuration/);
@@ -153,7 +153,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           baseEnv: { PATH: "/opt/homebrew/bin:/usr/bin" },
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -163,12 +163,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_PATH_HYDRATED, "1");
+        assert.equal(env.GRAFT_PATH_HYDRATED, "1");
         assert.match(env.PATH ?? "", /\/opt\/homebrew\/bin/);
       }),
     );
 
-    it.effect("defaults SYNARA_HOME to ~/.graft when not provided", () =>
+    it.effect("defaults GRAFT_HOME to ~/.graft when not provided", () =>
       Effect.gen(function* () {
         const homeDirectory = makeIsolatedHome();
         const env = yield* createDevRunnerEnv({
@@ -176,7 +176,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           baseEnv: {},
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -187,8 +187,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           homeDirectory,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homeDirectory, ".graft"));
-        assert.equal(env.SYNARA_HOST, "127.0.0.1");
+        assert.equal(env.GRAFT_HOME, resolve(homeDirectory, ".graft"));
+        assert.equal(env.GRAFT_BIND_HOST, "127.0.0.1");
         assert.equal(env.VITE_WS_URL, "ws://127.0.0.1:3773");
       }),
     );
@@ -201,7 +201,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           baseEnv: {},
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -212,7 +212,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           homeDirectory,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homeDirectory, ".graft-dev"));
+        assert.equal(env.GRAFT_HOME, resolve(homeDirectory, ".graft-dev"));
       }),
     );
 
@@ -221,10 +221,10 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const homeDirectory = makeIsolatedHome();
         const env = yield* createDevRunnerEnv({
           mode: "dev:desktop",
-          baseEnv: { SYNARA_DESKTOP_FLAVOR: "canary" },
+          baseEnv: { GRAFT_DESKTOP_FLAVOR: "canary" },
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -235,7 +235,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           homeDirectory,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve(homeDirectory, ".graft-canary"));
+        assert.equal(env.GRAFT_HOME, resolve(homeDirectory, ".graft-canary"));
       }),
     );
 
@@ -246,7 +246,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           baseEnv: {},
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -256,7 +256,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_HOST, "::1");
+        assert.equal(env.GRAFT_BIND_HOST, "::1");
         assert.equal(env.VITE_WS_URL, "ws://[::1]:3773");
       }),
     );
@@ -268,7 +268,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           baseEnv: {},
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: "/tmp/custom-synara",
+          graftHome: "/tmp/custom-graft",
           authToken: "secret",
           noBrowser: true,
           autoBootstrapProjectFromCwd: false,
@@ -278,12 +278,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: new URL("http://localhost:7331"),
         });
 
-        assert.equal(env.SYNARA_HOME, resolve("/tmp/custom-synara"));
-        assert.equal(env.SYNARA_PORT, "4222");
-        assert.equal(env.SYNARA_NO_BROWSER, "1");
-        assert.equal(env.SYNARA_AUTO_BOOTSTRAP_PROJECT_FROM_CWD, "0");
-        assert.equal(env.SYNARA_LOG_WS_EVENTS, "1");
-        assert.equal(env.SYNARA_HOST, "0.0.0.0");
+        assert.equal(env.GRAFT_HOME, resolve("/tmp/custom-graft"));
+        assert.equal(env.GRAFT_PORT, "4222");
+        assert.equal(env.GRAFT_NO_BROWSER, "1");
+        assert.equal(env.GRAFT_AUTO_BOOTSTRAP_PROJECT_FROM_CWD, "0");
+        assert.equal(env.GRAFT_LOG_WS_EVENTS, "1");
+        assert.equal(env.GRAFT_BIND_HOST, "0.0.0.0");
         assert.equal(env.VITE_WS_URL, "ws://127.0.0.1:4222");
         assert.equal(env.VITE_DEV_SERVER_URL, "http://localhost:7331/");
       }),
@@ -294,11 +294,11 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
           baseEnv: {
-            SYNARA_LOG_WS_EVENTS: "keep-me-out",
+            GRAFT_LOG_WS_EVENTS: "keep-me-out",
           },
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -308,8 +308,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_MODE, "web");
-        assert.equal(env.SYNARA_LOG_WS_EVENTS, undefined);
+        assert.equal(env.GRAFT_MODE, "web");
+        assert.equal(env.GRAFT_LOG_WS_EVENTS, undefined);
       }),
     );
 
@@ -320,7 +320,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           baseEnv: {},
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: undefined,
+          graftHome: undefined,
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -330,18 +330,18 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_LOG_WS_EVENTS, "0");
+        assert.equal(env.GRAFT_LOG_WS_EVENTS, "0");
       }),
     );
 
-    it.effect("uses custom synaraHome when provided", () =>
+    it.effect("uses custom graftHome when provided", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
           baseEnv: {},
           serverOffset: 0,
           webOffset: 0,
-          synaraHome: "/tmp/my-synara",
+          graftHome: "/tmp/my-graft",
           authToken: undefined,
           noBrowser: undefined,
           autoBootstrapProjectFromCwd: undefined,
@@ -351,9 +351,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.SYNARA_HOME, resolve("/tmp/my-synara"));
-        assert.equal(env.SYNARA_HOME, resolve("/tmp/my-synara"));
-        assert.equal(env.SYNARA_HOME, resolve("/tmp/my-synara"));
+        assert.equal(env.GRAFT_HOME, resolve("/tmp/my-graft"));
+        assert.equal(env.GRAFT_HOME, resolve("/tmp/my-graft"));
+        assert.equal(env.GRAFT_HOME, resolve("/tmp/my-graft"));
       }),
     );
   });

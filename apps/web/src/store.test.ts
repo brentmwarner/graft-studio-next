@@ -8,7 +8,7 @@ import {
   TurnId,
   type OrchestrationReadModel,
   type OrchestrationShellSnapshot,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -152,7 +152,7 @@ describe("store facade", () => {
     );
 
     const next = setThreadWorkspace(state, ThreadId.makeUnsafe("thread-1"), {
-      branch: "synara/abc123ef",
+      branch: "graft/abc123ef",
     });
 
     expect(threadsOf(next)[0]?.branch).toBe("feature/semantic-branch");
@@ -164,11 +164,11 @@ describe("store facade", () => {
       makeState(
         makeThread({
           envMode: "worktree",
-          branch: "synara/tmp-working",
+          branch: "graft/tmp-working",
           worktreePath: "/tmp/project/.worktrees/tmp-working",
           associatedWorktreePath: "/tmp/project/.worktrees/tmp-working",
-          associatedWorktreeBranch: "synara/tmp-working",
-          associatedWorktreeRef: "synara/tmp-working",
+          associatedWorktreeBranch: "graft/tmp-working",
+          associatedWorktreeRef: "graft/tmp-working",
         }),
       ),
       threadId,
@@ -182,11 +182,11 @@ describe("store facade", () => {
       makeReadModel(
         makeReadModelThread({
           envMode: "worktree",
-          branch: "synara/tmp-working",
+          branch: "graft/tmp-working",
           worktreePath: "/tmp/project/.worktrees/tmp-working",
           associatedWorktreePath: "/tmp/project/.worktrees/tmp-working",
-          associatedWorktreeBranch: "synara/tmp-working",
-          associatedWorktreeRef: "synara/tmp-working",
+          associatedWorktreeBranch: "graft/tmp-working",
+          associatedWorktreeRef: "graft/tmp-working",
           createBranchFlowCompleted: false,
           updatedAt: "2026-02-27T00:05:00.000Z",
         }),
@@ -333,11 +333,11 @@ describe("store facade", () => {
   it("renames a project locally without changing its remote or folder names", () => {
     const state = makeState(makeThread());
 
-    const next = renameProjectLocally(state, ProjectId.makeUnsafe("project-1"), "synara");
+    const next = renameProjectLocally(state, ProjectId.makeUnsafe("project-1"), "graft");
 
     expect(next.projects[0]).toMatchObject({
-      name: "synara",
-      localName: "synara",
+      name: "graft",
+      localName: "graft",
       remoteName: "Project",
       folderName: "project",
     });
@@ -597,7 +597,7 @@ describe("store facade", () => {
     const aliasedState = renameProjectLocally(
       makeState(makeThread()),
       ProjectId.makeUnsafe("project-1"),
-      "synara",
+      "graft",
     );
 
     const next = syncServerReadModel(
@@ -610,8 +610,8 @@ describe("store facade", () => {
     );
 
     expect(next.projects[0]).toMatchObject({
-      name: "synara",
-      localName: "synara",
+      name: "graft",
+      localName: "graft",
       remoteName: "Project",
       folderName: "project",
     });
@@ -624,7 +624,7 @@ describe("store facade", () => {
       PERSISTED_STATE_KEY,
       JSON.stringify({
         projectNamesByCwd: {
-          "/tmp/project": "synara",
+          "/tmp/project": "graft",
         },
       }),
     );
@@ -639,8 +639,8 @@ describe("store facade", () => {
         projects: [
           makeProject({
             id: projectId,
-            name: "synara",
-            localName: "synara",
+            name: "graft",
+            localName: "graft",
           }),
         ],
         sidebarThreadSummaryById: {},
@@ -690,12 +690,12 @@ describe("store facade", () => {
         threadsHydrated: true,
       }));
 
-      freshStore.useStore.getState().renameProjectLocally(projectId, "synara");
+      freshStore.useStore.getState().renameProjectLocally(projectId, "graft");
 
       expect(setItem).toHaveBeenCalled();
       expect(JSON.parse(storage.get(PERSISTED_STATE_KEY) ?? "{}")).toMatchObject({
         projectNamesByCwd: {
-          "/tmp/project": "synara",
+          "/tmp/project": "graft",
         },
       });
     } finally {

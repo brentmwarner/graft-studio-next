@@ -3,15 +3,15 @@
 //          download map (macOS arm64/x64, Windows, Linux) for the /install page.
 // Layer: Server utility
 // Depends on: GitHub Releases API, optional GITHUB_TOKEN
-// Note: The repo was renamed from its previous identity to synara. We hit the
-//       canonical "synara" slug
+// Note: The repo was renamed from its previous identity to graft. We hit the
+//       canonical "graft" slug
 //       directly so we don't depend on the API following GitHub's 301 redirect.
 
 import "server-only";
 
 import storedLatestReleaseDownloads from "@/data/latest-release-downloads.json";
 
-const REPO = "Emanuele-web04/synara";
+const REPO = "Emanuele-web04/graft";
 const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;

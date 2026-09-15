@@ -9,7 +9,7 @@ import { cn } from "./utils";
 import roundIconNames from "./central-icons-round.json";
 import appIcons from "./central-icons-app.json";
 
-// Use the Codex-matched app glyphs and Synara Skills glyph where available.
+// Use the Codex-matched app glyphs and Graft Skills glyph where available.
 // Keep the full Central sets for other controls, custom icons, and filled states.
 const CENTRAL_ICON_BASE_PATHS = {
   app: "/central-icons-app",

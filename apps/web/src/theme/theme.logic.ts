@@ -140,7 +140,7 @@ const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const THEME_SHARE_PREFIX = "codex-theme-v1:";
 const CONTRAST_CURVE_BELOW_BASELINE = 0.7;
 const CONTRAST_CURVE_ABOVE_BASELINE = 2;
-// Keep Codex's original curve anchors even though Synara presets start at zero.
+// Keep Codex's original curve anchors even though Graft presets start at zero.
 // This makes the new default render exactly like manually moving the old slider to zero.
 const CONTRAST_CURVE_BASELINE: Record<ThemeVariant, number> = {
   dark: 60,
@@ -197,7 +197,7 @@ const CODE_THEME_SEED_PATCH_METADATA: Partial<
     dark: { contrast: true, fonts: { code: true, ui: true }, opaqueWindows: true },
     light: { contrast: true, fonts: { code: true, ui: true }, opaqueWindows: true },
   },
-  synara: {
+  graft: {
     dark: { contrast: true },
     light: { contrast: true },
   },
@@ -210,7 +210,7 @@ export const CODE_THEME_OPTIONS: readonly CodeThemeOption[] = [
   { id: "ayu", label: "Ayu", variants: ["dark"] },
   { id: "catppuccin", label: "Catppuccin", variants: ["light", "dark"] },
   { id: "codex", label: "Codex", variants: ["light", "dark"] },
-  { id: "synara", label: "Graft", variants: ["light", "dark"] },
+  { id: "graft", label: "Graft", variants: ["light", "dark"] },
   { id: "dracula", label: "Dracula", variants: ["dark"] },
   { id: "everforest", label: "Everforest", variants: ["light", "dark"] },
   { id: "github", label: "GitHub", variants: ["light", "dark"] },
@@ -294,8 +294,9 @@ export function getAvailableCodeThemes(variant: ThemeVariant): readonly CodeThem
 
 export function isCodeThemeAvailable(codeThemeId: string, variant: ThemeVariant): boolean {
   const normalizedCodeThemeId = codeThemeId.trim().toLowerCase();
+  const canonicalCodeThemeId = normalizedCodeThemeId === "synara" ? "graft" : normalizedCodeThemeId;
   return CODE_THEME_OPTIONS.some(
-    (option) => option.id === normalizedCodeThemeId && option.variants.includes(variant),
+    (option) => option.id === canonicalCodeThemeId && option.variants.includes(variant),
   );
 }
 
@@ -306,7 +307,8 @@ export function normalizeCodeThemeId(
 ): string {
   const normalizedCodeThemeId =
     typeof codeThemeId === "string" ? codeThemeId.trim().toLowerCase() : "";
-  return isCodeThemeAvailable(normalizedCodeThemeId, variant) ? normalizedCodeThemeId : fallback;
+  const canonicalCodeThemeId = normalizedCodeThemeId === "synara" ? "graft" : normalizedCodeThemeId;
+  return isCodeThemeAvailable(canonicalCodeThemeId, variant) ? canonicalCodeThemeId : fallback;
 }
 
 // ─── Theme normalization ──────────────────────────────────────────────────

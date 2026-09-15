@@ -1,4 +1,4 @@
-import type { TerminalEvent } from "@synara/contracts";
+import type { TerminalEvent } from "@graft/contracts";
 
 import { readNativeApi } from "~/nativeApi";
 

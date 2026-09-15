@@ -4,9 +4,9 @@
 // Layer: Web UI dialog
 // Exports: CreateProjectDialog, CreateProjectSubmitValue
 
-import { type GitHubProjectProvisionProgressEvent, type SpaceId } from "@synara/contracts";
-import { parseGitHubRepositoryInput } from "@synara/shared/githubRepository";
-import { normalizeProjectDirectoryName } from "@synara/shared/projectDirectoryName";
+import { type GitHubProjectProvisionProgressEvent, type SpaceId } from "@graft/contracts";
+import { parseGitHubRepositoryInput } from "@graft/shared/githubRepository";
+import { normalizeProjectDirectoryName } from "@graft/shared/projectDirectoryName";
 import {
   useCallback,
   useEffect,

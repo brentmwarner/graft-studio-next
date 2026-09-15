@@ -5,14 +5,14 @@ import {
   type ProviderApprovalDecision,
   type ProviderRequestKind,
   type ProviderUserInputAnswers,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   APPROVAL_ALREADY_ANSWERED_INVARIANT_MARKER,
   collectErrorMessages,
   describeErrorMessage,
-} from "@synara/shared/errorMessages";
-import { respondingInteractionReclaimAt } from "@synara/shared/pendingInteractions";
-import { pendingRequestInstanceKey } from "@synara/shared/threadSummary";
+} from "@graft/shared/errorMessages";
+import { respondingInteractionReclaimAt } from "@graft/shared/pendingInteractions";
+import { pendingRequestInstanceKey } from "@graft/shared/threadSummary";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newCommandId } from "~/lib/utils";

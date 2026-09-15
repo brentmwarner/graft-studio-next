@@ -267,7 +267,7 @@ export const TurnDispatchMode = Schema.Literals(["queue", "steer"]);
 export type TurnDispatchMode = typeof TurnDispatchMode.Type;
 export const DEFAULT_TURN_DISPATCH_MODE: TurnDispatchMode = "queue";
 // Marks who dispatched a user turn: a person typing, an automation run, or
-// another agent through the Synara agent gateway (MCP tools).
+// another agent through the Graft agent gateway (MCP tools).
 // Absent is treated as "user"; only server-dispatched turns carry the flag.
 export const MessageDispatchOrigin = Schema.Literals(["user", "automation", "agent"]);
 export type MessageDispatchOrigin = typeof MessageDispatchOrigin.Type;
@@ -275,7 +275,7 @@ export type MessageDispatchOrigin = typeof MessageDispatchOrigin.Type;
 // create. Dedicated automations' own threads stay unmarked: they are persistent
 // conversations the user keeps, not run artifacts.
 export const ThreadCreationSource = Schema.Literals([
-  "synara_mcp",
+  "graft_mcp",
   "external_mcp",
   "provider_native",
   "automation_run",

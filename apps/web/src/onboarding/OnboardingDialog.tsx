@@ -6,12 +6,12 @@
 // The popup is a fixed 800×540 frame for every step so the window never resizes as the
 // user moves through the tour; hero steps (welcome, done) center their content in it.
 
-import { PROVIDER_DESCRIPTORS } from "@synara/shared/providerMetadata";
+import { PROVIDER_DESCRIPTORS } from "@graft/shared/providerMetadata";
 import { useEffect, useState } from "react";
 
 import { useAppSettings } from "~/appSettings";
 import { APP_BASE_NAME } from "~/branding";
-import { SynaraLogo } from "~/components/SynaraLogo";
+import { GraftLogo } from "~/components/GraftLogo";
 import {
   Dialog,
   DialogDescription,
@@ -141,7 +141,7 @@ function OnboardingFlow(props: {
           hero && "items-center text-center",
         )}
       >
-        {step === "welcome" ? <SynaraLogo aria-hidden className="mb-3.5 size-11" /> : null}
+        {step === "welcome" ? <GraftLogo aria-hidden className="mb-3.5 size-11" /> : null}
         {step === "done" ? (
           <span
             aria-hidden

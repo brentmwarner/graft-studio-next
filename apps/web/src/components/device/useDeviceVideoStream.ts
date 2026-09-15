@@ -4,8 +4,8 @@
 // Exports: useDeviceVideoStream
 // Depends on: DevicePanel.logic frame gate, deviceFrameSource transport
 
-import type { DeviceUdid } from "@synara/contracts";
-import type { DeviceFrame } from "@synara/shared/deviceFrame";
+import type { DeviceUdid } from "@graft/contracts";
+import type { DeviceFrame } from "@graft/shared/deviceFrame";
 import { useEffect, useRef, useState } from "react";
 
 import {

@@ -1,5 +1,5 @@
 // FILE: canary.ts
-// Purpose: Maintains and launches an isolated, frozen Synara Canary checkout.
+// Purpose: Maintains and launches an isolated, frozen Graft Canary checkout.
 // Layer: Local developer tooling
 
 import { spawn, spawnSync } from "node:child_process";
@@ -8,8 +8,8 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { synaraDesktopIdentity } from "@synara/shared/desktopIdentity";
-import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
+import { graftDesktopIdentity } from "@graft/shared/desktopIdentity";
+import { resolveGraftHomeDirectory } from "@graft/shared/graftHome";
 
 export type CanaryCommand = "setup" | "update" | "start" | "stop" | "status" | "rollback";
 
@@ -43,16 +43,16 @@ export function resolveCanaryPaths(
   homeDirectory = OS.homedir(),
 ): CanaryPaths {
   const home = Path.resolve(
-    env.SYNARA_CANARY_HOME?.trim() ||
-      resolveSynaraHomeDirectory({
+    env.GRAFT_CANARY_HOME?.trim() ||
+      resolveGraftHomeDirectory({
         env: {},
         homeDirectory,
-        directoryName: synaraDesktopIdentity("canary").defaultHomeDirectoryName,
+        directoryName: graftDesktopIdentity("canary").defaultHomeDirectoryName,
       }),
   );
   const cacheBase = env.XDG_CACHE_HOME?.trim() || Path.join(homeDirectory, ".cache");
   const source = Path.resolve(
-    env.SYNARA_CANARY_SOURCE?.trim() || Path.join(cacheBase, "graft-canary", "source"),
+    env.GRAFT_CANARY_SOURCE?.trim() || Path.join(cacheBase, "graft-canary", "source"),
   );
   return {
     home,
@@ -218,7 +218,7 @@ function assertManagedSourceIsClean(paths: CanaryPaths): void {
   const status = capture("git", ["status", "--porcelain", "--untracked-files=no"], paths.source);
   if (status.length > 0) {
     throw new Error(
-      `Synara Canary's managed source has tracked local changes. Refusing to overwrite ${paths.source}.`,
+      `Graft Canary's managed source has tracked local changes. Refusing to overwrite ${paths.source}.`,
     );
   }
 }
@@ -253,7 +253,7 @@ function currentSourceCommit(paths: CanaryPaths): string | null {
 function startCanary(paths: CanaryPaths): void {
   const existingPid = readPid(paths);
   if (existingPid !== null && isRunning(existingPid)) {
-    console.log(`Synara Canary is already running (pid ${String(existingPid)}).`);
+    console.log(`Graft Canary is already running (pid ${String(existingPid)}).`);
     return;
   }
   const commit = currentSourceCommit(paths);
@@ -261,18 +261,18 @@ function startCanary(paths: CanaryPaths): void {
     commit === null ||
     !FS.existsSync(Path.join(paths.source, "apps/desktop/dist-electron/main.js"))
   ) {
-    throw new Error("Synara Canary is not built. Run `bun run canary:setup` first.");
+    throw new Error("Graft Canary is not built. Run `bun run canary:setup` first.");
   }
   FS.mkdirSync(paths.home, { recursive: true });
   const env = { ...process.env };
   delete env.VITE_DEV_SERVER_URL;
   delete env.ELECTRON_RENDERER_PORT;
-  delete env.SYNARA_AUTH_TOKEN;
+  delete env.GRAFT_AUTH_TOKEN;
   Object.assign(env, {
-    SYNARA_DESKTOP_FLAVOR: "canary",
-    SYNARA_DISABLE_AUTO_UPDATE: "1",
+    GRAFT_DESKTOP_FLAVOR: "canary",
+    GRAFT_DISABLE_AUTO_UPDATE: "1",
     GRAFT_HOME: paths.home,
-    SYNARA_COMMIT_HASH: commit,
+    GRAFT_COMMIT_HASH: commit,
   });
   const logDescriptor = FS.openSync(paths.log, "a", 0o600);
   try {
@@ -285,11 +285,11 @@ function startCanary(paths: CanaryPaths): void {
       shell: process.platform === "win32",
     });
     if (child.pid === undefined) {
-      throw new Error("Synara Canary failed to return a process id.");
+      throw new Error("Graft Canary failed to return a process id.");
     }
     child.unref();
     FS.writeFileSync(paths.pid, `${String(child.pid)}\n`, { mode: 0o600 });
-    console.log(`Started Synara Canary at ${commit.slice(0, 12)} (pid ${String(child.pid)}).`);
+    console.log(`Started Graft Canary at ${commit.slice(0, 12)} (pid ${String(child.pid)}).`);
     console.log(`Log: ${paths.log}`);
   } finally {
     FS.closeSync(logDescriptor);
@@ -344,7 +344,7 @@ function updateCanary(paths: CanaryPaths, ref: string): void {
 function rollbackCanary(paths: CanaryPaths): void {
   const state = readState(paths);
   if (state?.previousCommit === null || state?.previousCommit === undefined) {
-    throw new Error("Synara Canary has no previous successful commit to restore.");
+    throw new Error("Graft Canary has no previous successful commit to restore.");
   }
   assertManagedSourceIsClean(paths);
   stopCanary(paths);
@@ -372,7 +372,7 @@ function printStatus(paths: CanaryPaths): void {
   const state = readState(paths);
   const pid = readPid(paths);
   const running = pid !== null && isRunning(pid);
-  console.log(`Synara Canary: ${running ? `running (pid ${String(pid)})` : "stopped"}`);
+  console.log(`Graft Canary: ${running ? `running (pid ${String(pid)})` : "stopped"}`);
   console.log(`Source: ${paths.source}`);
   console.log(`Data: ${paths.home}`);
   console.log(`Log: ${paths.log}`);

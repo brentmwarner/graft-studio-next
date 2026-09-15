@@ -12,18 +12,18 @@ import {
   migrationRecoveryMarkerPath,
   parseMigrationRecoveryResumeState,
   type MigrationSchemaTooNewRecovery,
-} from "@synara/shared/migrationRecovery";
+} from "@graft/shared/migrationRecovery";
 export {
   migrationBackupDirectory,
   migrationBackupProvenancePath,
   migrationRecoveryMarkerPath,
-} from "@synara/shared/migrationRecovery";
+} from "@graft/shared/migrationRecovery";
 
 import {
   sameFileIdentity,
   syncDirectoryEntry,
   syncRegularFile,
-} from "@synara/shared/filesystemPlatform";
+} from "@graft/shared/filesystemPlatform";
 import { ensurePrivateDirectorySync, repairPrivateFile } from "../privatePathPermissions.ts";
 import { withDatabaseLifecycleLock } from "./DatabaseLifecycleLock.ts";
 import {
@@ -60,7 +60,7 @@ export class MigrationRecoveryRequiredError extends Error {
     detail?: string,
   ) {
     super(
-      `Migration recovery is required for ${dbPath}.${detail ? ` ${detail}` : ""} Stop every Synara process, then run: synara-restore-migration-backup ${shellQuote(dbPath)}`,
+      `Migration recovery is required for ${dbPath}.${detail ? ` ${detail}` : ""} Stop every Graft process, then run: graft-restore-migration-backup ${shellQuote(dbPath)}`,
     );
     this.name = "MigrationRecoveryRequiredError";
   }
@@ -94,7 +94,7 @@ export class InsufficientMigrationBackupSpaceError extends Error {
     super(
       `Not enough free disk space to back up the database before upgrading it. ` +
         `About ${formatBytes(requiredBytes)} is needed in ${directory}, but only ` +
-        `${formatBytes(availableBytes)} is free. Free up disk space and start Synara again.`,
+        `${formatBytes(availableBytes)} is free. Free up disk space and start Graft again.`,
     );
     this.name = "InsufficientMigrationBackupSpaceError";
   }
@@ -744,11 +744,11 @@ function migrationRecoveryPayload(dbPath: string, backup: MigrationBackupResult)
     createdAt: backup.createdAt,
     resumeAttempts: 0,
     restore: {
-      executable: "synara-restore-migration-backup",
+      executable: "graft-restore-migration-backup",
       arguments: [dbPath],
     },
     recovery:
-      "Stop every Synara process, then run the explicit migration-backup restore command for this database.",
+      "Stop every Graft process, then run the explicit migration-backup restore command for this database.",
   } as const;
 }
 
@@ -1303,7 +1303,7 @@ export const resumeMarkedMigration = <A, E, R>(
 
 /**
  * Explicit one-shot restore path for the active recovery marker or the latest
- * completed migration provenance. The operator must stop every Synara process
+ * completed migration provenance. The operator must stop every Graft process
  * before invoking it; startup itself deliberately never calls this function.
  */
 export interface RestoreMarkedMigrationBackupOptions {

@@ -7,7 +7,7 @@ import nodePath from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { outboundHttp } from "@synara/shared/outboundHttp";
+import { outboundHttp } from "@graft/shared/outboundHttp";
 
 import { opencodeUsageFetcher, parseOpenCodeGoUsage } from "./opencode";
 
@@ -40,7 +40,7 @@ function stubOutboundFetch(
 }
 
 function makeHome(relativeAuthPath: string, auth: Record<string, unknown>) {
-  const homeDir = mkdtempSync(nodePath.join(os.tmpdir(), "synara-opencode-usage-"));
+  const homeDir = mkdtempSync(nodePath.join(os.tmpdir(), "graft-opencode-usage-"));
   tempDirs.push(homeDir);
   const authPath = nodePath.join(homeDir, ...relativeAuthPath.split("/"));
   mkdirSync(nodePath.dirname(authPath), { recursive: true });
@@ -78,7 +78,7 @@ describe("parseOpenCodeGoUsage", () => {
 
 describe("opencodeUsageFetcher", () => {
   it("returns needs-auth when no OpenCode auth.json exists", async () => {
-    const homeDir = mkdtempSync(nodePath.join(os.tmpdir(), "synara-opencode-empty-"));
+    const homeDir = mkdtempSync(nodePath.join(os.tmpdir(), "graft-opencode-empty-"));
     tempDirs.push(homeDir);
     const snapshot = await opencodeUsageFetcher.fetch({
       homeDir,

@@ -4,7 +4,7 @@ import type {
   SshProjectAddInput,
   SshProjectAddResult,
   SshProjectList,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 export const SSH_MACHINES_QUERY_KEY = ["graft", "ssh-machines"] as const;
 export const sshProjectsQueryKey = (machineId: string) =>

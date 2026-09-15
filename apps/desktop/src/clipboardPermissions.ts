@@ -1,8 +1,5 @@
 import type { WebContents } from "electron";
-import {
-  SYNARA_CANARY_DESKTOP_SCHEME,
-  SYNARA_DESKTOP_SCHEME,
-} from "@synara/shared/desktopIdentity";
+import { GRAFT_CANARY_DESKTOP_SCHEME, GRAFT_DESKTOP_SCHEME } from "@graft/shared/desktopIdentity";
 
 /** Copy buttons share the OS clipboard; background reads remain denied. */
 export function isClipboardWritePermission(
@@ -23,8 +20,8 @@ export function isClipboardWritePermission(
     // returned to the composer when an asynchronous copy requests permission.
     const page = new URL(requester.getURL());
     const trustedScheme =
-      page.protocol === `${SYNARA_DESKTOP_SCHEME}:` ||
-      page.protocol === `${SYNARA_CANARY_DESKTOP_SCHEME}:`;
+      page.protocol === `${GRAFT_DESKTOP_SCHEME}:` ||
+      page.protocol === `${GRAFT_CANARY_DESKTOP_SCHEME}:`;
     if (
       page.protocol !== "https:" &&
       !trustedScheme &&

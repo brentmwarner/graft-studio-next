@@ -1,4 +1,4 @@
-import { AuthSessionId } from "@synara/contracts";
+import { AuthSessionId } from "@graft/contracts";
 import { DateTime, Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

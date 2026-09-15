@@ -83,7 +83,7 @@ struct WelcomeView: View {
                     .modifier(Beat(s: s, delay: 0.86, rise: 14))
 
                     GlassActionPill(
-                        title: "Pair with Studio",
+                        title: "Pair with Graft Studio",
                         icon: "link"
                     ) {
                         showPairing = true
@@ -120,7 +120,7 @@ struct WelcomeView: View {
             return error
         }
         if app.auth.isSignedIn {
-            return "Open Graft Studio on your Mac,\nthen scan or paste the pairing link."
+            return "Open Graft Studio on this computer,\nthen scan or paste the pairing link."
         }
         return "Sign in to connect this iPhone to your Studio."
     }

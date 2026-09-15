@@ -1,4 +1,4 @@
-import { ApprovalRequestId, MessageId, ThreadId, TurnId } from "@synara/contracts";
+import { ApprovalRequestId, MessageId, ThreadId, TurnId } from "@graft/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QueuedComposerTurn } from "../composerDraftStore";

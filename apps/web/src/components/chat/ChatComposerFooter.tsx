@@ -1,4 +1,4 @@
-import { ProviderInteractionMode } from "@synara/contracts";
+import { ProviderInteractionMode } from "@graft/contracts";
 import { type ReactNode } from "react";
 import {
   BugIcon,

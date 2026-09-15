@@ -10,8 +10,8 @@ import type {
   GitPullRequestComment,
   PullRequestCheck,
   PullRequestComment,
-} from "@synara/contracts";
-import { pluralize } from "@synara/shared/text";
+} from "@graft/contracts";
+import { pluralize } from "@graft/shared/text";
 
 import {
   type PullRequestContextDraft,
@@ -405,7 +405,7 @@ export function buildFixFindingsPrompt(input: {
 
 // Handed to the agent by the conflicts row's "Fix" button. The prompt names the PR branch
 // as it exists on GitHub but points the agent at the current checkout: fork threads check
-// the PR out under a different local branch name (e.g. `synara/pr-N/<branch>`).
+// the PR out under a different local branch name (e.g. `graft/pr-N/<branch>`).
 export function buildResolveConflictsPrompt(input: {
   prNumber: number;
   prUrl: string;

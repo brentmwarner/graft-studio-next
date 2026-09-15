@@ -3,8 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { FiMoon, FiSun } from "react-icons/fi";
 
-const THEME_KEY = "synara-theme";
-const THEME_CHANGE_EVENT = "synara-theme-change";
+const THEME_KEY = "graft-theme";
+const THEME_CHANGE_EVENT = "graft-theme-change";
 
 function subscribeToThemeChanges(onChange: () => void) {
   window.addEventListener(THEME_CHANGE_EVENT, onChange);

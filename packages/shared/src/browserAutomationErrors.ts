@@ -5,7 +5,7 @@ import {
   BrowserTimeoutMs,
   type BrowserAutomationErrorInput,
   type BrowserMcpToolErrorEnvelope,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Schema } from "effect";
 
 // Classify known fields without exposing parser issues, code or credential values.
@@ -54,7 +54,7 @@ export const makeBrowserAutomationError = (
 export const makeBrowserMcpToolErrorEnvelope = (
   input: BrowserAutomationErrorInput,
 ): BrowserMcpToolErrorEnvelope => ({
-  type: "synara_browser_error",
+  type: "graft_browser_error",
   version: 1,
   error: makeBrowserAutomationError(input),
 });

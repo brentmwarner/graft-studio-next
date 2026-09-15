@@ -7,7 +7,7 @@ import {
   ThreadId,
   TurnId,
   type OrchestrationReadModel,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

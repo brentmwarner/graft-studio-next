@@ -15,7 +15,7 @@ afterEach(async () => {
 
 describe("Studio generated-image path containment", () => {
   it("accepts dot-prefixed children without accepting parent escapes", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "synara-studio-dot-image-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "graft-studio-dot-image-"));
     temporaryRoots.push(root);
     const trustedRoot = path.join(root, "generated_images");
     const sourceDirectory = path.join(trustedRoot, "..session");

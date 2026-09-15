@@ -3,7 +3,7 @@
 // Layer: Chat composer UI
 // Exports: ActiveTaskListCard
 
-import { pluralize } from "@synara/shared/text";
+import { pluralize } from "@graft/shared/text";
 
 import type { ActiveTaskListState } from "../../session-logic";
 import {

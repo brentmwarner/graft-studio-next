@@ -1,5 +1,5 @@
 import { DateTime } from "effect";
-import type { AuthClientSession } from "@synara/contracts";
+import type { AuthClientSession } from "@graft/contracts";
 
 export type ConnectionsDevicePlatform = "ios" | "android" | "web" | "desktop";
 

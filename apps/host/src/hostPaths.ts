@@ -7,7 +7,7 @@ export interface GraftHostPaths {
   databasePath: string;
   lockPath: string;
   statePath: string;
-  synaraHome: string;
+  graftHome: string;
   archivePath: string;
 }
 
@@ -33,7 +33,7 @@ export function resolveGraftHostPaths(dataRoot: string): GraftHostPaths {
     databasePath: join(dataRoot, "graft-host.db"),
     lockPath: join(dataRoot, "daemon.lock"),
     statePath: join(dataRoot, "daemon.json"),
-    synaraHome: preferExistingHostHome(dataRoot),
+    graftHome: preferExistingHostHome(dataRoot),
     archivePath: join(dataRoot, "graft-host-linux-x64.tar.gz"),
   };
 }

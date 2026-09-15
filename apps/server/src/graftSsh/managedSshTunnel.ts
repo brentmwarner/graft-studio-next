@@ -1,4 +1,4 @@
-import { spawnProcess } from "@synara/shared/processRuntime";
+import { spawnProcess } from "@graft/shared/processRuntime";
 import { signalOwnedChildProcess } from "../platform/processTreeController";
 import { createServer } from "node:net";
 import {

@@ -165,7 +165,7 @@ function prepareLinuxLaunch(assetsDirectory: string, extractionRoot: string): La
     args: ["-a", appRun, "--no-sandbox", "--disable-gpu"],
     cwd: join(extractionRoot, "squashfs-root"),
     runtime: {
-      executable: join(extractionRoot, "squashfs-root", "synara"),
+      executable: join(extractionRoot, "squashfs-root", "graft"),
       resourcesDirectory: join(extractionRoot, "squashfs-root", "resources"),
     },
   };
@@ -188,10 +188,10 @@ function prepareWindowsLaunch(assetsDirectory: string, extractionRoot: string): 
   }
   runCommand("7z", ["x", "-y", `-o${applicationRoot}`, applicationArchives[0]!]);
   const executables = findFiles(applicationRoot, (candidate) =>
-    /[/\\]Synara\.exe$/i.test(candidate),
+    /[/\\]Graft\.exe$/i.test(candidate),
   );
   if (executables.length !== 1) {
-    throw new Error(`Expected one extracted Synara.exe, found ${executables.length}.`);
+    throw new Error(`Expected one extracted Graft.exe, found ${executables.length}.`);
   }
   return {
     command: executables[0]!,
@@ -263,12 +263,12 @@ export function createPackagedDesktopSmokeEnvironment(
     XDG_CONFIG_HOME: join(root, "xdg-config"),
     XDG_CACHE_HOME: join(root, "xdg-cache"),
     XDG_DATA_HOME: join(root, "xdg-data"),
-    GRAFT_HOME: join(root, "synara-home"),
-    SYNARA_HOME: join(root, "synara-home"),
-    SYNARA_DISABLE_AUTO_UPDATE: "1",
+    GRAFT_HOME: join(root, "graft-home"),
+    GRAFT_HOME: join(root, "graft-home"),
+    GRAFT_DISABLE_AUTO_UPDATE: "1",
     ELECTRON_ENABLE_LOGGING: "1",
   };
-  delete env.SYNARA_AUTH_TOKEN;
+  delete env.GRAFT_AUTH_TOKEN;
   delete env.ELECTRON_RUN_AS_NODE;
   for (const path of [
     env.HOME,
@@ -277,7 +277,7 @@ export function createPackagedDesktopSmokeEnvironment(
     env.XDG_CONFIG_HOME,
     env.XDG_CACHE_HOME,
     env.XDG_DATA_HOME,
-    env.SYNARA_HOME,
+    env.GRAFT_HOME,
   ]) {
     if (path) mkdirSync(path, { recursive: true });
   }
@@ -377,7 +377,7 @@ export async function verifyPackagedDesktopStartup(
       `Packaged ${options.platform} startup smoke must run on its native host, not ${process.platform}.`,
     );
   }
-  const temporaryRoot = mkdtempSync(join(tmpdir(), `synara-packaged-smoke-${options.platform}-`));
+  const temporaryRoot = mkdtempSync(join(tmpdir(), `graft-packaged-smoke-${options.platform}-`));
   const extractionRoot = join(temporaryRoot, "payload");
   mkdirSync(extractionRoot, { recursive: true });
 
@@ -388,7 +388,7 @@ export async function verifyPackagedDesktopStartup(
     const launch = prepareLaunch(options, extractionRoot);
     const env = createPackagedDesktopSmokeEnvironment(join(temporaryRoot, "state"), options);
     verifyPackagedRuntimeDependencies(launch.runtime, env, options.timeoutMs);
-    logDirectory = join(env.SYNARA_HOME!, "userdata", "logs");
+    logDirectory = join(env.GRAFT_HOME!, "userdata", "logs");
     const logPath = join(logDirectory, "desktop-main.log");
     child = spawn(launch.command, [...launch.args], {
       cwd: launch.cwd,

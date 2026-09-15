@@ -1,5 +1,5 @@
 import { BetterWright, NetworkPolicy, type CredentialVault } from "betterwright";
-import { BrowserAutomationErrorMessages } from "@synara/contracts";
+import { BrowserAutomationErrorMessages } from "@graft/contracts";
 import type { WebContents } from "electron";
 import { openBetterwrightConnection } from "./betterwrightConnection";
 import type { BrowserAutomationVisibleRuntime } from "../browserManager";
@@ -32,7 +32,7 @@ export interface BetterwrightRunOptions {
   readonly expectAgentInput?: BrowserAutomationVisibleRuntime["expectAgentInput"];
 }
 
-/** The caller must hold Synara's tab, human-control and download-denial leases. */
+/** The caller must hold Graft's tab, human-control and download-denial leases. */
 export async function runBetterwright<T>(options: BetterwrightRunOptions): Promise<T> {
   options.signal.throwIfAborted();
   const throttled = options.contents.getBackgroundThrottling();

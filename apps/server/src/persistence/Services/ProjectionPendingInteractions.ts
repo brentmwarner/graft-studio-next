@@ -9,7 +9,7 @@ import {
   ProjectionPendingInteractionStatus,
   ThreadId,
   TurnId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Option, Schema, ServiceMap } from "effect";
 import type { Effect } from "effect";
 
@@ -93,5 +93,5 @@ export class ProjectionPendingInteractionRepository extends ServiceMap.Service<
   ProjectionPendingInteractionRepository,
   ProjectionPendingInteractionRepositoryShape
 >()(
-  "synara/persistence/Services/ProjectionPendingInteractions/ProjectionPendingInteractionRepository",
+  "graft/persistence/Services/ProjectionPendingInteractions/ProjectionPendingInteractionRepository",
 ) {}

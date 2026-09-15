@@ -1,7 +1,7 @@
 import type { ChildProcess as ChildProcessHandle } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { isCommandNotFoundExit } from "@synara/shared/platformProcess";
-import { spawnProcess } from "@synara/shared/processRuntime";
+import { isCommandNotFoundExit } from "@graft/shared/platformProcess";
+import { spawnProcess } from "@graft/shared/processRuntime";
 
 import { signalOwnedChildProcess } from "./platform/processTreeController.ts";
 

@@ -47,7 +47,7 @@ function getTweetCacheTtlSeconds(envValue = process.env.TWEET_CACHE_TTL_SECONDS)
 // API on every request — same approach as link-manager's /api/tweet/[id] route.
 const fetchCachedTweet = unstable_cache(
   async (tweetId: string) => fetchTweet(tweetId),
-  ["synara-testimonial-tweet"],
+  ["graft-testimonial-tweet"],
   { revalidate: getTweetCacheTtlSeconds() },
 );
 

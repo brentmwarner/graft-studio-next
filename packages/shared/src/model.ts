@@ -22,7 +22,7 @@ import {
   type PiThinkingLevel,
   type ProviderKind,
   type ProviderWithDefaultModel,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 const MODEL_SLUG_SET_BY_PROVIDER: Record<ProviderKind, ReadonlySet<ModelSlug>> = {
   claudeAgent: new Set(MODEL_OPTIONS_BY_PROVIDER.claudeAgent.map((option) => option.slug)),
@@ -162,7 +162,7 @@ export function humanizeModelSlug(slug: string): string {
 }
 
 /**
- * Normalizes a provider-supplied display name to Synara's canonical casing:
+ * Normalizes a provider-supplied display name to Graft's canonical casing:
  * known brand tokens are re-cased ("Swe" → "SWE", "Deepseek" → "DeepSeek"),
  * slug separators become spaces ("GLM-5.3-Flash" → "GLM 5.3 Flash"), digit
  * fragments rejoin as versions, and GPT versions keep their hyphen. Gated on a

@@ -4,8 +4,8 @@
 // Exports: ChatMarkdown
 
 import { CheckIcon, CopyIcon, TextWrapIcon } from "~/lib/icons";
-import type { ProviderMentionReference } from "@synara/contracts";
-import { isLocalAbsolutePath } from "@synara/shared/path";
+import type { ProviderMentionReference } from "@graft/contracts";
+import { isLocalAbsolutePath } from "@graft/shared/path";
 import "katex/dist/katex.min.css";
 import { matchWikiLinkAt, remarkWikiLinks } from "../lib/remarkWikiLinks";
 import React, {

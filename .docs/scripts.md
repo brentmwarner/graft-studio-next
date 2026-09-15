@@ -3,9 +3,9 @@
 - `bun run dev` — Starts contracts, server, and web in `turbo watch` mode.
 - `bun run dev:server` — Starts just the WebSocket server (uses Bun TypeScript execution).
 - `bun run dev:web` — Starts just the Vite dev server for the web app.
-- Dev commands default `SYNARA_HOME` to `~/.synara`, which keeps dev state under `~/.synara/dev`.
+- Dev commands default `GRAFT_HOME` to `~/.graft`, which keeps dev state under `~/.graft/dev`.
 - Override server CLI-equivalent flags from root dev commands with `--`, for example:
-  `bun run dev -- --home-dir ~/.synara-2`
+  `bun run dev -- --home-dir ~/.graft-2`
 - `bun run start` — Runs the production server (serves built web app as static files).
 - `bun run build` — Builds contracts, web app, and server through Turbo.
 - `bun run typecheck` — Strict TypeScript checks for all packages.
@@ -20,8 +20,8 @@
 
 - Default local builds are unsigned/not notarized unless `--signed` is supplied with the required platform credentials.
 - Production icon sources are centralized in `scripts/lib/brand-assets.ts`. The current macOS source is `assets/prod/black-macos-1024.png` (with the legacy macOS variant alongside it); do not hard-code a separate packaging icon path in docs or scripts.
-- Desktop production windows load the bundled UI from `synara://app/index.html` (not a `127.0.0.1` document URL).
-- Desktop packaging includes `apps/server/dist` (the `synara` backend) and starts it on loopback with an auth token for WebSocket/API traffic.
+- Desktop production windows load the bundled UI from `graft://app/index.html` (not a `127.0.0.1` document URL).
+- Desktop packaging includes `apps/server/dist` (the `graft` backend) and starts it on loopback with an auth token for WebSocket/API traffic.
 - Your tester can still open an unsigned local macOS build by right-clicking the app and choosing **Open** on first launch.
 - To keep staging files for debugging package contents, run: `bun run dist:desktop:dmg -- --keep-stage`.
 - To enable code-signing/notarization when the required credentials are configured, add `--signed`.
@@ -35,10 +35,10 @@
 
 ## Running multiple dev instances
 
-Set `SYNARA_DEV_INSTANCE` to any value to deterministically shift all dev ports together.
+Set `GRAFT_DEV_INSTANCE` to any value to deterministically shift all dev ports together.
 
 - Default ports: server `3773`, web `5733`
-- Shifted ports: `base + offset` (offset is hashed from `SYNARA_DEV_INSTANCE`)
-- Example: `SYNARA_DEV_INSTANCE=branch-a bun run dev:desktop`
+- Shifted ports: `base + offset` (offset is hashed from `GRAFT_DEV_INSTANCE`)
+- Example: `GRAFT_DEV_INSTANCE=branch-a bun run dev:desktop`
 
-If you want full control instead of hashing, set `SYNARA_PORT_OFFSET` to a numeric offset.
+If you want full control instead of hashing, set `GRAFT_PORT_OFFSET` to a numeric offset.

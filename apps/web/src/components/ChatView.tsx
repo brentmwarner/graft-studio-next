@@ -16,17 +16,17 @@ import {
   type ServerProviderStatus,
   type ThreadGoalAchievement,
   type TurnId,
-} from "@synara/contracts";
-import { resolveLatestTailUserMessageEditTarget } from "@synara/shared/conversationEdit";
-import { getModelCapabilities } from "@synara/shared/model";
+} from "@graft/contracts";
+import { resolveLatestTailUserMessageEditTarget } from "@graft/shared/conversationEdit";
+import { getModelCapabilities } from "@graft/shared/model";
 import {
   resolveThreadWorkspaceCwd as resolveSharedThreadWorkspaceCwd,
   resolveThreadBranchSourceCwd,
   resolveThreadWorkspaceState,
-} from "@synara/shared/threadEnvironment";
-import { threadExportBlockedReason } from "@synara/shared/threadExport";
-import { pendingRequestInstanceKey } from "@synara/shared/threadSummary";
-import { deriveAssociatedWorktreeMetadata } from "@synara/shared/threadWorkspace";
+} from "@graft/shared/threadEnvironment";
+import { threadExportBlockedReason } from "@graft/shared/threadExport";
+import { pendingRequestInstanceKey } from "@graft/shared/threadSummary";
+import { deriveAssociatedWorktreeMetadata } from "@graft/shared/threadWorkspace";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -228,7 +228,7 @@ import PlanSidebar from "./PlanSidebar";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { RenameThreadDialog } from "./RenameThreadDialog";
 import { SidebarHeaderNavigationControls } from "./SidebarHeaderNavigationControls";
-import { SynaraLogo } from "./SynaraLogo";
+import { GraftLogo } from "./GraftLogo";
 import TerminalWorkspaceTabs from "./TerminalWorkspaceTabs";
 import { ThreadWorktreeHandoffDialog } from "./ThreadWorktreeHandoffDialog";
 import { UnicornBackground } from "./chat/UnicornBackground";
@@ -464,7 +464,7 @@ interface ChatViewProps {
 
 // Builds an ephemeral transcript bubble for the conversational automation-setup
 // exchange. These never reach a provider and are not persisted; they render the
-// back-and-forth (user request, Synara's clarifying questions) inline like Codex.
+// back-and-forth (user request, Graft's clarifying questions) inline like Codex.
 
 export default function ChatView({
   threadId,
@@ -5552,7 +5552,7 @@ export default function ChatView({
                       CHAT_COLUMN_FRAME_CLASS_NAME,
                     )}
                   >
-                    <SynaraLogo aria-label="Graft logo" className="size-10" />
+                    <GraftLogo aria-label="Graft logo" className="size-10" />
                     <h2
                       data-testid="empty-landing-heading"
                       className="text-[26px] font-normal leading-[1.15] tracking-[-0.015em] text-foreground/95 sm:text-[30px]"

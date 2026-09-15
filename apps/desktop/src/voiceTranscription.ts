@@ -3,23 +3,23 @@
 // Layer: Desktop IPC + ChatGPT upload bridge
 // Depends on: Codex auth discovery, Electron net uploads, and the shared server voice contract.
 
-import { spawnProcess } from "@synara/shared/processRuntime";
+import { spawnProcess } from "@graft/shared/processRuntime";
 
 import { app, ipcMain } from "electron";
 import type {
   ServerVoiceTranscriptionInput,
   ServerVoiceTranscriptionResult,
-} from "@synara/contracts";
-import { SERVER_VOICE_TRANSCRIPTION_MAX_AUDIO_BYTES } from "@synara/contracts";
+} from "@graft/contracts";
+import { SERVER_VOICE_TRANSCRIPTION_MAX_AUDIO_BYTES } from "@graft/contracts";
 import {
   CHATGPT_VOICE_TRANSCRIPTION_URL,
   requestChatGptVoiceTranscription,
-} from "@synara/shared/chatGptVoiceTranscription";
+} from "@graft/shared/chatGptVoiceTranscription";
 import {
   decodeOutboundJson,
   decodeOutboundText,
   type OutboundHttpResponse,
-} from "@synara/shared/outboundHttp";
+} from "@graft/shared/outboundHttp";
 import { SERVER_TRANSCRIBE_VOICE_CHANNEL } from "./ipcChannels";
 
 const MAX_VOICE_DURATION_MS = 120_000;
@@ -194,7 +194,7 @@ async function resolveDesktopVoiceAuth(
         method: "initialize",
         params: {
           clientInfo: {
-            name: "synara-desktop",
+            name: "graft-desktop",
             title: "Graft Desktop",
             version: app.getVersion(),
           },

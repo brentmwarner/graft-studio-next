@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_SERVER_STATUS_URL,
-  fetchSynaraServerStatus,
-  formatSynaraServerStatus,
+  fetchGraftServerStatus,
+  formatGraftServerStatus,
 } from "./serverStatusCli.ts";
 
 describe("server status CLI probe", () => {
@@ -17,7 +17,7 @@ describe("server status CLI probe", () => {
       });
     });
 
-    const result = await fetchSynaraServerStatus({ fetch });
+    const result = await fetchGraftServerStatus({ fetch });
 
     expect(result).toMatchObject({
       reachable: true,
@@ -28,13 +28,13 @@ describe("server status CLI probe", () => {
         projection: { state: "healthy" },
       },
     });
-    expect(formatSynaraServerStatus(result)).toBe(
-      "Synara server: ready\nURL: http://127.0.0.1:3773\nProjection: healthy",
+    expect(formatGraftServerStatus(result)).toBe(
+      "Graft server: ready\nURL: http://127.0.0.1:3773\nProjection: healthy",
     );
   });
 
   it("reports a reachable server that is still starting", async () => {
-    const result = await fetchSynaraServerStatus({
+    const result = await fetchGraftServerStatus({
       fetch: async () =>
         Response.json({
           status: "ok",
@@ -44,11 +44,11 @@ describe("server status CLI probe", () => {
     });
 
     expect(result).toMatchObject({ reachable: true, ready: false });
-    expect(formatSynaraServerStatus(result)).toContain("Synara server: starting");
+    expect(formatGraftServerStatus(result)).toContain("Graft server: starting");
   });
 
   it("distinguishes an unhealthy projection from a server that is still starting", async () => {
-    const result = await fetchSynaraServerStatus({
+    const result = await fetchGraftServerStatus({
       fetch: async () =>
         Response.json({
           status: "ok",
@@ -58,12 +58,12 @@ describe("server status CLI probe", () => {
     });
 
     expect(result).toMatchObject({ reachable: true, ready: false });
-    expect(formatSynaraServerStatus(result)).toContain("Synara server: not ready");
+    expect(formatGraftServerStatus(result)).toContain("Graft server: not ready");
   });
 
   it("treats an unknown or missing projection health state as not ready", async () => {
     for (const projection of [{ state: "unknown" }, undefined]) {
-      const result = await fetchSynaraServerStatus({
+      const result = await fetchGraftServerStatus({
         fetch: async () =>
           Response.json({
             status: "ok",
@@ -81,26 +81,26 @@ describe("server status CLI probe", () => {
       Response.json({ status: "ok", startupReady: true, projection: { state: "healthy" } }),
     );
 
-    await fetchSynaraServerStatus({
-      url: "https://synara.example.com/some/path?ignored=1#hash",
+    await fetchGraftServerStatus({
+      url: "https://graft.example.com/some/path?ignored=1#hash",
       fetch,
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "https://synara.example.com/health",
+      "https://graft.example.com/health",
       expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
   });
 
   it("rejects credentials and never reports URL secrets", async () => {
-    const result = await fetchSynaraServerStatus({
-      url: "https://user:password@synara.example.com/path?token=secret#fragment",
+    const result = await fetchGraftServerStatus({
+      url: "https://user:password@graft.example.com/path?token=secret#fragment",
     });
 
     expect(result).toEqual({
       reachable: false,
       ready: false,
-      url: "https://synara.example.com",
+      url: "https://graft.example.com",
       error: "Server URL must not contain credentials.",
     });
     expect(JSON.stringify(result)).not.toContain("password");
@@ -108,24 +108,24 @@ describe("server status CLI probe", () => {
   });
 
   it("fails closed for invalid URLs and malformed health responses", async () => {
-    await expect(fetchSynaraServerStatus({ url: "file:///tmp/synara" })).resolves.toMatchObject({
+    await expect(fetchGraftServerStatus({ url: "file:///tmp/graft" })).resolves.toMatchObject({
       reachable: false,
       ready: false,
       error: "Server URL must use http:// or https://.",
     });
 
     await expect(
-      fetchSynaraServerStatus({ fetch: async () => Response.json({ status: "ok" }) }),
+      fetchGraftServerStatus({ fetch: async () => Response.json({ status: "ok" }) }),
     ).resolves.toMatchObject({
       reachable: false,
       ready: false,
-      error: "Health response did not match the Synara health shape.",
+      error: "Health response did not match the Graft health shape.",
     });
   });
 
   it("reports HTTP and transport failures without throwing", async () => {
     await expect(
-      fetchSynaraServerStatus({
+      fetchGraftServerStatus({
         fetch: async () => new Response("offline", { status: 503 }),
       }),
     ).resolves.toMatchObject({
@@ -134,7 +134,7 @@ describe("server status CLI probe", () => {
       error: "Health request returned HTTP 503.",
     });
 
-    const result = await fetchSynaraServerStatus({
+    const result = await fetchGraftServerStatus({
       fetch: async () => {
         throw new Error("connection refused");
       },
@@ -144,6 +144,6 @@ describe("server status CLI probe", () => {
       ready: false,
       error: "connection refused",
     });
-    expect(formatSynaraServerStatus(result)).toContain("Synara server: unreachable");
+    expect(formatGraftServerStatus(result)).toContain("Graft server: unreachable");
   });
 });

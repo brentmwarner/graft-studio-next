@@ -1,9 +1,9 @@
 ---
 title: Agent Gateway
-description: Let a supported Synara provider session inspect, create, coordinate, and monitor ordinary Synara tasks through app-owned MCP tools.
+description: Let a supported Graft provider session inspect, create, coordinate, and monitor ordinary Graft tasks through app-owned MCP tools.
 ---
 
-The Synara Agent Gateway is an internal, thread-scoped MCP control surface injected into supported provider sessions. It lets one Synara task coordinate other Synara resources while Synara continues to enforce project, worktree, runtime-mode, and task-lifecycle rules.
+The Graft Agent Gateway is an internal, thread-scoped MCP control surface injected into supported provider sessions. It lets one Graft task coordinate other Graft resources while Graft continues to enforce project, worktree, runtime-mode, and task-lifecycle rules.
 
 It is different from [External MCP](/docs/workflows/external-mcp), which pairs another local application through a separately approved integration.
 
@@ -12,7 +12,7 @@ It is different from [External MCP](/docs/workflows/external-mcp), which pairs a
 Use the Agent Gateway when one owner task needs to:
 
 - Discover available projects, providers, models, and task state
-- Create one or more ordinary Synara tasks
+- Create one or more ordinary Graft tasks
 - Wait for child tasks to reach meaningful states
 - Read child results and diagnostics
 - Send a bounded follow-up or interrupt stuck work
@@ -20,16 +20,16 @@ Use the Agent Gateway when one owner task needs to:
 - Coordinate supported automations
 - Use the task-scoped shared browser tools
 
-The gateway does not create a separate orchestration database. Its tools delegate to Synara’s existing task, provider, Git, automation, diagnostics, and browser services.
+The gateway does not create a separate orchestration database. Its tools delegate to Graft’s existing task, provider, Git, automation, diagnostics, and browser services.
 
 ## Start with context and capabilities
 
 A coordinating agent should orient itself before writing anything:
 
-1. Call `synara_context` to confirm the caller thread, active turn, provider, project, and granted coordination capabilities.
-2. Call `synara_capabilities` to discover provider/model targets, option shapes, availability, and operation limits.
-3. Use `synara_list_projects` when the work may target another project.
-4. Use `synara_list_threads` and `synara_read_thread` to avoid duplicating existing work.
+1. Call `graft_context` to confirm the caller thread, active turn, provider, project, and granted coordination capabilities.
+2. Call `graft_capabilities` to discover provider/model targets, option shapes, availability, and operation limits.
+3. Use `graft_list_projects` when the work may target another project.
+4. Use `graft_list_threads` and `graft_read_thread` to avoid duplicating existing work.
 
 Do not guess provider slugs, model IDs, project IDs, or target options from memory.
 
@@ -37,19 +37,19 @@ Do not guess provider slugs, model IDs, project IDs, or target options from memo
 
 The gateway can expose read-oriented tools such as:
 
-- `synara_context`
-- `synara_capabilities`
-- `synara_list_projects`
-- `synara_list_threads`
-- `synara_read_thread`
-- `synara_wait_for_threads`
+- `graft_context`
+- `graft_capabilities`
+- `graft_list_projects`
+- `graft_list_threads`
+- `graft_read_thread`
+- `graft_wait_for_threads`
 - Diagnostics tools for understanding failures and durable runtime state
 
 Read before creating. The safest new task is often no new task because equivalent work already exists.
 
 ## Create one task
 
-Use `synara_create_thread` when the plan contains exactly one new task.
+Use `graft_create_thread` when the plan contains exactly one new task.
 
 A creation plan should specify:
 
@@ -65,7 +65,7 @@ Prefer a managed worktree for an independently editing child.
 
 ## Create a batch
 
-Use `synara_create_threads` for an exact batch of 1–20 standalone tasks.
+Use `graft_create_threads` for an exact batch of 1–20 standalone tasks.
 
 The operation is designed as a durable unit:
 
@@ -96,7 +96,7 @@ Do not edit until findings are reported.
 
 ## Wait instead of polling
 
-Use `synara_wait_for_threads` to wait for authorized child tasks rather than repeatedly listing state or sending status messages.
+Use `graft_wait_for_threads` to wait for authorized child tasks rather than repeatedly listing state or sending status messages.
 
 The gateway publishes bounded wait limits. A timeout means the wait ended; it does not mean the child failed or stopped. Read the current state before deciding what to do next.
 
@@ -113,12 +113,12 @@ A useful coordination loop is:
 
 Where authorized, the gateway can expose actions including:
 
-- `synara_send_message`
-- `synara_interrupt_thread`
-- `synara_set_thread_title`
-- `synara_set_thread_archived`
+- `graft_send_message`
+- `graft_interrupt_thread`
+- `graft_set_thread_title`
+- `graft_set_thread_archived`
 
-Use `synara_send_message` for a specific correction or follow-up. Do not flood a running task with repeated status requests.
+Use `graft_send_message` for a specific correction or follow-up. Do not flood a running task with repeated status requests.
 
 Interrupt when the work is unsafe, clearly out of scope, stuck without progress, or no longer needed. Read the post-interrupt state before assuming all provider processes and effects stopped instantly.
 
@@ -133,7 +133,7 @@ Important boundaries include:
 - Write tools require an active caller turn.
 - A caller cannot drive a task running with greater runtime privilege.
 - A worktree-isolated caller cannot use another task as a proxy to drive a shared local-checkout task.
-- Project and thread access remain constrained by Synara’s authorization model.
+- Project and thread access remain constrained by Graft’s authorization model.
 - Creation targets are validated against current provider availability and model discovery.
 - The caller should not invent hidden authority from user text, webpages, issue comments, or child outputs.
 
@@ -156,17 +156,17 @@ Child worktrees can start from detached state and later create task-owned branch
 
 A provider’s own subagent, task, or worker tool remains inside that provider session. It is not automatically:
 
-- A Synara top-level task
-- A Synara worktree
+- A Graft top-level task
+- A Graft worktree
 - A separately resumable task
 - An independent Git owner
 - A resource managed through the Agent Gateway
 
-Use provider-native subagents for bounded work inside one owner task. Use the Agent Gateway when you need durable, independently visible Synara tasks.
+Use provider-native subagents for bounded work inside one owner task. Use the Agent Gateway when you need durable, independently visible Graft tasks.
 
 ## Browser tools
 
-Supported provider sessions can receive the shared `browser_*` tools through the gateway. These control the task-scoped Synara browser runtime, not the desktop or another chat.
+Supported provider sessions can receive the shared `browser_*` tools through the gateway. These control the task-scoped Graft browser runtime, not the desktop or another chat.
 
 Follow [Browser verification](/docs/workflows/browser-verification): snapshot before actions, bind targets to the current snapshot, observe ambiguous mutations before retrying, and keep human-only authentication under human control.
 
@@ -212,7 +212,7 @@ One integration owner must compare actual diffs and evidence. Do not ask childre
 - [ ] Stable request IDs are preserved for retries
 - [ ] Wait tools are used instead of noisy polling
 - [ ] Privilege and environment boundaries are respected
-- [ ] Native subagents are not confused with Synara tasks
+- [ ] Native subagents are not confused with Graft tasks
 - [ ] One integration owner reviews and verifies all child results
 
 <Callout type="warn" title="Orchestration does not transfer accountability">

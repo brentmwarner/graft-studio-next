@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 
-import { ThreadId } from "@synara/contracts";
+import { ThreadId } from "@graft/contracts";
 import type { WebContents } from "electron";
 import { describe, expect, it, vi } from "vitest";
 
@@ -734,7 +734,7 @@ describe("DesktopBrowserManager automation runtime boundary", () => {
     ).toThrow(/not ready yet/i);
   });
 
-  it("adopts only a webview owned by the exact Synara window and browser partition", () => {
+  it("adopts only a webview owned by the exact Graft window and browser partition", () => {
     const manager = new DesktopBrowserManager();
     const state = manager.open({ threadId: THREAD_ID });
     const tabId = state.activeTabId!;

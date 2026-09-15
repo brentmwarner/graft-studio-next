@@ -247,7 +247,7 @@ describe("Grok ACP permission policy", () => {
     { kind: "reject_once", optionId: "reject-once" },
   ] as const;
 
-  it("surfaces approval-required requests to Synara", () => {
+  it("surfaces approval-required requests to Graft", () => {
     expect(
       resolveAcpPermissionPolicy({
         runtimeMode: "approval-required",

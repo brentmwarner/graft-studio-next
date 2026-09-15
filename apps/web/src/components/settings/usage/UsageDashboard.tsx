@@ -1,4 +1,4 @@
-import type { ProfileTokenStats } from "@synara/contracts";
+import type { ProfileTokenStats } from "@graft/contracts";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { ProviderIcon } from "~/components/ProviderIcon";
@@ -291,7 +291,7 @@ export function UsageDashboard({
             </p>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               {ready
-                ? `Recorded in Synara across ${summary.activeDays} active ${summary.activeDays === 1 ? "day" : "days"}.`
+                ? `Recorded in Graft across ${summary.activeDays} active ${summary.activeDays === 1 ? "day" : "days"}.`
                 : loading
                   ? "Loading usage history…"
                   : "History unavailable"}
@@ -398,7 +398,7 @@ export function UsageDashboard({
 
       {ready ? <UsageBreakdown summary={summary} /> : null}
       <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        History includes tokens reported by tasks in this Synara instance. Provider quotas include
+        History includes tokens reported by tasks in this Graft instance. Provider quotas include
         account-wide usage.
         {unavailable.length > 0
           ? ` Token totals are unavailable for ${unavailable.map(usageProviderName).join(", ")}.`

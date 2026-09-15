@@ -1,9 +1,9 @@
 ---
 title: OpenCode
-description: Install, configure, verify, and run OpenCode through Synara.
+description: Install, configure, verify, and run OpenCode through Graft.
 ---
 
-Synara connects to the OpenCode runtime installed on your machine. OpenCode owns its configured model providers, credentials, model catalog, agents, and commands; Synara supplies the task, environment, transcript, Git workflow, and review surfaces around the session.
+Graft connects to the OpenCode runtime installed on your machine. OpenCode owns its configured model providers, credentials, model catalog, agents, and commands; Graft supplies the task, environment, transcript, Git workflow, and review surfaces around the session.
 
 ## Install
 
@@ -23,7 +23,7 @@ npm install -g opencode-ai
 brew install anomalyco/tap/opencode
 ```
 
-Synara looks for the `opencode` executable. Verify it with:
+Graft looks for the `opencode` executable. Verify it with:
 
 ```bash
 opencode --version
@@ -39,7 +39,7 @@ opencode
 
 Inside the TUI, use `/connect` to add a provider and `/models` to select a model. OpenCode can also read provider credentials and model definitions from its own configuration.
 
-Authentication belongs to OpenCode and the selected model provider. Synara does not move API keys into a separate account system.
+Authentication belongs to OpenCode and the selected model provider. Graft does not move API keys into a separate account system.
 
 ## Verify
 
@@ -55,16 +55,16 @@ Confirm that:
 - The intended model provider is connected
 - `/models` shows the expected catalog
 - A harmless read-only request succeeds
-- The same executable is the one Synara should use
+- The same executable is the one Graft should use
 
-## Connect to Synara
+## Connect to Graft
 
 <Steps>
 <Step>
 
 ### Enable OpenCode
 
-Open provider settings and confirm that Synara detects `opencode`.
+Open provider settings and confirm that Graft detects `opencode`.
 
 </Step>
 <Step>
@@ -78,7 +78,7 @@ Use automatic discovery unless you intentionally installed multiple OpenCode ver
 
 ### Refresh the model catalog
 
-Synara reads models and provider-specific options from the OpenCode runtime. Confirm that the model and variant controls match the configuration you tested in OpenCode.
+Graft reads models and provider-specific options from the OpenCode runtime. Confirm that the model and variant controls match the configuration you tested in OpenCode.
 
 </Step>
 <Step>
@@ -90,7 +90,7 @@ Use a small repository and one explicit model before relying on custom routing, 
 </Step>
 </Steps>
 
-## Capabilities in Synara
+## Capabilities in Graft
 
 OpenCode sessions can expose:
 
@@ -104,15 +104,15 @@ OpenCode sessions can expose:
 
 OpenCode supports many underlying model providers. Two users with the same OpenCode version can therefore see different models, authentication requirements, and limits.
 
-Synara does not currently classify OpenCode as supporting native live-turn steering. Send follow-ups according to the controls available in the active task rather than assuming Claude, Codex, and OpenCode behave identically.
+Graft does not currently classify OpenCode as supporting native live-turn steering. Send follow-ups according to the controls available in the active task rather than assuming Claude, Codex, and OpenCode behave identically.
 
-Synara 0.8.0 removed the retired Kilo Code provider. During the database upgrade, existing Kilo tasks and provider-session identities are migrated to OpenCode, along with saved favorite-provider and editor-tab selections. Review the migrated task's OpenCode executable, credentials, and model catalog before continuing important work.
+Graft 0.8.0 removed the retired Kilo Code provider. During the database upgrade, existing Kilo tasks and provider-session identities are migrated to OpenCode, along with saved favorite-provider and editor-tab selections. Review the migrated task's OpenCode executable, credentials, and model catalog before continuing important work.
 
 ## Configuration
 
-Keep provider credentials and model definitions in OpenCode’s supported configuration locations. Project-level configuration can intentionally differ from global configuration, so verify the catalog from the same repository Synara will open.
+Keep provider credentials and model definitions in OpenCode’s supported configuration locations. Project-level configuration can intentionally differ from global configuration, so verify the catalog from the same repository Graft will open.
 
-When a model appears in OpenCode but not Synara, compare:
+When a model appears in OpenCode but not Graft, compare:
 
 - The executable path
 - Global and project configuration
@@ -128,13 +128,13 @@ OpenCode supports an update command:
 opencode upgrade
 ```
 
-Synara can also identify common npm, Bun, pnpm, native, and Homebrew installations and present an appropriate update path. Restart Synara after updating.
+Graft can also identify common npm, Bun, pnpm, native, and Homebrew installations and present an appropriate update path. Restart Graft after updating.
 
 ## Troubleshooting
 
 ### OpenCode is not detected
 
-Run `opencode --version` in a fresh terminal. If it works there but not in Synara, inspect the custom binary path and the `PATH` inherited by desktop applications.
+Run `opencode --version` in a fresh terminal. If it works there but not in Graft, inspect the custom binary path and the `PATH` inherited by desktop applications.
 
 ### OpenCode opens but no model is usable
 

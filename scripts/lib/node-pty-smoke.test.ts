@@ -32,27 +32,27 @@ describe("waitForSuccessfulPtyExit", () => {
     const terminal = new FakePtyTerminal();
     const result = waitForSuccessfulPtyExit({
       terminal,
-      expectedOutput: "synara-node-pty-smoke",
+      expectedOutput: "graft-node-pty-smoke",
       timeoutMs: 1_000,
     });
 
     terminal.emitExit(0);
-    terminal.emitData("synara-node-pty-smoke");
+    terminal.emitData("graft-node-pty-smoke");
 
-    assert.equal(await result, "synara-node-pty-smoke");
+    assert.equal(await result, "graft-node-pty-smoke");
   });
 
   it("still accepts the usual output-before-exit ordering", async () => {
     const terminal = new FakePtyTerminal();
     const result = waitForSuccessfulPtyExit({
       terminal,
-      expectedOutput: "synara-node-pty-smoke",
+      expectedOutput: "graft-node-pty-smoke",
       timeoutMs: 1_000,
     });
 
-    terminal.emitData("synara-node-pty-smoke");
+    terminal.emitData("graft-node-pty-smoke");
     terminal.emitExit(0);
 
-    assert.equal(await result, "synara-node-pty-smoke");
+    assert.equal(await result, "graft-node-pty-smoke");
   });
 });

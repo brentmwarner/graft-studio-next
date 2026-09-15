@@ -33,11 +33,11 @@ async function sourceFiles(root) {
   return files;
 }
 
-async function assertNoSynaraContractImports(root, label) {
+async function assertNoGraftContractImports(root, label) {
   const violations = [];
   for (const path of await sourceFiles(root)) {
     const contents = await readFile(path, "utf8");
-    if (contents.includes("@synara/contracts") || contents.includes("@synara/shared")) {
+    if (contents.includes("@graft/contracts") || contents.includes("@graft/shared")) {
       violations.push(path.slice(repositoryRoot.length + 1));
     }
   }
@@ -63,8 +63,8 @@ if (androidPackage.dependencies?.["@graft/shared"] !== undefined) {
 }
 
 await Promise.all([
-  assertNoSynaraContractImports(androidRoot, "Android"),
-  assertNoSynaraContractImports(iosRoot, "iOS"),
+  assertNoGraftContractImports(androidRoot, "Android"),
+  assertNoGraftContractImports(iosRoot, "iOS"),
 ]);
 
 console.log("Graft mobile boundary is intact: iOS and Android use the versioned Graft contract.");

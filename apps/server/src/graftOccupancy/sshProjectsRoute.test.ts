@@ -9,7 +9,7 @@ import {
   SSH_HOST_PROJECTS_PATH,
   SshProjectAddResult,
   type OrchestrationShellSnapshot,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect, Exit, Layer, Schema, Scope } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import { afterEach, expect, it, vi } from "vitest";

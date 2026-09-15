@@ -17,13 +17,13 @@ describe("resolveGraftHostPaths", () => {
   it("defaults the hosted app home to a graft subdirectory", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "graft-host-paths-"));
     roots.push(dataRoot);
-    expect(resolveGraftHostPaths(dataRoot).synaraHome).toBe(join(dataRoot, "graft"));
+    expect(resolveGraftHostPaths(dataRoot).graftHome).toBe(join(dataRoot, "graft"));
   });
 
-  it("keeps reading an existing synara subdirectory instead of creating a new graft home", () => {
+  it("keeps reading an existing leftover subdirectory instead of creating a new graft home", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "graft-host-paths-"));
     roots.push(dataRoot);
     mkdirSync(join(dataRoot, "synara"));
-    expect(resolveGraftHostPaths(dataRoot).synaraHome).toBe(join(dataRoot, "synara"));
+    expect(resolveGraftHostPaths(dataRoot).graftHome).toBe(join(dataRoot, "synara"));
   });
 });

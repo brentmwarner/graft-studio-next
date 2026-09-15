@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 
-import { ThreadId, type BrowserBackInput } from "@synara/contracts";
+import { ThreadId, type BrowserBackInput } from "@graft/contracts";
 import type { WebContents } from "electron";
 import { describe, expect, it, vi } from "vitest";
 

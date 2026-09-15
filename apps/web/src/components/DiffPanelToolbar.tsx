@@ -5,7 +5,7 @@
 // Layer: Diff panel UI
 
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import type { ThreadId, TurnId } from "@synara/contracts";
+import type { ThreadId, TurnId } from "@graft/contracts";
 import { useState, type ReactNode } from "react";
 
 import GitActionsControl from "~/components/GitActionsControl";

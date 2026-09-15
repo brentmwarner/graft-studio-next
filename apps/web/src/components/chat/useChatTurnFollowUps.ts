@@ -6,10 +6,10 @@ import {
   type ModelSelection,
   type ProviderKind,
   type ProviderStartOptions,
-} from "@synara/contracts";
-import { resolveTailUserMessageEditTarget } from "@synara/shared/conversationEdit";
-import { providerSupportsNativeTurnSteering } from "@synara/shared/providerMetadata";
-import { deriveAssociatedWorktreeMetadata } from "@synara/shared/threadWorkspace";
+} from "@graft/contracts";
+import { resolveTailUserMessageEditTarget } from "@graft/shared/conversationEdit";
+import { providerSupportsNativeTurnSteering } from "@graft/shared/providerMetadata";
+import { deriveAssociatedWorktreeMetadata } from "@graft/shared/threadWorkspace";
 import { useNavigate } from "@tanstack/react-router";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useCallback } from "react";

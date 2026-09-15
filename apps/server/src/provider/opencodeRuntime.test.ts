@@ -9,8 +9,8 @@ import { Deferred, Duration, Effect, Exit, Fiber, Layer, Scope, Sink, Stream } f
 import type { OpencodeClient } from "@opencode-ai/sdk/v2";
 import { type ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { TestClock } from "effect/testing";
-import type { ChatAttachment } from "@synara/contracts";
-import { resolveWindowsComSpec } from "@synara/shared/windowsProcess";
+import type { ChatAttachment } from "@graft/contracts";
+import { resolveWindowsComSpec } from "@graft/shared/windowsProcess";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -200,14 +200,14 @@ describe("toOpenCodeFileParts", () => {
     expect(
       toOpenCodeFileParts({
         attachments: [attachment],
-        resolveAttachmentPath: () => "/tmp/synara-attachments/screenshot.png",
+        resolveAttachmentPath: () => "/tmp/graft-attachments/screenshot.png",
       }),
     ).toEqual([
       {
         type: "file",
         mime: "image/png",
         filename: "screenshot.png",
-        url: pathToFileURL("/tmp/synara-attachments/screenshot.png").href,
+        url: pathToFileURL("/tmp/graft-attachments/screenshot.png").href,
       },
     ]);
   });
@@ -224,7 +224,7 @@ describe("toOpenCodeFileParts", () => {
     expect(
       toOpenCodeFileParts({
         attachments: [attachment],
-        resolveAttachmentPath: () => "/tmp/synara-attachments/notes.docx",
+        resolveAttachmentPath: () => "/tmp/graft-attachments/notes.docx",
       }),
     ).toEqual([]);
   });
@@ -252,18 +252,18 @@ describe("buildOpenCodeServerProcessEnv", () => {
     expect(env.OPENCODE_CONFIG_CONTENT).toBe('{"provider":{"openai":{}}}');
   });
 
-  it("strips inherited Synara authority from managed server processes", () => {
+  it("strips inherited Graft authority from managed server processes", () => {
     const env = buildOpenCodeServerProcessEnv({
       baseEnv: {
         OPENAI_API_KEY: "provider-key",
-        SYNARA_AUTH_TOKEN: "server-secret",
-        SYNARA_BROWSER_USE_PIPE_PATH: "/tmp/browser.sock",
+        GRAFT_AUTH_TOKEN: "server-secret",
+        GRAFT_BROWSER_USE_PIPE_PATH: "/tmp/browser.sock",
       },
     });
 
     expect(env.OPENAI_API_KEY).toBe("provider-key");
-    expect(env.SYNARA_AUTH_TOKEN).toBeUndefined();
-    expect(env.SYNARA_BROWSER_USE_PIPE_PATH).toBeUndefined();
+    expect(env.GRAFT_AUTH_TOKEN).toBeUndefined();
+    expect(env.GRAFT_BROWSER_USE_PIPE_PATH).toBeUndefined();
   });
 });
 
@@ -517,14 +517,14 @@ describe("OpenCodeRuntime local server pool", () => {
             .connectToOpenCodeServer({
               binaryPath: "opencode",
               cwd: "/repo",
-              poolIsolationKey: "synara-thread-a",
+              poolIsolationKey: "graft-thread-a",
             })
             .pipe(Effect.provideService(Scope.Scope, firstScope));
           const second = yield* runtime
             .connectToOpenCodeServer({
               binaryPath: "opencode",
               cwd: "/repo",
-              poolIsolationKey: "synara-thread-b",
+              poolIsolationKey: "graft-thread-b",
             })
             .pipe(Effect.provideService(Scope.Scope, secondScope));
 

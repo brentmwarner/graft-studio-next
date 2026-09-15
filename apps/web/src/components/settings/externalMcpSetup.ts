@@ -3,7 +3,7 @@ import type {
   ExternalMcpClientKind,
   ExternalMcpProjectScope,
   ExternalMcpStdioConfiguration,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 export interface ExternalMcpClientConfiguration {
   readonly format: "command" | "json";
@@ -41,7 +41,7 @@ function jsonConfiguration(stdio: ExternalMcpStdioConfiguration): string {
   return JSON.stringify(
     {
       mcpServers: {
-        synara: {
+        graft: {
           command: stdio.command,
           args: stdio.args,
           ...(stdio.env ? { env: stdio.env } : {}),
@@ -66,7 +66,7 @@ export function buildExternalMcpClientConfiguration(
     return {
       format: "command",
       value: shellCommand(
-        ["codex", "mcp", "add", "synara", ...environment, "--", stdio.command, ...stdio.args],
+        ["codex", "mcp", "add", "graft", ...environment, "--", stdio.command, ...stdio.args],
         platform,
       ),
       copyLabel: "Copy Codex command",
@@ -90,7 +90,7 @@ export function buildExternalMcpClientConfiguration(
           "add",
           "--scope",
           "user",
-          "synara",
+          "graft",
           ...environment,
           "--",
           stdio.command,
@@ -119,7 +119,7 @@ export function buildExternalMcpClientConfiguration(
 export function buildExternalMcpExamplePrompt(projectTitle: string | null): string {
   return [
     projectTitle === null
-      ? "Use Graft to create a new task: call synara_overview first, pick the most relevant project, and tell me which one you chose."
+      ? "Use Graft to create a new task: call graft_overview first, pick the most relevant project, and tell me which one you chose."
       : `Use Graft to create a new task in the project named ${JSON.stringify(projectTitle)}.`,
     "First inspect Graft's capabilities and choose an exact available provider and model; do not guess model names.",
     "Use an isolated managed worktree and approval-required execution.",
@@ -129,7 +129,7 @@ export function buildExternalMcpExamplePrompt(projectTitle: string | null): stri
 }
 
 // The one block a user pastes into any coding agent (Codex, Claude Code, or
-// another MCP-capable app). The agent pairs the machine, registers Synara in
+// another MCP-capable app). The agent pairs the machine, registers Graft in
 // its own MCP configuration, and verifies the connection — no per-client
 // artifacts to juggle. `setupCommand` is null once pairing already happened.
 export function buildExternalMcpSetupPrompt(input: {
@@ -156,14 +156,14 @@ export function buildExternalMcpSetupPrompt(input: {
   }
   sections.push(
     [
-      'Step 2 — Register Graft as a stdio MCP server named "synara" in your own configuration, using whichever mechanism your app supports:',
+      'Step 2 — Register Graft as a stdio MCP server named "graft" in your own configuration, using whichever mechanism your app supports:',
       "",
       `If you are Codex, run: ${codex.value}`,
       `If you are Claude Code, run: ${claude.value}`,
       "For any other MCP app, merge this into its MCP configuration:",
       jsonConfiguration(input.stdio),
     ].join("\n"),
-    'Step 3 — Verify. Reload your MCP servers if needed, then call the "synara_overview" tool and summarize the projects, providers, and permissions it returns.',
+    'Step 3 — Verify. Reload your MCP servers if needed, then call the "graft_overview" tool and summarize the projects, providers, and permissions it returns.',
   );
   return sections.join("\n\n");
 }

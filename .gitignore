@@ -12,13 +12,6 @@ packages/*/dist
 build/
 .logs/
 release/
-.synara
-/.synara/electron-dev
-/.synara/backups
-/.synara-*/
-/apps/server/.synara-*/
-/.synara/
-/.synara-*/
 .graft
 /.graft/electron-dev
 /.graft/backups
@@ -26,6 +19,13 @@ release/
 /apps/server/.graft-*/
 /.graft/
 /.graft-*/
+.synara
+/.synara/electron-dev
+/.synara/backups
+/.synara-*/
+/apps/server/.synara-*/
+/.synara/
+/.synara-*/
 .idea/
 apps/web/.playwright
 apps/web/playwright-report

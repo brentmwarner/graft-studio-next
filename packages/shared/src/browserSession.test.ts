@@ -16,7 +16,7 @@ import {
 } from "./browserSession";
 
 const ELECTRON_UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Synara/0.3.1 Chrome/124.0.6367.91 Electron/30.0.1 Safari/537.36";
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Graft/0.3.1 Chrome/124.0.6367.91 Electron/30.0.1 Safari/537.36";
 
 describe("floating browser page zoom", () => {
   it("scales the frozen 1280x800 guest into the floating card without changing page zoom", () => {
@@ -39,16 +39,16 @@ describe("floating browser page zoom", () => {
 
 describe("deriveChromeUserAgent", () => {
   it("strips Electron and app product tokens to leave a vanilla Chrome UA", () => {
-    expect(deriveChromeUserAgent(ELECTRON_UA, ["Synara"])).toBe(
+    expect(deriveChromeUserAgent(ELECTRON_UA, ["Graft"])).toBe(
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.91 Safari/537.36",
     );
   });
 
   it("preserves the platform and Chrome version from the base UA", () => {
-    const derived = deriveChromeUserAgent(ELECTRON_UA, ["Synara"]);
+    const derived = deriveChromeUserAgent(ELECTRON_UA, ["Graft"]);
     expect(derived).toContain("Chrome/124.0.6367.91");
     expect(derived).not.toMatch(/Electron/i);
-    expect(derived).not.toMatch(/Synara/i);
+    expect(derived).not.toMatch(/Graft/i);
   });
 });
 
@@ -64,7 +64,7 @@ describe("chromeMajorVersionFromUserAgent", () => {
 
 describe("buildChromeClientHints", () => {
   it("builds a Chrome-matching sec-ch-ua brand list per platform", () => {
-    const derived = deriveChromeUserAgent(ELECTRON_UA, ["Synara"]);
+    const derived = deriveChromeUserAgent(ELECTRON_UA, ["Graft"]);
     expect(buildChromeClientHints(derived, "darwin")).toEqual({
       "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not=A?Brand";v="24"',
       "sec-ch-ua-mobile": "?0",

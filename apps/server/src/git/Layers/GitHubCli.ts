@@ -13,12 +13,12 @@ import {
   type PullRequestMergeCapabilities,
   type PullRequestStack,
   type PullRequestStackSummary,
-} from "@synara/contracts";
-import { githubAvatarUrlForLogin } from "@synara/shared/githubAvatar";
+} from "@graft/contracts";
+import { githubAvatarUrlForLogin } from "@graft/shared/githubAvatar";
 import {
   isValidGitHubRepositoryNameWithOwner,
   parseGitHubRepositoryNameWithOwnerFromRemoteUrl,
-} from "@synara/shared/githubRepository";
+} from "@graft/shared/githubRepository";
 
 import { runProcess } from "../../processRunner";
 import { GitHubCliError } from "../Errors.ts";

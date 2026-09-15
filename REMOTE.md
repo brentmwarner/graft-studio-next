@@ -1,20 +1,20 @@
 # Remote Access Setup
 
-Use this when you want to open Synara from another device (phone, tablet, another laptop).
+Use this when you want to open Graft from another device (phone, tablet, another laptop).
 
 ## CLI ↔ Env option map
 
-The Synara CLI accepts the following configuration options, available either as CLI flags or environment variables:
+The Graft CLI accepts the following configuration options, available either as CLI flags or environment variables:
 
 | CLI flag                | Env var               | Notes                              |
 | ----------------------- | --------------------- | ---------------------------------- |
-| `--mode <web\|desktop>` | `SYNARA_MODE`         | Runtime mode.                      |
-| `--port <number>`       | `SYNARA_PORT`         | HTTP/WebSocket port.               |
-| `--host <address>`      | `SYNARA_HOST`         | Bind interface/address.            |
-| `--home-dir <path>`     | `SYNARA_HOME`         | Base directory.                    |
+| `--mode <web\|desktop>` | `GRAFT_MODE`          | Runtime mode.                      |
+| `--port <number>`       | `GRAFT_PORT`          | HTTP/WebSocket port.               |
+| `--host <address>`      | `GRAFT_BIND_HOST`     | Bind interface/address.            |
+| `--home-dir <path>`     | `GRAFT_HOME`          | Base directory.                    |
 | `--dev-url <url>`       | `VITE_DEV_SERVER_URL` | Dev web URL redirect/proxy target. |
-| `--no-browser`          | `SYNARA_NO_BROWSER`   | Disable auto-open browser.         |
-| `--auth-token <token>`  | `SYNARA_AUTH_TOKEN`   | WebSocket auth token.              |
+| `--no-browser`          | `GRAFT_NO_BROWSER`    | Disable auto-open browser.         |
+| `--auth-token <token>`  | `GRAFT_AUTH_TOKEN`    | WebSocket auth token.              |
 
 > TIP: Use the `--help` flag to see all available options and their descriptions.
 

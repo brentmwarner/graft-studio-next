@@ -4,23 +4,23 @@
 // Keep upstream export names stable; runtime identifiers belong exclusively to Graft.
 export const GRAFT_PRODUCT_NAME = "Graft";
 
-export const SYNARA_DESKTOP_SCHEME = "graft";
-export const SYNARA_DESKTOP_ORIGIN = `${SYNARA_DESKTOP_SCHEME}://app`;
-export const SYNARA_DESKTOP_ENTRY_URL = `${SYNARA_DESKTOP_ORIGIN}/index.html`;
-export const SYNARA_DESKTOP_UPDATE_CHANNEL = "graft";
-export const SYNARA_PRODUCTION_BUNDLE_ID = "com.graft.studio.next";
-export const SYNARA_DEVELOPMENT_BUNDLE_ID = `${SYNARA_PRODUCTION_BUNDLE_ID}.dev`;
-export const SYNARA_CANARY_BUNDLE_ID = `${SYNARA_PRODUCTION_BUNDLE_ID}.canary`;
-export const SYNARA_CANARY_DESKTOP_SCHEME = "graft-canary";
-export const SYNARA_CANARY_DESKTOP_ORIGIN = `${SYNARA_CANARY_DESKTOP_SCHEME}://app`;
-export const SYNARA_CANARY_DESKTOP_ENTRY_URL = `${SYNARA_CANARY_DESKTOP_ORIGIN}/index.html`;
-export const SYNARA_SOURCE_DESKTOP_BUILD_MARKER = "synara-source-desktop-build-v2";
-export const SYNARA_DESKTOP_SMOKE_USER_DATA_ENV = "SYNARA_DESKTOP_SMOKE_USER_DATA";
+export const GRAFT_DESKTOP_SCHEME = "graft";
+export const GRAFT_DESKTOP_ORIGIN = `${GRAFT_DESKTOP_SCHEME}://app`;
+export const GRAFT_DESKTOP_ENTRY_URL = `${GRAFT_DESKTOP_ORIGIN}/index.html`;
+export const GRAFT_DESKTOP_UPDATE_CHANNEL = "graft";
+export const GRAFT_PRODUCTION_BUNDLE_ID = "com.graft.studio.next";
+export const GRAFT_DEVELOPMENT_BUNDLE_ID = `${GRAFT_PRODUCTION_BUNDLE_ID}.dev`;
+export const GRAFT_CANARY_BUNDLE_ID = `${GRAFT_PRODUCTION_BUNDLE_ID}.canary`;
+export const GRAFT_CANARY_DESKTOP_SCHEME = "graft-canary";
+export const GRAFT_CANARY_DESKTOP_ORIGIN = `${GRAFT_CANARY_DESKTOP_SCHEME}://app`;
+export const GRAFT_CANARY_DESKTOP_ENTRY_URL = `${GRAFT_CANARY_DESKTOP_ORIGIN}/index.html`;
+export const GRAFT_SOURCE_DESKTOP_BUILD_MARKER = "graft-source-desktop-build-v2";
+export const GRAFT_DESKTOP_SMOKE_USER_DATA_ENV = "GRAFT_DESKTOP_SMOKE_USER_DATA";
 
-export type SynaraDesktopFlavor = "production" | "development" | "canary";
+export type GraftDesktopFlavor = "production" | "development" | "canary";
 
-export interface SynaraDesktopIdentity {
-  readonly flavor: SynaraDesktopFlavor;
+export interface GraftDesktopIdentity {
+  readonly flavor: GraftDesktopFlavor;
   readonly displayName: string;
   readonly bundleId: string;
   readonly scheme: string;
@@ -31,11 +31,11 @@ export interface SynaraDesktopIdentity {
   readonly usesScriptedUpdates: boolean;
 }
 
-export function resolveSynaraDesktopFlavor(input: {
+export function resolveGraftDesktopFlavor(input: {
   readonly isDevelopment: boolean;
   readonly requestedFlavor?: string | undefined;
   readonly allowDevelopmentOverride?: boolean | undefined;
-}): SynaraDesktopFlavor {
+}): GraftDesktopFlavor {
   const requestedFlavor = input.requestedFlavor?.trim().toLowerCase();
   if (requestedFlavor === "canary") {
     return "canary";
@@ -49,15 +49,15 @@ export function resolveSynaraDesktopFlavor(input: {
   return input.isDevelopment ? "development" : "production";
 }
 
-export function synaraDesktopIdentity(flavor: SynaraDesktopFlavor): SynaraDesktopIdentity {
+export function graftDesktopIdentity(flavor: GraftDesktopFlavor): GraftDesktopIdentity {
   if (flavor === "canary") {
     return {
       flavor,
       displayName: `${GRAFT_PRODUCT_NAME} Canary`,
-      bundleId: SYNARA_CANARY_BUNDLE_ID,
-      scheme: SYNARA_CANARY_DESKTOP_SCHEME,
-      origin: SYNARA_CANARY_DESKTOP_ORIGIN,
-      entryUrl: SYNARA_CANARY_DESKTOP_ENTRY_URL,
+      bundleId: GRAFT_CANARY_BUNDLE_ID,
+      scheme: GRAFT_CANARY_DESKTOP_SCHEME,
+      origin: GRAFT_CANARY_DESKTOP_ORIGIN,
+      entryUrl: GRAFT_CANARY_DESKTOP_ENTRY_URL,
       userDataDirectoryName: "graft-studio-next-canary",
       defaultHomeDirectoryName: ".graft-canary",
       usesScriptedUpdates: true,
@@ -67,10 +67,10 @@ export function synaraDesktopIdentity(flavor: SynaraDesktopFlavor): SynaraDeskto
     return {
       flavor,
       displayName: `${GRAFT_PRODUCT_NAME} (Dev)`,
-      bundleId: SYNARA_DEVELOPMENT_BUNDLE_ID,
-      scheme: SYNARA_DESKTOP_SCHEME,
-      origin: SYNARA_DESKTOP_ORIGIN,
-      entryUrl: SYNARA_DESKTOP_ENTRY_URL,
+      bundleId: GRAFT_DEVELOPMENT_BUNDLE_ID,
+      scheme: GRAFT_DESKTOP_SCHEME,
+      origin: GRAFT_DESKTOP_ORIGIN,
+      entryUrl: GRAFT_DESKTOP_ENTRY_URL,
       userDataDirectoryName: "graft-studio-next-dev",
       defaultHomeDirectoryName: ".graft-dev",
       usesScriptedUpdates: false,
@@ -79,10 +79,10 @@ export function synaraDesktopIdentity(flavor: SynaraDesktopFlavor): SynaraDeskto
   return {
     flavor,
     displayName: GRAFT_PRODUCT_NAME,
-    bundleId: SYNARA_PRODUCTION_BUNDLE_ID,
-    scheme: SYNARA_DESKTOP_SCHEME,
-    origin: SYNARA_DESKTOP_ORIGIN,
-    entryUrl: SYNARA_DESKTOP_ENTRY_URL,
+    bundleId: GRAFT_PRODUCTION_BUNDLE_ID,
+    scheme: GRAFT_DESKTOP_SCHEME,
+    origin: GRAFT_DESKTOP_ORIGIN,
+    entryUrl: GRAFT_DESKTOP_ENTRY_URL,
     userDataDirectoryName: "graft-studio-next",
     defaultHomeDirectoryName: ".graft",
     usesScriptedUpdates: false,

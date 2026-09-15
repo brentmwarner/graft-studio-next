@@ -166,7 +166,7 @@ export class OccupancyCommandError extends Error {
 async function unsupportedDispatch(): Promise<GraftDesktopJsonValue> {
   throw new OccupancyCommandError(
     "unknown_command",
-    "This desktop host command is not implemented on this Synara occupancy adapter",
+    "This desktop host command is not implemented on this Graft occupancy adapter",
   );
 }
 

@@ -3,7 +3,7 @@ import {
   type ModelSlug,
   type ProviderKind,
   type ResolvedKeybindingsConfig,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useEffect } from "react";
 import { readFavoriteModelSlugs } from "~/lib/modelFavorites";

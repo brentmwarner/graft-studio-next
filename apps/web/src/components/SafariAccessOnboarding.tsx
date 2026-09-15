@@ -1,4 +1,4 @@
-import type { DesktopSafariAccessInfo } from "@synara/contracts";
+import type { DesktopSafariAccessInfo } from "@graft/contracts";
 import { Schema } from "effect";
 import { SettingsIcon } from "~/lib/icons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -13,8 +13,8 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 
-export const SAFARI_ACCESS_STORAGE_KEY = "synara:safari-access-onboarding:v1";
-const OPEN_EVENT = "synara:safari-access-setup";
+export const SAFARI_ACCESS_STORAGE_KEY = "graft:safari-access-onboarding:v1";
+const OPEN_EVENT = "graft:safari-access-setup";
 /** "continued" is a legacy value from the earlier two-button intro; treat it like "later". */
 const Decision = Schema.Literals(["unseen", "later", "continued"]);
 const SAFARI_ICON_SRC = "/app-icons/safari.png";

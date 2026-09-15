@@ -2,7 +2,7 @@ import {
   DEVICE_FRAME_HEADER_FIXED_BYTES,
   DEVICE_FRAME_MAGIC,
   DEVICE_FRAME_VERSION,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import { DeviceFrameEncodeError, decodeDeviceFrame, encodeDeviceFrame } from "./deviceFrame";

@@ -35,14 +35,14 @@ import type {
   OrchestrationSession,
   RuntimeMode,
   ThreadId,
-} from "@synara/contracts";
-import { CommandId, EventId } from "@synara/contracts";
-import { createStalePendingInteractionMatcher } from "@synara/shared/pendingInteractions";
+} from "@graft/contracts";
+import { CommandId, EventId } from "@graft/contracts";
+import { createStalePendingInteractionMatcher } from "@graft/shared/pendingInteractions";
 import {
   buildStalePendingRequestFailureDetail,
   derivePendingThreadRequestIds,
   type PendingThreadRequestKind,
-} from "@synara/shared/threadSummary";
+} from "@graft/shared/threadSummary";
 import { Array as Arr, Effect, Option } from "effect";
 import { ProjectionPendingInteractionRepository } from "../persistence/Services/ProjectionPendingInteractions.ts";
 

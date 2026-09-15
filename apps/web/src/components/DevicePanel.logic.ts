@@ -18,9 +18,9 @@ import type {
   DeviceToolchain,
   DeviceUdid,
   ThreadDeviceState,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
-import { DEVICE_CAPABILITY_LABELS } from "@synara/contracts";
+import { DEVICE_CAPABILITY_LABELS } from "@graft/contracts";
 
 // ── Frame gating ─────────────────────────────────────────────────────
 //
@@ -318,7 +318,7 @@ export interface DeviceShortcutEventLike {
  * Simulator.app's hardware chords, matched before keyboard passthrough so the
  * muscle memory carries over. Everything else with Cmd held is left to the
  * browser/app rather than injected, since Cmd+W/Cmd+R on a focused canvas must
- * still reach Synara.
+ * still reach Graft.
  *
  * One of Simulator.app's chords is deliberately absent, for one reason:
  * claiming a chord swallows the keystroke, so a chord the backend refuses is
@@ -709,7 +709,7 @@ export interface DeviceSetupAction {
 
 /**
  * The one thing the user can act on right now. Only Xcode installation has a
- * destination Synara can send them to — every other step either completes on
+ * destination Graft can send them to — every other step either completes on
  * its own or is driven from Xcode itself — so the screen shows a single button
  * or none, rather than a row of links that mostly go nowhere.
  */

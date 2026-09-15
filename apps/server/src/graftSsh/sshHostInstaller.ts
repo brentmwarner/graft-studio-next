@@ -173,7 +173,7 @@ export class SshHostInstaller {
     if (!existsSync(this.options.hostArchivePath)) {
       throw new SshRemoteError(
         "install_failed",
-        "The remote host package is missing from this installation. Reinstall Synara, or run bun run --cwd apps/host pack:linux-x64 when developing from source.",
+        "The remote host package is missing from this installation. Reinstall Graft, or run bun run --cwd apps/host pack:linux-x64 when developing from source.",
         false,
       );
     }

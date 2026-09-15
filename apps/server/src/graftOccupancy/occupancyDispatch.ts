@@ -4,7 +4,7 @@ import type {
   GraftDesktopSessionRecord,
 } from "@graft/desktop-contract";
 import { OccupancyCommandError } from "@graft/occupancy";
-import type { OrchestrationShellSnapshot } from "@synara/contracts";
+import type { OrchestrationShellSnapshot } from "@graft/contracts";
 
 export async function dispatchOccupancyCommand(
   loadShell: () => Promise<OrchestrationShellSnapshot>,
@@ -14,7 +14,7 @@ export async function dispatchOccupancyCommand(
   if (command.type !== "project/list" && command.type !== "thread/list") {
     throw new OccupancyCommandError(
       "unknown_command",
-      "This desktop host command is not implemented on this Synara occupancy adapter",
+      "This desktop host command is not implemented on this Graft occupancy adapter",
     );
   }
   const shell = await loadShell();

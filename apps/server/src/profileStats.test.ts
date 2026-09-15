@@ -22,7 +22,7 @@ const testLayer = ProfileStatsQueryLive.pipe(
   Layer.provideMerge(SqlitePersistenceMemory),
   Layer.provide(
     ServerConfig.layerTest(process.cwd(), {
-      prefix: "synara-profile-stats-test-",
+      prefix: "graft-profile-stats-test-",
     }),
   ),
   Layer.provide(NodeServices.layer),
@@ -133,7 +133,7 @@ describe("ProfileStatsQuery", () => {
         for (const [threadId, parentThreadId, creationSource] of [
           ["root", null, null],
           ["mirrored-child", "root", "provider_native"],
-          ["independent-child", "root", "synara_mcp"],
+          ["independent-child", "root", "graft_mcp"],
         ] as const) {
           yield* sql`
           INSERT INTO projection_threads

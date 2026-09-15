@@ -1,5 +1,5 @@
 // FILE: providerChildEnvironment.ts
-// Purpose: Builds provider child environments without Synara control-plane authority.
+// Purpose: Builds provider child environments without Graft control-plane authority.
 // Layer: Server provider process security
 
 export type ProviderChildKind =
@@ -76,12 +76,12 @@ const INHERITED_NATIVE_CAPABILITY_KEYS = new Set([
 ]);
 
 const isTestHarnessKey = (key: string, env: NodeJS.ProcessEnv): boolean =>
-  Boolean(env.VITEST) && (key.startsWith("SYNARA_FAKE_") || key.startsWith("SYNARA_ACP_"));
+  Boolean(env.VITEST) && (key.startsWith("GRAFT_FAKE_") || key.startsWith("GRAFT_ACP_"));
 
 export function buildProviderChildEnvironment(input: {
   readonly provider: ProviderChildKind;
   readonly baseEnv?: NodeJS.ProcessEnv;
-  readonly inheritedSynaraKeys?: ReadonlyArray<string>;
+  readonly inheritedGraftKeys?: ReadonlyArray<string>;
   readonly inheritedNativeCapabilityKeys?: ReadonlyArray<string>;
   readonly overrides?: NodeJS.ProcessEnv;
 }): NodeJS.ProcessEnv {
@@ -89,17 +89,13 @@ export function buildProviderChildEnvironment(input: {
     ...(input.baseEnv ?? process.env),
     ...input.overrides,
   };
-  const allowedSynaraKeys = new Set(input.inheritedSynaraKeys ?? []);
+  const allowedGraftKeys = new Set(input.inheritedGraftKeys ?? []);
   const allowedNativeCapabilities = new Set(input.inheritedNativeCapabilityKeys ?? []);
   const credentialGrants = PROVIDER_CREDENTIAL_GRANTS[input.provider];
   const childEnv: NodeJS.ProcessEnv = {};
 
   for (const [key, value] of Object.entries(baseEnv)) {
-    if (
-      key.startsWith("SYNARA_") &&
-      !allowedSynaraKeys.has(key) &&
-      !isTestHarnessKey(key, baseEnv)
-    ) {
+    if (key.startsWith("GRAFT_") && !allowedGraftKeys.has(key) && !isTestHarnessKey(key, baseEnv)) {
       continue;
     }
     if (INHERITED_NATIVE_CAPABILITY_KEYS.has(key) && !allowedNativeCapabilities.has(key)) {

@@ -12,7 +12,7 @@ import {
   EventId,
   type OrchestrationSession,
   type OrchestrationThreadShell,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Cause, Duration, Effect, Layer, Option, Schedule } from "effect";
 
 import { OrchestrationEngineService } from "../../orchestration/Services/OrchestrationEngine.ts";
@@ -179,8 +179,8 @@ const make = (options?: ProviderRuntimeReconcilerLiveOptions) =>
           kind: "provider.runtime.reconciled",
           summary:
             plan.action === "align-running-turn"
-              ? "Synara realigned the active provider turn"
-              : "Synara recovered a stale running state",
+              ? "Graft realigned the active provider turn"
+              : "Graft recovered a stale running state",
           payload: {
             provider: plan.provider,
             action: plan.action,

@@ -27,7 +27,7 @@ describe("occupancy database path", () => {
     );
   });
 
-  it("keeps occupancy next to Synara state for the local desktop", () => {
+  it("keeps occupancy next to Graft state for the local desktop", () => {
     const root = mkdtempSync(join(tmpdir(), "graft-occupancy-state-"));
     roots.push(root);
     expect(occupancyDatabasePath({ stateDir: root })).toBe(

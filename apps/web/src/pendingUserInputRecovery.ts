@@ -2,9 +2,9 @@ import {
   ApprovalRequestId,
   UserInputQuestion,
   type OrchestrationThreadActivity,
-} from "@synara/contracts";
-import { createStalePendingInteractionMatcher } from "@synara/shared/pendingInteractions";
-import { pendingRequestInstanceKey } from "@synara/shared/threadSummary";
+} from "@graft/contracts";
+import { createStalePendingInteractionMatcher } from "@graft/shared/pendingInteractions";
+import { pendingRequestInstanceKey } from "@graft/shared/threadSummary";
 import { Schema } from "effect";
 import type { PendingUserInput } from "./pendingInteractionDerivation";
 import {

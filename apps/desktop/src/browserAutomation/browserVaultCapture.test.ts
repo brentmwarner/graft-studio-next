@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { BrowserVaultSnapshot } from "@synara/contracts";
+import type { BrowserVaultSnapshot } from "@graft/contracts";
 import type { CaptureContext } from "betterwright/capture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserAutomationVisibleRuntime } from "../browserManager";

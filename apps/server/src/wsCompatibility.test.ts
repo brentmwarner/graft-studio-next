@@ -5,7 +5,7 @@ import {
   WS_PROTOCOL_MIN_REVISION,
   WS_PROJECT_FILE_WATCH_CAPABILITY,
   WS_SERVER_CAPABILITIES,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

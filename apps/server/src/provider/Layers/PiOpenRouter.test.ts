@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, Layer } from "effect";
-import { ThreadId } from "@synara/contracts";
-import { outboundHttp } from "@synara/shared/outboundHttp";
+import { ThreadId } from "@graft/contracts";
+import { outboundHttp } from "@graft/shared/outboundHttp";
 import { afterEach, expect, it, vi } from "vitest";
 import { ModelRuntime, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { ServerConfig } from "../../config.ts";
@@ -30,7 +30,7 @@ vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
 });
 const dirs: string[] = [];
 function directory() {
-  const dir = mkdtempSync(path.join(tmpdir(), "synara-openrouter-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "graft-openrouter-"));
   dirs.push(dir);
   return dir;
 }

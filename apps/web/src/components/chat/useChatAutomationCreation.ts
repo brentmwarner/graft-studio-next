@@ -6,13 +6,13 @@ import {
   type AutomationSchedule,
   type ModelSelection,
   type ProviderStartOptions,
-} from "@synara/contracts";
-import { automationRequiresTargetThread } from "@synara/shared/automationMode";
+} from "@graft/contracts";
+import { automationRequiresTargetThread } from "@graft/shared/automationMode";
 import {
   GENERIC_CHAT_THREAD_TITLE,
   buildPromptThreadTitleFallback,
-} from "@synara/shared/chatThreads";
-import { deriveAssociatedWorktreeMetadata } from "@synara/shared/threadWorkspace";
+} from "@graft/shared/chatThreads";
+import { deriveAssociatedWorktreeMetadata } from "@graft/shared/threadWorkspace";
 import type { QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { promoteThreadCreate } from "~/lib/threadCreatePromotion";

@@ -5,18 +5,18 @@ import {
   ThreadId,
   type BrowserAutomationError,
   type BrowserToolName,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   BROWSER_TOOL_CATALOGUE,
   BROWSER_TOOL_DEFINITIONS_BY_NAME,
   stableJsonStringify,
   type BrowserToolDefinition,
-} from "@synara/shared/browserAutomationCatalogue";
+} from "@graft/shared/browserAutomationCatalogue";
 import {
   browserInputErrorCode,
   makeBrowserAutomationError,
-} from "@synara/shared/browserAutomationErrors";
-import { encodeBrowserMcpToolError } from "@synara/shared/browserAutomationMcpError";
+} from "@graft/shared/browserAutomationErrors";
+import { encodeBrowserMcpToolError } from "@graft/shared/browserAutomationMcpError";
 import { Effect, Schema } from "effect";
 
 import type { BrowserAutomationHostShape } from "../browserAutomation/Services/BrowserAutomationHost.ts";
@@ -24,7 +24,7 @@ import { BrowserHostRpcError } from "../browserAutomation/browserHostRpcClient.t
 import type { McpToolCallResult } from "./protocol.ts";
 import type { ToolContext, ToolEntry } from "./toolRuntime.ts";
 import { saveBrowserProof } from "./browserProof.ts";
-import { SYNARA_E2E_REVIEW_GUIDANCE } from "./e2eReviewGuidance.ts";
+import { GRAFT_E2E_REVIEW_GUIDANCE } from "./e2eReviewGuidance.ts";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -153,7 +153,7 @@ function withGatewayIdempotencyKey(
   const digest = createHash("sha256").update(requestFingerprint).digest("hex");
   return {
     ...argumentsValue,
-    idempotencyKey: `synara-mcp-${digest.slice(0, 40)}`,
+    idempotencyKey: `graft-mcp-${digest.slice(0, 40)}`,
   };
 }
 
@@ -337,9 +337,9 @@ export function makeAgentGatewayBrowserTools(
       requiredCapability: "browser:control",
       requiresActiveTurn: true,
       definition: {
-        name: "synara_e2e_review",
+        name: "graft_e2e_review",
         description:
-          "Load Synara's E2E testing workflow: delegate a test subagent, verify real journeys, and report screenshot proof. Call only for an explicit E2E request.",
+          "Load Graft's E2E testing workflow: delegate a test subagent, verify real journeys, and report screenshot proof. Call only for an explicit E2E request.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         annotations: {
           title: "E2E test workflow",
@@ -350,7 +350,7 @@ export function makeAgentGatewayBrowserTools(
         },
       },
       handler: () =>
-        Effect.succeed({ content: [{ type: "text", text: SYNARA_E2E_REVIEW_GUIDANCE }] }),
+        Effect.succeed({ content: [{ type: "text", text: GRAFT_E2E_REVIEW_GUIDANCE }] }),
     },
   ];
 }
