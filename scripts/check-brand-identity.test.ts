@@ -111,7 +111,7 @@ describe("brand identity guard", () => {
 
   it("requires user-facing raster assets to match a visually approved digest", () => {
     const approvedContents = new TextEncoder().encode("approved Graft screenshot");
-    const approvedDigest = "a553296ca5a2d3ad7b64a6bc1b36c2834da750eae6611642177482b99ba85bd8";
+    const approvedDigest = "a8e8c9e08f73f29772388af3683069981a5a24936f1a484474f571580d296000";
     const approvedDigests = new Map([["screenshot.jpeg", approvedDigest]]);
 
     expect(
