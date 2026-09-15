@@ -7,16 +7,19 @@
 import { forwardRef, type CSSProperties, type HTMLAttributes, type ReactElement } from "react";
 import { cn } from "./utils";
 import roundIconNames from "./central-icons-round.json";
+import appIcons from "./central-icons-app.json";
 
-// Default to legacy Graft's round-outlined-radius-3-stroke-1.5 artwork.
-// Keep the older sets available for saved custom icons and filled status glyphs.
+// Use the Codex-matched app glyphs and Synara Skills glyph where available.
+// Keep the full Central sets for other controls, custom icons, and filled states.
 const CENTRAL_ICON_BASE_PATHS = {
+  app: "/central-icons-app",
   round: "/central-icons-round",
   reversed: "/central-icons-reversed",
   fill: "/central-icons-fill",
 } as const;
 export type CentralIconVariant = keyof typeof CENTRAL_ICON_BASE_PATHS;
-const DEFAULT_CENTRAL_ICON_VARIANT: CentralIconVariant = "round";
+const DEFAULT_CENTRAL_ICON_VARIANT: CentralIconVariant = "app";
+const APP_ICON_NAMES = new Set<string>(Object.keys(appIcons));
 const ROUND_ICON_NAMES = new Set<string>(roundIconNames);
 const SVG_SUFFIX = ".svg";
 const CENTRAL_ICON_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -45,8 +48,12 @@ export function getCentralIconUrl(
     return null;
   }
 
+  const preferredVariant =
+    variant === "app" && !APP_ICON_NAMES.has(normalizedName) ? "round" : variant;
   const resolvedVariant =
-    variant === "round" && !ROUND_ICON_NAMES.has(normalizedName) ? "reversed" : variant;
+    preferredVariant === "round" && !ROUND_ICON_NAMES.has(normalizedName)
+      ? "reversed"
+      : preferredVariant;
   return `${CENTRAL_ICON_BASE_PATHS[resolvedVariant]}/${encodeURIComponent(normalizedName)}${SVG_SUFFIX}`;
 }
 

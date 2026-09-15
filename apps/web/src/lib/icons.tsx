@@ -39,7 +39,8 @@ export const SteerIcon: LucideIcon = centralIconWrapper("arrow-corner-down-right
 export const ComposerSendArrowIcon: LucideIcon = centralIconWrapper("arrow-up");
 export const HANDOFF_ICON_NAME = "arrows-repeat-right-left";
 export const HandoffIcon: LucideIcon = centralIconWrapper(HANDOFF_ICON_NAME);
-export const SkillCubeIcon: LucideIcon = centralIconWrapper("blocks");
+export const SKILL_ICON_NAME = "building-blocks";
+export const SkillCubeIcon: LucideIcon = centralIconWrapper(SKILL_ICON_NAME);
 export const NewThreadIcon: LucideIcon = centralIconWrapper("edit-big");
 /** The "+" affordance behind every add/create action (Add project, activity header). */
 export const AddPlusIcon: LucideIcon = centralIconWrapper("plus-medium");
@@ -131,7 +132,9 @@ export const GitPullRequestIcon = centralIconWrapper("pull-request");
 // Pull-request state glyphs from the same three-node Central family as "pull-request",
 // so draft/closed/merged read as variations of one icon rather than four styles.
 export const GitPullRequestDraftIcon: LucideIcon = centralIconWrapper("draft");
-export const GitPullRequestClosedIcon: LucideIcon = centralIconWrapper("pull-request-closed-simple");
+export const GitPullRequestClosedIcon: LucideIcon = centralIconWrapper(
+  "pull-request-closed-simple",
+);
 export const GitMergeConflictIcon: LucideIcon = centralIconWrapper("merge-conflict");
 // Three descending-width lines — the app's one "filter controls" glyph (pull
 // request list filters, and anywhere else that opens a filter popover).
@@ -179,6 +182,9 @@ export const SidechatIcon: LucideIcon = centralIconWrapper("chat-bubble-7");
 export const MicIcon: LucideIcon = centralIconWrapper("microphone");
 export const PanelLeftIcon = centralIconWrapper("sidebar-simple-left-square");
 export const PanelRightCloseIcon = centralIconWrapper("layout-right");
+export const BulletListIcon = centralIconWrapper("bullet-list");
+export const SidebarHiddenRightWideIcon = centralIconWrapper("sidebar-hidden-right-wide");
+export const BottombarHiddenBottomWideIcon = centralIconWrapper("bottombar-hidden-bottom-wide");
 export const WindowIcon: LucideIcon = centralIconWrapper("window");
 export const LayoutSidebarIcon: LucideIcon = centralIconWrapper("sidebar-simple-left-square");
 export const PENCIL_ICON_NAME = "pencil";

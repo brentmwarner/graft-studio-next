@@ -76,7 +76,7 @@ import {
   createFullscreenTestHost,
 } from "../test/browserHarness";
 import { useTemporaryThreadStore } from "../temporaryThreadStore";
-import { useTerminalStateStore } from "../terminalStateStore";
+import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import { resetRetainedThreadDetailSubscriptionsForTests } from "../threadDetailSubscriptionRetention";
 import { useWorkspacePathsStore } from "../workspacePathsStore";
 import { getWorkspaceEditorSession } from "../lib/workspaceEditorSession";
@@ -2752,6 +2752,58 @@ describe("ChatView transcript geometry (full app)", () => {
     }
   });
 
+  it("uses the requested panel icons and toggles the bottom terminal from the header", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-panel-controls" as MessageId,
+        targetText: "panel controls",
+      }),
+    });
+
+    try {
+      const environment = page.getByRole("button", { name: "Toggle environment panel" });
+      const sidebar = page.getByRole("button", { name: /Toggle (right sidebar|diff panel)/ });
+      const terminal = page.getByRole("button", { name: "Toggle bottom terminal" });
+      for (const [button, iconName] of [
+        [environment, "bullet-list"],
+        [sidebar, "sidebar-hidden-right-wide"],
+        [terminal, "bottombar-hidden-bottom-wide"],
+      ] as const) {
+        await expect.element(button).toBeVisible();
+        const icon = button.element().querySelector<HTMLElement>('[data-slot="central-icon"]');
+        expect(icon).not.toBeNull();
+        expect(getComputedStyle(icon!).maskImage).toContain(`/${iconName}.svg`);
+      }
+
+      await expect.element(terminal).toHaveAttribute("aria-pressed", "false");
+      await terminal.click();
+      await expect.element(terminal).toHaveAttribute("aria-pressed", "true");
+      await vi.waitFor(() => {
+        expect(wsRequests).toContainEqual(
+          expect.objectContaining({
+            _tag: WS_METHODS.terminalOpen,
+            threadId: THREAD_ID,
+            cwd: "/repo/project",
+          }),
+        );
+      });
+      const openState = useTerminalStateStore.getState().terminalStateByThreadId[THREAD_ID]!;
+      expect(openState.presentationMode).toBe("drawer");
+
+      await terminal.click();
+      await expect.element(terminal).toHaveAttribute("aria-pressed", "false");
+      const closedState = selectThreadTerminalState(
+        useTerminalStateStore.getState().terminalStateByThreadId,
+        THREAD_ID,
+      );
+      expect(closedState.terminalOpen).toBe(false);
+      expect(closedState.terminalIds).toEqual(openState.terminalIds);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("[geometry:linux] optically aligns the composer send arrow across responsive states", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -2777,12 +2829,12 @@ describe("ChatView transcript geometry (full app)", () => {
 
         expect(buttonRect.width).toBeCloseTo(28, 2);
         expect(buttonRect.height).toBeCloseTo(28, 2);
-        expect(arrowRect.width).toBeCloseTo(20, 2);
-        expect(arrowRect.height).toBeCloseTo(20, 2);
+        expect(arrowRect.width).toBeCloseTo(18, 2);
+        expect(arrowRect.height).toBeCloseTo(18, 2);
         expect(arrowCenterX - buttonCenterX).toBeCloseTo(0, 2);
-        expect(arrowCenterY - buttonCenterY).toBeCloseTo(1, 2);
+        expect(arrowCenterY - buttonCenterY).toBeCloseTo(0, 2);
         expect(getComputedStyle(sendButton).boxShadow).toBe("none");
-        expect(getComputedStyle(sendArrow).mask).toContain("/central-icons-round/arrow-up.svg");
+        expect(getComputedStyle(sendArrow).mask).toContain("/central-icons-app/arrow-up.svg");
       };
 
       expect(sendButton.disabled).toBe(true);

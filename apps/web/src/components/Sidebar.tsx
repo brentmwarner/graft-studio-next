@@ -5891,11 +5891,11 @@ export default function Sidebar() {
 
   // Open-sidebar (in-sidebar) and non-electron wordmark clusters share the one
   // SidebarLeadingControls primitive with the closed-state host headers, so the
-  // toggle + arrows look identical whether the sidebar is open or collapsed; only
-  // the wrapper layout differs per host.
-  const titlebarControls = <SidebarLeadingControls className="hidden md:flex" />;
+  // toggle + arrows share their styling while the open sidebar spreads them
+  // across the available header width.
+  const titlebarControls = <SidebarLeadingControls className="hidden flex-1 md:flex" />;
 
-  const headerControls = <SidebarLeadingControls className="ml-auto hidden md:flex" />;
+  const headerControls = <SidebarLeadingControls className="hidden flex-1 md:flex" />;
 
   const wordmark = (
     <div className="flex w-full items-center gap-1.5">
