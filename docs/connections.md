@@ -20,7 +20,7 @@ On first connection, Synara copies its bundled host service to the remote comput
 
 1. Select **Add project** in the sidebar. Under **Source folders**, open **Add a folder on this computer** and choose a computer under **Remote devices**. **Add remote** opens the SSH setup dialog. You can also use **Add project** beside a connected computer in Settings.
 2. Select **Add** to open **Choose a source folder**. Click a folder to select it, double-click or press Enter to open it, or enter a path and press Enter. Use the up arrow to navigate to the parent folder.
-3. Select **Use folder** to return to the form, then **Create project** to register it on that computer. Cancelling the folder browser leaves the form unchanged.
+3. Select **Use folder** to return to the form, then **Create project** to register it on that computer. The form and folder browser share one modal. **Cancel**, **Close**, or **Escape** returns to the form without changing its values and puts focus back on **Add** or **Change**.
 
 The folder must already exist. Adding the same folder again reuses its existing project, including when reached through a symlink. Saved projects appear under the computer in the sidebar and in Connections. They remain on the remote host after disconnecting; folders are not copied to this computer.
 
