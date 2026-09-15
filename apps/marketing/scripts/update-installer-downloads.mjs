@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const downloadsOutputPath = resolve(projectRoot, "src/data/installer-downloads.json");
 const latestOutputPath = resolve(projectRoot, "src/data/latest-release-downloads.json");
-const releasesApiUrl = "https://api.github.com/repos/Emanuele-web04/graft/releases";
+const releasesApiUrl = "https://api.github.com/repos/brentmwarner/graft-studio-next/releases";
 const latestReleaseApiUrl = `${releasesApiUrl}/latest`;
 const installerFilePattern = /\.(dmg|exe|AppImage)$/i;
 

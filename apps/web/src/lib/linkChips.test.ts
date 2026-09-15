@@ -60,8 +60,8 @@ describe("normalizeComposerLinkUrl", () => {
 
 describe("describeLinkChip", () => {
   it("shortens GitHub pull request URLs to owner/repo#number", () => {
-    expect(describeLinkChip("https://github.com/brentmwarner/graft-studio-next/pull/155")).toEqual({
-      label: "Emanuele-web04/graft#155",
+    expect(describeLinkChip("https://github.com/example/repo/pull/155")).toEqual({
+      label: "example/repo#155",
       isGitHub: true,
     });
   });

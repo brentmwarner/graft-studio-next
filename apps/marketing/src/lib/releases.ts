@@ -3,15 +3,15 @@
 //          download map (macOS arm64/x64, Windows, Linux) for the /install page.
 // Layer: Server utility
 // Depends on: GitHub Releases API, optional GITHUB_TOKEN
-// Note: The repo was renamed from its previous identity to graft. We hit the
-//       canonical "graft" slug
-//       directly so we don't depend on the API following GitHub's 301 redirect.
+// Note: Graft Studio ships from brentmwarner/graft-studio-next. Hit that
+// slug directly so install/download links do not follow a renamed upstream
+// repository.
 
 import "server-only";
 
 import storedLatestReleaseDownloads from "@/data/latest-release-downloads.json";
 
-const REPO = "Emanuele-web04/graft";
+const REPO = "brentmwarner/graft-studio-next";
 const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;
