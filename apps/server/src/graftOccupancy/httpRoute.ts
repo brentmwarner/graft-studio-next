@@ -16,6 +16,7 @@ import {
   SSH_HOST_PROJECTS_PATH,
   SshProjectAddInput,
 } from "@synara/contracts";
+import { isExplicitRelativePath, isWindowsAbsolutePath } from "@synara/shared/path";
 import { Effect, FileSystem, Layer, Queue, Schema, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
@@ -23,9 +24,16 @@ import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
+import {
+  OrchestrationCommandAdmissionError,
+  OrchestrationCommandIdentityCollisionError,
+  OrchestrationCommandInvariantError,
+  OrchestrationCommandPreviouslyRejectedError,
+  OrchestrationCommandTimeoutError,
+} from "../orchestration/Errors";
 import { browseWorkspaceEntries } from "../workspaceEntries";
-import { ServerRuntimeStartup } from "../serverRuntimeStartup";
-import { addSshProject } from "./sshProjects";
+import { ServerRuntimeStartup, ServerRuntimeStartupError } from "../serverRuntimeStartup";
+import { addSshProject, SshProjectInputError, toSshProjectPathError } from "./sshProjects";
 import {
   closeOccupancyRuntime,
   getOccupancyListenPort,
@@ -34,6 +42,8 @@ import {
 } from "./occupancyRuntime";
 
 const OCCUPANCY_JSON_BODY_MAX_BYTES = 256 * 1024;
+
+class InvalidOccupancyRequestError extends Error {}
 
 export function parseOccupancyBearer(authorization: string | undefined): string | null {
   if (!authorization?.startsWith("Bearer ")) return null;
@@ -62,17 +72,36 @@ function jsonResponse(value: unknown, status = 200) {
   return HttpServerResponse.jsonUnsafe(value, { status });
 }
 
+function projectErrorResponse(error: unknown) {
+  const status =
+    error instanceof InvalidOccupancyRequestError ||
+    error instanceof SshProjectInputError ||
+    error instanceof OrchestrationCommandInvariantError ||
+    error instanceof OrchestrationCommandIdentityCollisionError ||
+    error instanceof OrchestrationCommandPreviouslyRejectedError
+      ? 400
+      : error instanceof ServerRuntimeStartupError ||
+          error instanceof OrchestrationCommandAdmissionError ||
+          error instanceof OrchestrationCommandTimeoutError
+        ? 503
+        : 500;
+  return jsonResponse(
+    { error: error instanceof Error ? error.message : "Could not access the remote project." },
+    status,
+  );
+}
+
 const readJson = (request: HttpServerRequest.HttpServerRequest) => {
   const declaredLength = Number(request.headers["content-length"] ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > OCCUPANCY_JSON_BODY_MAX_BYTES) {
-    return Effect.fail(new Error("Request body too large."));
+    return Effect.fail(new InvalidOccupancyRequestError("Request body too large."));
   }
   return request.json.pipe(
     Effect.provideService(
       HttpServerRequest.MaxBodySize,
       FileSystem.Size(OCCUPANCY_JSON_BODY_MAX_BYTES),
     ),
-    Effect.mapError(() => new Error("Invalid JSON payload.")),
+    Effect.mapError(() => new InvalidOccupancyRequestError("Invalid JSON payload.")),
   );
 };
 
@@ -150,11 +179,22 @@ const occupancyHttpRouteLayer = HttpRouter.add(
         if (request.method === "GET" && url.pathname === SSH_HOST_DIRECTORY_PATH) {
           const input = yield* Schema.decodeUnknownEffect(FilesystemBrowseInput)({
             partialPath: url.searchParams.get("path") || "~/",
-          });
+          }).pipe(
+            Effect.mapError(() => new InvalidOccupancyRequestError("Invalid directory request.")),
+          );
+          if (
+            isExplicitRelativePath(input.partialPath) ||
+            (process.platform !== "win32" && isWindowsAbsolutePath(input.partialPath)) ||
+            input.partialPath.includes("\0")
+          ) {
+            return projectErrorResponse(
+              new SshProjectInputError("Choose an absolute folder path on the remote computer."),
+            );
+          }
           return jsonResponse(
             yield* Effect.tryPromise({
               try: () => browseWorkspaceEntries(input),
-              catch: (error) => error,
+              catch: toSshProjectPathError,
             }),
           );
         }
@@ -173,34 +213,20 @@ const occupancyHttpRouteLayer = HttpRouter.add(
         if (request.method === "POST" && url.pathname === SSH_HOST_PROJECTS_PATH) {
           const input = yield* Schema.decodeUnknownEffect(SshProjectAddInput)(
             yield* readJson(request),
+          ).pipe(
+            Effect.mapError(() => new InvalidOccupancyRequestError("Invalid project request.")),
           );
           const engine = yield* OrchestrationEngineService;
           const startup = yield* ServerRuntimeStartup;
           return jsonResponse(
             yield* Effect.tryPromise({
-              try: () =>
-                addSshProject(input, {
-                  getReadModel: engine.getReadModel,
-                  dispatch: (command) => startup.enqueueCommand(engine.dispatch(command)),
-                }),
+              try: () => addSshProject(input, engine, startup.enqueueCommand),
               catch: (error) => error,
             }),
           );
         }
         return jsonResponse({ error: "Not found" }, 404);
-      }).pipe(
-        Effect.catch((error) =>
-          Effect.succeed(
-            jsonResponse(
-              {
-                error:
-                  error instanceof Error ? error.message : "Could not access the remote project.",
-              },
-              400,
-            ),
-          ),
-        ),
-      );
+      }).pipe(Effect.catch((error) => Effect.succeed(projectErrorResponse(error))));
     }
 
     return jsonResponse({ error: "Not found" }, 404);

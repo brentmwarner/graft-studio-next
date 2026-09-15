@@ -121,6 +121,11 @@ it.each([false, true])(
     await expect
       .element(page.getByRole("textbox", { name: "Project folder path" }))
       .toHaveValue("/home/dev/work");
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(
+        page.getByRole("button", { name: "Create project", exact: true }).element(),
+      );
+    });
     expect(api.addSshProject).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
     await page.getByRole("button", { name: "Create project", exact: true }).click();
@@ -185,6 +190,56 @@ it("keeps cancellation local to the browser and clears the folder when switching
   expect(localSubmit).not.toHaveBeenCalled();
   expect(api.addSshProject).not.toHaveBeenCalled();
 });
+
+it.each([
+  { remote: false, dismiss: "Cancel" },
+  { remote: false, dismiss: "Close" },
+  { remote: false, dismiss: "Escape" },
+  { remote: true, dismiss: "Cancel" },
+  { remote: true, dismiss: "Close" },
+  { remote: true, dismiss: "Escape" },
+])(
+  "returns from the folder browser in the same modal ($remote, $dismiss)",
+  async ({ remote, dismiss }) => {
+    api.browseLocal.mockResolvedValue({ parentPath: "/Users/dev", entries: [] });
+    api.browseSshDirectory.mockResolvedValue({ parentPath: "/home/dev", entries: [] });
+    const localSubmit = await mountConnected();
+    if (remote) {
+      await page.getByRole("button", { name: "Computer", exact: true }).click();
+      await page.getByRole("menuitemradio", { name: "Omarchy" }).click();
+    }
+    const projectPath = page.getByRole("textbox", { name: "Project folder path" });
+    await projectPath.fill("/work/existing");
+    const popup = document.querySelector('[data-slot="dialog-popup"]');
+    const backdrop = document.querySelector('[data-slot="dialog-backdrop"]');
+    await page.getByRole("button", { name: "Add source folder" }).click();
+    await expect
+      .element(page.getByRole("dialog", { name: "Choose a source folder" }))
+      .toBeVisible();
+    await vi.waitFor(() => {
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        remote ? "Remote folder path" : "Folder path",
+      );
+    });
+    expect(document.querySelectorAll('[data-slot="dialog-popup"]')).toHaveLength(1);
+    expect(document.querySelector('[data-slot="dialog-popup"]')).toBe(popup);
+    expect(document.querySelector('[data-slot="dialog-backdrop"]')).toBe(backdrop);
+    if (dismiss === "Escape") {
+      await userEvent.keyboard("{Escape}");
+    } else {
+      await page.getByRole("button", { name: dismiss, exact: true }).click();
+    }
+    await expect.element(page.getByRole("dialog", { name: "Create project" })).toBeVisible();
+    await expect.element(projectPath).toHaveValue("/work/existing");
+    await vi.waitFor(() => {
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("Add source folder");
+    });
+    expect(document.querySelector('[data-slot="dialog-popup"]')).toBe(popup);
+    expect(document.querySelector('[data-slot="dialog-backdrop"]')).toBe(backdrop);
+    expect(localSubmit).not.toHaveBeenCalled();
+    expect(api.addSshProject).not.toHaveBeenCalled();
+  },
+);
 
 it("adds a remote from the computer menu and connects it before folder selection", async () => {
   await mountConnected();

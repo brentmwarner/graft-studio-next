@@ -140,6 +140,10 @@ export class ManagedSshTunnel {
   }
 
   private async openProcess(): Promise<void> {
+    if (this.child) {
+      await this.stopProcess(this.child);
+      this.child = null;
+    }
     if (this.closing)
       throw new SshRemoteError("connection_closed", "SSH connection is closed.", false);
     this.stderr = "";
@@ -187,8 +191,9 @@ export class ManagedSshTunnel {
       if (this.child !== child) throw new Error("SSH tunnel process changed while opening");
       this.setState("connected");
     } catch (error) {
-      if (this.child === child) this.child = null;
+      readiness.abort();
       await this.stopProcess(child);
+      if (this.child === child) this.child = null;
       if (error instanceof SshRemoteError) throw error;
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") {

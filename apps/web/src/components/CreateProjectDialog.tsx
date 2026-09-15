@@ -52,7 +52,7 @@ import { ComposerPickerSelectPopup } from "./chat/ComposerPickerMenuPopup";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group";
 import { Select, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { CentralIcon } from "~/lib/central-icons";
-import { SourceFolderDialog } from "./SourceFolderDialog";
+import { SourceFolderPicker } from "./SourceFolderPicker";
 
 interface CreateLocalProjectSubmitValue {
   readonly source: "local";
@@ -117,6 +117,8 @@ export function CreateProjectDialog(props: {
   const [folderBrowserOpen, setFolderBrowserOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const folderReturnFocusRef = useRef<string | null>(null);
   const openedRef = useRef(false);
   const submitAbortRef = useRef<AbortController | null>(null);
   const activeOperationIdRef = useRef<string | null>(null);
@@ -127,8 +129,18 @@ export function CreateProjectDialog(props: {
   const directoryNameInputId = `${fieldId}-directory-name`;
   const submitButtonId = `${fieldId}-submit`;
   const sourceFolderLabelId = `${fieldId}-source-folder`;
+  const sourceFolderButtonId = `${fieldId}-browse`;
   const spaceLabelId = `${fieldId}-space`;
   const errorId = `${fieldId}-error`;
+
+  useEffect(() => {
+    if (folderBrowserOpen || !folderReturnFocusRef.current) return;
+    const targetId = folderReturnFocusRef.current;
+    folderReturnFocusRef.current = null;
+    // Restore focus after the form has mounted, inside the existing focus trap.
+    const frame = requestAnimationFrame(() => document.getElementById(targetId)?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [folderBrowserOpen]);
 
   useEffect(() => {
     // Seed on the closed -> open transition only, mirroring SpaceEditorDialog.
@@ -213,6 +225,7 @@ export function CreateProjectDialog(props: {
   const handleBrowse = async () => {
     if (isPickingFolder || submitting) return;
     if (source === "local" && (props.remoteMachine || !isElectron)) {
+      popupRef.current?.focus();
       setFolderBrowserOpen(true);
       return;
     }
@@ -326,7 +339,18 @@ export function CreateProjectDialog(props: {
     void submit();
   };
 
+  const closeFolderBrowser = () => {
+    // Keep focus inside the persistent modal while its current view unmounts.
+    popupRef.current?.focus();
+    folderReturnFocusRef.current = sourceFolderButtonId;
+    setFolderBrowserOpen(false);
+  };
+
   const handleOpenChange = (open: boolean) => {
+    if (!open && folderBrowserOpen) {
+      closeFolderBrowser();
+      return;
+    }
     if (props.remoteMachine && submitting) return;
     if (!open) submitAbortRef.current?.abort();
     props.onOpenChange(open);
@@ -362,277 +386,296 @@ export function CreateProjectDialog(props: {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      <DialogPopup>
-        <DialogHeader className="px-5 pt-5">
-          <DialogTitle>Create project</DialogTitle>
-        </DialogHeader>
-        <DialogPanel className="space-y-4 px-5">
-          {!props.remoteMachine ? (
-            <ProjectSourceSegmentedPicker
-              className="mt-4"
-              value={source}
-              disabled={submitting}
-              githubAvailable={props.githubProvisioningAvailable}
-              onValueChange={(nextSource) => {
-                setSource(nextSource);
-                setFormError(null);
-                setProvisionProgress(null);
-                requestAnimationFrame(() =>
-                  document
-                    .getElementById(nextSource === "local" ? pathInputId : repositoryInputId)
-                    ?.focus(),
-                );
-              }}
-            />
-          ) : null}
+      <DialogPopup ref={popupRef}>
+        {folderBrowserOpen ? (
+          <SourceFolderPicker
+            {...(props.remoteMachine ? { machine: props.remoteMachine } : {})}
+            onCancel={closeFolderBrowser}
+            onSelect={(picked) => {
+              popupRef.current?.focus();
+              folderReturnFocusRef.current = submitButtonId;
+              setFolderBrowserOpen(false);
+              applyPickedFolder(picked);
+            }}
+          />
+        ) : (
+          <>
+            <DialogHeader className="px-5 pt-5">
+              <DialogTitle>Create project</DialogTitle>
+            </DialogHeader>
+            <DialogPanel className="space-y-4 px-5">
+              {!props.remoteMachine ? (
+                <ProjectSourceSegmentedPicker
+                  className="mt-4"
+                  value={source}
+                  disabled={submitting}
+                  githubAvailable={props.githubProvisioningAvailable}
+                  onValueChange={(nextSource) => {
+                    setSource(nextSource);
+                    setFormError(null);
+                    setProvisionProgress(null);
+                    requestAnimationFrame(() =>
+                      document
+                        .getElementById(nextSource === "local" ? pathInputId : repositoryInputId)
+                        ?.focus(),
+                    );
+                  }}
+                />
+              ) : null}
 
-          {source === "local" ? (
-            <>
-              <InputGroup
-                className={cn(
-                  PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME,
-                  props.remoteMachine && "mt-4",
-                )}
-              >
-                <InputGroupAddon className="w-10 self-stretch border-e border-foreground/12 ps-0">
-                  <FolderClosed className="size-4 text-muted-foreground/70" aria-hidden="true" />
-                </InputGroupAddon>
-                <InputGroupInput
-                  id={pathInputId}
-                  value={path}
-                  aria-label="Project folder path"
-                  aria-invalid={formError ? true : undefined}
-                  {...(formError ? { "aria-describedby": errorId } : {})}
-                  placeholder="/path/to/project"
-                  spellCheck={false}
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  onChange={(event) => {
-                    setPath(event.target.value);
+              {source === "local" ? (
+                <>
+                  <InputGroup
+                    className={cn(
+                      PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME,
+                      props.remoteMachine && "mt-4",
+                    )}
+                  >
+                    <InputGroupAddon className="w-10 self-stretch border-e border-foreground/12 ps-0">
+                      <FolderClosed
+                        className="size-4 text-muted-foreground/70"
+                        aria-hidden="true"
+                      />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id={pathInputId}
+                      value={path}
+                      aria-label="Project folder path"
+                      aria-invalid={formError ? true : undefined}
+                      {...(formError ? { "aria-describedby": errorId } : {})}
+                      placeholder="/path/to/project"
+                      spellCheck={false}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      onChange={(event) => {
+                        setPath(event.target.value);
+                        setFormError(null);
+                      }}
+                      onKeyDown={submitOnEnter}
+                    />
+                  </InputGroup>
+
+                  <fieldset disabled={isPickingFolder || submitting} className="space-y-2">
+                    <legend id={sourceFolderLabelId} className="mb-2 text-[13px] text-foreground">
+                      Source folders
+                    </legend>
+                    <div
+                      className={cn(
+                        "flex min-h-[104px] flex-col items-center justify-center gap-3 rounded-xl border border-border px-4 py-5",
+                        isDropTarget && "border-ring bg-muted",
+                      )}
+                    >
+                      <div className="flex max-w-full items-center justify-center gap-1 text-[13px]">
+                        {props.computerPicker ?? (
+                          <>
+                            <span className="shrink-0 text-muted-foreground">Add a folder on</span>
+                            <span className="truncate">
+                              {props.remoteMachine?.label ?? "this computer"}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {pickedFolderName ? (
+                        <div className="flex w-full min-w-0 items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
+                          <FolderClosed className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 text-[13px]">
+                            <span className="block truncate">{pickedFolderName}</span>
+                            <span
+                              className="block truncate text-xs text-muted-foreground"
+                              title={pickedPath ?? undefined}
+                            >
+                              {pickedPath}
+                            </span>
+                          </span>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label="Remove source folder"
+                            onClick={() => {
+                              setPath("");
+                              setPickedPath(null);
+                            }}
+                          >
+                            <CentralIcon name="cross-small" className="size-3.5" />
+                          </Button>
+                        </div>
+                      ) : null}
+                      {props.folderAction ?? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          shape="capsule"
+                          size="sm"
+                          id={sourceFolderButtonId}
+                          aria-label={
+                            pickedFolderName ? "Change source folder" : "Add source folder"
+                          }
+                          disabled={props.remoteMachine ? !props.remoteMachine.connected : false}
+                          onClick={() => void handleBrowse()}
+                        >
+                          <CentralIcon
+                            name="folder-add-left"
+                            className="size-4"
+                            aria-hidden="true"
+                          />
+                          {isPickingFolder ? "Opening…" : pickedFolderName ? "Change" : "Add"}
+                        </Button>
+                      )}
+                    </div>
+                  </fieldset>
+                </>
+              ) : (
+                <CreateGitHubProjectFields
+                  repositoryInputId={repositoryInputId}
+                  destinationParentInputId={destinationParentInputId}
+                  directoryNameInputId={directoryNameInputId}
+                  errorId={errorId}
+                  repositoryInput={repositoryInput}
+                  destinationParent={destinationParent}
+                  directoryName={directoryName}
+                  finalClonePath={finalClonePath}
+                  formError={formError}
+                  provisionProgress={provisionProgress}
+                  isElectron={isElectron}
+                  isPickingFolder={isPickingFolder}
+                  submitting={submitting}
+                  onRepositoryChange={(nextInput) => {
+                    setRepositoryInput(nextInput);
+                    const nextRepository = parseGitHubRepositoryInput(nextInput);
+                    if (nextRepository && !directoryNameEdited) {
+                      setDirectoryName(nextRepository.split("/").at(-1) ?? "");
+                    }
                     setFormError(null);
                   }}
-                  onKeyDown={submitOnEnter}
-                />
-              </InputGroup>
-
-              <fieldset disabled={isPickingFolder || submitting} className="space-y-2">
-                <legend id={sourceFolderLabelId} className="mb-2 text-[13px] text-foreground">
-                  Source folders
-                </legend>
-                <div
-                  className={cn(
-                    "flex min-h-[104px] flex-col items-center justify-center gap-3 rounded-xl border border-border px-4 py-5",
-                    isDropTarget && "border-ring bg-muted",
-                  )}
-                >
-                  <div className="flex max-w-full items-center justify-center gap-1 text-[13px]">
-                    {props.computerPicker ?? (
-                      <>
-                        <span className="shrink-0 text-muted-foreground">Add a folder on</span>
-                        <span className="truncate">
-                          {props.remoteMachine?.label ?? "this computer"}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  {pickedFolderName ? (
-                    <div className="flex w-full min-w-0 items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
-                      <FolderClosed className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 text-[13px]">
-                        <span className="block truncate">{pickedFolderName}</span>
-                        <span
-                          className="block truncate text-xs text-muted-foreground"
-                          title={pickedPath ?? undefined}
-                        >
-                          {pickedPath}
-                        </span>
-                      </span>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="Remove source folder"
-                        onClick={() => {
-                          setPath("");
-                          setPickedPath(null);
-                        }}
-                      >
-                        <CentralIcon name="cross-small" className="size-3.5" />
-                      </Button>
-                    </div>
-                  ) : null}
-                  {props.folderAction ?? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      shape="capsule"
-                      size="sm"
-                      aria-label={pickedFolderName ? "Change source folder" : "Add source folder"}
-                      disabled={props.remoteMachine ? !props.remoteMachine.connected : false}
-                      onClick={() => void handleBrowse()}
-                    >
-                      <CentralIcon name="folder-add-left" className="size-4" aria-hidden="true" />
-                      {isPickingFolder ? "Opening…" : pickedFolderName ? "Change" : "Add"}
-                    </Button>
-                  )}
-                </div>
-              </fieldset>
-            </>
-          ) : (
-            <CreateGitHubProjectFields
-              repositoryInputId={repositoryInputId}
-              destinationParentInputId={destinationParentInputId}
-              directoryNameInputId={directoryNameInputId}
-              errorId={errorId}
-              repositoryInput={repositoryInput}
-              destinationParent={destinationParent}
-              directoryName={directoryName}
-              finalClonePath={finalClonePath}
-              formError={formError}
-              provisionProgress={provisionProgress}
-              isElectron={isElectron}
-              isPickingFolder={isPickingFolder}
-              submitting={submitting}
-              onRepositoryChange={(nextInput) => {
-                setRepositoryInput(nextInput);
-                const nextRepository = parseGitHubRepositoryInput(nextInput);
-                if (nextRepository && !directoryNameEdited) {
-                  setDirectoryName(nextRepository.split("/").at(-1) ?? "");
-                }
-                setFormError(null);
-              }}
-              onDestinationParentChange={(nextParent) => {
-                setDestinationParent(nextParent);
-                setFormError(null);
-              }}
-              onDirectoryNameChange={(nextName) => {
-                setDirectoryName(nextName);
-                setDirectoryNameEdited(true);
-                setFormError(null);
-              }}
-              onBrowse={() => void handleBrowse()}
-              onSubmitKeyDown={submitOnEnter}
-            />
-          )}
-
-          {!props.remoteMachine ? (
-            <div className="space-y-2">
-              <span
-                id={spaceLabelId}
-                className={cn(
-                  "block",
-                  dialogFieldLabelClassName,
-                  "text-[length:var(--app-font-size-ui,12px)] text-foreground",
-                )}
-              >
-                Space
-              </span>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={selectedSpaceKey}
-                  onValueChange={(next) => {
-                    if (typeof next === "string") setSelectedSpaceKey(next);
+                  onDestinationParentChange={(nextParent) => {
+                    setDestinationParent(nextParent);
+                    setFormError(null);
                   }}
-                >
-                  <SelectTrigger
-                    aria-labelledby={spaceLabelId}
-                    className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "min-w-0 flex-1")}
-                  >
-                    <SelectValue>
-                      <span className="flex items-center gap-2">
-                        <SpaceIcon
-                          icon={selectedSpace?.icon ?? voidSpace.icon}
-                          className="size-3.5"
-                        />
-                        {selectedSpace?.name ?? voidSpace.name}
-                      </span>
-                    </SelectValue>
-                  </SelectTrigger>
-                  <ComposerPickerSelectPopup align="start">
-                    <SelectItem value={VOID_SPACE_KEY}>
-                      <span className="flex items-center gap-2">
-                        <SpaceIcon icon={voidSpace.icon} className="size-3.5" />
-                        {voidSpace.name}
-                      </span>
-                    </SelectItem>
-                    {spaces.map((space) => (
-                      <SelectItem key={space.id} value={space.id}>
-                        <span className="flex items-center gap-2">
-                          <SpaceIcon icon={space.icon} className="size-3.5" />
-                          {space.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </ComposerPickerSelectPopup>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="New space"
-                  disabled={submitting}
-                  className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "w-9 shrink-0 sm:h-9")}
-                  onClick={() => setSpaceEditorOpen(true)}
-                >
-                  <CentralIcon name="plus-medium" className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
-          ) : null}
+                  onDirectoryNameChange={(nextName) => {
+                    setDirectoryName(nextName);
+                    setDirectoryNameEdited(true);
+                    setFormError(null);
+                  }}
+                  onBrowse={() => void handleBrowse()}
+                  onSubmitKeyDown={submitOnEnter}
+                />
+              )}
 
-          {formError ? (
-            <div id={errorId} role="alert" className="space-y-1">
-              <p className="text-[length:var(--app-font-size-ui-xs,10px)] text-destructive">
-                {formError}
-              </p>
-              {formErrorMeaning ? (
-                <p className="text-[length:var(--app-font-size-ui-xs,10px)] text-muted-foreground/70">
-                  {formErrorMeaning}
-                </p>
+              {!props.remoteMachine ? (
+                <div className="space-y-2">
+                  <span
+                    id={spaceLabelId}
+                    className={cn(
+                      "block",
+                      dialogFieldLabelClassName,
+                      "text-[length:var(--app-font-size-ui,12px)] text-foreground",
+                    )}
+                  >
+                    Space
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={selectedSpaceKey}
+                      onValueChange={(next) => {
+                        if (typeof next === "string") setSelectedSpaceKey(next);
+                      }}
+                    >
+                      <SelectTrigger
+                        aria-labelledby={spaceLabelId}
+                        className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "min-w-0 flex-1")}
+                      >
+                        <SelectValue>
+                          <span className="flex items-center gap-2">
+                            <SpaceIcon
+                              icon={selectedSpace?.icon ?? voidSpace.icon}
+                              className="size-3.5"
+                            />
+                            {selectedSpace?.name ?? voidSpace.name}
+                          </span>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <ComposerPickerSelectPopup align="start">
+                        <SelectItem value={VOID_SPACE_KEY}>
+                          <span className="flex items-center gap-2">
+                            <SpaceIcon icon={voidSpace.icon} className="size-3.5" />
+                            {voidSpace.name}
+                          </span>
+                        </SelectItem>
+                        {spaces.map((space) => (
+                          <SelectItem key={space.id} value={space.id}>
+                            <span className="flex items-center gap-2">
+                              <SpaceIcon icon={space.icon} className="size-3.5" />
+                              {space.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </ComposerPickerSelectPopup>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="New space"
+                      disabled={submitting}
+                      className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "w-9 shrink-0 sm:h-9")}
+                      onClick={() => setSpaceEditorOpen(true)}
+                    >
+                      <CentralIcon name="plus-medium" className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
               ) : null}
-            </div>
-          ) : null}
-        </DialogPanel>
-        <DialogFooter className="px-5 pb-5">
-          <Button
-            variant="ghost"
-            shape="capsule"
-            className="px-4 text-[length:var(--app-font-size-ui-lg,13px)] sm:text-[length:var(--app-font-size-ui-lg,13px)]"
-            onClick={() => handleOpenChange(false)}
-            disabled={submitting && source === "local"}
-          >
-            {submitting && source === "github" ? "Cancel clone" : "Cancel"}
-          </Button>
-          <Button
-            id={submitButtonId}
-            variant="prominent"
-            className="px-4 text-[length:var(--app-font-size-ui-lg,13px)] transition-opacity hover:scale-100 sm:text-[length:var(--app-font-size-ui-lg,13px)]"
-            onClick={() => void submit()}
-            disabled={submitting || (props.remoteMachine ? !props.remoteMachine.connected : false)}
-          >
-            {submitting
-              ? source === "github"
-                ? "Cloning…"
-                : "Creating…"
-              : source === "github"
-                ? "Clone and add"
-                : "Create project"}
-          </Button>
-        </DialogFooter>
-        {folderBrowserOpen ? (
-          <SourceFolderDialog
-            {...(props.remoteMachine ? { machine: props.remoteMachine } : {})}
-            open
-            onOpenChange={setFolderBrowserOpen}
-            onSelect={applyPickedFolder}
-          />
-        ) : null}
-        <SpaceEditorDialog
-          open={spaceEditorOpen}
-          mode="create"
-          existingNames={[...spaces.map((space) => space.name), voidSpace.name]}
-          onOpenChange={setSpaceEditorOpen}
-          onSubmit={handleCreateSpace}
-        />
+
+              {formError ? (
+                <div id={errorId} role="alert" className="space-y-1">
+                  <p className="text-[length:var(--app-font-size-ui-xs,10px)] text-destructive">
+                    {formError}
+                  </p>
+                  {formErrorMeaning ? (
+                    <p className="text-[length:var(--app-font-size-ui-xs,10px)] text-muted-foreground/70">
+                      {formErrorMeaning}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </DialogPanel>
+            <DialogFooter className="px-5 pb-5">
+              <Button
+                variant="ghost"
+                shape="capsule"
+                className="px-4 text-[length:var(--app-font-size-ui-lg,13px)] sm:text-[length:var(--app-font-size-ui-lg,13px)]"
+                onClick={() => handleOpenChange(false)}
+                disabled={submitting && source === "local"}
+              >
+                {submitting && source === "github" ? "Cancel clone" : "Cancel"}
+              </Button>
+              <Button
+                id={submitButtonId}
+                variant="prominent"
+                className="px-4 text-[length:var(--app-font-size-ui-lg,13px)] transition-opacity hover:scale-100 sm:text-[length:var(--app-font-size-ui-lg,13px)]"
+                onClick={() => void submit()}
+                disabled={
+                  submitting || (props.remoteMachine ? !props.remoteMachine.connected : false)
+                }
+              >
+                {submitting
+                  ? source === "github"
+                    ? "Cloning…"
+                    : "Creating…"
+                  : source === "github"
+                    ? "Clone and add"
+                    : "Create project"}
+              </Button>
+            </DialogFooter>
+            <SpaceEditorDialog
+              open={spaceEditorOpen}
+              mode="create"
+              existingNames={[...spaces.map((space) => space.name), voidSpace.name]}
+              onOpenChange={setSpaceEditorOpen}
+              onSubmit={handleCreateSpace}
+            />
+          </>
+        )}
       </DialogPopup>
     </Dialog>
   );

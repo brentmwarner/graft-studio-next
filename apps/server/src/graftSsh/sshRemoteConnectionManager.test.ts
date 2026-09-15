@@ -17,6 +17,7 @@ import type { SshCommandRunner } from "./sshTarget";
 const paths: string[] = [];
 
 class FakeTunnelProcess extends EventEmitter implements TunnelProcess {
+  pid: number | undefined;
   readonly stderr = new PassThrough();
   exitCode: number | null = null;
   killed = false;
@@ -50,6 +51,7 @@ class MemorySecretStore extends SshSecretStore {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   for (const path of paths.splice(0)) {
     rmSync(path, { force: true });
@@ -57,7 +59,8 @@ afterEach(() => {
 });
 
 describe("SshRemoteConnectionManager", () => {
-  it.each([false, true])("connects and removes (retry: %s)", async (retryDisconnect) => {
+  const retryOperations = ["none", "disconnect", "closeAll"] as const;
+  it.each(retryOperations)("connects and removes (retry: %s)", async (retryOperation) => {
     const environmentId = "host-fedora-workstation-01";
     const bearer = "desktop-bearer-value-0000000000000000001";
     const enrollmentToken = "enrollment-token-value-000000000000000001";
@@ -185,14 +188,23 @@ describe("SshRemoteConnectionManager", () => {
     expect([...secretStore.values.values()]).toEqual([bearer]);
     expect(manager.listMachines()[0]).not.toHaveProperty("bearer");
     expect(manager.listMachines()[0]).not.toHaveProperty("httpBaseUrl");
-    if (retryDisconnect) {
+    if (retryOperation !== "none") {
       vi.spyOn(tunnel, "close").mockRejectedValueOnce(new Error("SSH process did not exit"));
-      await expect(manager.disconnect(saved.id)).rejects.toThrow("SSH process did not exit");
+      await expect(
+        retryOperation === "closeAll" ? manager.closeAll() : manager.disconnect(saved.id),
+      ).rejects.toThrow("SSH process did not exit");
       expect(manager.listMachineSummaries()[0]?.connected).toBe(true);
-      await expect(manager.connect(saved.id)).rejects.toThrow("SSH process did not exit");
+      if (retryOperation === "closeAll") {
+        await manager.closeAll();
+        expect(manager.activeConnection(saved.id)).toBeNull();
+      } else {
+        await expect(manager.connect(saved.id)).rejects.toThrow("SSH process did not exit");
+      }
     }
     await expect(manager.deleteMachine(saved.id)).resolves.toBe(true);
-    expect(revocationCount).toBe(retryDisconnect ? 2 : 1);
+    expect(revocationCount).toBe(
+      retryOperation === "disconnect" ? 2 : retryOperation === "closeAll" ? 0 : 1,
+    );
     expect(secretStore.values.size).toBe(0);
     await new Promise<void>((resolveClose, rejectClose) => {
       httpServer.close((error) => {
@@ -688,6 +700,137 @@ describe("SSH connection cancellation", () => {
       expect(runner).toHaveBeenCalledOnce();
       expect(createTunnel).not.toHaveBeenCalled();
       expect(manager.activeConnection(machine.id)).toBeNull();
+    },
+  );
+});
+
+describe("SSH startup failure recovery", () => {
+  const bootstrap = {
+    protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+    environmentId: "host-startup-failure",
+    environmentLabel: "Test host",
+    daemonVersion: "0.2.0",
+    platform: { os: "linux", arch: "x64", libc: "glibc" },
+    port: 47_831,
+    enrollmentToken: "enrollment-token-value-000000000000000001",
+    enrollmentExpiresAt: Date.now() + 10_000,
+    activeRunCount: 0,
+    activePtyCount: 0,
+  } as const;
+
+  function createManager(
+    createTunnel: (options: ConstructorParameters<typeof ManagedSshTunnel>[0]) => ManagedSshTunnel,
+  ) {
+    const path = join(tmpdir(), `graft-ssh-startup-failure-${randomUUID()}.json`);
+    paths.push(path);
+    const manager = new SshRemoteConnectionManager({
+      machineStore: new SshMachineStore(path),
+      secretStore: new MemorySecretStore(),
+      hostArchivePath: "/unused",
+      hostVersion: "0.2.0",
+      clientId: "test",
+      clientLabel: "test",
+      clientVersion: "0.2.0",
+      commandRunner: async (_executable, args) => ({
+        stdout:
+          args[0] === "-G" ? "hostname machine\nuser test\nport 22\n" : JSON.stringify(bootstrap),
+        stderr: "",
+        exitCode: 0,
+      }),
+      createTunnel,
+    });
+    const machine = manager.saveMachine({ label: "Test", sshTarget: "test@machine" });
+    return { manager, machine };
+  }
+
+  it.each(["disconnect", "closeAll", "connect"] as const)(
+    "retains an unreaped startup process for a later %s attempt",
+    async (operation) => {
+      vi.useFakeTimers();
+      const child = new FakeTunnelProcess();
+      child.pid = 123;
+      const kill = vi.spyOn(child, "kill").mockReturnValue(false);
+      const spawnProcess = vi.fn(() => child);
+      let tunnel!: ManagedSshTunnel;
+      const { manager, machine } = createManager((options) => {
+        tunnel = new ManagedSshTunnel({
+          ...options,
+          localPort: 43_127,
+          spawnProcess,
+          healthProbe: async () => null,
+        });
+        return tunnel;
+      });
+      const connecting = expect(manager.connect(machine.id)).rejects.toMatchObject({
+        code: "connection_closed",
+      });
+      await vi.waitFor(() => expect(spawnProcess).toHaveBeenCalledOnce());
+      child.emit("error", Object.assign(new Error("Kill failed"), { code: "EPERM" }));
+      await vi.advanceTimersByTimeAsync(10_000);
+      await connecting;
+
+      const retry = expect(
+        operation === "closeAll" ? manager.closeAll() : manager[operation](machine.id),
+      ).rejects.toMatchObject({ code: "connection_closed" });
+      await vi.advanceTimersByTimeAsync(5_000);
+      await retry;
+      expect(spawnProcess).toHaveBeenCalledOnce();
+      expect(kill.mock.calls.map(([signal]) => signal)).toEqual([
+        "SIGTERM",
+        "SIGKILL",
+        "SIGTERM",
+        "SIGKILL",
+        "SIGTERM",
+        "SIGKILL",
+      ]);
+      expect(tunnel.state).not.toBe("closed");
+
+      const disconnecting = manager.disconnect(machine.id);
+      await vi.waitFor(() => expect(kill).toHaveBeenCalledTimes(7));
+      child.emit("exit", 0, "SIGKILL");
+      await disconnecting;
+      expect(tunnel.state).toBe("closed");
+      await manager.closeAll();
+      expect(kill).toHaveBeenCalledTimes(7);
+    },
+  );
+
+  it.each(["network", "http", "json", "schema"] as const)(
+    "reports a retryable SSH error and closes the tunnel after a %s health failure",
+    async (failure) => {
+      const child = new FakeTunnelProcess();
+      const { manager, machine } = createManager(
+        (options) =>
+          new ManagedSshTunnel({
+            ...options,
+            localPort: 43_128,
+            spawnProcess: () => child,
+            healthProbe: async () => ({
+              ...bootstrap,
+              service: "graft-host",
+              capabilities: ["projects"],
+              cursor: 0,
+              replayFloor: 0,
+            }),
+          }),
+      );
+      const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => {
+        if (failure === "network") throw new TypeError("fetch failed");
+        return new Response(failure === "json" ? "not JSON" : "{}", {
+          status: failure === "http" ? 503 : 200,
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(manager.connect(machine.id)).rejects.toMatchObject({
+        name: "SshRemoteError",
+        code: "tunnel_failed",
+        retryable: true,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(child.exitCode).toBe(0);
+      expect(manager.activeConnection(machine.id)).toBeNull();
+      expect(manager.listMachines()[0]?.sessionId).toBeNull();
+      await manager.closeAll();
     },
   );
 });
