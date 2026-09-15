@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { sendWithAttachments, type ComposerAttachment } from "./composerAttachmentSend";
+import {
+  sendWithAttachments,
+  type ComposerAttachment,
+  type ComposerSendAttempt,
+} from "./composerAttachmentSend";
 
 const file: ComposerAttachment = {
   id: "local-file",
@@ -38,6 +42,51 @@ it("sends host-minted attachment references only after uploads finish", async ()
 });
 
 describe("attachment failure recovery", () => {
+  it("reuses uploaded references and command identity after an uncertain send", async () => {
+    const attempt: ComposerSendAttempt = { key: "draft-1", commandId: "turn-1" };
+    const offline = new Error("Response lost");
+    const upload = vi.fn(async () => stored);
+    const cancel = vi.fn();
+    const send = vi.fn().mockRejectedValueOnce(offline).mockResolvedValueOnce("accepted");
+    const retry = { attempt, isOutcomeUnknown: (error: unknown) => error === offline };
+    await expect(sendWithAttachments([file], upload, cancel, send, retry)).rejects.toThrow(
+      "Response lost",
+    );
+    expect(cancel).not.toHaveBeenCalled();
+    expect(attempt.uploaded).toEqual([stored]);
+    await expect(sendWithAttachments([file], upload, cancel, send, retry)).resolves.toBe(
+      "accepted",
+    );
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenNthCalledWith(1, [stored]);
+    expect(send).toHaveBeenNthCalledWith(2, [stored]);
+    expect(attempt.commandId).toBe("turn-1");
+  });
+
+  it("releases retained uploads when the host definitively rejects the retry", async () => {
+    const attempt: ComposerSendAttempt = {
+      key: "draft-1",
+      commandId: "turn-1",
+      uploaded: [stored],
+    };
+    const upload = vi.fn();
+    const cancel = vi.fn();
+    await expect(
+      sendWithAttachments(
+        [file],
+        upload,
+        cancel,
+        async () => {
+          throw new Error("Turn rejected");
+        },
+        { attempt, isOutcomeUnknown: () => false },
+      ),
+    ).rejects.toThrow("Turn rejected");
+    expect(upload).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledWith(stored.id);
+    expect(attempt.uploaded).toBeUndefined();
+  });
+
   it("does not send a partial selection and releases already-uploaded files", async () => {
     const upload = vi
       .fn()

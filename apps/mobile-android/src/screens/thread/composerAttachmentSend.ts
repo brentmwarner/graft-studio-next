@@ -13,6 +13,12 @@ export interface ComposerSendOptions {
   readonly fastMode?: boolean;
 }
 
+export interface ComposerSendAttempt {
+  readonly key: string;
+  readonly commandId: string;
+  uploaded?: GraftAttachment[];
+}
+
 export function validateComposerAttachments(attachments: readonly ComposerAttachment[]): void {
   if (attachments.length > GRAFT_MOBILE_MAX_ATTACHMENTS) {
     throw new Error(`Attach up to ${GRAFT_MOBILE_MAX_ATTACHMENTS} files per message.`);
@@ -24,19 +30,28 @@ export function validateComposerAttachments(attachments: readonly ComposerAttach
   }
 }
 
-/** Upload before dispatch; keep the draft intact and release staged uploads on failure. */
+/** Retain uploads after an uncertain send so a retry uses the same command and files. */
 export async function sendWithAttachments<T>(
   attachments: readonly ComposerAttachment[],
   upload: (attachment: ComposerAttachment) => Promise<GraftAttachment>,
   cancel: (id: string) => Promise<void>,
   send: (attachments: GraftAttachment[]) => Promise<T>,
+  retry?: {
+    readonly attempt: ComposerSendAttempt;
+    readonly isOutcomeUnknown: (error: unknown) => boolean;
+  },
 ): Promise<T> {
   validateComposerAttachments(attachments);
-  const uploaded: GraftAttachment[] = [];
+  const uploaded = retry?.attempt.uploaded ?? [];
   try {
-    for (const attachment of attachments) uploaded.push(await upload(attachment));
+    if (!retry?.attempt.uploaded) {
+      for (const attachment of attachments) uploaded.push(await upload(attachment));
+      if (retry) retry.attempt.uploaded = uploaded;
+    }
     return await send(uploaded);
   } catch (error) {
+    if (retry?.attempt.uploaded && retry.isOutcomeUnknown(error)) throw error;
+    if (retry) delete retry.attempt.uploaded;
     await Promise.allSettled(uploaded.map((attachment) => cancel(attachment.id)));
     throw error;
   }

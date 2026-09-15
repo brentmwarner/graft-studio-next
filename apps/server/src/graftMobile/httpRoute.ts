@@ -521,15 +521,10 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
                   });
                   return;
                 }
-                // Seed only when reconnecting mid-stream (snapshot behind this
-                // live event). Seeding an up-to-date snapshot marks the first
-                // assistant frame as already covered and forces snapshot_required
-                // on a fresh connection before any text can stream.
-                if (event.sequence > snapshot.value.snapshotSequence) {
-                  seedGraftMobileLiveEventState(liveState, snapshot.value);
-                } else {
-                  liveState.snapshotCursorByThreadId.set(event.payload.threadId, 0);
-                }
+                // Seed cumulative text and its cursor together. If the snapshot
+                // already covers this frame, request a refresh and keep later
+                // deltas attached to the full message from the snapshot.
+                seedGraftMobileLiveEventState(liveState, snapshot.value);
               }
               const mobileEvent = toMobileLiveEvent(liveState, event);
               yield* mobileEvent

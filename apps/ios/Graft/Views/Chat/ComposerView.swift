@@ -426,12 +426,19 @@ struct ComposerView: View {
         app.currentModel(forThread: chat.threadId)
     }
 
+    private var selectableModels: [ModelOption] {
+        guard let providerId = app.lockedProviderId(forThread: chat.threadId) else {
+            return app.availableModels
+        }
+        return app.availableModels.filter { $0.providerId == providerId }
+    }
+
     /// Combined model + effort readout, Codex-style: "Opus 4.8 High" with the
     /// model in ink and the effort in a muted step. Opens an anchored native menu.
     private var modelEffortTrigger: some View {
         Menu {
             Menu("Model") {
-                ForEach(app.availableModels, id: \.selectionID) { model in
+                ForEach(selectableModels, id: \.selectionID) { model in
                     Button {
                         Task { _ = await app.setThreadModel(threadId: chat.threadId, model: model) }
                     } label: {

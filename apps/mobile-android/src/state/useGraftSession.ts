@@ -34,6 +34,7 @@ import {
 } from "../api/gatewaySocket";
 import {
   sendWithAttachments,
+  type ComposerSendAttempt,
   type ComposerSendOptions,
 } from "../screens/thread/composerAttachmentSend";
 import { parsePairingInput } from "../protocol/pairing";
@@ -135,8 +136,9 @@ async function runSocketCommand<TType extends GraftMobileCommandResult["type"]>(
   socket: GatewaySocket | null,
   command: Parameters<GatewaySocket["command"]>[0],
   resultType: TType,
+  commandId?: string,
 ): Promise<Extract<GraftMobileCommandResult, { type: TType }>> {
-  return requireResult(await requireSocket(socket).command(command), resultType);
+  return requireResult(await requireSocket(socket).command(command, commandId), resultType);
 }
 
 function updatePaired(
@@ -162,6 +164,8 @@ export function useGraftSession() {
   const sessionRef = useRef<GraftSessionCredential | null>(null);
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
   const socketRef = useRef<GatewaySocket | null>(null);
+  const sendAttemptsRef = useRef(new Map<string, ComposerSendAttempt>());
+  const sendingThreadsRef = useRef(new Set<string>());
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /// Latest cursor the authoritative snapshot covers. Mirrors the iOS
   /// `AppModel` guard: a streamed frame the snapshot already accounts for
@@ -288,6 +292,7 @@ export function useGraftSession() {
               snapshotTimerRef.current = undefined;
             }
             sessionRef.current = null;
+            sendAttemptsRef.current.clear();
             snapshotCursorRef.current = 0;
             void clearSession().finally(() => {
               setState({
@@ -573,6 +578,23 @@ export function useGraftSession() {
       if (!text && attachments.length === 0) return false;
       const session = sessionRef.current;
       if (!session) return false;
+      if (sendingThreadsRef.current.has(threadId)) return false;
+      sendingThreadsRef.current.add(threadId);
+      const attemptKey = JSON.stringify([
+        session.sessionId,
+        threadId,
+        text,
+        effort,
+        options.interactionMode,
+        options.fastMode,
+        attachments,
+      ]);
+      const previousAttempt = sendAttemptsRef.current.get(threadId);
+      const attempt: ComposerSendAttempt =
+        previousAttempt?.key === attemptKey
+          ? previousAttempt
+          : { key: attemptKey, commandId: Crypto.randomUUID() };
+      sendAttemptsRef.current.set(threadId, attempt);
       const optimisticId = Crypto.randomUUID();
       const optimisticEvent: GraftTimelineEvent = {
         id: optimisticId,
@@ -621,9 +643,16 @@ export function useGraftSession() {
                 ...(options.fastMode !== undefined ? { fastMode: options.fastMode } : {}),
               },
               "turn.start.result",
+              attempt.commandId,
             );
           },
+          {
+            attempt,
+            isOutcomeUnknown: (error) =>
+              error instanceof GatewaySocketError && error.outcomeUnknown,
+          },
         );
+        sendAttemptsRef.current.delete(threadId);
         updatePaired(setState, (current) =>
           current.session.sessionId === session.sessionId
             ? {
@@ -635,6 +664,7 @@ export function useGraftSession() {
         scheduleSnapshot();
         return true;
       } catch (error) {
+        if (!attempt.uploaded) sendAttemptsRef.current.delete(threadId);
         updatePaired(setState, (current) =>
           current.session.sessionId === session.sessionId
             ? {
@@ -646,6 +676,7 @@ export function useGraftSession() {
         );
         return false;
       } finally {
+        sendingThreadsRef.current.delete(threadId);
         setPendingSendThreadId((current) => (current === threadId ? undefined : current));
       }
     },
@@ -755,6 +786,7 @@ export function useGraftSession() {
       socketRef.current?.disconnect();
       await clearSession();
       sessionRef.current = null;
+      sendAttemptsRef.current.clear();
       snapshotCursorRef.current = 0;
       selectedThreadIdRef.current = undefined;
       setState({ status: "unpaired" });
