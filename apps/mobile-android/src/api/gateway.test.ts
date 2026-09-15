@@ -40,6 +40,7 @@ describe("createGatewayClient", () => {
         appVersion: "0.1.0",
         deviceId: "device-12345678",
         deviceLabel: "Pixel",
+        platform: "android",
       }),
     ).resolves.toEqual(session);
 
@@ -68,12 +69,27 @@ describe("createGatewayClient", () => {
       gateway.pair(pairing, {
         appVersion: "0.1.0",
         deviceId: "device-12345678",
+        platform: "android",
       }),
     ).rejects.toMatchObject({
       code: "pairing_token_invalid",
       message: "Pairing code expired",
       status: 401,
     } satisfies Partial<GatewayError>);
+  });
+
+  it("sends iOS identity for the Expo iPhone client", async () => {
+    const fetcher = vi.fn(async (_url: string, _init?: RequestInit) =>
+      Response.json({ ok: true, session }, { status: 200 }),
+    );
+    const gateway = createGatewayClient(fetcher);
+    await gateway.pair(pairing, {
+      appVersion: "0.1.0",
+      deviceId: "device-12345678",
+      platform: "ios",
+    });
+    const [, init] = fetcher.mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toMatchObject({ client: { platform: "ios" } });
   });
 });
 

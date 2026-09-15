@@ -4,10 +4,22 @@
     "slug": "graft-mobile-android",
     "scheme": "graft",
     "version": "0.1.0",
-    "platforms": ["android"],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "studio.graft.mobile.expo",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Graft to scan a pairing QR code or take a photo to attach.",
+        "NSPhotoLibraryUsageDescription": "Allow Graft to attach photos from your library.",
+        "NSLocalNetworkUsageDescription": "Connect directly to Graft Studio running on your Mac over your local network.",
+        "NSMicrophoneUsageDescription": "Allow Graft to dictate messages.",
+        "NSSpeechRecognitionUsageDescription": "Allow Graft to turn speech into message text.",
+        "CADisableMinimumFrameDurationOnPhone": true
+      }
+    },
     "android": {
       "package": "studio.graft.mobile",
       "predictiveBackGestureEnabled": false,
@@ -45,7 +57,17 @@
         }
       ],
       "expo-sqlite",
-      "./plugins/withDebugCleartextTraffic.js"
+      "expo-web-browser",
+      "./plugins/withDebugCleartextTraffic.js",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "26.0"
+          }
+        }
+      ],
+      "./plugins/withIosSceneLifecycle.js"
     ],
     "extra": {
       "eas": {

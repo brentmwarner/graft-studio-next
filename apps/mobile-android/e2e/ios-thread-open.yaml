@@ -1,0 +1,27 @@
+appId: studio.graft.mobile.expo
+name: iOS repeated paired thread navigation
+tags:
+  - ios
+  - regression
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Projects"
+    timeout: 20000
+- assertVisible: "${PROJECT_NAME}"
+- repeat:
+    times: 10
+    commands:
+      - tapOn:
+          text: "${THREAD_TITLE}"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Message Graft"
+          timeout: 10000
+      - assertVisible: "Back to projects"
+      - assertVisible: "${THREAD_TITLE}"
+      - tapOn: "Back to projects"
+      - extendedWaitUntil:
+          visible: "${PROJECT_NAME}"
+          timeout: 10000

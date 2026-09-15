@@ -41,6 +41,7 @@ export interface PairingClientInfo {
   readonly appVersion: string;
   readonly deviceId: string;
   readonly deviceLabel?: string;
+  readonly platform: "android" | "ios";
 }
 
 export interface GatewayClient {
@@ -201,7 +202,7 @@ export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayC
         token: pairing.token,
         protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
         client: {
-          platform: "android",
+          platform: client.platform,
           appVersion: client.appVersion,
           deviceId: client.deviceId,
           deviceLabel: client.deviceLabel,

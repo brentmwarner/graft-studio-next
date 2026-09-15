@@ -1,14 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import {
-  Host,
-  LazyColumn,
-  ModalBottomSheet,
-  RNHostView,
-  type ModalBottomSheetRef,
-} from "@expo/ui/jetpack-compose";
-import { fillMaxSize, fillMaxWidth, height } from "@expo/ui/jetpack-compose/modifiers";
 import type { GraftDiffFileSummary, GraftDiffLine, GraftDiffSummary } from "@graft/mobile-contract";
-import { Fragment, memo, useEffect, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -19,9 +11,9 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AnchoredMenu, MenuItem } from "../../components/AnchoredMenu";
+import { BottomSheet } from "../../components/BottomSheet";
 import { MenuProvider } from "../../components/MenuProvider";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
@@ -256,71 +248,61 @@ function DiffContent({
           </Text>
         </View>
       ) : (
-        <Host
+        <ScrollView
           key={`${diff?.id}:${diff?.runId}:${diff?.updatedAt}`}
+          contentContainerStyle={styles.diffContent}
           style={styles.flex}
-          ignoreSafeAreaKeyboardInsets
         >
-          <LazyColumn modifiers={[fillMaxSize()]} contentPadding={{ bottom: 24 }}>
-            {diff?.files.map((file) => {
-              const open = model.expanded.has(file.path);
-              // Keep two native slots per file: Compose reuses LazyColumn items by index.
-              return (
-                <Fragment key={file.path}>
-                  <RNHostView matchContents modifiers={[fillMaxWidth()]}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${file.path}, ${file.additions ?? 0} additions, ${file.deletions ?? 0} deletions`}
-                      accessibilityState={{ expanded: open }}
-                      onPress={() => model.toggle(file.path)}
-                      style={[
-                        styles.fileHeader,
-                        {
-                          width,
-                          backgroundColor: palette.subtle,
-                          borderBottomColor: palette.border,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={open ? "chevron-down" : "chevron-forward"}
-                        size={16}
-                        color={palette.foregroundSubtle}
-                      />
-                      <Text
-                        numberOfLines={1}
-                        ellipsizeMode="middle"
-                        style={[styles.path, { color: palette.foreground }]}
-                      >
-                        {file.path}
-                      </Text>
-                      <Text style={[styles.stat, { color: palette.success }]}>
-                        +{file.additions ?? 0}
-                      </Text>
-                      <Text style={[styles.stat, { color: palette.danger }]}>
-                        −{file.deletions ?? 0}
-                      </Text>
-                    </Pressable>
-                  </RNHostView>
-                  <RNHostView
-                    matchContents
-                    modifiers={open ? [fillMaxWidth()] : [fillMaxWidth(), height(0)]}
+          {diff?.files.map((file) => {
+            const open = model.expanded.has(file.path);
+            return (
+              <Fragment key={file.path}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${file.path}, ${file.additions ?? 0} additions, ${file.deletions ?? 0} deletions`}
+                  accessibilityState={{ expanded: open }}
+                  onPress={() => model.toggle(file.path)}
+                  style={[
+                    styles.fileHeader,
+                    {
+                      width,
+                      backgroundColor: palette.subtle,
+                      borderBottomColor: palette.border,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={open ? "chevron-down" : "chevron-forward"}
+                    size={16}
+                    color={palette.foregroundSubtle}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="middle"
+                    style={[styles.path, { color: palette.foreground }]}
                   >
-                    <View style={{ width, ...(open ? {} : { height: 0 }) }}>
-                      {open ? (
-                        <FileBody
-                          file={file}
-                          state={model.files[file.path]}
-                          onRetry={() => void model.request(file.path, true)}
-                        />
-                      ) : null}
-                    </View>
-                  </RNHostView>
-                </Fragment>
-              );
-            })}
-          </LazyColumn>
-        </Host>
+                    {file.path}
+                  </Text>
+                  <Text style={[styles.stat, { color: palette.success }]}>
+                    +{file.additions ?? 0}
+                  </Text>
+                  <Text style={[styles.stat, { color: palette.danger }]}>
+                    −{file.deletions ?? 0}
+                  </Text>
+                </Pressable>
+                {open ? (
+                  <View style={{ width }}>
+                    <FileBody
+                      file={file}
+                      state={model.files[file.path]}
+                      onRetry={() => void model.request(file.path, true)}
+                    />
+                  </View>
+                ) : null}
+              </Fragment>
+            );
+          })}
+        </ScrollView>
       )}
     </View>
   );
@@ -337,50 +319,25 @@ export const DiffSheet = memo(function DiffSheet({
   readonly onLoadFile: (threadId: string, path: string) => Promise<GraftDiffSummary | undefined>;
   readonly visible: boolean;
 }) {
-  const palette = useGraftPalette();
-  const { height: screenHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const sheet = useRef<ModalBottomSheetRef>(null);
+  const { height } = useWindowDimensions();
   useEffect(() => {
     if (visible) Keyboard.dismiss();
   }, [visible]);
-  if (!visible) return null;
-  const close = async () => {
-    await sheet.current?.hide();
-    onClose();
-  };
   return (
-    <Host style={StyleSheet.absoluteFill} ignoreSafeAreaKeyboardInsets>
-      <ModalBottomSheet
-        ref={sheet}
-        onDismissRequest={onClose}
-        containerColor={palette.elevated}
-        contentColor={palette.foreground}
-        scrimColor={palette.isDark ? "rgba(0,0,0,0.32)" : "rgba(0,0,0,0.08)"}
-      >
-        <ModalBottomSheet.DragHandle>
-          <RNHostView matchContents modifiers={[fillMaxWidth()]}>
-            <View style={styles.handleArea}>
-              <View style={[styles.handle, { backgroundColor: palette.foregroundSubtle }]} />
-            </View>
-          </RNHostView>
-        </ModalBottomSheet.DragHandle>
-        <RNHostView
-          modifiers={[fillMaxWidth(), height(screenHeight - insets.top - insets.bottom - 70)]}
-        >
-          <MenuProvider>
-            <DiffContent diff={diff} onLoadFile={onLoadFile} onClose={() => void close()} />
-          </MenuProvider>
-        </RNHostView>
-      </ModalBottomSheet>
-    </Host>
+    <BottomSheet maxHeightRatio={0.92} onClose={onClose} title="Changes" visible={visible}>
+      <View style={[styles.sheetBody, { height: Math.round(height * 0.82) }]}>
+        <MenuProvider>
+          <DiffContent diff={diff} onLoadFile={onLoadFile} onClose={onClose} />
+        </MenuProvider>
+      </View>
+    </BottomSheet>
   );
 });
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  handleArea: { height: 30, alignItems: "center", justifyContent: "center" },
-  handle: { width: 30, height: 4, borderRadius: 2 },
+  sheetBody: { minHeight: 360 },
+  diffContent: { paddingBottom: 24 },
   header: {
     height: 64,
     flexDirection: "row",

@@ -11,12 +11,12 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { graftRadius, useGraftPalette } from "../theme/tokens";
@@ -66,7 +66,7 @@ export function BottomSheet({
       return;
     }
     progress.value = withTiming(0, { duration: DISMISS_MS }, (finished) => {
-      if (finished) runOnJS(setIsMounted)(false);
+      if (finished) scheduleOnRN(setIsMounted, false);
     });
   }, [progress, visible]);
 
