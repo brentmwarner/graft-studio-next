@@ -1,7 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import { Platform, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

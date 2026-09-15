@@ -31,11 +31,7 @@ export function GlassActionPill({
   const label = (
     <View style={styles.row}>
       <Ionicons color={ink} name={icon} size={17} style={styles.leadingIcon} />
-      {isBusy ? (
-        <ActivityIndicator color={ink} />
-      ) : (
-        <Text style={styles.title}>{title}</Text>
-      )}
+      {isBusy ? <ActivityIndicator color={ink} /> : <Text style={styles.title}>{title}</Text>}
     </View>
   );
 
@@ -50,9 +46,7 @@ export function GlassActionPill({
           {label}
         </FloatingSurface>
       ) : (
-        <View style={[styles.pill, styles.fallback, { backgroundColor: "#09090B" }]}>
-          {label}
-        </View>
+        <View style={[styles.pill, styles.fallback, { backgroundColor: "#09090B" }]}>{label}</View>
       )}
     </PressScale>
   );

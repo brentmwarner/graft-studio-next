@@ -30,11 +30,7 @@ export function CircleIconButton({
 
   if (canUseLiquidGlass() && iosSystemNameForIcon(icon)) {
     return (
-      <IosGlassIconButton
-        accessibilityLabel={accessibilityLabel}
-        icon={icon}
-        onPress={onPress}
-      />
+      <IosGlassIconButton accessibilityLabel={accessibilityLabel} icon={icon} onPress={onPress} />
     );
   }
 

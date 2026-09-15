@@ -87,7 +87,8 @@ export function PairingScreen({
               >
                 <Text
                   style={{
-                    color: isPairing || !input.trim() ? palette.foregroundSubtle : palette.foreground,
+                    color:
+                      isPairing || !input.trim() ? palette.foregroundSubtle : palette.foreground,
                     fontSize: 16,
                     fontWeight: "600",
                   }}

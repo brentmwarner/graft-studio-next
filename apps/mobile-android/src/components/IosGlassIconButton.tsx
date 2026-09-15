@@ -17,12 +17,7 @@ export { iosSystemNameForIcon };
 
 /// Native `GlassIconButton`: SF Symbol in a 44pt circle with
 /// `.glassEffect(.regular.interactive(), in: .circle)`.
-export function IosGlassIconButton({
-  accessibilityLabel,
-  icon,
-  onPress,
-  size = 44,
-}: Props) {
+export function IosGlassIconButton({ accessibilityLabel, icon, onPress, size = 44 }: Props) {
   const palette = useGraftPalette();
   const systemName = iosSystemNameForIcon(icon);
   if (!systemName) return null;

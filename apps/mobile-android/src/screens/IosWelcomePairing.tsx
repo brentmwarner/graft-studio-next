@@ -105,17 +105,12 @@ function AccountChip({
 
   return (
     <FloatingSurface interactive={false} style={styles.chip}>
-      <View
-        style={[styles.monogram, { backgroundColor: palette.subtle }]}
-      >
+      <View style={[styles.monogram, { backgroundColor: palette.subtle }]}>
         <Text style={[styles.monogramText, { color: palette.foreground }]}>
           {accountMonogram(displayName, email)}
         </Text>
       </View>
-      <Text
-        numberOfLines={1}
-        style={[styles.chipEmail, { color: palette.foregroundMuted }]}
-      >
+      <Text numberOfLines={1} style={[styles.chipEmail, { color: palette.foregroundMuted }]}>
         {email ?? "Signed in"}
       </Text>
       <PressScale accessibilityLabel="Sign out" onPress={onSignOut}>

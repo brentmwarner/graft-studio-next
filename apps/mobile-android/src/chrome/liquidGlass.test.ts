@@ -10,11 +10,7 @@ vi.mock("expo-glass-effect", () => ({
   isGlassEffectAPIAvailable: () => isGlassEffectAPIAvailable(),
 }));
 
-import {
-  canUseLiquidGlass,
-  iosGlassCornerRadius,
-  iosSystemNameForIcon,
-} from "./liquidGlass";
+import { canUseLiquidGlass, iosGlassCornerRadius, iosSystemNameForIcon } from "./liquidGlass";
 
 afterEach(() => {
   isGlassEffectAPIAvailable.mockReset();

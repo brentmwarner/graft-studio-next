@@ -115,9 +115,7 @@ function GraftApp() {
             onOpen={() => setIsDrawerOpen(true)}
             onSearch={() => setSearchFocusNonce((nonce) => nonce + 1)}
             onSelectThread={(item) => {
-              const thread = pairedSnapshot?.threads.find(
-                (candidate) => candidate.id === item.id,
-              );
+              const thread = pairedSnapshot?.threads.find((candidate) => candidate.id === item.id);
               if (thread) openThread(thread);
             }}
             onSettings={() => {

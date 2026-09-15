@@ -93,9 +93,7 @@ export function useComposerAttachments(): ComposerAttachmentState {
       type: "image/*",
     });
     if (result.canceled) return;
-    append(
-      result.assets.map((asset) => nextAttachment(asset.uri, asset.mimeType, asset.name)),
-    );
+    append(result.assets.map((asset) => nextAttachment(asset.uri, asset.mimeType, asset.name)));
   }, [append, attachments.length]);
 
   const paste = useCallback(async () => {

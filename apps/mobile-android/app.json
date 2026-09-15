@@ -4,10 +4,7 @@
     "slug": "graft-mobile-android",
     "scheme": "graft",
     "version": "0.1.0",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -23,9 +20,7 @@
     "android": {
       "package": "studio.graft.mobile",
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "CAMERA"
-      ],
+      "permissions": ["CAMERA"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"

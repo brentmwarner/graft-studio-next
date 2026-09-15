@@ -201,8 +201,7 @@ export function recentThreads(
 
   return snapshot.threads
     .filter(
-      (thread) =>
-        rank(thread) < 2 || !PLACEHOLDER_TITLES.has(thread.title.toLocaleLowerCase()),
+      (thread) => rank(thread) < 2 || !PLACEHOLDER_TITLES.has(thread.title.toLocaleLowerCase()),
     )
     .slice()
     .sort((left, right) => {

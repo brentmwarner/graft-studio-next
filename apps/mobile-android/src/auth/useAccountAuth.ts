@@ -44,11 +44,9 @@ async function randomToken(): Promise<string> {
 }
 
 async function pkceChallenge(verifier: string): Promise<string> {
-  const digest = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    verifier,
-    { encoding: Crypto.CryptoEncoding.BASE64 },
-  );
+  const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, {
+    encoding: Crypto.CryptoEncoding.BASE64,
+  });
   return base64URLFromBase64(digest);
 }
 
