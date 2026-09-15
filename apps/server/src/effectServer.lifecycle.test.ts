@@ -1,7 +1,47 @@
 import { Effect, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { closeServerRuntimePipeline } from "./effectServer.ts";
+import { closeServerRemoteAccess, closeServerRuntimePipeline } from "./effectServer.ts";
+
+describe("server remote access shutdown", () => {
+  it.each(["ssh", "lan"] as const)(
+    "closes occupancy and reports the failure when %s shutdown fails",
+    async (failure) => {
+      const order: string[] = [];
+      const cleanupFailure = new Error(`${failure} cleanup failed`);
+
+      await expect(
+        closeServerRemoteAccess({
+          stopMobileRelay: () => {
+            order.push("relay-stopped");
+          },
+          stopMobileLanGateway: async () => {
+            order.push("lan-stopped");
+            if (failure === "lan") throw cleanupFailure;
+          },
+          detachMobileLanGatewayMainServer: () => {
+            order.push("lan-detached");
+          },
+          closeSshConnectionManager: async () => {
+            order.push("ssh-stopped");
+            if (failure === "ssh") throw cleanupFailure;
+          },
+          closeOccupancyRuntime: () => {
+            order.push("occupancy-closed");
+          },
+        }),
+      ).rejects.toBe(cleanupFailure);
+
+      expect(order).toEqual([
+        "relay-stopped",
+        "lan-stopped",
+        "lan-detached",
+        "ssh-stopped",
+        "occupancy-closed",
+      ]);
+    },
+  );
+});
 
 describe("server runtime pipeline shutdown", () => {
   it("persists accepted provider terminal work before the engine stops", async () => {

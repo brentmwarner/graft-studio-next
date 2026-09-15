@@ -143,6 +143,26 @@ export function closeServerRuntimePipeline(input: {
   );
 }
 
+export async function closeServerRemoteAccess(input: {
+  readonly stopMobileRelay: () => void;
+  readonly stopMobileLanGateway: () => Promise<void>;
+  readonly detachMobileLanGatewayMainServer: () => void;
+  readonly closeSshConnectionManager: () => Promise<void>;
+  readonly closeOccupancyRuntime: () => void;
+}): Promise<void> {
+  try {
+    input.stopMobileRelay();
+    await input.stopMobileLanGateway();
+  } finally {
+    input.detachMobileLanGatewayMainServer();
+    try {
+      await input.closeSshConnectionManager();
+    } finally {
+      input.closeOccupancyRuntime();
+    }
+  }
+}
+
 export const createEffectServer = Effect.fn(function* (
   shutdownController: ServerShutdownController,
 ) {
@@ -248,13 +268,15 @@ export const createEffectServer = Effect.fn(function* (
     loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir)).enabled,
   );
   yield* Effect.addFinalizer(() =>
-    Effect.promise(async () => {
-      stopMobileRelay();
-      await stopMobileLanGateway();
-      detachMobileLanGatewayMainServer();
-      await closeSshConnectionManager();
-      closeOccupancyRuntime();
-    }),
+    Effect.promise(() =>
+      closeServerRemoteAccess({
+        stopMobileRelay,
+        stopMobileLanGateway,
+        detachMobileLanGatewayMainServer,
+        closeSshConnectionManager,
+        closeOccupancyRuntime,
+      }),
+    ),
   );
   agentGatewayCredentials.setListeningPort(listeningPort);
   yield* persistServerRuntimeState({
