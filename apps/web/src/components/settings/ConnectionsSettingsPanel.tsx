@@ -7,6 +7,7 @@ import { toastManager } from "~/components/ui/toast";
 import { ConnectionsPanel, type ConnectionsStatus } from "./ConnectionsPanel";
 import {
   connectSshMachine,
+  connectGraftRelay,
   createMobilePairingLink,
   deleteSshMachine,
   disconnectSshMachine,
@@ -71,6 +72,12 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     queryFn: getConnectionsStatus,
     enabled: props.active,
     staleTime: 2_000,
+    refetchInterval: (query) =>
+      query.state.data?.enabled
+        ? query.state.data.relay.state === "connecting"
+          ? 1_000
+          : 5_000
+        : false,
   });
 
   useEffect(() => {
@@ -138,6 +145,16 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
       setError(cause instanceof Error ? cause.message : "Could not update the gateway."),
   });
 
+  const relayMutation = useMutation({
+    mutationFn: connectGraftRelay,
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
+    },
+    onError: (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : "Could not connect the Graft relay."),
+  });
+
   const pairingMutation = useMutation({
     mutationFn: async () => {
       if (!connectionsQuery.data?.enabled) {
@@ -182,10 +199,11 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     keepHostAwake,
   };
   const busy =
+    relayMutation.isPending ||
     enabledMutation.isPending ||
     pairingMutation.isPending ||
     revokeMutation.isPending ||
-    connectionsQuery.isFetching;
+    connectionsQuery.isPending;
 
   return (
     <>
@@ -292,6 +310,7 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
             );
         }}
         onCreatePairing={() => pairingMutation.mutate()}
+        onConnectRelay={() => relayMutation.mutate()}
         onCopyEndpoint={(httpBaseUrl) => copyQuietly(httpBaseUrl, "Could not copy address")}
         onRevokeDevice={(deviceId) => revokeMutation.mutate(deviceId)}
         onCopyDiagnostics={() =>

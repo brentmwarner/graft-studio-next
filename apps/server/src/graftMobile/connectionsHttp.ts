@@ -5,6 +5,7 @@ import { AuthSessionId } from "@synara/contracts";
 import { ServerAuth } from "../auth/Services/ServerAuth";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
+import { Open } from "../open";
 import {
   authenticateDesktopOwner,
   graftOwnerCorsHeaders,
@@ -25,6 +26,12 @@ import {
   saveMobileGatewaySettings,
 } from "./mobileGatewaySettings";
 import { discoverNetworkEndpoints } from "./networkEndpoints";
+import {
+  connectMobileRelayAccount,
+  getMobileRelayEndpoint,
+  getMobileRelayStatus,
+  setMobileRelayEnabled,
+} from "./relayRuntime";
 
 function jsonResponse(value: unknown, status = 200, headers: Record<string, string> = {}) {
   return HttpServerResponse.jsonUnsafe(value, { status, headers });
@@ -45,7 +52,8 @@ function connectionsEnabled(config: {
   return (
     config.publicUrl !== undefined ||
     !isLoopbackHost(config.host) ||
-    getMobileLanGatewayPort() !== null
+    getMobileLanGatewayPort() !== null ||
+    getMobileRelayEndpoint() !== null
   );
 }
 
@@ -91,11 +99,13 @@ const connectionsHttpRouteLayer = HttpRouter.add(
       const settingsPath = mobileGatewaySettingsPath(config.stateDir);
       const previous = loadMobileGatewaySettings(settingsPath);
       try {
+        if (!enabled) setMobileRelayEnabled(false);
         const port = shouldStartMobileLanGateway(config)
           ? yield* Effect.promise(() =>
               setMobileLanGatewayEnabled(enabled, previous.preferredPort ?? 0),
             )
           : getMobileLanGatewayPort();
+        setMobileRelayEnabled(enabled);
         saveMobileGatewaySettings(settingsPath, {
           enabled,
           preferredPort: port ?? previous.preferredPort,
@@ -110,6 +120,18 @@ const connectionsHttpRouteLayer = HttpRouter.add(
       return respond(
         connectionsStatus(config, descriptor.label, descriptor.environmentId, clients),
       );
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/graft/connections/relay/connect") {
+      const opener = yield* Open;
+      const error = yield* Effect.tryPromise({
+        try: () =>
+          connectMobileRelayAccount(descriptor.label, (target) =>
+            Effect.runPromise(opener.openBrowser(target)),
+          ),
+        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+      }).pipe(Effect.match({ onSuccess: () => null, onFailure: (cause) => cause.message }));
+      return error ? respond({ error }, 400) : respond({ ok: true });
     }
 
     if (request.method === "POST" && url.pathname === "/api/graft/connections/revoke-device") {
@@ -159,10 +181,15 @@ function connectionsStatus(
 ) {
   const enabled = connectionsEnabled(config);
   const advertisedPort = getMobileLanGatewayPort() ?? getBoundListenPort(config.port);
+  const relay = getMobileRelayEndpoint();
+  const relayStatus = getMobileRelayStatus();
   const endpoints = enabled
-    ? discoverNetworkEndpoints(advertisedPort, undefined, {
-        includeIpv6: mobileLanGatewayAdvertisesIpv6(),
-      })
+    ? [
+        ...(relay ? [relay] : []),
+        ...discoverNetworkEndpoints(advertisedPort, undefined, {
+          includeIpv6: mobileLanGatewayAdvertisesIpv6(),
+        }),
+      ]
     : [];
   const pairing = getIssuedPairing();
   const devices = connectionsDevicesFromSessions(sessions, environmentLabel);
@@ -184,13 +211,13 @@ function connectionsStatus(
     devices,
     pairingUrl: pairing.pairingUrl,
     pairingExpiresAt: pairing.pairingExpiresAt,
-    relay: { state: "disabled" as const, lastError: null },
+    relay: relayStatus,
     diagnostics: [
       `enabled=${enabled}`,
       `environment=${environmentLabel} (${environmentId})`,
       `bind=${bindHost}:${enabled ? advertisedPort : "-"}`,
       `endpoints=${endpoints.map((endpoint) => `${endpoint.kind}:${endpoint.httpBaseUrl}`).join(",") || "-"}`,
-      `relay=disabled`,
+      `relay=${relayStatus.state}`,
       `devices=${devices.length}`,
       `pairingExpiresAt=${pairing.pairingExpiresAt ?? "-"}`,
     ].join("\n"),

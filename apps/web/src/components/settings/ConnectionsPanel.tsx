@@ -71,6 +71,7 @@ export type ConnectionsPanelProps = {
   onSetEnabled: (enabled: boolean) => void;
   onSetKeepHostAwake: (enabled: boolean) => void;
   onCreatePairing: () => void;
+  onConnectRelay?: () => void;
   onCopyEndpoint: (httpBaseUrl: string) => void;
   onRevokeDevice: (deviceId: string) => void;
   onCopyDiagnostics: () => void;
@@ -85,6 +86,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
   onSetEnabled,
   onSetKeepHostAwake,
   onCreatePairing,
+  onConnectRelay,
   onCopyEndpoint,
   onRevokeDevice,
   onCopyDiagnostics,
@@ -271,7 +273,21 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                 <span className={SETTINGS_CARD_ROW_TITLE_CLASS_NAME}>Graft relay</span>
                 <p className={cn(SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME, "mt-0.5")}>
                   {relayStatusDescription(status.relay.state)}
+                  {status.relay.state === "disabled"
+                    ? " Connect your Graft account for access over cellular."
+                    : ""}
                 </p>
+                {onConnectRelay && status.relay.state !== "connected" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={onConnectRelay}
+                    disabled={busy || status.relay.state === "connecting"}
+                  >
+                    Connect Graft account
+                  </Button>
+                ) : null}
                 {status.relay.lastError ? (
                   <p
                     className="mt-0.5 text-[11px] text-destructive"
