@@ -56,6 +56,8 @@ final class ChatModel: Identifiable {
     /// `thinking.delta` frames. Deltas carry the part's full accumulated text,
     /// so folding is assignment, not append.
     private var currentAssistant: TranscriptItem?
+    private var assistantItems: [String: TranscriptItem] = [:]
+    private var completedMessageIDs: Set<String> = []
     /// Live tool rows keyed by their originating part id, so a completion
     /// frame updates the row in place.
     private var toolItems: [String: TranscriptItem] = [:]
@@ -106,7 +108,7 @@ final class ChatModel: Identifiable {
     /// Called by `AppModel` on every snapshot refresh.
     func applySnapshot(_ snapshot: EnvironmentSnapshot) {
         applyPendingInteractions(snapshot)
-        applyRunState(snapshot)
+        if snapshot.cursor >= transcriptCursor { applyRunState(snapshot) }
 
         guard let transcript = snapshot.selectedTranscript,
               transcript.threadId == threadId
@@ -206,6 +208,11 @@ final class ChatModel: Identifiable {
     /// the transcript's trailing streaming row (if any) so live frames keep
     /// updating the same bubble.
     private func rebindStreamingTail() {
+        assistantItems = [:]
+        for item in items where item.kind == .assistant {
+            if let source = item.sourceID { assistantItems[source] = item }
+        }
+        completedMessageIDs = Set(items.filter { $0.kind == .assistant && !$0.isStreaming && !$0.text.isEmpty }.compactMap(\.sourceID))
         guard let tail = items.last(where: { $0.kind == .assistant && $0.isStreaming }) else { return }
         currentAssistant = tail
     }
@@ -310,58 +317,57 @@ final class ChatModel: Identifiable {
         }
     }
 
+    static func sourceID(for event: TimelineEvent) -> String {
+        let partID = event.id.replacingOccurrences(of: ":(?:delta:[0-9]+|complete)$", with: "", options: .regularExpression)
+        let channel = event.kind == "thinking.delta" ? "reasoning" : event.kind == "user.message" ? "user" : "assistant"
+        return "\(channel):\(partID)"
+    }
+
     private func foldUserMessage(_ event: TimelineEvent) {
         let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        // The host echoes the turn we just sent optimistically; don't double it.
-        let normalized = TranscriptItem.normalizeForMerge(text)
-        if let lastUser = items.last(where: { $0.kind == .user }),
-           lastUser.normalizedMergeText == normalized
-        {
+        let source = Self.sourceID(for: event)
+        if items.contains(where: { $0.sourceID == source }) { return }
+        // Only a local optimistic row may match by text.
+        if let lastUser = items.last(where: { $0.kind == .user }), lastUser.sourceID == nil,
+           lastUser.normalizedMergeText == TranscriptItem.normalizeForMerge(text) {
+            lastUser.sourceID = source
             return
         }
         settleCurrentAssistant()
-        items.append(.user(text))
+        let item = TranscriptItem.user(text)
+        item.sourceID = source
+        items.append(item)
         isStreaming = true
     }
 
     private func foldAssistantDelta(_ event: TimelineEvent) {
-        guard let text = event.text, !text.isEmpty else { return }
-        let item = ensureCurrentAssistant()
+        guard !completedMessageIDs.contains(Self.sourceID(for: event)),
+              let text = event.text, !text.isEmpty else { return }
+        let item = ensureCurrentAssistant(for: event)
         item.text = text
+        item.isStreaming = true
         isStreaming = true
         statusText = nil
     }
 
     private func foldAssistantMessage(_ event: TimelineEvent) {
-        let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else {
-            settleCurrentAssistant()
-            return
-        }
-        let normalized = TranscriptItem.normalizeForMerge(text)
-        if let current = currentAssistant {
-            current.text = text
-            settleCurrentAssistant()
-            return
-        }
-        // A completed part can re-announce prose that already settled.
-        if items.contains(where: { $0.kind == .assistant && $0.normalizedMergeText == normalized }) {
-            return
-        }
-        let item = TranscriptItem.assistant(text)
+        let text = event.text ?? ""
+        guard !text.isEmpty || assistantItems[Self.sourceID(for: event)] != nil else { return }
+        let item = ensureCurrentAssistant(for: event)
+        if !text.isEmpty { item.text = text }
+        item.isStreaming = false
+        completedMessageIDs.insert(Self.sourceID(for: event))
         finishReasoningClock(item)
         Self.attachRichContent(to: item)
-        items.append(item)
+        if currentAssistant === item { currentAssistant = nil }
         statusText = nil
     }
 
     private func foldThinkingDelta(_ event: TimelineEvent) {
         guard let text = event.text, !text.isEmpty else { return }
-        let item = ensureCurrentAssistant()
-        if item.reasoningStartedAt == nil {
-            item.reasoningStartedAt = Date()
-        }
+        let item = ensureCurrentAssistant(for: event)
+        if item.reasoningStartedAt == nil { item.reasoningStartedAt = Date() }
         item.reasoning = text
         isStreaming = true
     }
@@ -426,9 +432,13 @@ final class ChatModel: Identifiable {
         items.append(.error(text))
     }
 
-    private func ensureCurrentAssistant() -> TranscriptItem {
-        if let current = currentAssistant { return current }
+    private func ensureCurrentAssistant(for event: TimelineEvent) -> TranscriptItem {
+        let source = Self.sourceID(for: event)
+        if let existing = assistantItems[source] { return existing }
+        settleCurrentAssistant()
         let item = TranscriptItem.assistant("", streaming: true)
+        item.sourceID = source
+        assistantItems[source] = item
         currentAssistant = item
         items.append(item)
         return item
@@ -568,6 +578,7 @@ final class ChatModel: Identifiable {
         var result: [TranscriptItem] = []
         var current: TranscriptItem?
         var toolRows: [String: TranscriptItem] = [:]
+        var messageRows: [String: TranscriptItem] = [:]
 
         func settle(_ item: TranscriptItem?) {
             guard let item else { return }
@@ -583,41 +594,29 @@ final class ChatModel: Identifiable {
                 if !text.isEmpty {
                     let images = ChatImageExtractor.sources(inText: text)
                     let item = TranscriptItem.user(text)
+                    item.sourceID = sourceID(for: event)
                     if !images.isEmpty { item.images = images.map(ChatImage.init) }
                     result.append(item)
                 }
-            case "assistant.message":
-                let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if let item = current {
-                    item.text = text
-                    settle(item)
-                    current = nil
-                } else if !text.isEmpty {
-                    let images = ChatImageExtractor.sources(inText: text)
-                    let item = TranscriptItem.assistant(text)
-                    if !images.isEmpty { item.images = images.map(ChatImage.init) }
-                    result.append(item)
-                }
-            case "assistant.delta":
+            case "assistant.message", "assistant.delta", "thinking.delta":
                 let text = event.text ?? ""
-                if let item = current {
-                    item.text = text
-                } else if !text.isEmpty {
-                    let item = TranscriptItem.assistant(text, streaming: true)
-                    current = item
-                    result.append(item)
-                }
-            case "thinking.delta":
-                let text = event.text ?? ""
-                guard !text.isEmpty else { break }
-                if let item = current {
-                    item.reasoning = text
+                let source = sourceID(for: event)
+                guard !text.isEmpty || messageRows[source] != nil else { break }
+                let item: TranscriptItem
+                if let existing = messageRows[source] {
+                    item = existing
                 } else {
-                    let item = TranscriptItem.assistant("", streaming: true)
-                    item.reasoning = text
-                    current = item
+                    settle(current)
+                    item = TranscriptItem.assistant("", streaming: true)
+                    item.sourceID = source
+                    messageRows[source] = item
                     result.append(item)
+                    current = item
                 }
+                if event.kind == "thinking.delta" { item.reasoning = text }
+                else if !text.isEmpty { item.text = text }
+                item.isStreaming = event.kind != "assistant.message"
+                if event.kind == "assistant.message", current === item { current = nil }
             case "tool.start", "tool.update", "tool.end":
                 settle(current)
                 current = nil
