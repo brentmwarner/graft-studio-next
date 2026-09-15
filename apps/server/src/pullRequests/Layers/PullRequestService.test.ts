@@ -1,5 +1,5 @@
-import { ProjectId } from "@synara/contracts";
-import type { OrchestrationProject } from "@synara/contracts";
+import { ProjectId } from "@graft/contracts";
+import type { OrchestrationProject } from "@graft/contracts";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 

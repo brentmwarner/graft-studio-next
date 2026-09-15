@@ -3,7 +3,7 @@ import { createMDX } from "fumadocs-mdx/next";
 
 // The canonical production host. Must match SITE_URL in src/lib/seo.ts, which is
 // what every page's <link rel="canonical"> and metadataBase point at.
-const CANONICAL_HOST = "www.trysynara.com";
+const CANONICAL_HOST = "www.graftapp.io";
 
 // The stable Vercel production alias. Unlike per-deployment/preview URLs (which
 // Vercel serves with `x-robots-tag: noindex`), this alias is fully indexable and

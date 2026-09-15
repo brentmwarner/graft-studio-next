@@ -26,20 +26,20 @@ describe("migration backup recovery CLI", () => {
       await fs.readFile(new URL("../package.json", import.meta.url), "utf8"),
     ) as { readonly bin?: Record<string, string> };
 
-    expect(packageJson.bin?.["synara-restore-migration-backup"]).toBe(
+    expect(packageJson.bin?.["graft-restore-migration-backup"]).toBe(
       "dist/restoreMigrationBackup.mjs",
     );
   });
 
-  it("rejects relative database paths and warns operators to stop Synara", async () => {
+  it("rejects relative database paths and warns operators to stop Graft", async () => {
     const capture = captureOutput();
 
     const exitCode = await runRestoreMigrationBackupCli(["state.sqlite"], capture.output);
 
     expect(exitCode).toBe(2);
     expect(capture.errors.join("\n")).toContain("Database path must be absolute");
-    expect(capture.errors.join("\n")).toContain("synara-restore-migration-backup");
-    expect(capture.warnings.join("\n")).toContain("Stop every Synara process");
+    expect(capture.errors.join("\n")).toContain("graft-restore-migration-backup");
+    expect(capture.warnings.join("\n")).toContain("Stop every Graft process");
     expect(capture.logs).toEqual([]);
   });
 

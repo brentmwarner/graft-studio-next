@@ -2,10 +2,10 @@
 // Purpose: Normalizes generic tool-call titles and humanizes command executions for timeline rows.
 // Layer: UI utility
 // Exports: deriveReadableToolTitle, deriveReadableCommandDisplay, deriveFriendlyCommandTarget, command icon classifiers, deriveInlineCommandCall, normalizeCompactToolLabel, isGenericToolTitle, extractWebFetchUrl
-// Depends on: @synara/contracts tool lifecycle item types
+// Depends on: @graft/contracts tool lifecycle item types
 
-import type { ToolLifecycleItemType } from "@synara/contracts";
-import { BROWSER_TOOL_TITLES } from "@synara/shared/browserAutomationPresentation";
+import type { ToolLifecycleItemType } from "@graft/contracts";
+import { BROWSER_TOOL_TITLES } from "@graft/shared/browserAutomationPresentation";
 import { basenameOfPath } from "../file-icons";
 import { extractToolArgumentField } from "./toolArgumentSummary";
 
@@ -110,7 +110,7 @@ export interface ReadableToolTitleInput {
   readonly isRunning?: boolean;
 }
 
-interface SynaraMcpToolPresentation {
+interface GraftMcpToolPresentation {
   readonly running: string;
   readonly completed: string;
   readonly failed: string;
@@ -133,226 +133,226 @@ const BROWSER_HISTORY_TITLES = {
   browser_evaluate: "Evaluate browser expression",
 } as const;
 type BrowserHistoryToolName = keyof typeof BROWSER_HISTORY_TITLES;
-type SynaraBrowserToolName = `synara_${BrowserHistoryToolName}`;
+type GraftBrowserToolName = `graft_${BrowserHistoryToolName}`;
 const BROWSER_HISTORY_TOOL_NAMES = Object.keys(BROWSER_HISTORY_TITLES) as BrowserHistoryToolName[];
 const BROWSER_TOOL_NAME_SET = new Set<string>(BROWSER_HISTORY_TOOL_NAMES);
 
-const SYNARA_BROWSER_TOOL_PRESENTATIONS = Object.fromEntries(
+const GRAFT_BROWSER_TOOL_PRESENTATIONS = Object.fromEntries(
   BROWSER_HISTORY_TOOL_NAMES.map((toolName) => {
     const title = BROWSER_HISTORY_TITLES[toolName];
-    return [`synara_${toolName}`, { running: title, completed: title, failed: title }];
+    return [`graft_${toolName}`, { running: title, completed: title, failed: title }];
   }),
-) as Record<SynaraBrowserToolName, SynaraMcpToolPresentation>;
+) as Record<GraftBrowserToolName, GraftMcpToolPresentation>;
 
-const SYNARA_MCP_TOOL_PRESENTATIONS = {
-  synara_context: {
+const GRAFT_MCP_TOOL_PRESENTATIONS = {
+  graft_context: {
     running: "Graft is checking its context",
     completed: "Graft checked its context",
     failed: "Graft couldn't check its context",
   },
-  synara_capabilities: {
+  graft_capabilities: {
     running: "Graft is checking available agents",
     completed: "Graft checked available agents",
     failed: "Graft couldn't check available agents",
   },
-  synara_overview: {
+  graft_overview: {
     running: "Graft is gathering an overview",
     completed: "Graft gathered an overview",
     failed: "Graft couldn't gather an overview",
   },
-  synara_list_allowed_projects: {
+  graft_list_allowed_projects: {
     running: "Graft is listing allowed projects",
     completed: "Graft listed allowed projects",
     failed: "Graft couldn't list allowed projects",
   },
-  synara_create_task: {
+  graft_create_task: {
     running: "Graft is creating a task",
     completed: "Graft created a task",
     failed: "Graft couldn't create a task",
   },
-  synara_wait_for_task: {
+  graft_wait_for_task: {
     running: "Graft is waiting for a task",
     completed: "Graft finished waiting for a task",
     failed: "Graft couldn't wait for a task",
   },
-  synara_read_task: {
+  graft_read_task: {
     running: "Graft is reading a task",
     completed: "Graft read a task",
     failed: "Graft couldn't read a task",
   },
-  synara_list_projects: {
+  graft_list_projects: {
     running: "Graft is listing projects",
     completed: "Graft listed projects",
     failed: "Graft couldn't list projects",
   },
-  synara_list_threads: {
+  graft_list_threads: {
     running: "Graft is listing threads",
     completed: "Graft listed threads",
     failed: "Graft couldn't list threads",
   },
-  synara_read_thread: {
+  graft_read_thread: {
     running: "Graft is reading a thread",
     completed: "Graft read a thread",
     failed: "Graft couldn't read a thread",
   },
-  synara_read_thread_activity: {
+  graft_read_thread_activity: {
     running: "Graft is reading thread activity",
     completed: "Graft read thread activity",
     failed: "Graft couldn't read thread activity",
   },
-  synara_read_thread_events: {
+  graft_read_thread_events: {
     running: "Graft is reading thread events",
     completed: "Graft read thread events",
     failed: "Graft couldn't read thread events",
   },
-  synara_read_thread_runtime_events: {
+  graft_read_thread_runtime_events: {
     running: "Graft is reading thread runtime events",
     completed: "Graft read thread runtime events",
     failed: "Graft couldn't read thread runtime events",
   },
-  synara_diagnose_thread: {
+  graft_diagnose_thread: {
     running: "Graft is diagnosing a thread",
     completed: "Graft diagnosed a thread",
     failed: "Graft couldn't diagnose a thread",
   },
-  synara_create_thread: {
+  graft_create_thread: {
     running: "Graft is creating a thread",
     completed: "Graft created a thread",
     failed: "Graft couldn't create a thread",
   },
-  synara_create_threads: {
+  graft_create_threads: {
     running: "Graft is creating threads",
     completed: "Graft created threads",
     failed: "Graft couldn't create threads",
   },
-  synara_wait_for_threads: {
+  graft_wait_for_threads: {
     running: "Graft is waiting for threads",
     completed: "Graft finished waiting for threads",
     failed: "Graft couldn't wait for threads",
   },
-  synara_send_message: {
+  graft_send_message: {
     running: "Graft is sending a message",
     completed: "Graft sent a message",
     failed: "Graft couldn't send a message",
   },
-  synara_interrupt_thread: {
+  graft_interrupt_thread: {
     running: "Graft is interrupting a thread",
     completed: "Graft interrupted a thread",
     failed: "Graft couldn't interrupt a thread",
   },
-  synara_set_thread_title: {
+  graft_set_thread_title: {
     running: "Graft is renaming a thread",
     completed: "Graft renamed a thread",
     failed: "Graft couldn't rename a thread",
   },
-  synara_set_thread_archived: {
+  graft_set_thread_archived: {
     running: "Graft is updating a thread",
     completed: "Graft updated a thread",
     failed: "Graft couldn't update a thread",
   },
-  synara_create_automation: {
+  graft_create_automation: {
     running: "Graft is creating an automation",
     completed: "Graft created an automation",
     failed: "Graft couldn't create an automation",
   },
-  synara_list_automations: {
+  graft_list_automations: {
     running: "Graft is listing automations",
     completed: "Graft listed automations",
     failed: "Graft couldn't list automations",
   },
-  synara_view_automation: {
+  graft_view_automation: {
     running: "Graft is viewing an automation",
     completed: "Graft viewed an automation",
     failed: "Graft couldn't view an automation",
   },
-  synara_update_automation: {
+  graft_update_automation: {
     running: "Graft is updating an automation",
     completed: "Graft updated an automation",
     failed: "Graft couldn't update an automation",
   },
-  synara_update_automation_memory: {
+  graft_update_automation_memory: {
     running: "Graft is updating automation memory",
     completed: "Graft updated automation memory",
     failed: "Graft couldn't update automation memory",
   },
-  synara_report_automation_result: {
+  graft_report_automation_result: {
     running: "Graft is reporting an automation result",
     completed: "Graft reported an automation result",
     failed: "Graft couldn't report an automation result",
   },
-  synara_cancel_automation: {
+  graft_cancel_automation: {
     running: "Graft is stopping an automation",
     completed: "Graft stopped an automation",
     failed: "Graft couldn't stop an automation",
   },
-  ...SYNARA_BROWSER_TOOL_PRESENTATIONS,
-} as const satisfies Record<string, SynaraMcpToolPresentation>;
+  ...GRAFT_BROWSER_TOOL_PRESENTATIONS,
+} as const satisfies Record<string, GraftMcpToolPresentation>;
 
-function normalizeSynaraMcpIdentifier(value: string): string {
+function normalizeGraftMcpIdentifier(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
 
-const SYNARA_BROWSER_TOOL_NAME_BY_PRESENTATION = new Map<string, SynaraBrowserToolName>(
+const GRAFT_BROWSER_TOOL_NAME_BY_PRESENTATION = new Map<string, GraftBrowserToolName>(
   BROWSER_HISTORY_TOOL_NAMES.map((toolName) => [
-    normalizeSynaraMcpIdentifier(BROWSER_HISTORY_TITLES[toolName]),
-    `synara_${toolName}`,
+    normalizeGraftMcpIdentifier(BROWSER_HISTORY_TITLES[toolName]),
+    `graft_${toolName}`,
   ]),
 );
 
-const SYNARA_MCP_TOOL_PRESENTATION_ENTRIES = Object.entries(SYNARA_MCP_TOOL_PRESENTATIONS).map(
+const GRAFT_MCP_TOOL_PRESENTATION_ENTRIES = Object.entries(GRAFT_MCP_TOOL_PRESENTATIONS).map(
   ([toolName, presentation]) => ({
     toolName,
     presentation,
-    normalizedRunning: normalizeSynaraMcpIdentifier(presentation.running),
-    normalizedCompleted: normalizeSynaraMcpIdentifier(presentation.completed),
-    normalizedFailed: normalizeSynaraMcpIdentifier(presentation.failed),
+    normalizedRunning: normalizeGraftMcpIdentifier(presentation.running),
+    normalizedCompleted: normalizeGraftMcpIdentifier(presentation.completed),
+    normalizedFailed: normalizeGraftMcpIdentifier(presentation.failed),
   }),
 );
 
-function extractSynaraMcpToolName(normalizedCandidate: string): string | null {
+function extractGraftMcpToolName(normalizedCandidate: string): string | null {
   if (BROWSER_TOOL_NAME_SET.has(normalizedCandidate)) {
-    return `synara_${normalizedCandidate}`;
+    return `graft_${normalizedCandidate}`;
   }
-  if (normalizedCandidate.startsWith("mcp_synara_synara_")) {
-    return normalizedCandidate.slice("mcp_synara_".length);
+  if (normalizedCandidate.startsWith("mcp_graft_graft_")) {
+    return normalizedCandidate.slice("mcp_graft_".length);
   }
-  if (normalizedCandidate.startsWith("mcp_synara_")) {
-    return `synara_${normalizedCandidate.slice("mcp_synara_".length)}`;
+  if (normalizedCandidate.startsWith("mcp_graft_")) {
+    return `graft_${normalizedCandidate.slice("mcp_graft_".length)}`;
   }
-  if (normalizedCandidate.startsWith("synara_synara_")) {
-    return normalizedCandidate.slice("synara_".length);
+  if (normalizedCandidate.startsWith("graft_graft_")) {
+    return normalizedCandidate.slice("graft_".length);
   }
-  if (normalizedCandidate.startsWith("synara_")) {
+  if (normalizedCandidate.startsWith("graft_")) {
     return normalizedCandidate;
   }
   return null;
 }
 
-function resolveSynaraBrowserToolName(
+function resolveGraftBrowserToolName(
   candidates: ReadonlyArray<string | null | undefined>,
-): SynaraBrowserToolName | null {
+): GraftBrowserToolName | null {
   for (const candidate of candidates) {
     if (!candidate) continue;
-    const normalizedCandidate = normalizeSynaraMcpIdentifier(candidate);
-    const extractedToolName = extractSynaraMcpToolName(normalizedCandidate);
+    const normalizedCandidate = normalizeGraftMcpIdentifier(candidate);
+    const extractedToolName = extractGraftMcpToolName(normalizedCandidate);
     const candidateToolName =
       extractedToolName ??
-      SYNARA_BROWSER_TOOL_NAME_BY_PRESENTATION.get(normalizedCandidate) ??
+      GRAFT_BROWSER_TOOL_NAME_BY_PRESENTATION.get(normalizedCandidate) ??
       normalizedCandidate;
-    if (candidateToolName in SYNARA_BROWSER_TOOL_PRESENTATIONS) {
-      return candidateToolName as SynaraBrowserToolName;
+    if (candidateToolName in GRAFT_BROWSER_TOOL_PRESENTATIONS) {
+      return candidateToolName as GraftBrowserToolName;
     }
   }
   return null;
 }
 
-function fallbackSynaraMcpToolPresentation(toolName: string): SynaraMcpToolPresentation {
+function fallbackGraftMcpToolPresentation(toolName: string): GraftMcpToolPresentation {
   const action =
     toolName
-      .replace(/^synara_/, "")
+      .replace(/^graft_/, "")
       .replace(/_+/g, " ")
       .trim() || "an action";
   return {
@@ -362,15 +362,15 @@ function fallbackSynaraMcpToolPresentation(toolName: string): SynaraMcpToolPrese
   };
 }
 
-function resolveSynaraMcpToolPresentation(
+function resolveGraftMcpToolPresentation(
   candidates: ReadonlyArray<string | null | undefined>,
-): SynaraMcpToolPresentation | null {
+): GraftMcpToolPresentation | null {
   for (const candidate of candidates) {
     if (!candidate) {
       continue;
     }
-    const normalizedCandidate = normalizeSynaraMcpIdentifier(candidate);
-    for (const entry of SYNARA_MCP_TOOL_PRESENTATION_ENTRIES) {
+    const normalizedCandidate = normalizeGraftMcpIdentifier(candidate);
+    for (const entry of GRAFT_MCP_TOOL_PRESENTATION_ENTRIES) {
       if (
         normalizedCandidate === entry.normalizedRunning ||
         normalizedCandidate === entry.normalizedCompleted ||
@@ -379,62 +379,62 @@ function resolveSynaraMcpToolPresentation(
         return entry.presentation;
       }
     }
-    const toolName = extractSynaraMcpToolName(normalizedCandidate);
+    const toolName = extractGraftMcpToolName(normalizedCandidate);
     const knownPresentation = toolName
-      ? (SYNARA_MCP_TOOL_PRESENTATIONS[toolName as keyof typeof SYNARA_MCP_TOOL_PRESENTATIONS] as
-          | SynaraMcpToolPresentation
+      ? (GRAFT_MCP_TOOL_PRESENTATIONS[toolName as keyof typeof GRAFT_MCP_TOOL_PRESENTATIONS] as
+          | GraftMcpToolPresentation
           | undefined)
       : undefined;
     if (knownPresentation) {
       return knownPresentation;
     }
     // Free-text summaries (e.g. reconciler activity lines) can begin with the
-    // word "Synara" and normalize into a fake tool identifier; only
+    // word "Graft" and normalize into a fake tool identifier; only
     // identifier-shaped candidates may take an invented fallback presentation.
     if (/\s/.test(candidate.trim())) {
       continue;
     }
-    if (normalizedCandidate.startsWith("synara_is_handling_")) {
-      return fallbackSynaraMcpToolPresentation(
-        `synara_${normalizedCandidate.slice("synara_is_handling_".length)}`,
+    if (normalizedCandidate.startsWith("graft_is_handling_")) {
+      return fallbackGraftMcpToolPresentation(
+        `graft_${normalizedCandidate.slice("graft_is_handling_".length)}`,
       );
     }
-    if (normalizedCandidate.startsWith("synara_handled_")) {
-      return fallbackSynaraMcpToolPresentation(
-        `synara_${normalizedCandidate.slice("synara_handled_".length)}`,
+    if (normalizedCandidate.startsWith("graft_handled_")) {
+      return fallbackGraftMcpToolPresentation(
+        `graft_${normalizedCandidate.slice("graft_handled_".length)}`,
       );
     }
-    if (normalizedCandidate.startsWith("synara_couldn_t_handle_")) {
-      return fallbackSynaraMcpToolPresentation(
-        `synara_${normalizedCandidate.slice("synara_couldn_t_handle_".length)}`,
+    if (normalizedCandidate.startsWith("graft_couldn_t_handle_")) {
+      return fallbackGraftMcpToolPresentation(
+        `graft_${normalizedCandidate.slice("graft_couldn_t_handle_".length)}`,
       );
     }
     if (!toolName) {
       continue;
     }
-    return fallbackSynaraMcpToolPresentation(toolName);
+    return fallbackGraftMcpToolPresentation(toolName);
   }
   return null;
 }
 
-export type SynaraMcpToolStatus = "running" | "completed" | "failed" | "cancelled";
+export type GraftMcpToolStatus = "running" | "completed" | "failed" | "cancelled";
 
-export interface SynaraMcpToolTitleInput {
+export interface GraftMcpToolTitleInput {
   readonly toolName?: string | null | undefined;
   readonly title?: string | null | undefined;
   readonly fallbackLabel?: string | null | undefined;
-  readonly status?: SynaraMcpToolStatus | undefined;
+  readonly status?: GraftMcpToolStatus | undefined;
 }
 
-export function isSynaraBrowserToolCall(input: SynaraMcpToolTitleInput): boolean {
-  return resolveSynaraBrowserToolName([input.toolName, input.title, input.fallbackLabel]) !== null;
+export function isGraftBrowserToolCall(input: GraftMcpToolTitleInput): boolean {
+  return resolveGraftBrowserToolName([input.toolName, input.title, input.fallbackLabel]) !== null;
 }
 
-// Every provider exposes Synara's MCP tools differently: MCP, dynamic, and even
+// Every provider exposes Graft's MCP tools differently: MCP, dynamic, and even
 // file-change rows can all represent the same gateway action. Normalize by tool
 // identity instead of provider item type so transport details never reach the UI.
-export function deriveSynaraMcpToolTitle(input: SynaraMcpToolTitleInput): string | null {
-  const presentation = resolveSynaraMcpToolPresentation([
+export function deriveGraftMcpToolTitle(input: GraftMcpToolTitleInput): string | null {
+  const presentation = resolveGraftMcpToolPresentation([
     input.toolName,
     input.title,
     input.fallbackLabel,
@@ -456,17 +456,17 @@ export function deriveSynaraMcpToolTitle(input: SynaraMcpToolTitleInput): string
   }
 }
 
-export function sanitizeSynaraMcpToolPreview(input: {
+export function sanitizeGraftMcpToolPreview(input: {
   readonly preview?: string | null | undefined;
   readonly heading: string;
-  readonly status?: SynaraMcpToolStatus | undefined;
+  readonly status?: GraftMcpToolStatus | undefined;
 }): string | null {
   const preview = input.preview?.trim();
   if (!preview) return null;
-  const previewTitle = deriveSynaraMcpToolTitle({ title: preview, status: input.status });
+  const previewTitle = deriveGraftMcpToolTitle({ title: preview, status: input.status });
   if (
     previewTitle &&
-    normalizeSynaraMcpIdentifier(previewTitle) === normalizeSynaraMcpIdentifier(input.heading)
+    normalizeGraftMcpIdentifier(previewTitle) === normalizeGraftMcpIdentifier(input.heading)
   ) {
     return null;
   }

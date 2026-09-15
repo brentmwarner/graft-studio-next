@@ -1,6 +1,6 @@
-import { ThreadId, type OrchestrationEvent } from "@synara/contracts";
-import { makeDrainableWorker, startDrainableWorkerProducers } from "@synara/shared/DrainableWorker";
-import { terminalScopeIdsForThread } from "@synara/shared/terminalThreads";
+import { ThreadId, type OrchestrationEvent } from "@graft/contracts";
+import { makeDrainableWorker, startDrainableWorkerProducers } from "@graft/shared/DrainableWorker";
+import { terminalScopeIdsForThread } from "@graft/shared/terminalThreads";
 import { Cause, Effect, Layer, Option, Stream } from "effect";
 
 import { ServerConfig } from "../../config";

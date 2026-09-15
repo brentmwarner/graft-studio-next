@@ -5,7 +5,7 @@
 // Depends on: shared trait resolution + effort-change planning, the trait commit hook,
 //   the shared Slider primitive, and menu submenu primitives for the model list.
 
-import type { ProviderKind, ProviderModelDescriptor, ThreadId } from "@synara/contracts";
+import type { ProviderKind, ProviderModelDescriptor, ThreadId } from "@graft/contracts";
 import { type ReactNode, useState } from "react";
 
 import { ChevronRightIcon, ResetIcon } from "~/lib/icons";

@@ -18,7 +18,7 @@
     "@expo/ui": "~57.0.15",
     "@expo/vector-icons": "^15.1.1",
     "@graft/mobile-contract": "workspace:*",
-    "@synara/shared": "workspace:*",
+    "@graft/shared": "workspace:*",
     "expo": "~57.0.13",
     "expo-application": "~57.0.2",
     "expo-build-properties": "~57.0.11",

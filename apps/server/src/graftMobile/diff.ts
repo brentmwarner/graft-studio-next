@@ -5,7 +5,7 @@ import type {
   GraftDiffSummary,
 } from "@graft/mobile-contract";
 import type { FileDiffMetadata } from "@pierre/diffs";
-import { ThreadId, type OrchestrationCheckpointSummary } from "@synara/contracts";
+import { ThreadId, type OrchestrationCheckpointSummary } from "@graft/contracts";
 import { Effect } from "effect";
 
 import { loadDiffTools } from "../checkpointing/Diffs";

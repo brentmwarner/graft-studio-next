@@ -12,17 +12,17 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { resolveSynaraDesktopFlavor, synaraDesktopIdentity } from "@synara/shared/desktopIdentity";
+import { resolveGraftDesktopFlavor, graftDesktopIdentity } from "@graft/shared/desktopIdentity";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LSREGISTER_PATH } from "../src/macIconCacheRefresh.ts";
 
-const desktopFlavor = resolveSynaraDesktopFlavor({
+const desktopFlavor = resolveGraftDesktopFlavor({
   // Packaged apps launch their bundled main directly; this launcher is source-only.
   isDevelopment: true,
-  requestedFlavor: process.env.SYNARA_DESKTOP_FLAVOR,
+  requestedFlavor: process.env.GRAFT_DESKTOP_FLAVOR,
 });
-const desktopIdentity = synaraDesktopIdentity(desktopFlavor);
+const desktopIdentity = graftDesktopIdentity(desktopFlavor);
 const APP_DISPLAY_NAME = desktopIdentity.displayName;
 const APP_BUNDLE_ID = desktopIdentity.bundleId;
 const LAUNCHER_VERSION = 2;

@@ -1,7 +1,7 @@
 import "../../index.css";
 
-import type { NativeApi, ProjectFileSystemEntry } from "@synara/contracts";
-import { ThreadId } from "@synara/contracts";
+import type { NativeApi, ProjectFileSystemEntry } from "@graft/contracts";
+import { ThreadId } from "@graft/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { page } from "vitest/browser";
 import { afterEach, expect, it, vi } from "vitest";

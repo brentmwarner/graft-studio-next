@@ -1,6 +1,6 @@
-# Synara agent instructions
+# Graft agent instructions
 
-Synara is a multi-provider coding-agent workspace with web, server, CLI, and desktop surfaces. Prioritize correctness, reliability, and predictable performance during streaming, reconnects, cancellation, and recovery. Do not treat the project as a disposable early prototype or use this file as permission for unrelated rewrites.
+Graft is a multi-provider coding-agent workspace with web, server, CLI, and desktop surfaces. Prioritize correctness, reliability, and predictable performance during streaming, reconnects, cancellation, and recovery. Do not treat the project as a disposable early prototype or use this file as permission for unrelated rewrites.
 
 ## Contracts and ownership
 
@@ -27,9 +27,9 @@ Read only what the task needs:
 
 ## Local instance isolation
 
-Use a separate home directory and unused server/web ports when another Synara instance is running. Check the dev runner's dry-run output before starting an isolated instance; do not reset the user's database or reuse production state to make a test pass.
+Use a separate home directory and unused server/web ports when another Graft instance is running. Check the dev runner's dry-run output before starting an isolated instance; do not reset the user's database or reuse production state to make a test pass.
 
-For browser development, an inherited `SYNARA_AUTH_TOKEN` must match the client configuration; remove it only from the isolated test process when appropriate, never from production policy. Check both IPv4 and IPv6 listeners. An empty UI with a healthy `orchestration.getSnapshot` is a connection/hydration lead, not permission to alter SQLite data.
+For browser development, an inherited `GRAFT_AUTH_TOKEN` must match the client configuration; remove it only from the isolated test process when appropriate, never from production policy. Check both IPv4 and IPv6 listeners. An empty UI with a healthy `orchestration.getSnapshot` is a connection/hydration lead, not permission to alter SQLite data.
 
 ## Verification and completion
 

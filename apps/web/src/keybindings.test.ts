@@ -5,7 +5,7 @@ import {
   type KeybindingShortcut,
   type KeybindingWhenNode,
   type ResolvedKeybindingsConfig,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   formatKeybindingWhenExpression,
   formatShortcutLabel,

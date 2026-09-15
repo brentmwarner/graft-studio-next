@@ -3,7 +3,7 @@ import {
   humanizeModelSlug,
   normalizeModelDisplayName,
   normalizeModelSlug,
-} from "@synara/shared/model";
+} from "@graft/shared/model";
 import {
   MODEL_OPTIONS_BY_PROVIDER,
   PROVIDER_DISPLAY_NAMES,
@@ -28,7 +28,7 @@ import {
   type PiModelSelection,
   type ProviderKind,
   type ProviderModelOptions,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { normalizeCursorModelVariantBaseId } from "./cursorModelVariants";
 
 export type ProviderOptions = ProviderModelOptions[ProviderKind];
@@ -122,7 +122,7 @@ const CLAUDE_CATALOG_RANK_BY_SLUG: ReadonlyMap<string, number> = new Map(
 );
 
 // Models the CLI exposes but the catalog does not know yet (a release landing
-// before Synara updates) sort first so they stay visible at the top.
+// before Graft updates) sort first so they stay visible at the top.
 function orderClaudeModelOptions<T extends ProviderModelOption>(
   options: ReadonlyArray<T>,
 ): ReadonlyArray<T> {

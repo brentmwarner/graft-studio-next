@@ -7,8 +7,8 @@ import {
   type DesktopAppSnapPermission,
   type DesktopAppSnapState,
   type ResolvedKeybindingsConfig,
-} from "@synara/contracts";
-import { appSnapShortcutLabels } from "@synara/shared/appSnapShortcut";
+} from "@graft/contracts";
+import { appSnapShortcutLabels } from "@graft/shared/appSnapShortcut";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -148,7 +148,7 @@ export function NotificationsSettingsPanel({
       return;
     }
 
-    const notification = new Notification(title, { body, tag: "synara:test-notification" });
+    const notification = new Notification(title, { body, tag: "graft:test-notification" });
     notification.addEventListener("click", () => {
       window.focus();
     });

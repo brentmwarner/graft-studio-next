@@ -5,7 +5,7 @@
 // Exports: drain gates, bounded retry state, exclusive per-thread send lock,
 //          locked-dispatch helper, steer-gate sharing, ChatView claim/release, watcher start
 
-import type { AssistantDeliveryMode, ThreadId } from "@synara/contracts";
+import type { AssistantDeliveryMode, ThreadId } from "@graft/contracts";
 
 import {
   createLocalDispatchSnapshot,

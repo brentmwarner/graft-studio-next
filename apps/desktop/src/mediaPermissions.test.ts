@@ -58,7 +58,7 @@ describe("isTrustedMediaPermissionRequest", () => {
     );
   });
 
-  it("rejects subframes and origins other than the live Synara renderer", () => {
+  it("rejects subframes and origins other than the live Graft renderer", () => {
     const trusted = {
       isDestroyed: () => false,
       getURL: () => "graft://app/index.html",

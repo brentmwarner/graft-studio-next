@@ -1,6 +1,6 @@
 import type { GraftContextUsage, GraftProviderAllowance } from "@graft/mobile-contract";
-import type { OrchestrationThreadActivity, ServerProviderUsageSnapshot } from "@synara/contracts";
-import { deriveLatestContextWindowState } from "@synara/shared/contextWindow";
+import type { OrchestrationThreadActivity, ServerProviderUsageSnapshot } from "@graft/contracts";
+import { deriveLatestContextWindowState } from "@graft/shared/contextWindow";
 
 export function toMobileContextUsage(
   activities: ReadonlyArray<OrchestrationThreadActivity>,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ProjectId, ThreadId } from "@synara/contracts";
+import { ProjectId, ThreadId } from "@graft/contracts";
 import { DEFAULT_INTERACTION_MODE } from "../../types";
 import type { SidebarThreadSummary, ThreadSession } from "../../types";
 import {
@@ -934,7 +934,7 @@ describe("resolveDraftDropAction", () => {
       resolveDraftDropAction({
         ...baseCard,
         envMode: "worktree",
-        worktreePath: "/tmp/synara-worktree",
+        worktreePath: "/tmp/graft-worktree",
       }),
     ).toBe("dispatch");
   });

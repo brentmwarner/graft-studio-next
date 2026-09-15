@@ -4,7 +4,7 @@ import {
   ThreadId,
   TurnId,
   type ProviderRuntimeEvent,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Deferred, Effect } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -104,7 +104,7 @@ describe("provider runtime event ingress sizing", () => {
 
     expect(sized.event).not.toBe(event);
     expect(sized.event.raw?.payload).toMatchObject({
-      synaraTruncated: true,
+      graftTruncated: true,
       originalBytes: expect.any(Number),
     });
     expect(callsBeforeAssertion).toBe(2);

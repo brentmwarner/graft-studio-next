@@ -6,7 +6,7 @@
 
 import { ArchiveIcon } from "~/lib/icons";
 
-import type { ThreadId } from "@synara/contracts";
+import type { ThreadId } from "@graft/contracts";
 
 import { cn } from "~/lib/utils";
 import { SIDEBAR_TRAILING_ICON_CLASS, sidebarGlyphClass } from "./sidebarGlyphs";

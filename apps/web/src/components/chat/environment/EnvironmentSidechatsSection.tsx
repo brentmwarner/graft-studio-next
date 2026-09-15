@@ -1,4 +1,4 @@
-import type { ThreadId } from "@synara/contracts";
+import type { ThreadId } from "@graft/contracts";
 
 import { IconButton } from "~/components/ui/icon-button";
 import { PlusIcon, SidechatIcon } from "~/lib/icons";

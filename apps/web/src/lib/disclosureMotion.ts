@@ -10,7 +10,7 @@ import { cn } from "~/lib/utils";
 export {
   DISCLOSURE_TRANSITION_MS,
   DISCLOSURE_CLEANUP_BUFFER_MS,
-} from "@synara/shared/disclosureMotion";
+} from "@graft/shared/disclosureMotion";
 
 /** Shell grid that animates height via grid-template-rows + fade. */
 export const DISCLOSURE_SHELL_MOTION_CLASS =

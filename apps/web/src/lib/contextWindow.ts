@@ -1,1 +1,1 @@
-export * from "@synara/shared/contextWindow";
+export * from "@graft/shared/contextWindow";

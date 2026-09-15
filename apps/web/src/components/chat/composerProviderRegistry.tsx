@@ -8,7 +8,7 @@ import {
   type ProviderKind,
   type ProviderModelDescriptor,
   type ProviderModelOptions,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   getDefaultContextWindow,
   getDefaultEffort,
@@ -23,7 +23,7 @@ import {
   resolveDevinModelVariant,
   resolveLabeledOptionValue,
   trimOrNull,
-} from "@synara/shared/model";
+} from "@graft/shared/model";
 import { classifyCodexReasoningEffortSupport } from "../../lib/codexReasoningEffort";
 import { getRuntimeAwareModelCapabilities } from "./runtimeModelCapabilities";
 

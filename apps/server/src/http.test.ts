@@ -54,7 +54,7 @@ function makeTempDir(prefix: string): string {
 }
 
 function makeConfig(overrides: Partial<ServerConfigShape> = {}): ServerConfigShape {
-  const baseDir = makeTempDir("synara-effect-http-");
+  const baseDir = makeTempDir("graft-effect-http-");
   return {
     mode: "web",
     port: 0,
@@ -205,7 +205,7 @@ describe("production Effect HTTP routes", () => {
     ).toBe(false);
     expect(
       isLegacyTokenAuthorized({
-        config: { ...loopback, publicUrl: new URL("https://synara.example.test/") },
+        config: { ...loopback, publicUrl: new URL("https://graft.example.test/") },
         url: new URL("http://127.0.0.1/attachments/id?token=desktop-secret"),
       }),
     ).toBe(false);
@@ -272,7 +272,7 @@ describe("production Effect HTTP routes", () => {
           { method: "POST", headers: { Authorization: `Bearer ${"b".repeat(64)}` } },
           { method: "POST", headers: { Authorization: "Basic browser-token" } },
           { method: "POST", headers: { Authorization: "Bearer browser-token" } },
-          { method: "POST", headers: { Cookie: "synara_session=browser-session" } },
+          { method: "POST", headers: { Cookie: "graft_session=browser-session" } },
         ];
 
         for (const request of requests) {
@@ -296,7 +296,7 @@ describe("production Effect HTTP routes", () => {
       { mode: "web" },
       { mode: "desktop", host: "0.0.0.0", allowInsecureRemote: true },
       { mode: "desktop", host: "192.168.1.50", allowInsecureRemote: true },
-      { mode: "desktop", publicUrl: new URL("https://synara.example.test/") },
+      { mode: "desktop", publicUrl: new URL("https://graft.example.test/") },
       { mode: "desktop", desktopShutdownToken: undefined },
     ];
 
@@ -343,26 +343,26 @@ describe("production Effect HTTP routes", () => {
       },
     );
 
-    const staticDir = makeTempDir("synara-effect-static-");
+    const staticDir = makeTempDir("graft-effect-static-");
     mkdirSync(path.join(staticDir, "assets"), { recursive: true });
-    writeFileSync(path.join(staticDir, "index.html"), "<main>Synara shell</main>");
-    writeFileSync(path.join(staticDir, "assets", "app.js"), "globalThis.synara = true;");
+    writeFileSync(path.join(staticDir, "index.html"), "<main>Graft shell</main>");
+    writeFileSync(path.join(staticDir, "assets", "app.js"), "globalThis.graft = true;");
     await withEffectServer(makeConfig({ staticDir }), { kind: "static" }, async (origin) => {
       const asset = await fetch(`${origin}/assets/app.js`);
       expect(asset.status).toBe(200);
-      await expect(asset.text()).resolves.toContain("globalThis.synara");
+      await expect(asset.text()).resolves.toContain("globalThis.graft");
 
       const fallback = await fetch(`${origin}/chat/thread-id`);
       expect(fallback.status).toBe(200);
       expect(fallback.headers.get("content-type")).toContain("text/html");
-      await expect(fallback.text()).resolves.toContain("Synara shell");
+      await expect(fallback.text()).resolves.toContain("Graft shell");
     });
   });
 
   it("serves precompressed sidecars by Accept-Encoding with identity fallback", async () => {
-    const staticDir = makeTempDir("synara-effect-static-");
+    const staticDir = makeTempDir("graft-effect-static-");
     mkdirSync(path.join(staticDir, "assets"), { recursive: true });
-    const source = "globalThis.synara = true;".repeat(64);
+    const source = "globalThis.graft = true;".repeat(64);
     writeFileSync(path.join(staticDir, "assets", "app-abc123.js"), source);
     writeFileSync(path.join(staticDir, "assets", "app-abc123.js.gz"), zlib.gzipSync(source));
     writeFileSync(
@@ -418,10 +418,10 @@ describe("production Effect HTTP routes", () => {
   });
 
   it("refuses symlinks that escape the static root", async () => {
-    const parentDir = makeTempDir("synara-effect-static-");
+    const parentDir = makeTempDir("graft-effect-static-");
     const staticDir = path.join(parentDir, "static");
     mkdirSync(path.join(staticDir, "assets"), { recursive: true });
-    writeFileSync(path.join(staticDir, "index.html"), "<main>Synara shell</main>");
+    writeFileSync(path.join(staticDir, "index.html"), "<main>Graft shell</main>");
     const secretPath = path.join(parentDir, "secret.js");
     writeFileSync(secretPath, "outside root");
     writeFileSync(`${secretPath}.gz`, zlib.gzipSync("outside root"));
@@ -449,10 +449,10 @@ describe("production Effect HTTP routes", () => {
   });
 
   it("returns 406 when no acceptable encoding exists and identity is excluded", async () => {
-    const staticDir = makeTempDir("synara-effect-static-");
+    const staticDir = makeTempDir("graft-effect-static-");
     mkdirSync(path.join(staticDir, "assets"), { recursive: true });
-    const source = "globalThis.synara = true;".repeat(64);
-    writeFileSync(path.join(staticDir, "index.html"), "<main>Synara shell</main>");
+    const source = "globalThis.graft = true;".repeat(64);
+    writeFileSync(path.join(staticDir, "index.html"), "<main>Graft shell</main>");
     writeFileSync(path.join(staticDir, "assets", "plain-def456.js"), source);
 
     await withEffectServer(makeConfig({ staticDir }), { kind: "static" }, async (origin) => {
@@ -474,10 +474,10 @@ describe("production Effect HTTP routes", () => {
   });
 
   it("revalidates with ETags and answers matching conditionals with 304", async () => {
-    const staticDir = makeTempDir("synara-effect-static-");
+    const staticDir = makeTempDir("graft-effect-static-");
     mkdirSync(path.join(staticDir, "assets"), { recursive: true });
-    const source = "globalThis.synara = true;".repeat(64);
-    writeFileSync(path.join(staticDir, "index.html"), "<main>Synara shell</main>");
+    const source = "globalThis.graft = true;".repeat(64);
+    writeFileSync(path.join(staticDir, "index.html"), "<main>Graft shell</main>");
     writeFileSync(path.join(staticDir, "assets", "app-abc123.js"), source);
     writeFileSync(path.join(staticDir, "assets", "app-abc123.js.gz"), zlib.gzipSync(source));
 
@@ -512,10 +512,10 @@ describe("production Effect HTTP routes", () => {
   });
 
   it("marks hashed assets immutable and keeps index.html revalidating", async () => {
-    const staticDir = makeTempDir("synara-effect-static-");
+    const staticDir = makeTempDir("graft-effect-static-");
     mkdirSync(path.join(staticDir, "assets"), { recursive: true });
-    writeFileSync(path.join(staticDir, "index.html"), "<main>Synara shell</main>");
-    writeFileSync(path.join(staticDir, "assets", "app-abc123.js"), "globalThis.synara = true;");
+    writeFileSync(path.join(staticDir, "index.html"), "<main>Graft shell</main>");
+    writeFileSync(path.join(staticDir, "assets", "app-abc123.js"), "globalThis.graft = true;");
 
     await withEffectServer(makeConfig({ staticDir }), { kind: "static" }, async (origin) => {
       const asset = await fetch(`${origin}/assets/app-abc123.js`);
@@ -531,10 +531,10 @@ describe("production Effect HTTP routes", () => {
   });
 
   it("rejects traversal attempts including sidecar-shaped paths", async () => {
-    const parentDir = makeTempDir("synara-effect-static-");
+    const parentDir = makeTempDir("graft-effect-static-");
     const staticDir = path.join(parentDir, "static");
     mkdirSync(staticDir, { recursive: true });
-    writeFileSync(path.join(staticDir, "index.html"), "<main>Synara shell</main>");
+    writeFileSync(path.join(staticDir, "index.html"), "<main>Graft shell</main>");
     writeFileSync(path.join(parentDir, "secret.js"), "outside root");
     writeFileSync(path.join(parentDir, "secret.js.gz"), zlib.gzipSync("outside root"));
     writeFileSync(path.join(parentDir, "secret.js.br"), zlib.brotliCompressSync("outside root"));
@@ -581,7 +581,7 @@ describe("production Effect HTTP routes", () => {
         expect([200, 400, 404], traversal).toContain(response.status);
         expect(response.body, traversal).not.toContain("outside root");
         if (response.status === 200) {
-          expect(response.body, traversal).toContain("Synara shell");
+          expect(response.body, traversal).toContain("Graft shell");
         }
       }
     });

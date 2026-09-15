@@ -2,13 +2,13 @@ import {
   DEFAULT_SERVER_SETTINGS_VIEW,
   type ServerConfig,
   type ServerSettingsView,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 export function createBrowserTestServerConfig(checkedAt: string): ServerConfig {
   return {
     cwd: "/repo/project",
     worktreesDir: "/repo/.codex/worktrees",
-    keybindingsConfigPath: "/repo/project/.synara-keybindings.json",
+    keybindingsConfigPath: "/repo/project/.graft-keybindings.json",
     keybindings: [],
     issues: [],
     providers: [

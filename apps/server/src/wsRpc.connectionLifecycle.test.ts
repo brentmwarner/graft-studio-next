@@ -11,8 +11,8 @@ import {
   WS_PROTOCOL_MIN_REVISION,
   type AuthSessionId,
   type WsBootstrapNegotiateResult,
-} from "@synara/contracts";
-import { SYNARA_DESKTOP_ORIGIN } from "@synara/shared/desktopIdentity";
+} from "@graft/contracts";
+import { GRAFT_DESKTOP_ORIGIN } from "@graft/shared/desktopIdentity";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Duration, Effect, Exit, Layer, Schema, Scope } from "effect";
 import { HttpRouter, HttpServerRequest } from "effect/unstable/http";
@@ -185,7 +185,7 @@ function ping(socket: WebSocket, timeoutMs = 2_000): Promise<void> {
 
 async function startTestServer(): Promise<RunningTestServer> {
   const baseConfigLayer = ServerConfig.layerTest(process.cwd(), {
-    prefix: "synara-ws-lifecycle-test-",
+    prefix: "graft-ws-lifecycle-test-",
   }).pipe(Layer.provide(NodeServices.layer));
   const configLayer = Layer.effect(
     ServerConfig,
@@ -510,17 +510,17 @@ describe("websocket RPC payload admission", () => {
 
       // A lookalike of the desktop scheme is not the desktop scheme.
       const lookalike = await fetch(negotiateHttpUrl(server), {
-        headers: { origin: `${SYNARA_DESKTOP_ORIGIN}.evil.com` },
+        headers: { origin: `${GRAFT_DESKTOP_ORIGIN}.evil.com` },
       });
       expect(lookalike.status).toBe(403);
       expect(lookalike.headers.get("access-control-allow-origin")).toBeNull();
 
       // The desktop origin is reflected, and only that origin.
       const desktop = await fetch(negotiateHttpUrl(server), {
-        headers: { origin: SYNARA_DESKTOP_ORIGIN },
+        headers: { origin: GRAFT_DESKTOP_ORIGIN },
       });
       expect(desktop.status).toBe(200);
-      expect(desktop.headers.get("access-control-allow-origin")).toBe(SYNARA_DESKTOP_ORIGIN);
+      expect(desktop.headers.get("access-control-allow-origin")).toBe(GRAFT_DESKTOP_ORIGIN);
       expect(desktop.headers.get("vary")).toBe("Origin");
 
       // No Origin at all (CLI clients) passes without reflection, matching

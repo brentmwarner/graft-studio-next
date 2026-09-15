@@ -1,4 +1,4 @@
-import { MessageId, TurnId, type OrchestrationThreadActivity } from "@synara/contracts";
+import { MessageId, TurnId, type OrchestrationThreadActivity } from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -570,12 +570,12 @@ describe("deriveWorkLogEntries", () => {
         id: "automation-created",
         createdAt: "2026-02-23T00:00:05.000Z",
         kind: "automation.created",
-        summary: "Created automation: Watch Synara PR 231 - Every 5m",
+        summary: "Created automation: Watch Graft PR 231 - Every 5m",
         tone: "info",
         payload: {
           source: "chat-composer",
           automationId: "automation-7",
-          automationName: "Watch Synara PR 231",
+          automationName: "Watch Graft PR 231",
           cadenceLabel: "Every 5m",
         },
       }),
@@ -589,7 +589,7 @@ describe("deriveWorkLogEntries", () => {
     expect(automationEntry).toBeDefined();
     expect(automationEntry?.automation).toEqual({
       id: "automation-7",
-      name: "Watch Synara PR 231",
+      name: "Watch Graft PR 231",
       cadenceLabel: "Every 5m",
     });
   });
@@ -620,14 +620,14 @@ describe("deriveWorkLogEntries", () => {
     });
   });
 
-  it("exposes a provider-independent Synara thread creation recap", () => {
+  it("exposes a provider-independent Graft thread creation recap", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({
-        id: "synara-created-threads",
+        id: "graft-created-threads",
         createdAt: "2026-02-23T00:00:05.000Z",
         turnId: "turn-1",
-        kind: "synara.threads.created",
-        summary: "Created 2 Synara threads",
+        kind: "graft.threads.created",
+        summary: "Created 2 Graft threads",
         tone: "info",
         payload: {
           operationId: "gateway:create:two-workers",
@@ -656,7 +656,7 @@ describe("deriveWorkLogEntries", () => {
     ];
 
     const [entry] = deriveWorkLogEntries(activities, TurnId.makeUnsafe("turn-1"));
-    expect(entry?.synaraThreadCreation).toEqual({
+    expect(entry?.graftThreadCreation).toEqual({
       operationId: "gateway:create:two-workers",
       requestedCount: 2,
       createdCount: 2,
@@ -819,7 +819,7 @@ describe("deriveWorkLogEntries", () => {
         id: "recovery-first",
         createdAt: "2026-02-23T00:00:01.000Z",
         kind: "provider.runtime.reconciled",
-        summary: "Synara recovered a stale running state",
+        summary: "Graft recovered a stale running state",
         turnId: "turn-stale",
         payload: recoveryPayload,
       }),
@@ -833,7 +833,7 @@ describe("deriveWorkLogEntries", () => {
         id: "recovery-repeat",
         createdAt: "2026-02-23T00:00:03.000Z",
         kind: "provider.runtime.reconciled",
-        summary: "Synara recovered a stale running state",
+        summary: "Graft recovered a stale running state",
         turnId: "turn-stale",
         payload: recoveryPayload,
       }),
@@ -1748,7 +1748,7 @@ describe("deriveWorkLogEntries", () => {
                   type: "read",
                   command: "sed -n '1,220p' README.md",
                   name: "README.md",
-                  path: "/Users/emanueledipietro/Developer/Testing/synara/README.md",
+                  path: "/Users/emanueledipietro/Developer/Testing/graft/README.md",
                 },
               ],
             },
@@ -1857,7 +1857,7 @@ describe("deriveWorkLogEntries", () => {
               type: "commandExecution",
               id: "call_6OII41pekq8cFCpOCF9pbeMu",
               command: "/bin/zsh -lc 'git status --short'",
-              cwd: "/Users/emanueledipietro/Developer/Testing/synara",
+              cwd: "/Users/emanueledipietro/Developer/Testing/graft",
               status: "completed",
               commandActions: [{ type: "unknown", command: "git status --short" }],
               aggregatedOutput: " M apps/desktop/src/main.ts\n...",
@@ -2762,21 +2762,21 @@ describe("deriveWorkLogEntries", () => {
   });
 
   it("preserves cancellation when an owning turn aborts", () => {
-    const turnId = TurnId.makeUnsafe("turn-with-cancelled-synara-tool");
+    const turnId = TurnId.makeUnsafe("turn-with-cancelled-graft-tool");
     const entries = deriveWorkLogEntries(
       [
         makeActivity({
-          id: "cancelled-synara-start",
+          id: "cancelled-graft-start",
           createdAt: "2026-02-23T00:00:01.000Z",
           kind: "tool.started",
-          summary: "Synara create thread",
+          summary: "Graft create thread",
           turnId,
           payload: {
             itemType: "mcp_tool_call",
-            title: "Synara create thread",
+            title: "Graft create thread",
             data: {
-              toolCallId: "cancelled-synara-call",
-              toolName: "mcp__synara__synara_create_thread",
+              toolCallId: "cancelled-graft-call",
+              toolName: "mcp__graft__graft_create_thread",
             },
           },
         }),
@@ -2804,14 +2804,14 @@ describe("deriveWorkLogEntries", () => {
           id: "interrupted-tool",
           createdAt: "2026-02-23T00:00:01.000Z",
           kind: "tool.completed",
-          summary: "Synara create thread",
+          summary: "Graft create thread",
           payload: {
             itemType: "mcp_tool_call",
-            title: "Synara create thread",
+            title: "Graft create thread",
             status: "interrupted",
             data: {
-              toolCallId: "interrupted-synara-call",
-              toolName: "mcp__synara__synara_create_thread",
+              toolCallId: "interrupted-graft-call",
+              toolName: "mcp__graft__graft_create_thread",
             },
           },
         }),
@@ -3071,42 +3071,42 @@ describe("deriveWorkLogEntries", () => {
     });
   });
 
-  it("presents Synara MCP activity consistently across provider item shapes", () => {
+  it("presents Graft MCP activity consistently across provider item shapes", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({
-        id: "synara-mcp-create-thread-progress",
+        id: "graft-mcp-create-thread-progress",
         kind: "tool.updated",
         summary: "MCP tool call",
         payload: {
           itemType: "mcp_tool_call",
           title: "MCP tool call",
           data: {
-            toolCallId: "synara-mcp-create",
-            toolName: "mcp__synara__synara_create_thread",
+            toolCallId: "graft-mcp-create",
+            toolName: "mcp__graft__graft_create_thread",
           },
         },
       }),
       makeActivity({
-        id: "synara-dynamic-send-message-progress",
+        id: "graft-dynamic-send-message-progress",
         kind: "tool.updated",
         summary: "Tool call",
         payload: {
           itemType: "dynamic_tool_call",
-          title: "Synara__synara_send_message",
+          title: "Graft__graft_send_message",
           data: {
-            toolCallId: "synara-dynamic-send",
+            toolCallId: "graft-dynamic-send",
           },
         },
       }),
       makeActivity({
-        id: "synara-file-change-list-threads-progress",
+        id: "graft-file-change-list-threads-progress",
         kind: "tool.updated",
         summary: "File change",
         payload: {
           itemType: "file_change",
-          title: "mcp__Synara__synara_list_threads",
+          title: "mcp__Graft__graft_list_threads",
           data: {
-            toolCallId: "synara-file-change-list",
+            toolCallId: "graft-file-change-list",
           },
         },
       }),
@@ -3123,19 +3123,19 @@ describe("deriveWorkLogEntries", () => {
     expect(entries).toHaveLength(3);
   });
 
-  it("preserves a failed Synara MCP result as a failed activity sentence", () => {
+  it("preserves a failed Graft MCP result as a failed activity sentence", () => {
     const [entry] = deriveWorkLogEntries(
       [
         makeActivity({
-          id: "synara-create-threads-failed",
+          id: "graft-create-threads-failed",
           kind: "tool.completed",
-          summary: "synara__synara_create_threads",
+          summary: "graft__graft_create_threads",
           payload: {
             itemType: "mcp_tool_call",
             status: "failed",
             data: {
-              toolCallId: "synara-create-failed",
-              toolName: "mcp__synara__synara_create_threads",
+              toolCallId: "graft-create-failed",
+              toolName: "mcp__graft__graft_create_threads",
               rawOutput: {
                 is_error: 1,
                 output: { Error: "Invalid target options\n  at target.options" },
@@ -3521,11 +3521,11 @@ describe("deriveWorkLogEntries", () => {
             toolCallId: "toolu_012fsSN5hrdndPjxoWQjZswu",
             kind: "agent",
             tool: "task",
-            prompt: "Explore the Synara web app and report back with file paths.",
+            prompt: "Explore the Graft web app and report back with file paths.",
             rawInput: {
               _toolName: "task",
               description: "Explore composer model/effort UI",
-              prompt: "Explore the Synara web app and report back with file paths.",
+              prompt: "Explore the Graft web app and report back with file paths.",
             },
           },
         },
@@ -3540,7 +3540,7 @@ describe("deriveWorkLogEntries", () => {
         toolTitle: "Explore composer model/effort UI",
         subagentAction: expect.objectContaining({
           tool: "task",
-          prompt: "Explore the Synara web app and report back with file paths.",
+          prompt: "Explore the Graft web app and report back with file paths.",
         }),
         liveActivity: expect.objectContaining({ state: "running_tool" }),
       }),
@@ -4562,7 +4562,7 @@ describe("deriveWorkLogEntries Codex find regression", () => {
               id: "call_UmQKQmLCCrj9PF82rupLIFDO",
               command:
                 "/bin/zsh -lc \"find apps packages -maxdepth 2 -name package.json -print -exec sed -n '1,120p' {} \\\\;\"",
-              cwd: "/Users/emanueledipietro/Developer/Testing/synara",
+              cwd: "/Users/emanueledipietro/Developer/Testing/graft",
               processId: "38005",
               source: "unifiedExecStartup",
               status: "inProgress",
@@ -4600,7 +4600,7 @@ describe("deriveWorkLogEntries Codex find regression", () => {
               id: "call_UmQKQmLCCrj9PF82rupLIFDO",
               command:
                 "/bin/zsh -lc \"find apps packages -maxdepth 2 -name package.json -print -exec sed -n '1,120p' {} \\\\;\"",
-              cwd: "/Users/emanueledipietro/Developer/Testing/synara",
+              cwd: "/Users/emanueledipietro/Developer/Testing/graft",
               processId: "38005",
               source: "unifiedExecStartup",
               status: "completed",

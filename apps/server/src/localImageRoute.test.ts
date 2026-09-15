@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
-import { SYNARA_DESKTOP_ORIGIN } from "@synara/shared/desktopIdentity";
+import { GRAFT_DESKTOP_ORIGIN } from "@graft/shared/desktopIdentity";
 import { DateTime, Effect, Exit, Layer, Scope } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import { afterEach, describe, expect, it } from "vitest";
@@ -39,7 +39,7 @@ function makeTempDir(prefix: string): string {
 }
 
 function makeServerConfig(overrides: Partial<ServerConfigShape> = {}): ServerConfigShape {
-  const baseDir = makeTempDir("synara-effect-route-");
+  const baseDir = makeTempDir("graft-effect-route-");
   return {
     mode: "web",
     port: 0,
@@ -71,7 +71,7 @@ function makeFakeServerAuth(): ServerAuthShape {
     policy: "loopback-browser" as const,
     bootstrapMethods: ["one-time-token" as const],
     sessionMethods: ["browser-session-cookie" as const, "bearer-session-token" as const],
-    sessionCookieName: "synara_session",
+    sessionCookieName: "graft_session",
   };
   const session = {
     sessionId: "session-id" as never,
@@ -164,7 +164,7 @@ async function withEffectServer(
 
 describe("localImageEffectRouteLayer", () => {
   it("serves an allowlisted workspace image and signals downloads via Content-Disposition", async () => {
-    const workspace = makeTempDir("synara-effect-image-workspace-");
+    const workspace = makeTempDir("graft-effect-image-workspace-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const imagePath = path.join(workspace, "hero.png");
     writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
@@ -185,9 +185,9 @@ describe("localImageEffectRouteLayer", () => {
   });
 
   it("serves an absolute local image outside the workspace for file-panel previews", async () => {
-    const workspace = makeTempDir("synara-effect-image-workspace-");
+    const workspace = makeTempDir("graft-effect-image-workspace-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
-    const externalRoot = makeTempDir("synara-effect-external-preview-");
+    const externalRoot = makeTempDir("graft-effect-external-preview-");
     const imagePath = path.join(externalRoot, "downloads-file.pdf");
     writeFileSync(imagePath, Buffer.from("%PDF-1.7"));
     const config = makeServerConfig({ cwd: workspace });
@@ -244,7 +244,7 @@ describe("localImageEffectRouteLayer", () => {
   });
 
   it("serves an allowlisted workspace PDF and only allows the desktop app origin to read it", async () => {
-    const workspace = makeTempDir("synara-effect-pdf-workspace-");
+    const workspace = makeTempDir("graft-effect-pdf-workspace-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const pdfPath = path.join(workspace, "spec.pdf");
     writeFileSync(pdfPath, Buffer.from("%PDF-1.4"));
@@ -253,14 +253,14 @@ describe("localImageEffectRouteLayer", () => {
     await withEffectServer(config, localImageEffectRouteLayer, async (origin) => {
       const params = new URLSearchParams({ path: pdfPath, cwd: workspace });
       const response = await fetch(`${origin}/api/local-image?${params}`, {
-        headers: { Origin: SYNARA_DESKTOP_ORIGIN },
+        headers: { Origin: GRAFT_DESKTOP_ORIGIN },
       });
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/pdf");
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       // The in-app viewer fetches bytes cross-origin, but only trusted app
       // origins should get a CORS-readable response.
-      expect(response.headers.get("access-control-allow-origin")).toBe(SYNARA_DESKTOP_ORIGIN);
+      expect(response.headers.get("access-control-allow-origin")).toBe(GRAFT_DESKTOP_ORIGIN);
       expect(response.headers.get("vary")).toBe("Origin");
       // Streamed responses must still advertise their size so the browser's
       // PDF viewer can show load progress.
@@ -273,7 +273,7 @@ describe("localImageEffectRouteLayer", () => {
   });
 
   it("allows the configured Vite dev origin to read PDF bytes", async () => {
-    const workspace = makeTempDir("synara-effect-pdf-dev-origin-");
+    const workspace = makeTempDir("graft-effect-pdf-dev-origin-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const pdfPath = path.join(workspace, "spec.pdf");
     writeFileSync(pdfPath, Buffer.from("%PDF-1.4"));
@@ -294,7 +294,7 @@ describe("localImageEffectRouteLayer", () => {
   });
 
   it("does not expose local preview bytes to untrusted web origins through CORS", async () => {
-    const workspace = makeTempDir("synara-effect-pdf-untrusted-origin-");
+    const workspace = makeTempDir("graft-effect-pdf-untrusted-origin-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const pdfPath = path.join(workspace, "spec.pdf");
     writeFileSync(pdfPath, Buffer.from("%PDF-1.4"));
@@ -313,25 +313,25 @@ describe("localImageEffectRouteLayer", () => {
   });
 
   it("exposes missing-file errors to desktop downloads without allowing untrusted origins", async () => {
-    const workspace = makeTempDir("synara-effect-missing-image-");
+    const workspace = makeTempDir("graft-effect-missing-image-");
     const config = makeServerConfig({ cwd: workspace });
     await withEffectServer(config, localImageEffectRouteLayer, async (origin) => {
       const params = new URLSearchParams({ path: "missing.png", cwd: workspace, download: "1" });
-      for (const requestOrigin of [SYNARA_DESKTOP_ORIGIN, "https://example.test"]) {
+      for (const requestOrigin of [GRAFT_DESKTOP_ORIGIN, "https://example.test"]) {
         const response = await fetch(`${origin}/api/local-image?${params}`, {
           headers: { Origin: requestOrigin },
         });
         expect(response.status).toBe(404);
         expect(await response.text()).toBe("Not Found");
         expect(response.headers.get("access-control-allow-origin")).toBe(
-          requestOrigin === SYNARA_DESKTOP_ORIGIN ? requestOrigin : null,
+          requestOrigin === GRAFT_DESKTOP_ORIGIN ? requestOrigin : null,
         );
       }
     });
   });
 
   it("returns 404 when the requested path has an unsupported extension", async () => {
-    const workspace = makeTempDir("synara-effect-image-bad-ext-");
+    const workspace = makeTempDir("graft-effect-image-bad-ext-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const docPath = path.join(workspace, "notes.txt");
     writeFileSync(docPath, "hello");
@@ -345,7 +345,7 @@ describe("localImageEffectRouteLayer", () => {
   });
 
   it("returns 404 for missing files", async () => {
-    const workspace = makeTempDir("synara-effect-image-missing-");
+    const workspace = makeTempDir("graft-effect-image-missing-");
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const ghostPath = path.join(workspace, "does-not-exist.png");
     const config = makeServerConfig({ cwd: workspace });

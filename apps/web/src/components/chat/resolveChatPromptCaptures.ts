@@ -1,4 +1,4 @@
-import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@synara/contracts";
+import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@graft/contracts";
 import { readNativeApi } from "~/nativeApi";
 import {
   type ComposerAssistantSelectionAttachment,

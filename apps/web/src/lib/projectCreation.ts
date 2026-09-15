@@ -9,8 +9,8 @@ import {
   type ProjectId,
   type ProviderKind,
   type SpaceId,
-} from "@synara/contracts";
-import { getDefaultModel } from "@synara/shared/model";
+} from "@graft/contracts";
+import { getDefaultModel } from "@graft/shared/model";
 
 import { readActiveSpaceId } from "../spacesUiStore";
 import {

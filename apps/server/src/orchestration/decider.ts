@@ -5,7 +5,7 @@ import type {
   OrchestrationThread,
   ProjectKind,
   ThreadGoalAchievement,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   EventId,
   MAX_PINNED_PROJECTS,
@@ -14,19 +14,19 @@ import {
   SPACES_MAX_COUNT,
   THREAD_GOAL_ACHIEVEMENTS_MAX_COUNT,
   TurnId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   deriveAssociatedWorktreeMetadata,
   deriveAssociatedWorktreeMetadataPatch,
   workspaceRootsEqual,
-} from "@synara/shared/threadWorkspace";
-import { collectSubagentDescendants } from "@synara/shared/threadHierarchy";
-import { autoRuntimeModeSelectionIssue } from "@synara/shared/runtimeMode";
-import { providerSupportsNativeTurnSteering } from "@synara/shared/providerMetadata";
+} from "@graft/shared/threadWorkspace";
+import { collectSubagentDescendants } from "@graft/shared/threadHierarchy";
+import { autoRuntimeModeSelectionIssue } from "@graft/shared/runtimeMode";
+import { providerSupportsNativeTurnSteering } from "@graft/shared/providerMetadata";
 import {
   collectTailTurnIds,
   resolveTailUserMessageEditTarget,
-} from "@synara/shared/conversationEdit";
+} from "@graft/shared/conversationEdit";
 import { Effect } from "effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
@@ -1032,7 +1032,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         threadId: command.threadId,
       });
       // Provider-native threads mirror subagents the provider already runs;
-      // Synara never starts a session for them, so the Auto-mode capability
+      // Graft never starts a session for them, so the Auto-mode capability
       // check can only reject the projection (and durably poison the runtime
       // journal replaying it), never prevent an unverified Auto session.
       if (command.creationSource !== "provider_native") {

@@ -3,8 +3,8 @@ import {
   type ModelSelection,
   type ProviderKind,
   type ServerProviderStatus,
-} from "@synara/contracts";
-import { normalizeModelSlug } from "@synara/shared/model";
+} from "@graft/contracts";
+import { normalizeModelSlug } from "@graft/shared/model";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useProviderStatusesForLocalConfig } from "~/hooks/useProviderStatusesForLocalConfig";

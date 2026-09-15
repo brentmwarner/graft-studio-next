@@ -36,7 +36,7 @@ import {
   defaultGraftHostDataRoot,
   resolveGraftHostPaths,
 } from "./hostPaths";
-import { resolveSynaraEntry } from "./synaraEntry";
+import { resolveGraftEntry } from "./graftEntry";
 
 type CommandName = "serve" | "bootstrap" | "diagnostics" | "self-test" | "version" | "help";
 
@@ -183,8 +183,8 @@ async function waitForDaemon(
   throw new Error("graft-host did not become ready within five seconds");
 }
 
-function synaraEntry(): string {
-  return resolveSynaraEntry();
+function graftEntry(): string {
+  return resolveGraftEntry();
 }
 
 export function issueBootstrap(
@@ -251,7 +251,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
   }
   const paths = resolveGraftHostPaths(arguments_.dataRoot);
   mkdirSync(paths.dataRoot, { recursive: true, mode: 0o700 });
-  mkdirSync(paths.synaraHome, { recursive: true, mode: 0o700 });
+  mkdirSync(paths.graftHome, { recursive: true, mode: 0o700 });
   if (!tryAcquireDaemonLock(paths.lockPath, process.pid)) {
     throw new Error("Another graft-host daemon is already running");
   }
@@ -262,14 +262,14 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     version: GRAFT_HOST_VERSION,
     startedAt: Date.now(),
   });
-  let synara: ChildProcess | null = null;
+  let graft: ChildProcess | null = null;
   let stopping = false;
   const shutdownFiles = () => {
     removeDaemonState(paths.statePath, process.pid);
     releaseDaemonLock(paths.lockPath, process.pid);
   };
   const stopOwnedChild = async () => {
-    const pid = synara?.pid;
+    const pid = graft?.pid;
     if (stopping) return;
     stopping = true;
     if (pid) {
@@ -282,7 +282,7 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     shutdownFiles();
   };
   process.on("exit", () => {
-    const pid = synara?.pid;
+    const pid = graft?.pid;
     if (pid) {
       try {
         process.kill(-pid, "SIGKILL");
@@ -303,16 +303,16 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
     void stopOwnedChild().finally(() => process.exit(0));
   });
 
-  synara = spawn(
+  graft = spawn(
     process.execPath,
     [
-      synaraEntry(),
+      graftEntry(),
       "--host",
       "127.0.0.1",
       "--port",
       String(port),
       "--home-dir",
-      paths.synaraHome,
+      paths.graftHome,
       "--no-browser",
     ],
     {
@@ -322,16 +322,16 @@ async function serve(arguments_: ParsedHostArguments): Promise<void> {
         GRAFT_HOST: "1",
         GRAFT_HOST_DATA_DIR: paths.dataRoot,
         GRAFT_HOST_ENVIRONMENT_LABEL: arguments_.environmentLabel,
-        GRAFT_HOST_SYNARA_BIN: synaraEntry(),
-        SYNARA_HOME: paths.synaraHome,
-        SYNARA_HOST: "127.0.0.1",
-        SYNARA_NO_BROWSER: "1",
+        GRAFT_HOST_SERVER_BIN: graftEntry(),
+        GRAFT_HOME: paths.graftHome,
+        GRAFT_BIND_HOST: "127.0.0.1",
+        GRAFT_NO_BROWSER: "1",
       },
       stdio: "inherit",
     },
   );
   const exitCode = await new Promise<number>((resolveExit) => {
-    synara?.once("exit", (code) => resolveExit(code ?? 1));
+    graft?.once("exit", (code) => resolveExit(code ?? 1));
   });
   await stopOwnedChild();
   process.exit(exitCode);

@@ -213,7 +213,7 @@ export const PARTIAL_DIFF_COPY_NOTICE =
 
 // Returns copyable source text for diff surfaces without depending on virtualized DOM rows.
 // A truncation notice travels with partial clipboard content so it cannot be mistaken for a
-// complete patch after it leaves Synara.
+// complete patch after it leaves Graft.
 export function resolveDiffCopyText(patch: string | undefined, truncated = false): string | null {
   if (typeof patch !== "string") {
     return null;

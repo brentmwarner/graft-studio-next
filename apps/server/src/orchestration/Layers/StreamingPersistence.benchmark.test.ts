@@ -11,7 +11,7 @@ import {
   MessageId,
   ProjectId,
   ThreadId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import { expect, it } from "vitest";
@@ -27,14 +27,14 @@ import { OrchestrationProjectionPipelineLive } from "./ProjectionPipeline.ts";
 import { OrchestrationProjectionSnapshotQueryLive } from "./ProjectionSnapshotQuery.ts";
 
 // Opt-in only. Each invocation uses a fresh process and a disposable database.
-it.skipIf(!process.env.SYNARA_STREAMING_BENCHMARK_OUTPUT)(
+it.skipIf(!process.env.GRAFT_STREAMING_BENCHMARK_OUTPUT)(
   "measures the production streaming engine",
   async () => {
-    const output = process.env.SYNARA_STREAMING_BENCHMARK_OUTPUT!;
-    const messageBytes = Number(process.env.SYNARA_STREAMING_BENCHMARK_BYTES ?? 200_000);
+    const output = process.env.GRAFT_STREAMING_BENCHMARK_OUTPUT!;
+    const messageBytes = Number(process.env.GRAFT_STREAMING_BENCHMARK_BYTES ?? 200_000);
     const chunkBytes = 40;
-    const threadCount = Number(process.env.SYNARA_STREAMING_BENCHMARK_THREADS ?? 1);
-    const dir = await mkdtemp(join(tmpdir(), "synara-streaming-benchmark-"));
+    const threadCount = Number(process.env.GRAFT_STREAMING_BENCHMARK_THREADS ?? 1);
+    const dir = await mkdtemp(join(tmpdir(), "graft-streaming-benchmark-"));
     const dbPath = join(dir, "state.sqlite");
     const runtime = ManagedRuntime.make(
       OrchestrationEngineLive.pipe(

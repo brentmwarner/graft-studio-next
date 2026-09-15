@@ -8,7 +8,7 @@ import {
   type GitWorktreeSetupProgressEvent,
   type ModelSlug,
   type RuntimeMode,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkLogEntry } from "../session-logic";
@@ -289,7 +289,7 @@ describe("file undo completion", () => {
     turnId: TurnId.makeUnsafe("turn-2"),
     checkpointTurnCount: 2,
     checkpointTurnCounts: [2],
-    checkpointRef: CheckpointRef.makeUnsafe("refs/synara/checkpoints/thread-file-undo/turn/2"),
+    checkpointRef: CheckpointRef.makeUnsafe("refs/graft/checkpoints/thread-file-undo/turn/2"),
     status: "ready" as const,
     completedAt: "2026-07-12T17:59:00.000Z",
     files: [{ path: "src/file.ts", additions: 1, deletions: 0 }],
@@ -2088,7 +2088,7 @@ describe("runWorktreeCreationFlow", () => {
     harness.emit({
       progressId: "progress-1",
       kind: "completed",
-      result: { worktree: { path: "/wt", ref: "abc123", branch: "synara/x" } },
+      result: { worktree: { path: "/wt", ref: "abc123", branch: "graft/x" } },
     });
     harness.emit({ progressId: "progress-1", kind: "phase_started", phase: "copy-changes" });
 

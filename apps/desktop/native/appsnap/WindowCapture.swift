@@ -69,7 +69,7 @@ private let windowListUnavailableFailure = AppSnapFailure(
 
 private let excludedFrontmostApplicationFailure = AppSnapFailure(
     code: "excluded_frontmost_application",
-    message: "Synara cannot capture its own window."
+    message: "Graft cannot capture its own window."
 )
 
 private func onScreenWindowInfo() -> [[String: Any]]? {
@@ -302,7 +302,7 @@ final class OneFrameWindowCapture: NSObject, SCStreamOutput, SCStreamDelegate {
 
     private let selectedWindow: SelectedWindow
     private let completion: Completion
-    private let outputQueue = DispatchQueue(label: "dev.synara.appsnap.stream-output")
+    private let outputQueue = DispatchQueue(label: "dev.graft.appsnap.stream-output")
     private let completionLock = NSLock()
     private var stream: SCStream?
     private var completed = false
@@ -598,7 +598,7 @@ final class AppSnapCaptureCoordinator {
     private let outputDirectory: URL
     private let excludedBundleIdentifier: String
     private let captureFeedback = AppSnapCaptureFeedback()
-    private let queue = DispatchQueue(label: "dev.synara.appsnap.capture")
+    private let queue = DispatchQueue(label: "dev.graft.appsnap.capture")
     private var activeCapture: OneFrameWindowCapture?
 
     init(

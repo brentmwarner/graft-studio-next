@@ -70,7 +70,7 @@ describe("resolveMarkdownFileLinkTarget", () => {
 
 describe("resolveUniqueAbsoluteSuffixTarget", () => {
   const skillFile = "/Users/tester/.agents/skills/annotate-pr/references/uploadthing.md";
-  const tempFile = "/tmp/synara-codex-workspaces/thread-1/notes.md";
+  const tempFile = "/tmp/graft-codex-workspaces/thread-1/notes.md";
 
   it("returns the unique known absolute path that already ends with the reference", () => {
     expect(

@@ -11,7 +11,7 @@ import {
   type ProviderUserInputAnswers,
   ThreadId,
   TurnId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { afterAll, it, vi } from "@effect/vitest";
 
@@ -590,7 +590,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
         payload: {
           summary: "  Invalid MCP configuration  ",
           details: "url is not supported for stdio\n",
-          path: "  mcp_servers.synara  ",
+          path: "  mcp_servers.graft  ",
         },
       } satisfies ProviderEvent);
 
@@ -605,7 +605,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
       }
       assert.equal(firstEvent.value.payload.summary, "Invalid MCP configuration");
       assert.equal(firstEvent.value.payload.details, "url is not supported for stdio");
-      assert.equal(firstEvent.value.payload.path, "mcp_servers.synara");
+      assert.equal(firstEvent.value.payload.path, "mcp_servers.graft");
     }),
   );
 
@@ -1795,7 +1795,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
           entries: [],
         },
       });
-      assert.deepEqual(started.raw?.payload, { synaraSanitized: true });
+      assert.deepEqual(started.raw?.payload, { graftSanitized: true });
 
       assert.equal(completed?.type, "hook.completed");
       if (completed?.type !== "hook.completed") return;
@@ -1806,7 +1806,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
       assert.equal(serialized.includes("private-hook-secret"), false);
       assert.equal(serialized.includes("private-hook-token"), false);
       assert.equal(serialized.includes("[REDACTED]"), true);
-      assert.deepEqual(completed.raw?.payload, { synaraSanitized: true });
+      assert.deepEqual(completed.raw?.payload, { graftSanitized: true });
     }),
   );
 
@@ -1858,7 +1858,7 @@ lifecycleLayer("CodexAdapterLive lifecycle", (it) => {
         assert.equal(serialized.includes("private-token"), false);
         assert.ok(serialized.length < 17_000);
         assert.deepEqual(firstEvent.value.raw?.payload, {
-          synaraSanitized: true,
+          graftSanitized: true,
         });
         // Provider refs still resolved from the raw event.
         assert.equal(firstEvent.value.itemId, "agent_message_9");

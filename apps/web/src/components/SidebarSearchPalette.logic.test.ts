@@ -167,7 +167,7 @@ describe("SidebarSearchPalette.logic", () => {
     );
   });
 
-  it("matches Feedback Synara by feedback and issue keywords", () => {
+  it("matches Feedback Graft by feedback and issue keywords", () => {
     assert.deepEqual(
       matchSidebarSearchActions(actions, "feedback").map((action) => action.id),
       ["feedback"],

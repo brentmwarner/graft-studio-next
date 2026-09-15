@@ -27,7 +27,7 @@ describe("agent gateway browser tools", () => {
   it("loads the delegated E2E playbook on demand without touching the browser", async () => {
     const execute = vi.fn();
     const tool = makeAgentGatewayBrowserTools({ available: true, execute: execute as never }).find(
-      (tool) => tool.definition.name === "synara_e2e_review",
+      (tool) => tool.definition.name === "graft_e2e_review",
     )!;
     const result = await Effect.runPromise(tool.handler({}, context));
     const text = JSON.stringify(result);
@@ -275,7 +275,7 @@ describe("agent gateway browser tools", () => {
       "browser_upload",
       "browser_run",
       "browser_close",
-      "synara_e2e_review",
+      "graft_e2e_review",
     ]);
     expect(tools.every((tool) => tool.requiredCapability === "browser:control")).toBe(true);
     expect(tools.every((tool) => tool.requiresActiveTurn === true)).toBe(true);
@@ -433,7 +433,7 @@ describe("agent gateway browser tools", () => {
 
     const requests = execute.mock.calls.map(([request]) => request);
     const keys = requests.map((request) => request.arguments.idempotencyKey);
-    expect(keys[0]).toMatch(/^synara-mcp-[a-f0-9]{40}$/u);
+    expect(keys[0]).toMatch(/^graft-mcp-[a-f0-9]{40}$/u);
     expect(keys[1]).toBe(keys[0]);
     expect(keys[2]).not.toBe(keys[0]);
     expect(keys[3]).not.toBe(keys[0]);

@@ -111,7 +111,7 @@ function isQuietToolRunRow(item: TranscriptItem): boolean {
   return false;
 }
 
-// Legacy hosts suffix cumulative frames; Synara already sends the message ID.
+// Legacy hosts suffix cumulative frames; Graft already sends the message ID.
 export function transcriptMessageId(id: string): string {
   return id.replace(/:(?:delta:\d+|complete)$/, "");
 }

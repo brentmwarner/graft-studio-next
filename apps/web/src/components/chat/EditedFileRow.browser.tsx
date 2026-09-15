@@ -4,7 +4,7 @@
 
 import "../../index.css";
 
-import type { EditorId, NativeApi } from "@synara/contracts";
+import type { EditorId, NativeApi } from "@graft/contracts";
 import type { PropsWithChildren } from "react";
 import { page, userEvent } from "vitest/browser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,7 +32,7 @@ const AVAILABLE_EDITORS: ReadonlyArray<EditorId> = [
 ];
 const FILE_PATH = "apps/web/src/components/chat/EditedFileRow.tsx";
 const ROOTLESS_FILE_PATH = "a/very/long/path/that/does/not/exist/EditedFileRow.tsx";
-const WORKSPACE_ROOT = "/workspace/synara";
+const WORKSPACE_ROOT = "/workspace/graft";
 const FILE_MANAGER_LABEL = resolveEditorLabel("file-manager", navigator.platform);
 
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
@@ -130,7 +130,7 @@ describe("EditedFileRow", () => {
     await page.getByRole("button", { name: "Open", exact: true }).click();
     // With no stored preference the first catalog editor available wins (Cursor).
     expect(openInEditor).toHaveBeenCalledWith(
-      "/workspace/synara/apps/web/src/components/chat/EditedFileRow.tsx",
+      "/workspace/graft/apps/web/src/components/chat/EditedFileRow.tsx",
       "cursor",
     );
   });
@@ -190,7 +190,7 @@ describe("EditedFileRow", () => {
     await page.getByRole("menuitem", { name: "Copy absolute path" }).click();
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        "/workspace/synara/apps/web/src/components/chat/EditedFileRow.tsx",
+        "/workspace/graft/apps/web/src/components/chat/EditedFileRow.tsx",
       );
     });
     await menuButton.click();
@@ -207,7 +207,7 @@ describe("EditedFileRow", () => {
     await menuButton.click();
     await page.getByText("VS Code", { exact: true }).click();
     expect(openInEditor).toHaveBeenCalledWith(
-      "/workspace/synara/apps/web/src/components/chat/EditedFileRow.tsx",
+      "/workspace/graft/apps/web/src/components/chat/EditedFileRow.tsx",
       "vscode",
     );
   });

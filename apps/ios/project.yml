@@ -36,7 +36,7 @@ targets:
         # a scaled compatibility window (black bars top and bottom).
         UILaunchScreen: {}
         NSCameraUsageDescription: Scan a pairing QR code shown by Graft Studio.
-        NSLocalNetworkUsageDescription: Connect directly to Graft Studio running on your Mac over your local network.
+        NSLocalNetworkUsageDescription: Connect directly to Graft Studio running on this computer over your local network.
         NSMicrophoneUsageDescription: Dictate messages to your agents with the composer mic.
         NSSpeechRecognitionUsageDescription: Transcribe your dictated messages on-device.
         NSAppTransportSecurity:

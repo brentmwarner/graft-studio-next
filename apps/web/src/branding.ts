@@ -1,8 +1,8 @@
-import { GRAFT_PRODUCT_NAME, SYNARA_CANARY_DESKTOP_SCHEME } from "@synara/shared/desktopIdentity";
+import { GRAFT_PRODUCT_NAME, GRAFT_CANARY_DESKTOP_SCHEME } from "@graft/shared/desktopIdentity";
 
 export const APP_BASE_NAME = GRAFT_PRODUCT_NAME;
 const isCanaryDesktop =
-  typeof window !== "undefined" && window.location?.protocol === `${SYNARA_CANARY_DESKTOP_SCHEME}:`;
+  typeof window !== "undefined" && window.location?.protocol === `${GRAFT_CANARY_DESKTOP_SCHEME}:`;
 export const APP_DISPLAY_NAME = isCanaryDesktop
   ? `${APP_BASE_NAME} Canary`
   : import.meta.env.DEV

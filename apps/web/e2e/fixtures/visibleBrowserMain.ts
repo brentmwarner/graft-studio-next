@@ -2,7 +2,7 @@ import * as path from "node:path";
 
 import { app, BrowserWindow, ipcMain, session } from "electron";
 import { isClipboardWritePermission } from "../../../desktop/src/clipboardPermissions";
-import type { BrowserAnnotationEvent, ThreadBrowserState, ThreadId } from "@synara/contracts";
+import type { BrowserAnnotationEvent, ThreadBrowserState, ThreadId } from "@graft/contracts";
 
 import {
   BROWSER_SESSION_PARTITION,
@@ -13,18 +13,18 @@ import { BROWSER_IPC_CHANNELS } from "../../../desktop/src/ipcChannels";
 import { hardenBrowserAnnotationWebviewPreferences } from "../../../desktop/src/browserAnnotations/webviewSecurity";
 import { createBrowserPanelHideScheduler } from "../../src/components/BrowserPanel.logic";
 
-const pipePath = process.env.SYNARA_BROWSER_HOST_PIPE_PATH;
-const capability = process.env.SYNARA_BROWSER_HOST_CAPABILITY;
-const shellPath = process.env.SYNARA_E2E_SHELL_PATH;
-const threadId = process.env.SYNARA_E2E_THREAD_ID as ThreadId | undefined;
-const synaraHome = process.env.SYNARA_HOME;
-const annotationPreloadPath = process.env.SYNARA_E2E_BROWSER_ANNOTATION_PRELOAD;
+const pipePath = process.env.GRAFT_BROWSER_HOST_PIPE_PATH;
+const capability = process.env.GRAFT_BROWSER_HOST_CAPABILITY;
+const shellPath = process.env.GRAFT_E2E_SHELL_PATH;
+const threadId = process.env.GRAFT_E2E_THREAD_ID as ThreadId | undefined;
+const graftHome = process.env.GRAFT_HOME;
+const annotationPreloadPath = process.env.GRAFT_E2E_BROWSER_ANNOTATION_PRELOAD;
 
-if (!pipePath || !capability || !shellPath || !threadId || !synaraHome || !annotationPreloadPath) {
+if (!pipePath || !capability || !shellPath || !threadId || !graftHome || !annotationPreloadPath) {
   throw new Error("The visible-browser Electron fixture requires its isolated E2E environment.");
 }
 
-app.setPath("userData", path.join(synaraHome, "electron-userdata"));
+app.setPath("userData", path.join(graftHome, "electron-userdata"));
 
 const browserManager = new DesktopBrowserManager({ annotationPreloadPath });
 let mainWindow: BrowserWindow | null = null;
@@ -49,11 +49,11 @@ function setPanelVisible(visible: boolean): void {
     return;
   }
   pushState();
-  mainWindow?.webContents.send("synara-e2e:open-panel");
+  mainWindow?.webContents.send("graft-e2e:open-panel");
 }
 function pushState(): void {
   if (shellReady && latestState && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("synara-e2e:browser-state", latestState);
+    mainWindow.webContents.send("graft-e2e:browser-state", latestState);
   }
 }
 
@@ -62,7 +62,7 @@ browserManager.subscribe((state) => {
   pushState();
 });
 
-ipcMain.on("synara-e2e:shell-ready", () => {
+ipcMain.on("graft-e2e:shell-ready", () => {
   shellReady = true;
   pushState();
 });
@@ -72,7 +72,7 @@ ipcMain.on(BROWSER_IPC_CHANNELS.webMcpCompatibilityPolicy, (event) => {
 });
 
 ipcMain.handle(
-  "synara-e2e:attach-webview",
+  "graft-e2e:attach-webview",
   (event, input: { readonly tabId: string; readonly webContentsId: number }) =>
     browserManager.attachWebview({ threadId, ...input }, event.sender.id),
 );
@@ -99,7 +99,7 @@ const pipeServer = new BrowserUsePipeServer(browserManager, {
 });
 
 Object.assign(globalThis, {
-  __synaraVisibleBrowserE2E: {
+  __graftVisibleBrowserE2E: {
     browserManager,
     annotationEvents,
     threadId,

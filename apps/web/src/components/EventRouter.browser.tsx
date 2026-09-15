@@ -17,7 +17,7 @@ import {
   type ServerConfig,
   type WsWelcomePayload,
   WS_METHODS,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { HttpResponse, http, ws } from "msw";
 import { setupWorker } from "msw/browser";
@@ -934,7 +934,7 @@ describe("EventRouter scoped orchestration sync", () => {
     fixture = {
       ...fixture,
       snapshot: createSnapshot({
-        creationSource: "synara_mcp",
+        creationSource: "graft_mcp",
         sourceThreadId: OTHER_THREAD_ID,
         messages: [],
         session: null,
@@ -982,7 +982,7 @@ describe("EventRouter scoped orchestration sync", () => {
     fixture = {
       ...fixture,
       snapshot: createSnapshot({
-        creationSource: "synara_mcp",
+        creationSource: "graft_mcp",
         sourceThreadId: OTHER_THREAD_ID,
         messages: [],
         latestTurn: null,
@@ -1065,7 +1065,7 @@ describe("EventRouter scoped orchestration sync", () => {
 
   it("does not poll a hydrated non-actionable approval", async () => {
     const baseSnapshot = createSnapshot({
-      creationSource: "synara_mcp",
+      creationSource: "graft_mcp",
       sourceThreadId: OTHER_THREAD_ID,
       messages: [],
       session: null,
@@ -2422,10 +2422,10 @@ describe("EventRouter scoped orchestration sync", () => {
     }
   });
 
-  // Perf probe (VITE_SYNARA_PERF=1): how many full thread-detail snapshot reconciles a
+  // Perf probe (VITE_GRAFT_PERF=1): how many full thread-detail snapshot reconciles a
   // running thread with a bursty stream triggers over a fixed window. Multiply by the
   // number of subscribed running threads for the steady-state load.
-  it.skipIf(import.meta.env.VITE_SYNARA_PERF !== "1")(
+  it.skipIf(import.meta.env.VITE_GRAFT_PERF !== "1")(
     "perf: bursty running thread projection reconcile count",
     async () => {
       const runningTurnId = TurnId.makeUnsafe("turn-perf-running");

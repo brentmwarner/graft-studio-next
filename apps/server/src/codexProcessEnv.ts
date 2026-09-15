@@ -1,5 +1,5 @@
 // FILE: codexProcessEnv.ts
-// Purpose: Builds the exact environment used when Synara launches Codex subprocesses.
+// Purpose: Builds the exact environment used when Graft launches Codex subprocesses.
 // Layer: Server runtime utility
 // Exports: Codex process env builder and browser-plugin overlay helpers.
 // Depends on: Codex home path helpers, shared Codex config parsing, login-shell env reader.
@@ -7,14 +7,14 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
 
-import { readActiveCodexProviderEnvKey } from "@synara/shared/codexConfig";
+import { readActiveCodexProviderEnvKey } from "@graft/shared/codexConfig";
 import {
   readEnvironmentFromLoginShell,
   resolveLoginShell,
   type ShellEnvironmentReader,
-} from "@synara/shared/shell";
+} from "@graft/shared/shell";
 
-import { resolveBaseCodexHomePath, resolveSynaraCodexHomeOverlayPath } from "./codexHomePaths.ts";
+import { resolveBaseCodexHomePath, resolveGraftCodexHomeOverlayPath } from "./codexHomePaths.ts";
 import {
   buildProviderChildEnvironment,
   registerProviderCredentialKey,
@@ -25,14 +25,14 @@ const CODEX_OVERLAY_SHARED_STATE_FILES = new Set(["auth.json"]);
 // SQLite databases and their WAL/SHM/journal sidecars are never mirrored into
 // the overlay. SQLite derives sidecar paths from the path it opened the
 // database through, and on Windows deleting a sidecar through a symlink only
-// removes the link, so a per-file mirror lets Synara's app-server and an
+// removes the link, so a per-file mirror lets Graft's app-server and an
 // external `codex` CLI end up with two WALs on one database. The overlay
 // instead points CODEX_SQLITE_HOME at the source home so every process opens
 // the same files through the same path.
 const CODEX_SQLITE_STATE_ENTRY_PATTERN = /^.+\.sqlite(?:-(?:wal|shm|journal))?$/;
-const SYNARA_CONFIG_SUPPRESSIONS_FILE = "synara-config-suppressions-v1.json";
-const SYNARA_MANAGED_MCP_TABLE_HEADER = "[mcp_servers.synara]";
-export const SYNARA_COMPETING_BROWSER_PLUGIN_SECTION_HEADERS = [
+const GRAFT_CONFIG_SUPPRESSIONS_FILE = "graft-config-suppressions-v1.json";
+const GRAFT_MANAGED_MCP_TABLE_HEADER = "[mcp_servers.graft]";
+export const GRAFT_COMPETING_BROWSER_PLUGIN_SECTION_HEADERS = [
   '[plugins."browser@openai-bundled"]',
   '[plugins."chrome@openai-bundled"]',
   '[plugins."computer-use@openai-bundled"]',
@@ -58,7 +58,7 @@ function isSafePluginSectionHeader(value: unknown): value is string {
   );
 }
 
-export async function readSynaraConfigSuppressions(markerPath: string): Promise<readonly string[]> {
+export async function readGraftConfigSuppressions(markerPath: string): Promise<readonly string[]> {
   try {
     const parsed = JSON.parse(await fs.readFile(markerPath, "utf8")) as unknown;
     if (typeof parsed !== "object" || parsed === null) return [];
@@ -142,7 +142,7 @@ export function disableCodexConfigSections(
   return output.join("\n");
 }
 
-async function writeSynaraConfigSuppressions(
+async function writeGraftConfigSuppressions(
   markerPath: string,
   sectionHeaders: readonly string[],
 ): Promise<void> {
@@ -232,9 +232,9 @@ function isCodexSqliteStateEntry(entryName: string): boolean {
 }
 
 /**
- * Removes SQLite links that earlier Synara releases mirrored into the overlay.
+ * Removes SQLite links that earlier Graft releases mirrored into the overlay.
  * Only symlinks are removed: a regular database file in the overlay is left
- * untouched because Synara no longer owns or reads it.
+ * untouched because Graft no longer owns or reads it.
  */
 async function removeLegacyCodexOverlaySqliteLinks(overlayHomePath: string): Promise<void> {
   for (const entry of await fs.readdir(overlayHomePath)) {
@@ -260,16 +260,16 @@ export function appendCodexConfigSection(config: string, section: string): strin
   return base.length > 0 ? `${base}\n\n${trimmedSection}\n` : `${trimmedSection}\n`;
 }
 
-export const SYNARA_MANAGED_CODEX_CONFIG_BEGIN = "# >>> synara managed config >>>";
-export const SYNARA_MANAGED_CODEX_CONFIG_END = "# <<< synara managed config <<<";
+export const GRAFT_MANAGED_CODEX_CONFIG_BEGIN = "# >>> graft managed config >>>";
+export const GRAFT_MANAGED_CODEX_CONFIG_END = "# <<< graft managed config <<<";
 
 export function extractManagedCodexConfigSection(config: string): string | undefined {
-  const begin = config.indexOf(SYNARA_MANAGED_CODEX_CONFIG_BEGIN);
+  const begin = config.indexOf(GRAFT_MANAGED_CODEX_CONFIG_BEGIN);
   if (begin === -1) {
     return undefined;
   }
-  const contentStart = begin + SYNARA_MANAGED_CODEX_CONFIG_BEGIN.length;
-  const end = config.indexOf(SYNARA_MANAGED_CODEX_CONFIG_END, contentStart);
+  const contentStart = begin + GRAFT_MANAGED_CODEX_CONFIG_BEGIN.length;
+  const end = config.indexOf(GRAFT_MANAGED_CODEX_CONFIG_END, contentStart);
   if (end === -1) {
     return undefined;
   }
@@ -579,7 +579,7 @@ export function mergeShellEnvPolicyExclude(config: string, envVarName: string): 
 
 function appendManagedCodexConfigSection(config: string, section: string): string {
   let overlayConfig = config;
-  const managedMcpTableName = normalizeTomlTableHeaderName(SYNARA_MANAGED_MCP_TABLE_HEADER);
+  const managedMcpTableName = normalizeTomlTableHeaderName(GRAFT_MANAGED_MCP_TABLE_HEADER);
   const tables: string[] = [];
 
   for (const table of splitTomlTables(section.trim())) {
@@ -589,9 +589,9 @@ function appendManagedCodexConfigSection(config: string, section: string): strin
       continue;
     }
     if (normalizeTomlTableHeaderName(header) === managedMcpTableName) {
-      // The session-scoped gateway entry is authoritative inside Synara's
+      // The session-scoped gateway entry is authoritative inside Graft's
       // overlay. The user's source config remains untouched.
-      overlayConfig = removeTomlTableNamespace(overlayConfig, SYNARA_MANAGED_MCP_TABLE_HEADER);
+      overlayConfig = removeTomlTableNamespace(overlayConfig, GRAFT_MANAGED_MCP_TABLE_HEADER);
       tables.push(table);
       continue;
     }
@@ -605,7 +605,7 @@ function appendManagedCodexConfigSection(config: string, section: string): strin
   }
   return appendCodexConfigSection(
     overlayConfig,
-    `${SYNARA_MANAGED_CODEX_CONFIG_BEGIN}\n${tables.join("\n\n")}\n${SYNARA_MANAGED_CODEX_CONFIG_END}`,
+    `${GRAFT_MANAGED_CODEX_CONFIG_BEGIN}\n${tables.join("\n\n")}\n${GRAFT_MANAGED_CODEX_CONFIG_END}`,
   );
 }
 
@@ -629,13 +629,13 @@ async function serializeCodexOverlayPreparation<A>(
   }
 }
 
-async function prepareSynaraCodexHomeOverlayUnlocked(input: {
+async function prepareGraftCodexHomeOverlayUnlocked(input: {
   readonly env: NodeJS.ProcessEnv;
   readonly homePath?: string;
   readonly appendConfigToml?: string;
 }): Promise<string | undefined> {
   const sourceHomePath = resolveBaseCodexHomePath(input.env, input.homePath);
-  const overlayHomePath = resolveSynaraCodexHomeOverlayPath(input.env, sourceHomePath);
+  const overlayHomePath = resolveGraftCodexHomeOverlayPath(input.env, sourceHomePath);
   if (path.resolve(sourceHomePath) === path.resolve(overlayHomePath)) {
     return undefined;
   }
@@ -672,12 +672,12 @@ async function prepareSynaraCodexHomeOverlayUnlocked(input: {
     }
     throw cause;
   });
-  const suppressionMarkerPath = path.join(overlayHomePath, SYNARA_CONFIG_SUPPRESSIONS_FILE);
+  const suppressionMarkerPath = path.join(overlayHomePath, GRAFT_CONFIG_SUPPRESSIONS_FILE);
   const suppressedSections = [
     ...new Set([
-      ...SYNARA_COMPETING_BROWSER_PLUGIN_SECTION_HEADERS,
+      ...GRAFT_COMPETING_BROWSER_PLUGIN_SECTION_HEADERS,
       ...findConflictingLocalBrowserPluginSections(sourceConfig),
-      ...(await readSynaraConfigSuppressions(suppressionMarkerPath)),
+      ...(await readGraftConfigSuppressions(suppressionMarkerPath)),
     ]),
   ].slice(0, MAX_CONFIG_SUPPRESSION_SECTIONS);
   const overlayConfigPath = path.join(overlayHomePath, "config.toml");
@@ -701,23 +701,23 @@ async function prepareSynaraCodexHomeOverlayUnlocked(input: {
     }
   }
   await fs.writeFile(overlayConfigPath, overlayConfig, "utf8");
-  await writeSynaraConfigSuppressions(suppressionMarkerPath, suppressedSections);
+  await writeGraftConfigSuppressions(suppressionMarkerPath, suppressedSections);
 
   return overlayHomePath;
 }
 
-async function prepareSynaraCodexHomeOverlay(input: {
+async function prepareGraftCodexHomeOverlay(input: {
   readonly env: NodeJS.ProcessEnv;
   readonly homePath?: string;
   readonly appendConfigToml?: string;
 }): Promise<string | undefined> {
   const sourceHomePath = resolveBaseCodexHomePath(input.env, input.homePath);
-  const overlayHomePath = resolveSynaraCodexHomeOverlayPath(input.env, sourceHomePath);
+  const overlayHomePath = resolveGraftCodexHomeOverlayPath(input.env, sourceHomePath);
   if (path.resolve(sourceHomePath) === path.resolve(overlayHomePath)) {
     return undefined;
   }
   return serializeCodexOverlayPreparation(overlayHomePath, () =>
-    prepareSynaraCodexHomeOverlayUnlocked(input),
+    prepareGraftCodexHomeOverlayUnlocked(input),
   );
 }
 
@@ -731,7 +731,7 @@ export async function buildCodexProcessEnv(
   } = {},
 ): Promise<NodeJS.ProcessEnv> {
   const baseEnv = { ...(input.env ?? process.env) };
-  const overlayHomePath = await prepareSynaraCodexHomeOverlay({
+  const overlayHomePath = await prepareGraftCodexHomeOverlay({
     env: baseEnv,
     ...(input.homePath ? { homePath: input.homePath } : {}),
     ...(input.appendConfigToml ? { appendConfigToml: input.appendConfigToml } : {}),
@@ -741,7 +741,7 @@ export async function buildCodexProcessEnv(
       ? { ...baseEnv, CODEX_HOME: overlayHomePath ?? input.homePath }
       : baseEnv;
   if (overlayHomePath && !configuredEnv.CODEX_SQLITE_HOME?.trim()) {
-    // Keep every Codex process (Synara's app-server, the user's own `codex`
+    // Keep every Codex process (Graft's app-server, the user's own `codex`
     // CLI) on one SQLite home reached through one path; see
     // CODEX_SQLITE_STATE_ENTRY_PATTERN. A user-provided value wins.
     configuredEnv.CODEX_SQLITE_HOME = resolveBaseCodexHomePath(baseEnv, input.homePath);

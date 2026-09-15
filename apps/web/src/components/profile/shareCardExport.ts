@@ -10,9 +10,9 @@ import { readNativeApi } from "~/nativeApi";
 
 export { downloadBlob } from "~/lib/browserDownload";
 
-const SHARE_BRAND_HANDLE = "@trySynara";
+const SHARE_BRAND_HANDLE = "@graft";
 export const SHARE_TWEET_TEXT = `Just checking my ${SHARE_BRAND_HANDLE} dev stats. Absolute masterpiece of an IDE.`;
-const SHARE_URL = "https://trysynara.com";
+const SHARE_URL = "https://github.com/brentmwarner/graft-studio-next";
 
 export type ShareTarget = "x" | "linkedin" | "reddit";
 

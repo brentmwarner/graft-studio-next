@@ -590,7 +590,7 @@ export interface DesktopCustomTitleBarState {
 export const DesktopAppIcon = Schema.Literals(["default", "icon", "dark"]);
 export type DesktopAppIcon = typeof DesktopAppIcon.Type;
 
-export interface SynaraStorageSnapshot {
+export interface GraftStorageSnapshot {
   readonly version: 1;
   readonly exportedAt: string;
   readonly entries: Readonly<Record<string, string>>;
@@ -692,7 +692,7 @@ export interface DesktopBridge {
     syncWake: (gatewayEnabled: boolean) => Promise<{ keepHostAwake: boolean; blocking: boolean }>;
   };
   storageMigration: {
-    readSnapshot: () => SynaraStorageSnapshot | null;
+    readSnapshot: () => GraftStorageSnapshot | null;
     acknowledgeSnapshot: () => Promise<void>;
   };
   server?: {

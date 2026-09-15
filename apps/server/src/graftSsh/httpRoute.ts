@@ -6,7 +6,7 @@ import {
   SshProjectAddInput,
   SshProjectAddResult,
   SshProjectList,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 

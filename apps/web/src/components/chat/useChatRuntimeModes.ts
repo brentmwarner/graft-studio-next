@@ -5,7 +5,7 @@ import {
   type ModelSelection,
   type ProviderKind,
   type ServerProviderStatus,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { useCallback, useEffect, useRef } from "react";
 import { newCommandId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";

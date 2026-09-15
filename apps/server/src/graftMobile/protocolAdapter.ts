@@ -33,7 +33,7 @@ import {
   type ProviderKind,
   type ProviderModelDescriptor,
   type RuntimeMode,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 import { toMobileContextUsage } from "./usage";
 

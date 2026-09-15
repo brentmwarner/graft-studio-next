@@ -4,14 +4,14 @@
 // Depends on: Desktop packaging policy and electron-builder config shape.
 
 export const MICROPHONE_USAGE_DESCRIPTION =
-  "Synara needs microphone access so you can record voice notes and transcribe them into the chat composer.";
+  "Graft needs microphone access so you can record voice notes and transcribe them into the chat composer.";
 export const MAC_ENTITLEMENTS_PATH = "apps/desktop/resources/entitlements.mac.plist";
 export const MAC_INHERITED_ENTITLEMENTS_PATH =
   "apps/desktop/resources/entitlements.mac.inherit.plist";
 export const MAC_APPSNAP_HELPER_STAGE_PATH =
-  "apps/desktop/native/appsnap/build/synara-appsnap-helper";
+  "apps/desktop/native/appsnap/build/graft-appsnap-helper";
 export const MAC_APPSNAP_HELPER_ASAR_EXCLUSION = "!apps/desktop/native/appsnap/build/**";
-export const MAC_APPSNAP_HELPER_BUNDLE_PATH = "Contents/Helpers/synara-appsnap-helper";
+export const MAC_APPSNAP_HELPER_BUNDLE_PATH = "Contents/Helpers/graft-appsnap-helper";
 export const MAC_DEVICE_HELPER_STAGE_PATH = "apps/server/dist/device-helper";
 export const MAC_DEVICE_HELPER_RESOURCE_PATH = "Resources/device-helper";
 export const WINDOWS_INSTALLER_GUID = "368107a8-afe6-5db5-ab3b-d4f331684868";
@@ -105,7 +105,7 @@ export function createDesktopPlatformBuildConfig(
       extraFiles: [
         {
           from: MAC_APPSNAP_HELPER_STAGE_PATH,
-          to: "Helpers/synara-appsnap-helper",
+          to: "Helpers/graft-appsnap-helper",
         },
         {
           from: MAC_DEVICE_HELPER_STAGE_PATH,
@@ -121,12 +121,12 @@ export function createDesktopPlatformBuildConfig(
       ...nativePackaging,
       linux: {
         target: [input.target],
-        executableName: "synara",
+        executableName: "graft",
         icon: "icon.png",
         category: "Development",
         desktop: {
           entry: {
-            StartupWMClass: "synara",
+            StartupWMClass: "graft",
           },
         },
       },

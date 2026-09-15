@@ -2,14 +2,14 @@ import {
   makeMessageTextChunks,
   encodeMessageTextFallback,
 } from "../../persistence/messageTextChunks.ts";
-import { ApprovalRequestId, CommandId, type OrchestrationEvent } from "@synara/contracts";
+import { ApprovalRequestId, CommandId, type OrchestrationEvent } from "@graft/contracts";
 import {
   addPinnedMessage,
   removePinnedMessage,
   setPinnedMessageDone,
   setPinnedMessageLabel,
-} from "@synara/shared/pinnedMessages";
-import { createStalePendingInteractionMatcher } from "@synara/shared/pendingInteractions";
+} from "@graft/shared/pinnedMessages";
+import { createStalePendingInteractionMatcher } from "@graft/shared/pendingInteractions";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";

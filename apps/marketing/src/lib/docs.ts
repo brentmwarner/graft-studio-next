@@ -13,7 +13,7 @@ export interface DocumentationCatalogEntry {
   readonly lastModified: Date | string | null;
 }
 
-const FALLBACK_DOCUMENTATION_DESCRIPTION = "Synara product documentation.";
+const FALLBACK_DOCUMENTATION_DESCRIPTION = "Graft product documentation.";
 
 /**
  * Canonical, generated documentation inventory shared by sitemaps and

@@ -4,8 +4,8 @@
 //          and gates Droid to explicit intent.
 // Layer: Web lib tests
 
-import { DEFAULT_SERVER_SETTINGS } from "@synara/contracts";
-import type { ProviderKind, ServerProviderStatus } from "@synara/contracts";
+import { DEFAULT_SERVER_SETTINGS } from "@graft/contracts";
+import type { ProviderKind, ServerProviderStatus } from "@graft/contracts";
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

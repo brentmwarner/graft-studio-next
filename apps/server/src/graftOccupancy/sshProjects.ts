@@ -1,7 +1,7 @@
 import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
-import type { OrchestrationCommand, SshProject, SshProjectAddInput } from "@synara/contracts";
+import type { OrchestrationCommand, SshProject, SshProjectAddInput } from "@graft/contracts";
 import { Effect } from "effect";
 
 import type { OrchestrationEngineShape } from "../orchestration/Services/OrchestrationEngine";

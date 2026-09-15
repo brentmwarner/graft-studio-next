@@ -27,7 +27,7 @@ import {
   toPiProviderModelDescriptor,
 } from "./PiAdapter";
 
-describe("Pi native Synara gateway tools", () => {
+describe("Pi native Graft gateway tools", () => {
   it("uses canonical MCP schemas and keeps same-cwd thread tokens distinct", async () => {
     const requests: Array<{ readonly token: string | null; readonly body: any }> = [];
     const fetch = async (_input: string | URL | Request, init?: RequestInit) => {
@@ -44,8 +44,8 @@ describe("Pi native Synara gateway tools", () => {
             ? {
                 tools: [
                   {
-                    name: "synara_list_threads",
-                    description: "List Synara threads.",
+                    name: "graft_list_threads",
+                    description: "List Graft threads.",
                     inputSchema: {
                       type: "object",
                       properties: { limit: { type: "number" } },
@@ -108,8 +108,8 @@ describe("Pi native Synara gateway tools", () => {
           result: {
             tools: [
               {
-                name: "synara_create_threads",
-                description: "Create Synara threads.",
+                name: "graft_create_threads",
+                description: "Create Graft threads.",
                 inputSchema: { type: "object", properties: {} },
               },
             ],
@@ -258,7 +258,7 @@ describe("getPiDiscoverableModels", () => {
   });
 
   it("isolates extension providers between sessions that share an agent directory", async () => {
-    const agentDir = mkdtempSync(path.join(tmpdir(), "synara-pi-runtime-isolation-"));
+    const agentDir = mkdtempSync(path.join(tmpdir(), "graft-pi-runtime-isolation-"));
 
     try {
       const firstRuntime = await createPiModelRuntime(
@@ -308,7 +308,7 @@ describe("getPiDiscoverableModels", () => {
   ])(
     "discovers bundled $provider/$id with configured credentials",
     async ({ provider, id, auth }) => {
-      const agentDir = mkdtempSync(path.join(tmpdir(), "synara-pi-bundled-models-"));
+      const agentDir = mkdtempSync(path.join(tmpdir(), "graft-pi-bundled-models-"));
       try {
         const authPath = path.join(agentDir, "auth.json");
         writeFileSync(authPath, JSON.stringify({ [provider]: auth }));
@@ -343,7 +343,7 @@ describe("getPiDiscoverableModels", () => {
   );
 
   it("includes custom-provider models authenticated through auth.json semantics", async () => {
-    const agentDir = mkdtempSync(path.join(tmpdir(), "synara-pi-models-"));
+    const agentDir = mkdtempSync(path.join(tmpdir(), "graft-pi-models-"));
     const modelsPath = path.join(agentDir, "models.json");
     const authPath = path.join(agentDir, "auth.json");
 
@@ -385,7 +385,7 @@ describe("getPiDiscoverableModels", () => {
   });
 
   it("restores Fable 5 and Opus 4.8 after an extension replaces the Anthropic catalog", async () => {
-    const agentDir = mkdtempSync(path.join(tmpdir(), "synara-pi-anthropic-"));
+    const agentDir = mkdtempSync(path.join(tmpdir(), "graft-pi-anthropic-"));
     const modelsPath = path.join(agentDir, "models.json");
     const authPath = path.join(agentDir, "auth.json");
 

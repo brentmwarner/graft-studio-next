@@ -3,7 +3,7 @@ import {
   type DroidModelSelection,
   type ModelSelection,
   type ProviderKind,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect, Layer } from "effect";
 
 import { parseOpenCodeModelSlug } from "../../provider/opencodeRuntime.ts";

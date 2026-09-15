@@ -12,10 +12,10 @@ import {
   type ProviderKind,
   ThreadId,
   type TurnId,
-} from "@synara/contracts";
-import { resolveThreadBranchRegressionGuard } from "@synara/shared/git";
-import { normalizeModelSlug } from "@synara/shared/model";
-import { deriveThreadSummaryMetadata } from "@synara/shared/threadSummary";
+} from "@graft/contracts";
+import { resolveThreadBranchRegressionGuard } from "@graft/shared/git";
+import { normalizeModelSlug } from "@graft/shared/model";
+import { deriveThreadSummaryMetadata } from "@graft/shared/threadSummary";
 
 import { isStalePendingRequestFailureDetail } from "./lib/pendingInteraction";
 import { toAttachmentPreviewUrl } from "./lib/wsHttpUrl";

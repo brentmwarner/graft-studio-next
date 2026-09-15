@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { SYNARA_DESKTOP_UPDATE_CHANNEL } from "@synara/shared/desktopIdentity";
+import { GRAFT_DESKTOP_UPDATE_CHANNEL } from "@graft/shared/desktopIdentity";
 
 import {
   channelManifestNames,
@@ -16,7 +16,7 @@ import {
 const cleanConfig: ReleaseUpdatePolicyConfig = {
   lane: "clean",
   bridgeVersion: "0.4.2",
-  channel: "synara",
+  channel: "graft",
 };
 const defaultManifestNames = ["latest-mac.yml", "latest.yml", "latest-linux.yml"] as const;
 
@@ -24,7 +24,7 @@ describe("release update policy", () => {
   it("publishes to the same Graft channel that the desktop consumes", () => {
     const config = readReleaseUpdatePolicyConfig(resolve(import.meta.dirname, ".."));
     expect(config.channel).toBe("graft");
-    expect(config.channel).toBe(SYNARA_DESKTOP_UPDATE_CHANNEL);
+    expect(config.channel).toBe(GRAFT_DESKTOP_UPDATE_CHANNEL);
   });
 
   it("publishes stable clean releases to Latest and keeps prereleases off it", () => {
@@ -40,7 +40,7 @@ describe("release update policy", () => {
       makeLatest: true,
       mirrorToStableChannel: false,
       bridgeTag: "v0.4.2",
-      channel: "synara",
+      channel: "graft",
     });
     expect(resolveReleaseUpdatePolicy("0.6.0-beta.1", cleanConfig)).toMatchObject({
       isPrerelease: true,
@@ -62,7 +62,7 @@ describe("release update policy", () => {
   });
 
   it("keeps clean release metadata on Latest and dedicated channel filenames", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-release-policy-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-release-policy-"));
     try {
       mkdirSync(root, { recursive: true });
       for (const name of defaultManifestNames) {
@@ -71,12 +71,12 @@ describe("release update policy", () => {
 
       expect(prepareReleaseUpdateManifests(root, cleanConfig)).toEqual([
         ...defaultManifestNames,
-        ...channelManifestNames("synara"),
+        ...channelManifestNames("graft"),
       ]);
       for (const name of defaultManifestNames) {
         expect(readFileSync(resolve(root, name), "utf8")).toBe(name);
       }
-      for (const [index, channelName] of channelManifestNames("synara").entries()) {
+      for (const [index, channelName] of channelManifestNames("graft").entries()) {
         const defaultName = defaultManifestNames[index];
         if (!defaultName) throw new Error(`Missing default manifest mapping for ${channelName}`);
         expect(readFileSync(resolve(root, channelName), "utf8")).toBe(
@@ -89,16 +89,16 @@ describe("release update policy", () => {
   });
 
   it("keeps default metadata and copies same-version channel placeholders on the compatibility release", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-release-policy-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-release-policy-"));
     try {
       for (const name of defaultManifestNames) {
         writeFileSync(resolve(root, name), `bridge:${name}`);
       }
       expect(prepareReleaseUpdateManifests(root, { ...cleanConfig, lane: "bridge" })).toEqual([
         ...defaultManifestNames,
-        ...channelManifestNames("synara"),
+        ...channelManifestNames("graft"),
       ]);
-      for (const [index, channelName] of channelManifestNames("synara").entries()) {
+      for (const [index, channelName] of channelManifestNames("graft").entries()) {
         const defaultName = defaultManifestNames[index];
         if (!defaultName) throw new Error(`Missing default manifest mapping for ${channelName}`);
         expect(readFileSync(resolve(root, channelName), "utf8")).toBe(
@@ -114,25 +114,25 @@ describe("release update policy", () => {
   });
 
   it("refuses to overwrite a compatibility channel placeholder", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-release-policy-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-release-policy-"));
     try {
       for (const name of defaultManifestNames) {
         writeFileSync(resolve(root, name), "bridge");
       }
-      writeFileSync(resolve(root, "synara-mac.yml"), "existing");
+      writeFileSync(resolve(root, "graft-mac.yml"), "existing");
 
       expect(() => prepareReleaseUpdateManifests(root, { ...cleanConfig, lane: "bridge" })).toThrow(
-        "Refusing to overwrite existing update manifest: synara-mac.yml",
+        "Refusing to overwrite existing update manifest: graft-mac.yml",
       );
-      expect(existsSync(resolve(root, "synara.yml"))).toBe(false);
-      expect(existsSync(resolve(root, "synara-linux.yml"))).toBe(false);
+      expect(existsSync(resolve(root, "graft.yml"))).toBe(false);
+      expect(existsSync(resolve(root, "graft-linux.yml"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
   it("rejects a clean Latest release with missing default metadata", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-release-policy-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-release-policy-"));
     try {
       writeFileSync(resolve(root, "latest-mac.yml"), "bridge");
 

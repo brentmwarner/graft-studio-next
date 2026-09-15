@@ -5,7 +5,7 @@ events can share `message.id` and repeat provisional usage. Count each response
 once and add only increases from later snapshots. A block's UUID is a delivery
 identity, not an API response identity.
 
-Synara keeps request accounting on each native query context. The current and
+Graft keeps request accounting on each native query context. The current and
 previous SDK turn are retained; native results advance that boundary. Closing a
 UI turn early does not reset native accounting. Subagent contexts own independent
 counters. Successful results reconcile main-loop usage, including downward

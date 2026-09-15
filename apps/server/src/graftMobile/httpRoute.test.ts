@@ -8,6 +8,7 @@ import { HttpRouter } from "effect/unstable/http";
 import { expect, it, vi } from "vitest";
 
 import { AuthError, ServerAuth, type AuthRequest } from "../auth/Services/ServerAuth";
+import { SessionCredentialService } from "../auth/Services/SessionCredentialService";
 import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
@@ -69,6 +70,8 @@ it("authenticates thread usage, selects its provider, and returns only public me
             Layer.mergeAll(
               NodeServices.layer,
               Layer.succeed(ServerConfig, {} as never),
+              // Declared by the shared WebSocket route; this test sends only HTTP requests.
+              Layer.succeed(SessionCredentialService, {} as never),
               Layer.succeed(ServerEnvironment, {} as never),
               Layer.succeed(ServerSettingsService, {} as never),
               Layer.succeed(ProviderDiscoveryService, {} as never),

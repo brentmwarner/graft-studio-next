@@ -54,7 +54,7 @@ final class ProtocolFixtureTests: XCTestCase {
     }
 
     /// A relay session survives a round trip through SwiftData so the app knows
-    /// it does not depend on this Mac's network after a relaunch.
+    /// it does not depend on this computer's network after a relaunch.
     @MainActor
     func testPersistsRelayTransportAcrossRelaunch() throws {
         let store = LocalStore(inMemory: true)

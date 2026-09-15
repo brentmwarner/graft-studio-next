@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GraftDesktopSessionRecord } from "@graft/desktop-contract";
 import { OccupancyCommandError } from "@graft/occupancy";
-import type { OrchestrationShellSnapshot } from "@synara/contracts";
+import type { OrchestrationShellSnapshot } from "@graft/contracts";
 
 import { dispatchOccupancyCommand } from "./occupancyDispatch";
 

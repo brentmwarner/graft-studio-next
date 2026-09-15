@@ -1,4 +1,4 @@
-import { CheckpointRef, MessageId, OrchestrationProposedPlanId, TurnId } from "@synara/contracts";
+import { CheckpointRef, MessageId, OrchestrationProposedPlanId, TurnId } from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildTurnDiffSummaryByAssistantMessageId,
@@ -384,7 +384,7 @@ describe("computeStableMessagesTimelineRows", () => {
             tone: "info",
             automation: {
               id: "automation-7",
-              name: "Watch Synara PR 231",
+              name: "Watch Graft PR 231",
               cadenceLabel: "Every 5m",
             },
           },
@@ -1321,22 +1321,22 @@ describe("deriveMessagesTimelineRows", () => {
     expect(collapsedSignature(messageRow(rows, "a2")!)).toEqual(["narration:a1", "work:w1"]);
   });
 
-  it("preserves Synara tool calls when a separate creation recap is present", () => {
+  it("preserves Graft tool calls when a separate creation recap is present", () => {
     const createTool = workEntry(
-      "synara-create-tool",
+      "graft-create-tool",
       "2026-01-01T00:00:01Z",
       "Graft created threads",
     );
     const creationRecap: TimelineEntry = {
-      id: "entry-synara-create-recap",
+      id: "entry-graft-create-recap",
       kind: "work",
       createdAt: "2026-01-01T00:00:02Z",
       entry: {
-        id: "synara-create-recap",
+        id: "graft-create-recap",
         createdAt: "2026-01-01T00:00:02Z",
-        label: "Created 2 Synara threads",
+        label: "Created 2 Graft threads",
         tone: "info",
-        synaraThreadCreation: {
+        graftThreadCreation: {
           operationId: "gateway:create:two",
           requestedCount: 2,
           createdCount: 2,
@@ -1376,8 +1376,8 @@ describe("deriveMessagesTimelineRows", () => {
     });
 
     expect(collapsedSignature(messageRow(rows, "a1")!)).toEqual([
-      "work:synara-create-tool",
-      "work:synara-create-recap",
+      "work:graft-create-tool",
+      "work:graft-create-recap",
     ]);
   });
 

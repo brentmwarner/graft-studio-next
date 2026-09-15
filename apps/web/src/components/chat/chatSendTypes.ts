@@ -6,7 +6,7 @@ import type {
   ProviderStartOptions,
   RuntimeMode,
   ThreadId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import type { QueryClient, UseMutationResult } from "@tanstack/react-query";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { useRefreshProviderStatusesNow } from "~/hooks/useProviderStatusRefresh";

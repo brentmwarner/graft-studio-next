@@ -16,7 +16,7 @@ import {
   OrchestrationCheckpointStatus,
   ThreadId,
   TurnId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Option, Schema, ServiceMap } from "effect";
 import type { Effect } from "effect";
 
@@ -185,4 +185,4 @@ export interface ProjectionTurnRepositoryShape {
 export class ProjectionTurnRepository extends ServiceMap.Service<
   ProjectionTurnRepository,
   ProjectionTurnRepositoryShape
->()("synara/persistence/Services/ProjectionTurns/ProjectionTurnRepository") {}
+>()("graft/persistence/Services/ProjectionTurns/ProjectionTurnRepository") {}

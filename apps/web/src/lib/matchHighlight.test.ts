@@ -1,4 +1,4 @@
-import { normalizeWorkspaceEntrySearchQuery } from "@synara/shared/searchQuery";
+import { normalizeWorkspaceEntrySearchQuery } from "@graft/shared/searchQuery";
 import { describe, expect, it } from "vitest";
 
 import { buildMatchSegments } from "./matchHighlight";

@@ -15,7 +15,6 @@ import {
   shouldInlineSkillForProvider,
 } from "./skillPromptInjection.ts";
 
-const synaraSkillPath = "/Users/me/.synara/skills/reviewer/SKILL.md";
 const graftSkillPath = "/Users/me/.graft/skills/reviewer/SKILL.md";
 const graftDevSkillPath = "/Users/me/.graft-dev/skills/reviewer/SKILL.md";
 const codexSkillPath = "/Users/me/.codex/skills/reviewer/SKILL.md";
@@ -29,10 +28,9 @@ const windsurfSkillPath = "/repo/.windsurf/skills/reviewer/SKILL.md";
 const codeiumSkillPath = "/Users/me/.codeium/windsurf/skills/reviewer/SKILL.md";
 
 describe("shouldInlineSkillForProvider", () => {
-  it("skips codex-native and synara roots for codex but inlines foreign provider roots", () => {
+  it("skips Codex-native and Graft app-home roots for Codex but inlines foreign provider roots", () => {
     // Codex loads .codex roots natively and the app-owned skills root via the
     // extra skill root registered at session start.
-    expect(shouldInlineSkillForProvider("codex", synaraSkillPath)).toBe(false);
     expect(shouldInlineSkillForProvider("codex", graftSkillPath)).toBe(false);
     expect(shouldInlineSkillForProvider("codex", graftDevSkillPath)).toBe(false);
     expect(shouldInlineSkillForProvider("codex", codexSkillPath)).toBe(false);
@@ -45,7 +43,6 @@ describe("shouldInlineSkillForProvider", () => {
   });
 
   it("inlines only app-owned portable paths for cursor", () => {
-    expect(shouldInlineSkillForProvider("cursor", synaraSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("cursor", graftSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("cursor", graftDevSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("cursor", cursorSkillPath)).toBe(false);
@@ -54,13 +51,11 @@ describe("shouldInlineSkillForProvider", () => {
 
   it("inlines everything except .claude paths for claudeAgent", () => {
     expect(shouldInlineSkillForProvider("claudeAgent", claudeSkillPath)).toBe(false);
-    expect(shouldInlineSkillForProvider("claudeAgent", synaraSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("claudeAgent", graftSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("claudeAgent", codexSkillPath)).toBe(true);
   });
 
   it("inlines cross-provider paths for pi but not pi-native skills", () => {
-    expect(shouldInlineSkillForProvider("pi", synaraSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("pi", graftSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("pi", graftDevSkillPath)).toBe(true);
     expect(shouldInlineSkillForProvider("pi", claudeSkillPath)).toBe(true);
@@ -80,7 +75,6 @@ describe("shouldInlineSkillForProvider", () => {
       expect(shouldInlineSkillForProvider("devin", nativePath)).toBe(false);
     }
     for (const foreignPath of [
-      synaraSkillPath,
       graftSkillPath,
       graftDevSkillPath,
       codexSkillPath,
@@ -93,7 +87,6 @@ describe("shouldInlineSkillForProvider", () => {
 
   it("always inlines for providers without native skill support", () => {
     for (const provider of ["antigravity", "grok", "opencode"] as const) {
-      expect(shouldInlineSkillForProvider(provider, synaraSkillPath)).toBe(true);
       expect(shouldInlineSkillForProvider(provider, graftSkillPath)).toBe(true);
       expect(shouldInlineSkillForProvider(provider, claudeSkillPath)).toBe(true);
     }
@@ -103,7 +96,7 @@ describe("shouldInlineSkillForProvider", () => {
 describe("buildInlineSkillInstructions", () => {
   it("inlines skill content for non-native providers and skips unreadable paths", async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "skill-inline-"));
-    const skillDir = path.join(root, ".synara", "skills", "reviewer");
+    const skillDir = path.join(root, ".graft", "skills", "reviewer");
     try {
       await mkdir(skillDir, { recursive: true });
       const skillPath = path.join(skillDir, "SKILL.md");
@@ -113,7 +106,7 @@ describe("buildInlineSkillInstructions", () => {
         provider: "antigravity",
         skills: [
           { name: "reviewer", path: skillPath },
-          { name: "missing", path: path.join(root, ".synara", "skills", "missing", "SKILL.md") },
+          { name: "missing", path: path.join(root, ".graft", "skills", "missing", "SKILL.md") },
         ],
         maxChars: 10_000,
       });
@@ -128,7 +121,7 @@ describe("buildInlineSkillInstructions", () => {
 
   it("returns empty text when nothing fits in the budget", async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "skill-inline-budget-"));
-    const skillDir = path.join(root, ".synara", "skills", "reviewer");
+    const skillDir = path.join(root, ".graft", "skills", "reviewer");
     try {
       await mkdir(skillDir, { recursive: true });
       const skillPath = path.join(skillDir, "SKILL.md");
@@ -166,7 +159,7 @@ describe("buildInlineSkillInstructions", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
-  it.each([".synara", ".graft", ".graft-dev", ".agents"])(
+  it.each([".graft", ".graft-dev", ".agents"])(
     "does not duplicate %s skill instructions loaded natively by Codex",
     async (skillRoot) => {
       const root = mkdtempSync(path.join(os.tmpdir(), "skill-native-"));

@@ -1,4 +1,4 @@
-import { DISCLOSURE_EASE_OUT, DISCLOSURE_TRANSITION_MS } from "@synara/shared/disclosureMotion";
+import { DISCLOSURE_EASE_OUT, DISCLOSURE_TRANSITION_MS } from "@graft/shared/disclosureMotion";
 import { cubicBezier, useReducedMotion } from "react-native-reanimated";
 
 const easing = cubicBezier(...DISCLOSURE_EASE_OUT);

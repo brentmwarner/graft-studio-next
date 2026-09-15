@@ -1,15 +1,15 @@
 // FILE: storageOriginMigration.ts
-// Purpose: Imports Synara browser state before renderer stores hydrate after a desktop origin move.
+// Purpose: Imports Graft browser state before renderer stores hydrate after a desktop origin move.
 
-import type { SynaraStorageSnapshot } from "@synara/contracts";
+import type { GraftStorageSnapshot } from "@graft/contracts";
 
 const MAX_SNAPSHOT_ENTRIES = 2_048;
 const MAX_SNAPSHOT_KEY_LENGTH = 512;
 const MAX_SNAPSHOT_VALUE_LENGTH = 16 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024;
 
-function isCanonicalStorageKey(key: string): boolean {
-  return key.startsWith("synara:") || key.startsWith("synara.");
+function isImportableStorageKey(key: string): boolean {
+  return key.startsWith("graft:") || key.startsWith("graft.");
 }
 
 function getLocalStorage(): Storage | null {
@@ -20,8 +20,8 @@ function getLocalStorage(): Storage | null {
   }
 }
 
-export function importSynaraStorageSnapshot(
-  snapshot: SynaraStorageSnapshot | null,
+export function importGraftStorageSnapshot(
+  snapshot: GraftStorageSnapshot | null,
   storage = getLocalStorage(),
 ): boolean {
   if (!snapshot || !storage || snapshot.version !== 1 || !snapshot.entries) return false;
@@ -37,7 +37,7 @@ export function importSynaraStorageSnapshot(
     }
     for (const [key, value] of entries) {
       if (
-        !isCanonicalStorageKey(key) ||
+        !isImportableStorageKey(key) ||
         key.length > MAX_SNAPSHOT_KEY_LENGTH ||
         typeof value !== "string" ||
         value.length > MAX_SNAPSHOT_VALUE_LENGTH
@@ -54,13 +54,13 @@ export function importSynaraStorageSnapshot(
   }
 }
 
-export function bootstrapSynaraStorageOriginMigration(): void {
+export function bootstrapGraftStorageOriginMigration(): void {
   const bridge = globalThis.window?.desktopBridge?.storageMigration;
   if (!bridge) return;
 
   try {
     const snapshot = bridge.readSnapshot();
-    if (snapshot && importSynaraStorageSnapshot(snapshot)) {
+    if (snapshot && importGraftStorageSnapshot(snapshot)) {
       void bridge.acknowledgeSnapshot().catch(() => undefined);
     }
   } catch {
@@ -68,4 +68,4 @@ export function bootstrapSynaraStorageOriginMigration(): void {
   }
 }
 
-bootstrapSynaraStorageOriginMigration();
+bootstrapGraftStorageOriginMigration();

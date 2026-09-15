@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { CommandId, MessageId, ThreadId } from "@synara/contracts";
+import { CommandId, MessageId, ThreadId } from "@graft/contracts";
 
 export function gatewayIsoNow(): string {
   return new Date().toISOString();

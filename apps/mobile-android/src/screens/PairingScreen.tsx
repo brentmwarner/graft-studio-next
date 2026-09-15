@@ -97,13 +97,13 @@ export function PairingScreen({ error, initialInput, isPairing, onPair }: Pairin
               ) : null}
 
               <PressScale
-                accessibilityLabel={isPairing ? "Pairing" : "Pair with Graft"}
+                accessibilityLabel={isPairing ? "Pairing" : "Pair with Graft Studio"}
                 disabled={isPairing || !input.trim()}
                 onPress={() => void onPair(input)}
                 style={[styles.primaryButton, { backgroundColor: palette.foreground }]}
               >
                 <Text style={[styles.primaryButtonText, { color: palette.background }]}>
-                  {isPairing ? "Pairing…" : "Pair with Graft"}
+                  {isPairing ? "Pairing…" : "Pair with Graft Studio"}
                 </Text>
                 <Ionicons
                   color={palette.background}

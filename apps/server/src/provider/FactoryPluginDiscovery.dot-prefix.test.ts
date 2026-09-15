@@ -14,7 +14,7 @@ afterEach(async () => {
 
 describe("Factory plugin path containment", () => {
   it("accepts dot-prefixed children without allowing parent traversal", async () => {
-    const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "synara-factory-dot-plugin-"));
+    const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "graft-factory-dot-plugin-"));
     tempDirs.push(homeDir);
     const factoryDir = path.join(homeDir, ".factory");
     const marketplacePath = path.join(factoryDir, "plugins", "marketplaces", "official");

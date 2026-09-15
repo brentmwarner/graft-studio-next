@@ -1,6 +1,6 @@
 // FILE: tourContent.ts
-// Purpose: Copy and links for the "what Synara can do" tour. Wording mirrors the public
-//          docs (trysynara.com/docs) and changelog so onboarding and docs stay consistent.
+// Purpose: Copy and links for the "what Graft can do" tour. Wording mirrors the public
+//          docs (graftapp.io/docs) and changelog so onboarding and docs stay consistent.
 // Layer: Web content (no React)
 
 import type { LucideIcon } from "~/lib/icons";
@@ -14,7 +14,7 @@ import {
   TerminalIcon,
 } from "~/lib/icons";
 
-export const SYNARA_DOCS_URL = "https://trysynara.com/docs";
+export const GRAFT_DOCS_URL = "https://github.com/brentmwarner/graft-studio-next/tree/main/docs";
 
 export interface TourCard {
   readonly id: string;
@@ -39,7 +39,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
       "Hand a thread to another provider",
       "Usage for every provider",
     ],
-    docsHref: `${SYNARA_DOCS_URL}/getting-started/providers`,
+    docsHref: `${GRAFT_DOCS_URL}/getting-started/providers`,
     icon: BotIcon,
   },
   {
@@ -49,7 +49,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
     description:
       "Each task owns one body of work: its conversation, provider session, working environment, tool activity, and Git changes. Run tasks in parallel on managed Git worktrees so two agents never edit the same checkout.",
     highlights: ["Managed worktrees", "Forks from any message", "Subagents and side chats"],
-    docsHref: `${SYNARA_DOCS_URL}/workflows/worktrees`,
+    docsHref: `${GRAFT_DOCS_URL}/workflows/worktrees`,
     icon: GitForkIcon,
   },
   {
@@ -63,7 +63,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
       "Commit → push → PR",
       "Native pull-request workspace",
     ],
-    docsHref: `${SYNARA_DOCS_URL}/workflows/pull-requests`,
+    docsHref: `${GRAFT_DOCS_URL}/workflows/pull-requests`,
     icon: GitPullRequestIcon,
   },
   {
@@ -73,7 +73,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
     description:
       "Agents drive a visible, task-owned browser you can watch and annotate. On macOS, an iOS Simulator pane streams the device so agents can build, launch, and tap through an app while you follow along.",
     highlights: ["Shared Chromium surface", "Element annotations", "iOS Simulator pane"],
-    docsHref: `${SYNARA_DOCS_URL}/workflows/browser-verification`,
+    docsHref: `${GRAFT_DOCS_URL}/workflows/browser-verification`,
     icon: GlobeIcon,
   },
   {
@@ -87,7 +87,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
       "Natural-language stop conditions",
       "Thread goals",
     ],
-    docsHref: `${SYNARA_DOCS_URL}/workflows/automations`,
+    docsHref: `${GRAFT_DOCS_URL}/workflows/automations`,
     icon: ClockIcon,
   },
   {
@@ -97,7 +97,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
     description:
       "A built-in MCP surface lets a supported provider session create tasks, wait on them, read transcripts, and steer other threads. Pair Codex, Claude Code, or Claude Desktop from outside with scoped, revocable credentials.",
     highlights: ["Parallel task batches", "External MCP pairing", "Approval boundaries"],
-    docsHref: `${SYNARA_DOCS_URL}/workflows/agent-gateway`,
+    docsHref: `${GRAFT_DOCS_URL}/workflows/agent-gateway`,
     icon: TerminalIcon,
   },
   {
@@ -107,7 +107,7 @@ export const TOUR_CARDS: ReadonlyArray<TourCard> = [
     description:
       "Everything in the workspace has a shortcut, and the keymap is editable from Settings. A few worth learning on day one:",
     highlights: [],
-    docsHref: `${SYNARA_DOCS_URL}/reference/keyboard-shortcuts`,
+    docsHref: `${GRAFT_DOCS_URL}/reference/keyboard-shortcuts`,
     icon: KeyboardIcon,
   },
 ];

@@ -1,5 +1,5 @@
 import "../index.css";
-import type { DesktopBridge } from "@synara/contracts";
+import type { DesktopBridge } from "@graft/contracts";
 import { page } from "vitest/browser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -13,8 +13,8 @@ const originalBridge = window.desktopBridge;
 const api = {
   getInfo: vi.fn(async () => ({
     supported: true as const,
-    appName: "Synara (Dev)",
-    appPath: "/Applications/Synara (Dev).app",
+    appName: "Graft (Dev)",
+    appPath: "/Applications/Graft (Dev).app",
   })),
   openSettings: vi.fn(async () => true),
   revealApp: vi.fn(async () => true),
@@ -49,10 +49,10 @@ describe("Safari access onboarding", () => {
     await expect.element(page.getByText("Next welcome")).not.toBeInTheDocument();
     await expect.element(page.getByRole("dialog")).toHaveTextContent("It's optional");
     await expect.element(page.getByRole("dialog")).toHaveTextContent("broad macOS permission");
-    await expect.element(page.getByRole("dialog")).toHaveTextContent("Synara (Dev)");
+    await expect.element(page.getByRole("dialog")).toHaveTextContent("Graft (Dev)");
     await expect
       .element(page.getByRole("button", { name: "Show app in Finder" }))
-      .toHaveAttribute("title", "/Applications/Synara (Dev).app");
+      .toHaveAttribute("title", "/Applications/Graft (Dev).app");
     expect(api.openSettings).not.toHaveBeenCalled();
     expect(localStorage.getItem(SAFARI_ACCESS_STORAGE_KEY)).toBeNull();
   });

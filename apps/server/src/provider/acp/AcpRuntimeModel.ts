@@ -3,8 +3,8 @@ import type {
   RuntimeContentStreamKind,
   ThreadTokenUsageSnapshot,
   ToolLifecycleItemType,
-} from "@synara/contracts";
-import { summarizeToolRawOutput } from "@synara/shared/toolOutputSummary";
+} from "@graft/contracts";
+import { summarizeToolRawOutput } from "@graft/shared/toolOutputSummary";
 
 import { computeUsagePercent, nonNegativeInteger, positiveInteger } from "../tokenUsage.ts";
 import { ACP_SUBAGENT_TOOL_KIND, canonicalItemTypeFromAcpToolKind } from "./AcpAdapterSupport.ts";
@@ -200,7 +200,7 @@ function normalizeToolCallStatus(
   }
 }
 
-// Converts ACP's unstable usage updates into Synara's context-window snapshot shape.
+// Converts ACP's unstable usage updates into Graft's context-window snapshot shape.
 function tokenUsageSnapshotFromAcpUsageUpdate(input: {
   readonly size: unknown;
   readonly used: unknown;

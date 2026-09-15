@@ -31,10 +31,10 @@ describe("canary tooling", () => {
     });
   });
 
-  it("keeps Canary storage separate from an existing Synara Canary home", () => {
+  it("keeps Canary storage separate from an existing Graft Canary home", () => {
     const homeDirectory = FS.mkdtempSync(Path.join(OS.tmpdir(), "graft-canary-home-"));
     tempDirs.add(homeDirectory);
-    FS.mkdirSync(Path.join(homeDirectory, ".synara-canary"));
+    FS.mkdirSync(Path.join(homeDirectory, ".graft-canary"));
 
     expect(resolveCanaryPaths({}, homeDirectory).home).toBe(
       Path.join(homeDirectory, ".graft-canary"),
@@ -45,8 +45,8 @@ describe("canary tooling", () => {
     expect(
       resolveCanaryPaths(
         {
-          SYNARA_CANARY_HOME: "/tmp/canary-data",
-          SYNARA_CANARY_SOURCE: "/tmp/canary-source",
+          GRAFT_CANARY_HOME: "/tmp/canary-data",
+          GRAFT_CANARY_SOURCE: "/tmp/canary-source",
         },
         "/Users/tester",
       ),
@@ -61,17 +61,17 @@ describe("canary tooling", () => {
 
   it("tracks main by default and accepts a stacked PR ref", () => {
     expect(parseCanaryArgs(["update"])).toEqual({ command: "update", ref: null });
-    expect(parseCanaryArgs(["setup", "--ref", "codex/synara-canary"])).toEqual({
+    expect(parseCanaryArgs(["setup", "--ref", "codex/graft-canary"])).toEqual({
       command: "setup",
-      ref: "codex/synara-canary",
+      ref: "codex/graft-canary",
     });
   });
 
   it("checks out the managed source during clone so the cleanliness guard starts clean", () => {
-    expect(canaryCloneArgs("git@example.com:synara.git", "/tmp/canary-source")).toEqual([
+    expect(canaryCloneArgs("git@example.com:graft.git", "/tmp/canary-source")).toEqual([
       "clone",
       "--",
-      "git@example.com:synara.git",
+      "git@example.com:graft.git",
       "/tmp/canary-source",
     ]);
   });
@@ -82,8 +82,8 @@ describe("canary tooling", () => {
 
   it("keeps updating the selected stacked ref until explicitly moved to main", () => {
     expect(resolveCanaryRef(parseCanaryArgs(["setup"]), null)).toBe("main");
-    expect(resolveCanaryRef(parseCanaryArgs(["update"]), "codex/synara-canary")).toBe(
-      "codex/synara-canary",
+    expect(resolveCanaryRef(parseCanaryArgs(["update"]), "codex/graft-canary")).toBe(
+      "codex/graft-canary",
     );
     expect(resolveCanaryRef(parseCanaryArgs(["update", "--ref", "main"]), "old-ref")).toBe("main");
   });

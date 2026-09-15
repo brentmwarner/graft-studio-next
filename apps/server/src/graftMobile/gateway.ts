@@ -24,8 +24,8 @@ import {
   type ProviderListModelsInput,
   type ProviderModelDescriptor,
   type ServerSettings,
-} from "@synara/contracts";
-import { autoRuntimeModeSelectionIssue } from "@synara/shared/runtimeMode";
+} from "@graft/contracts";
+import { autoRuntimeModeSelectionIssue } from "@graft/shared/runtimeMode";
 import { Data, Effect, Option } from "effect";
 
 import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
@@ -360,7 +360,7 @@ const waitForThreadShell = Effect.fn(function* (threadId: string, minimumSequenc
     if (Date.now() >= deadline) {
       return yield* fail(
         "internal",
-        "Synara accepted the change but its mobile snapshot did not catch up in time.",
+        "Graft accepted the change but its mobile snapshot did not catch up in time.",
       );
     }
     yield* Effect.sleep(PROJECTION_POLL_MS);

@@ -20,7 +20,7 @@ describe("SSH command execution", () => {
   });
 
   it("reports a missing local OpenSSH executable", async () => {
-    await expect(runSshCommand("/nonexistent/synara-test-ssh", [])).rejects.toMatchObject({
+    await expect(runSshCommand("/nonexistent/graft-test-ssh", [])).rejects.toMatchObject({
       code: "ssh_unavailable",
       retryable: false,
     });

@@ -11,7 +11,7 @@ import {
 import { OccupancyStore } from "@graft/occupancy";
 
 import { issueBootstrap, parseHostArguments } from "./cli";
-import { resolveSynaraEntry } from "./synaraEntry";
+import { resolveGraftEntry } from "./graftEntry";
 
 const roots: string[] = [];
 
@@ -71,15 +71,12 @@ describe("graft-host CLI", () => {
     const serverFile = join(root, GRAFT_HOST_SERVER_ENTRY);
     writeFileSync(hostFile, "host");
     writeFileSync(serverFile, "server");
-    expect(resolveSynaraEntry({}, pathToFileURL(hostFile).href)).toBe(serverFile);
+    expect(resolveGraftEntry({}, pathToFileURL(hostFile).href)).toBe(serverFile);
   });
 
-  it("honors GRAFT_HOST_SYNARA_BIN over a sibling bundle", () => {
+  it("honors GRAFT_HOST_SERVER_BIN over a sibling bundle", () => {
     expect(
-      resolveSynaraEntry(
-        { GRAFT_HOST_SYNARA_BIN: "/opt/synara.mjs" },
-        "file:///tmp/graft-host.mjs",
-      ),
-    ).toBe("/opt/synara.mjs");
+      resolveGraftEntry({ GRAFT_HOST_SERVER_BIN: "/opt/graft.mjs" }, "file:///tmp/graft-host.mjs"),
+    ).toBe("/opt/graft.mjs");
   });
 });

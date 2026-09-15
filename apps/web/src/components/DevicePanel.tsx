@@ -11,7 +11,7 @@ import type {
   DeviceHardwareButton,
   DeviceUdid,
   ThreadId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ensureNativeApi } from "~/nativeApi";
@@ -164,7 +164,7 @@ export default function DevicePanel(props: {
       if (state === "open") seed();
     });
     // Setup progress is the one state nothing pushes. Installing Xcode,
-    // accepting its licence or downloading a runtime all happen outside Synara
+    // accepting its licence or downloading a runtime all happen outside Graft
     // and raise no device event, so a pane opened on the checklist would sit on
     // a stale list and a spinner forever on a perfectly healthy connection.
     // Polling only while the checklist is up and retryable, and only every few
@@ -252,7 +252,7 @@ export default function DevicePanel(props: {
               setPendingDevice(null);
               setBootLimit({
                 limit: result.limit,
-                candidates: result.synaraBooted,
+                candidates: result.graftBooted,
                 pendingUdid: udid,
                 pendingName: entry.device.name,
               });
@@ -287,7 +287,7 @@ export default function DevicePanel(props: {
           const result = await api.device.boot({ udid: pending.pendingUdid });
           if (result.kind === "boot-limit-reached") {
             setPendingDevice(null);
-            setBootLimit({ ...pending, limit: result.limit, candidates: result.synaraBooted });
+            setBootLimit({ ...pending, limit: result.limit, candidates: result.graftBooted });
             return;
           }
           await attachDevice(pending.pendingUdid);
@@ -564,7 +564,7 @@ export default function DevicePanel(props: {
         if (direction === "down") pressButton(hardwareButton);
         return;
       }
-      // Every other Cmd chord belongs to Synara (Cmd+W, Cmd+R, the dock
+      // Every other Cmd chord belongs to Graft (Cmd+W, Cmd+R, the dock
       // shortcuts), so it is deliberately not injected.
       if (event.metaKey || event.ctrlKey) return;
 

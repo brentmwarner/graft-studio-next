@@ -1,4 +1,4 @@
-import { ApprovalRequestId, ThreadId, TurnId } from "@synara/contracts";
+import { ApprovalRequestId, ThreadId, TurnId } from "@graft/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type {
   Agent,
@@ -14,8 +14,8 @@ import { describe, it, expect, vi } from "vitest";
 
 import { ServerConfig } from "../../config.ts";
 import {
-  SYNARA_HARNESS_POLICY_MARKER,
-  SYNARA_HARNESS_POLICY_VERSION,
+  GRAFT_HARNESS_POLICY_MARKER,
+  GRAFT_HARNESS_POLICY_VERSION,
 } from "../../agentGateway/harnessPolicy.ts";
 import {
   AgentGatewayCredentials,
@@ -183,7 +183,7 @@ function createMockOpenCodeRuntime(options?: {
         mcpAddCalls.push(input);
         return options?.mcpAdd
           ? options.mcpAdd(input, requestOptions)
-          : { data: { synara: { status: "connected" } } };
+          : { data: { graft: { status: "connected" } } };
       },
     },
   };
@@ -285,7 +285,7 @@ function makeOpenCodeAdapterTestLayer(runtime: OpenCodeRuntimeShape) {
 }
 
 function promptContainsHarnessPolicy(prompt: Record<string, unknown> | undefined): boolean {
-  return JSON.stringify(prompt).includes(SYNARA_HARNESS_POLICY_MARKER);
+  return JSON.stringify(prompt).includes(GRAFT_HARNESS_POLICY_MARKER);
 }
 
 function makeGatewayCredentials(options?: {
@@ -580,7 +580,7 @@ describe("OpenCode host policy delivery", () => {
         openCodeSessionId: "opencode-session-1",
         harnessPolicyDelivery: {
           sessionId: "opencode-session-1",
-          policyVersion: SYNARA_HARNESS_POLICY_VERSION,
+          policyVersion: GRAFT_HARNESS_POLICY_VERSION,
           gatewayControlAvailable: false,
         },
       });
@@ -626,7 +626,7 @@ describe("OpenCode host policy delivery", () => {
       openCodeSessionId: "opencode-session-1",
       harnessPolicyDelivery: {
         sessionId: "opencode-session-1",
-        policyVersion: SYNARA_HARNESS_POLICY_VERSION,
+        policyVersion: GRAFT_HARNESS_POLICY_VERSION,
         gatewayControlAvailable: false,
       },
     });
@@ -688,7 +688,7 @@ describe("OpenCode host policy delivery", () => {
     expect(result.retryCursor).toMatchObject({
       harnessPolicyDelivery: {
         sessionId: "opencode-session-1",
-        policyVersion: SYNARA_HARNESS_POLICY_VERSION,
+        policyVersion: GRAFT_HARNESS_POLICY_VERSION,
       },
     });
   });
@@ -745,7 +745,7 @@ describe("OpenCode host policy delivery", () => {
     expect(secondCursor).toMatchObject({
       harnessPolicyDelivery: {
         sessionId: "opencode-session-1",
-        policyVersion: SYNARA_HARNESS_POLICY_VERSION,
+        policyVersion: GRAFT_HARNESS_POLICY_VERSION,
       },
     });
   });
@@ -793,7 +793,7 @@ describe("OpenCode host policy delivery", () => {
       openCodeSessionId: "opencode-session-2",
       harnessPolicyDelivery: {
         sessionId: "opencode-session-2",
-        policyVersion: SYNARA_HARNESS_POLICY_VERSION,
+        policyVersion: GRAFT_HARNESS_POLICY_VERSION,
         gatewayControlAvailable: false,
       },
     });
@@ -1169,7 +1169,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
     ]);
     expect(runtime.promptCalls).toHaveLength(2);
     for (const prompt of runtime.promptCalls) {
-      expect(JSON.stringify(prompt)).toContain("Use the synara_* tools");
+      expect(JSON.stringify(prompt)).toContain("Use the graft_* tools");
     }
     expect(gateway.revoked).toEqual(["gateway-token-1", "gateway-token-2"]);
   });
@@ -1258,7 +1258,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
     expect(gateway.revoked).toEqual([]);
     expect(runtime.promptCalls).toHaveLength(2);
     for (const prompt of runtime.promptCalls) {
-      expect(JSON.stringify(prompt)).toContain("Synara MCP control is unavailable");
+      expect(JSON.stringify(prompt)).toContain("Graft MCP control is unavailable");
     }
   });
 
@@ -1299,12 +1299,12 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
       mcpAdd: async (input) => {
         const config = input.config as { enabled?: boolean } | undefined;
         if (config?.enabled === false) {
-          return { data: { synara: { status: "disabled" } } };
+          return { data: { graft: { status: "disabled" } } };
         }
         activeSetupAttempts += 1;
         return activeSetupAttempts === 1
-          ? { data: { synara: { status: "failed", error: "gateway unavailable" } } }
-          : { data: { synara: { status: "connected" } } };
+          ? { data: { graft: { status: "failed", error: "gateway unavailable" } } }
+          : { data: { graft: { status: "connected" } } };
       },
     });
     const gateway = makeGatewayCredentials();
@@ -1358,13 +1358,13 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
 
     expect(activeSetupAttempts).toBe(0);
     expect(runtime.mcpAddCalls).toEqual([]);
-    expect(JSON.stringify(runtime.promptCalls[0])).toContain("Synara MCP control is unavailable");
+    expect(JSON.stringify(runtime.promptCalls[0])).toContain("Graft MCP control is unavailable");
     expect(gateway.revoked).toEqual([]);
   });
 
   it("keeps managed sessions identity-only and revokes credentials when MCP setup is not connected", async () => {
     const runtime = createMockOpenCodeRuntime({
-      mcpAdd: async () => ({ data: { synara: { status: "failed", error: "offline" } } }),
+      mcpAdd: async () => ({ data: { graft: { status: "failed", error: "offline" } } }),
     });
     const gateway = makeGatewayCredentials();
 
@@ -1398,7 +1398,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
 
     expect(gateway.revoked).toEqual(["gateway-token-1"]);
     expect(gateway.ownerByToken.size).toBe(0);
-    expect(JSON.stringify(runtime.promptCalls[0])).toContain("Synara MCP control is unavailable");
+    expect(JSON.stringify(runtime.promptCalls[0])).toContain("Graft MCP control is unavailable");
   });
 
   it("cancels stalled MCP setup and starts with the gateway marked unavailable", async () => {
@@ -1450,7 +1450,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
       ),
     );
     expect(gateway.ownerByToken.size).toBe(0);
-    expect(JSON.stringify(runtime.promptCalls[0])).toContain("Synara MCP control is unavailable");
+    expect(JSON.stringify(runtime.promptCalls[0])).toContain("Graft MCP control is unavailable");
   });
 
   it("submits OpenCode turns through the asynchronous prompt endpoint", async () => {
@@ -2005,7 +2005,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
         variant: "fast",
       },
       agent: "build",
-      title: "Synara thread-model-pin",
+      title: "Graft thread-model-pin",
     });
   });
 
@@ -2063,8 +2063,8 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
     const firstPromptText = (
       runtime.promptCalls[0]?.parts as ReadonlyArray<{ readonly text?: string }> | undefined
     )?.[0]?.text;
-    expect(firstPromptText).toContain(SYNARA_HARNESS_POLICY_MARKER);
-    expect(firstPromptText).toContain("Synara MCP control is unavailable");
+    expect(firstPromptText).toContain(GRAFT_HARNESS_POLICY_MARKER);
+    expect(firstPromptText).toContain("Graft MCP control is unavailable");
     expect(runtime.promptCalls[0]).toMatchObject({
       model: {
         providerID: "openai",
@@ -2637,7 +2637,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
     expect(runtime.promptCalls[0]?.parts).toEqual([
       {
         type: "text",
-        text: expect.stringContaining("Synara plan mode is active."),
+        text: expect.stringContaining("Graft plan mode is active."),
       },
     ]);
     expect(result.map((event) => event.type)).toEqual([
@@ -2791,7 +2791,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
     });
   });
 
-  it("ignores a stale plan agent option when Synara interaction mode is default", async () => {
+  it("ignores a stale plan agent option when Graft interaction mode is default", async () => {
     const runtime = createMockOpenCodeRuntime();
 
     await Effect.runPromise(
@@ -2932,7 +2932,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
               id: "part-default-plan",
               messageID: "assistant-message-default-plan",
               type: "text",
-              text: "<proposed_plan>\n# Not a Synara plan\n</proposed_plan>",
+              text: "<proposed_plan>\n# Not a Graft plan\n</proposed_plan>",
               time: {
                 start: 1,
                 end: 2,
@@ -2967,7 +2967,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
       type: "item.completed",
       payload: {
         itemType: "assistant_message",
-        detail: "<proposed_plan>\n# Not a Synara plan\n</proposed_plan>",
+        detail: "<proposed_plan>\n# Not a Graft plan\n</proposed_plan>",
       },
     });
   });
@@ -4144,7 +4144,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
             id: "permission-human-1",
             sessionID: "opencode-session-1",
             permission: "websearch",
-            patterns: ["Synara handoff"],
+            patterns: ["Graft handoff"],
             metadata: {},
             always: [],
           },
@@ -4177,7 +4177,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
             id: "permission-human-1",
             sessionID: "opencode-session-1",
             permission: "websearch",
-            patterns: ["Synara handoff"],
+            patterns: ["Graft handoff"],
             metadata: {},
             always: [],
           },
@@ -4552,7 +4552,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
       id: "permission-list-failure-1",
       sessionID: "opencode-session-1",
       permission: "websearch",
-      patterns: ["Synara"],
+      patterns: ["Graft"],
       metadata: {},
       always: [],
     } satisfies PermissionRequest;
@@ -5315,7 +5315,7 @@ describe("OpenCodeAdapter runtime lifecycle", () => {
             },
           },
         });
-        // The stream part arrives after the grace period. Synara must first
+        // The stream part arrives after the grace period. Graft must first
         // recover the provider snapshot, then ignore this duplicate late event.
         yield* Effect.sleep(30);
         eventQueue.push({

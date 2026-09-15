@@ -1,4 +1,4 @@
-import type { OrchestrationThreadActivity, ServerProviderUsageSnapshot } from "@synara/contracts";
+import type { OrchestrationThreadActivity, ServerProviderUsageSnapshot } from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import { toMobileAllowance, toMobileContextUsage } from "./usage";

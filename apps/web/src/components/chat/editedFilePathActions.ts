@@ -7,7 +7,7 @@ import {
   isWorkspaceRelativePathSafe,
   joinWorkspaceRelativePath,
   workspaceRelativePathOf,
-} from "@synara/shared/path";
+} from "@graft/shared/path";
 
 export interface EditedFilePathTargets {
   absolutePath: string | null;

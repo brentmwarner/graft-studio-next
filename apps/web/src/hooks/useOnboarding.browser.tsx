@@ -29,7 +29,7 @@ vi.mock("../workspacePathsStore", () => ({
 const clients: QueryClient[] = [];
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  localStorage.removeItem("synara:onboarding:v2");
+  localStorage.removeItem("graft:onboarding:v2");
   mocks.getConfig.mockReset().mockResolvedValue({ worktreesDir: "/a/worktrees" });
   // Keep the server marker absent to exercise the failed-write fallback.
   mocks.save.mockReset().mockResolvedValue(false);
@@ -43,7 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   for (const client of clients.splice(0)) client.clear();
-  localStorage.removeItem("synara:onboarding:v2");
+  localStorage.removeItem("graft:onboarding:v2");
 });
 
 async function renderOnboarding() {
@@ -98,7 +98,7 @@ describe("onboarding installation identity", () => {
     await hook.rerender();
     expect(hook.result.current.isOpen).toBe(false);
     expect(
-      JSON.parse(localStorage.getItem("synara:onboarding:v2") ?? "null")?.completedAt ?? null,
+      JSON.parse(localStorage.getItem("graft:onboarding:v2") ?? "null")?.completedAt ?? null,
     ).toBeNull();
     await act(async () => {
       client.setQueryData(["server", "config"], { worktreesDir: "/b/worktrees" });

@@ -5,7 +5,7 @@ import {
   TurnId,
   CheckpointRef,
   type OrchestrationCheckpointSummary,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { GraftDiffSummarySchema } from "@graft/mobile-contract";
 
 import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";

@@ -16,8 +16,8 @@ import {
   SSH_HOST_DIRECTORY_PATH,
   SSH_HOST_PROJECTS_PATH,
   SshProjectAddInput,
-} from "@synara/contracts";
-import { isWindowsAbsolutePath } from "@synara/shared/path";
+} from "@graft/contracts";
+import { isWindowsAbsolutePath } from "@graft/shared/path";
 import { Effect, FileSystem, Layer, Queue, Schema, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 

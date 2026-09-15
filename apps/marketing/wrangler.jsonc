@@ -1,10 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "synara-marketing",
+  "name": "graft-marketing",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  // Preview only. No routes/custom domains here on purpose: trysynara.com
+  // Preview only. No routes/custom domains here on purpose: graftapp.io
   // stays on Vercel until the preview is verified, so this deploys to
   // workers.dev and production DNS is untouched.
   "workers_dev": true,
@@ -15,9 +15,9 @@
   "r2_buckets": [
     {
       // Backs the ISR/data cache (docs, changelog, /install, llms.txt…).
-      // Create once: wrangler r2 bucket create synara-marketing-cache
+      // Create once: wrangler r2 bucket create graft-marketing-cache
       "binding": "NEXT_INC_CACHE_R2_BUCKET",
-      "bucket_name": "synara-marketing-cache",
+      "bucket_name": "graft-marketing-cache",
     },
   ],
   "durable_objects": {
@@ -39,7 +39,7 @@
     {
       // Lets the worker call itself for revalidation without a public hop.
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "synara-marketing",
+      "service": "graft-marketing",
     },
   ],
   "ratelimits": [
@@ -57,5 +57,5 @@
     },
   ],
   // Secrets (wrangler secret put): RESEND_API_KEY, RESEND_INBOUND_API_KEY,
-  // RESEND_WEBHOOK_SECRET, SYNARA_FEEDBACK_* addresses, GITHUB_TOKEN.
+  // RESEND_WEBHOOK_SECRET, GRAFT_FEEDBACK_* addresses, GITHUB_TOKEN.
 }

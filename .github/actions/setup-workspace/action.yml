@@ -1,5 +1,5 @@
 name: Setup workspace
-description: Shared tool setup, dependency install, and caches for Synara CI jobs
+description: Shared tool setup, dependency install, and caches for Graft CI jobs
 
 inputs:
   electron:

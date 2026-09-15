@@ -1,5 +1,5 @@
 {
-  "name": "@synara/scripts",
+  "name": "@graft/scripts",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@synara/contracts": "workspace:*",
-    "@synara/shared": "workspace:*",
+    "@graft/contracts": "workspace:*",
+    "@graft/shared": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

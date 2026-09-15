@@ -3,7 +3,7 @@ import type {
   OrchestrationEvent,
   OrchestrationSessionStatus,
   OrchestrationThreadDetailSnapshot,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 import { toMobileActivityEvent } from "./protocolAdapter";
 

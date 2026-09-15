@@ -12,7 +12,7 @@ The Environment menu uses Central's `bullet-list`, the right sidebar toggle uses
 `bottombar-hidden-bottom-wide`. These resolve through the Central fallback sets.
 The Environment toggle stays hidden on empty-chat landings until the chat starts.
 
-Skills deliberately retain Synara's original `building-blocks` artwork, copied
+Skills deliberately retain Graft's original `building-blocks` artwork, copied
 unchanged from `public/central-icons-reversed/building-blocks.svg`. The shared
 `SKILL_ICON_NAME` covers Settings, profile rows, command menus, composer tokens,
 and sent-message chips.

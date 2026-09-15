@@ -3,7 +3,7 @@ import type {
   ProjectScript,
   ProviderMentionReference,
   ProviderSkillReference,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   MessageId,
@@ -12,10 +12,10 @@ import {
   ThreadId,
   type ModelSelection,
   type ProviderStartOptions,
-} from "@synara/contracts";
-import { buildTemporaryWorktreeBranchName } from "@synara/shared/git";
-import { getDefaultModel } from "@synara/shared/model";
-import { providerSupportsNativeTurnSteering } from "@synara/shared/providerMetadata";
+} from "@graft/contracts";
+import { buildTemporaryWorktreeBranchName } from "@graft/shared/git";
+import { getDefaultModel } from "@graft/shared/model";
+import { providerSupportsNativeTurnSteering } from "@graft/shared/providerMetadata";
 import { useCallback } from "react";
 import { promoteThreadCreate } from "~/lib/threadCreatePromotion";
 import { newCommandId, randomUUID } from "~/lib/utils";
