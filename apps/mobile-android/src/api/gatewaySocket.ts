@@ -53,6 +53,7 @@ export class GatewaySocketError extends Error {
   constructor(
     message: string,
     readonly code = "socket_error",
+    readonly outcomeUnknown = true,
   ) {
     super(message);
   }
@@ -70,7 +71,7 @@ export function buildWebSocketUrl(session: GraftSessionCredential): string {
 }
 
 function remoteError(error: GraftRemoteError): GatewaySocketError {
-  return new GatewaySocketError(error.message, error.code);
+  return new GatewaySocketError(error.message, error.code, error.code === "internal");
 }
 
 export class GatewaySocket {
@@ -104,14 +105,19 @@ export class GatewaySocket {
     this.afterCursor = cursor;
   }
 
-  async command(command: GraftMobileCommand): Promise<GraftMobileCommandResult | undefined> {
+  async command(
+    command: GraftMobileCommand,
+    commandId = Crypto.randomUUID(),
+  ): Promise<GraftMobileCommandResult | undefined> {
     await this.ensureConnected();
-    const commandId = Crypto.randomUUID();
+    if (this.pendingCommands.has(commandId)) {
+      throw new GatewaySocketError("This message is already being sent.", "command_pending", true);
+    }
 
     return await new Promise<GraftMobileCommandResult | undefined>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingCommands.delete(commandId);
-        reject(new GatewaySocketError("The Graft host did not respond in time.", "timeout"));
+        reject(new GatewaySocketError("The Graft host did not respond in time.", "timeout", true));
       }, COMMAND_TIMEOUT_MS);
 
       this.pendingCommands.set(commandId, { resolve, reject, timeout });
@@ -135,7 +141,7 @@ export class GatewaySocket {
     this.desired = false;
     this.clearReconnectTimer();
     this.closeSocket();
-    const error = new GatewaySocketError("Disconnected from Graft Studio.");
+    const error = new GatewaySocketError("Disconnected from Graft Studio.", "socket_error", true);
     this.rejectPending(error);
     this.rejectConnectionWaiters(error);
     this.setState("disconnected");
@@ -245,6 +251,7 @@ export class GatewaySocket {
               new GatewaySocketError(
                 message.receipt.message ?? "Graft Studio rejected the command.",
                 message.receipt.errorCode ?? "command_rejected",
+                message.receipt.errorCode === "internal",
               ),
             );
           } else {

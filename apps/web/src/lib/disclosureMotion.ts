@@ -7,8 +7,10 @@
 
 import { cn } from "~/lib/utils";
 
-export const DISCLOSURE_TRANSITION_MS = 220;
-export const DISCLOSURE_CLEANUP_BUFFER_MS = 40;
+export {
+  DISCLOSURE_TRANSITION_MS,
+  DISCLOSURE_CLEANUP_BUFFER_MS,
+} from "@graft/shared/disclosureMotion";
 
 /** Shell grid that animates height via grid-template-rows + fade. */
 export const DISCLOSURE_SHELL_MOTION_CLASS =

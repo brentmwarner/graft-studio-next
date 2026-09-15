@@ -1,30 +1,14 @@
 import SwiftUI
 
-/// One turn's working timeline: the tool calls AND the thinking segments
-/// interleaved between them. While the turn is working it presents
-/// live activity — the composing orb plus a phrase that starts as
-/// "Thinking" and swaps to the current action.
-/// Tapping the header reveals the hidden details. If no assistant reply
-/// row claims the settled work, every step collapses into one quiet
-/// summary row here.
+/// Stable work details; the transcript footer owns live progress.
 struct ToolActivityStrip: View {
     let items: [TranscriptItem]
 
     @State private var expanded = false
 
-    private var isWorking: Bool {
-        items.contains { $0.toolStatus == .running || ($0.kind == .assistant && $0.isStreaming) }
-    }
-
     private var toolEntries: [(item: TranscriptItem, presentation: ToolPresentation)] {
         items.filter { $0.kind == .tool }
             .map { ($0, ToolPresentation(name: $0.toolName, context: $0.toolContext)) }
-    }
-
-    /// Tool calls shown as the header's brand-circle stack while work is active.
-    private var toolPresentations: [ToolPresentation] {
-        items.filter { $0.kind == .tool }
-            .map { ToolPresentation(name: $0.toolName, context: $0.toolContext) }
     }
 
     private var hasExpandableDetails: Bool {
@@ -33,36 +17,11 @@ struct ToolActivityStrip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if isWorking {
-                LiveStatusLine(
-                    phrase: livePhrase,
-                    canReveal: hasExpandableDetails,
-                    revealed: expanded,
-                    tools: toolPresentations,
-                    onTap: { withAnimation(.snappy) { expanded.toggle() } }
-                )
-                // Tapping the header reveals the hidden reasoning/tool details.
-                if expanded, hasExpandableDetails {
-                    expandedTimeline
-                        .padding(.leading, 6)
-                        .transition(.opacity)
-                }
-            } else {
-                summaryRow
-                if expanded {
-                    expandedTimeline
-                        .padding(.leading, 6)
-                        .transition(.opacity)
-                }
+            summaryRow
+            if expanded, hasExpandableDetails {
+                expandedTimeline.padding(.leading, 6)
             }
         }
-        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: isWorking)
-        .animation(.snappy(duration: 0.3), value: toolEntries.map(\.item.id))
-        .animation(.spring(response: 0.32, dampingFraction: 0.88), value: livePhrase)
-    }
-
-    private var livePhrase: String {
-        LiveStatusPhrase.current(from: items)
     }
 
     // MARK: Live timeline

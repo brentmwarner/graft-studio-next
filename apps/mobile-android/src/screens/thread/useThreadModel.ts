@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { TranscriptItem } from "../../state/mobileViewModels";
 import { useReconciledTranscript } from "./TranscriptRow";
+import { threadModelChoices } from "./threadModels";
 
 /// Stable empty slice so a thread with no settled transcript doesn't mint a new
 /// array identity on every render and defeat the transcript memo below.
@@ -35,6 +36,8 @@ export interface ThreadModel {
   readonly currentApprovalLabel: string;
   readonly currentModel: GraftModelOption | undefined;
   readonly currentThread: GraftThreadSummary;
+  readonly lockedProviderId: string | undefined;
+  readonly selectableModels: readonly GraftModelOption[];
   readonly diffAdditions: number;
   readonly diffDeletions: number;
   readonly efforts: readonly string[];
@@ -51,6 +54,7 @@ export function useThreadModel({
   availableModels,
   diffSummary,
   initialEffort,
+  hasPendingSend = false,
   liveEvents,
   snapshot,
   thread,
@@ -58,6 +62,7 @@ export function useThreadModel({
   readonly availableModels: readonly GraftModelOption[];
   readonly diffSummary?: GraftDiffSummary;
   readonly initialEffort?: string;
+  readonly hasPendingSend?: boolean;
   readonly liveEvents: readonly GraftTimelineEvent[];
   readonly snapshot: GraftEnvironmentSnapshot | null;
   readonly thread: GraftThreadSummary;
@@ -94,12 +99,11 @@ export function useThreadModel({
     activeRun && (!latestRunStatus || RUN_IS_ACTIVE[latestRunStatus]) ? activeRun.id : undefined;
   const approval = snapshot?.pendingApprovals.find((item) => item.threadId === thread.id);
   const question = snapshot?.pendingQuestions.find((item) => item.threadId === thread.id);
-  const currentModel = currentThread.modelName
-    ? (availableModels.find(
-        (model) =>
-          model.id === currentThread.modelName && model.providerId === currentThread.providerId,
-      ) ?? availableModels.find((model) => model.id === currentThread.modelName))
-    : (availableModels.find((model) => model.isDefault) ?? availableModels[0]);
+  const { currentModel, lockedProviderId, selectableModels } = threadModelChoices(
+    currentThread,
+    availableModels,
+    hasPendingSend || items.length > 0 || Boolean(activeRun),
+  );
   const efforts = currentModel?.reasoningEfforts ?? [];
   const resolvedEffort =
     selectedEffort && efforts.includes(selectedEffort)
@@ -134,6 +138,8 @@ export function useThreadModel({
     currentApprovalLabel,
     currentModel,
     currentThread,
+    lockedProviderId,
+    selectableModels,
     diffAdditions,
     diffDeletions,
     efforts,

@@ -76,3 +76,110 @@ describe("createGatewayClient", () => {
     } satisfies Partial<GatewayError>);
   });
 });
+
+describe("account usage endpoint", () => {
+  const result = {
+    threadId: "thread/a b",
+    allowance: {
+      providerId: "codex",
+      status: "ok",
+      stale: false,
+      limits: [{ label: "Weekly", remainingPercent: 64 }],
+    },
+  };
+  it("authenticates and escapes the selected thread ID", async () => {
+    const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json(result));
+    await expect(createGatewayClient(fetcher).usage(session, result.threadId)).resolves.toEqual(
+      result,
+    );
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(new URL(url).pathname).toBe("/v1/usage");
+    expect(new URL(url).searchParams.get("threadId")).toBe(result.threadId);
+    expect(init?.headers).toEqual({ authorization: `Bearer ${session.bearerToken}` });
+  });
+  it("rejects responses for another thread and invalid quota values", async () => {
+    await expect(
+      createGatewayClient(async () => Response.json(result)).usage(session, "different"),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+    await expect(
+      createGatewayClient(async () =>
+        Response.json({
+          ...result,
+          allowance: { ...result.allowance, limits: [{ label: "Weekly", remainingPercent: 150 }] },
+        }),
+      ).usage(session, result.threadId),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+  it("preserves a legacy host's 404 for the menu's unavailable state", async () => {
+    await expect(
+      createGatewayClient(async () => new Response("Not Found", { status: 404 })).usage(
+        session,
+        result.threadId,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+it("uploads binary data using the paired session and preserves attachment metadata", async () => {
+  const attachment = {
+    id: "host-file",
+    type: "file" as const,
+    name: "notes & plan.txt",
+    mimeType: "text/plain",
+    sizeBytes: 5,
+  };
+  const body = new Blob(["hello"]);
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) =>
+    Response.json(attachment, { status: 201 }),
+  );
+  expect(
+    await createGatewayClient(fetcher).uploadAttachment(session, "thread/a b", attachment, body),
+  ).toEqual(attachment);
+  const [url, init] = fetcher.mock.calls[0]!;
+  expect(new URL(url).pathname).toBe("/v1/attachments/upload");
+  expect(new URL(url).searchParams.get("threadId")).toBe("thread/a b");
+  expect(new URL(url).searchParams.get("name")).toBe(attachment.name);
+  expect(init?.body).toEqual(await body.arrayBuffer());
+  expect(init?.headers).toMatchObject({ "content-type": "text/plain" });
+  expect(init?.headers).toMatchObject({ authorization: `Bearer ${session.bearerToken}` });
+});
+
+it("authenticates cancellation and reports host attachment errors", async () => {
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) =>
+    Response.json({ cancelled: true }),
+  );
+  await createGatewayClient(fetcher).cancelAttachment(session, "host-file");
+  expect(new URL(fetcher.mock.calls[0]![0]).pathname).toBe("/v1/attachments/cancel");
+  expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
+    method: "POST",
+    body: JSON.stringify({ attachmentId: "host-file" }),
+    headers: { authorization: `Bearer ${session.bearerToken}` },
+  });
+  await expect(
+    createGatewayClient(async () =>
+      Response.json({ error: "Upload quota exceeded." }, { status: 413 }),
+    ).cancelAttachment(session, "host-file"),
+  ).rejects.toThrow("Upload quota exceeded.");
+});
+
+it("uploads extensionless native files without reading their nullable MIME property", async () => {
+  const bytes = new TextEncoder().encode("cached document").buffer;
+  const file = {
+    arrayBuffer: async () => bytes,
+    get type(): string {
+      throw new Error("Native File MIME must not override metadata");
+    },
+  } as Blob;
+  const attachment = {
+    id: "cached-file",
+    type: "file" as const,
+    name: "document",
+    mimeType: "application/octet-stream",
+    sizeBytes: bytes.byteLength,
+  };
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json(attachment));
+  await expect(
+    createGatewayClient(fetcher).uploadAttachment(session, "thread-1", attachment, file),
+  ).resolves.toEqual(attachment);
+  expect(fetcher.mock.calls[0]?.[1]?.body).toBe(bytes);
+});

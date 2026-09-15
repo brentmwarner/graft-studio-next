@@ -16,6 +16,8 @@ import { z } from "zod";
  */
 
 export const GRAFT_MOBILE_PROTOCOL_VERSION = 1 as const;
+export const GRAFT_ATTACHMENT_UPLOAD_PATH = "/v1/attachments/upload" as const;
+export const GRAFT_ATTACHMENT_CANCEL_PATH = "/v1/attachments/cancel" as const;
 
 export const GRAFT_MOBILE_CAPABILITIES = [
   "projects",
@@ -112,12 +114,51 @@ export type GraftPushUnregistrationResponse = z.infer<typeof GraftPushUnregistra
 // Domain summaries
 // ---------------------------------------------------------------------------
 
+export const GraftInteractionModeSchema = z.enum(["default", "plan", "debug"]);
+export type GraftInteractionMode = z.infer<typeof GraftInteractionModeSchema>;
+
+export const GRAFT_MOBILE_MAX_ATTACHMENTS = 8;
+export const GRAFT_MOBILE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const GRAFT_MOBILE_MAX_FILE_BYTES = 25 * 1024 * 1024;
+
+const attachmentFields = {
+  id: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[a-zA-Z0-9_-]+$/),
+  name: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(100),
+};
+export const GraftAttachmentSchema = z.discriminatedUnion("type", [
+  z.object({
+    ...attachmentFields,
+    type: z.literal("image"),
+    mimeType: attachmentFields.mimeType.regex(/^image\//i),
+    sizeBytes: z.number().int().nonnegative().max(GRAFT_MOBILE_MAX_IMAGE_BYTES),
+  }),
+  z.object({
+    ...attachmentFields,
+    type: z.literal("file"),
+    sizeBytes: z.number().int().nonnegative().max(GRAFT_MOBILE_MAX_FILE_BYTES),
+  }),
+]);
+export type GraftAttachment = z.infer<typeof GraftAttachmentSchema>;
+
 export const GraftEnvironmentSummarySchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).max(120),
   hostVersion: z.string().min(1).optional(),
   protocolVersion: z.literal(GRAFT_MOBILE_PROTOCOL_VERSION),
   capabilities: z.array(GraftMobileCapabilitySchema).min(1),
+  /** Additive feature flags: older clients ignore them, older hosts omit them. */
+  composerFeatures: z
+    .object({
+      attachments: z.boolean(),
+      interactionModes: z.boolean(),
+      fastMode: z.boolean(),
+    })
+    .optional(),
   cursor: GraftRemoteCursorSchema,
 });
 export type GraftEnvironmentSummary = z.infer<typeof GraftEnvironmentSummarySchema>;
@@ -171,6 +212,30 @@ export const GraftContextUsageSchema = z.object({
 });
 export type GraftContextUsage = z.infer<typeof GraftContextUsageSchema>;
 
+/** Account limits are separate from the current thread's context occupancy. */
+export const GraftProviderAllowanceSchema = z.object({
+  providerId: z.string().min(1),
+  status: z.enum(["ok", "needs-auth", "unsupported", "error"]),
+  updatedAt: z.string().optional(),
+  stale: z.boolean(),
+  planName: z.string().optional(),
+  limits: z.array(
+    z.object({
+      label: z.string(),
+      remainingPercent: z.number().min(0).max(100),
+      resetsAt: z.string().optional(),
+    }),
+  ),
+});
+export type GraftProviderAllowance = z.infer<typeof GraftProviderAllowanceSchema>;
+
+export const GraftThreadUsageSchema = z.object({
+  threadId: z.string().min(1),
+  contextUsage: GraftContextUsageSchema.optional(),
+  allowance: GraftProviderAllowanceSchema,
+});
+export type GraftThreadUsage = z.infer<typeof GraftThreadUsageSchema>;
+
 export const GraftThreadSummarySchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1),
@@ -180,6 +245,10 @@ export const GraftThreadSummarySchema = z.object({
   preview: z.string().max(280).optional(),
   modelName: z.string().min(1).optional(),
   providerId: z.string().min(1).optional(),
+  /** True once conversation activity binds this thread to its provider. */
+  providerLocked: z.boolean().optional(),
+  interactionMode: GraftInteractionModeSchema.optional(),
+  fastMode: z.boolean().optional(),
   /** Workspace selected when the thread was created. */
   mode: GraftThreadModeSchema.optional(),
   /** Current approval policy, resolved against the provider's defaults. */
@@ -200,6 +269,7 @@ export const GraftModelOptionSchema = z.object({
   providerId: z.string().min(1),
   providerLabel: z.string().min(1).optional(),
   isDefault: z.boolean().optional(),
+  supportsFastMode: z.boolean().optional(),
   /**
    * Selectable reasoning efforts for this model, in display order. Omitted
    * when the model has no effort choice.
@@ -394,6 +464,7 @@ export const GraftTimelineEventSchema = z.object({
   diffId: z.string().min(1).optional(),
   runStatus: GraftRunStatusSchema.optional(),
   data: GraftTimelineEventDataSchema.optional(),
+  attachments: z.array(GraftAttachmentSchema).max(GRAFT_MOBILE_MAX_ATTACHMENTS).optional(),
 });
 export type GraftTimelineEvent = z.infer<typeof GraftTimelineEventSchema>;
 
@@ -428,9 +499,34 @@ export const GraftQuestionRequestSchema = z.object({
 });
 export type GraftQuestionRequest = z.infer<typeof GraftQuestionRequestSchema>;
 
+export const GraftDiffTokenSchema = z.object({
+  text: z.string(),
+  lightColor: z.string().optional(),
+  darkColor: z.string().optional(),
+  changed: z.boolean().optional(),
+});
+export const GraftDiffLineSchema = z.object({
+  kind: z.enum(["context", "addition", "deletion"]),
+  text: z.string(),
+  oldLine: z.number().int().positive().optional(),
+  newLine: z.number().int().positive().optional(),
+  tokens: z.array(GraftDiffTokenSchema).optional(),
+});
+export type GraftDiffLine = z.infer<typeof GraftDiffLineSchema>;
+export const GraftDiffHunkSchema = z.object({
+  oldStart: z.number().int().nonnegative(),
+  newStart: z.number().int().nonnegative(),
+  collapsedBefore: z.number().int().nonnegative(),
+  lines: z.array(GraftDiffLineSchema),
+});
+export type GraftDiffHunk = z.infer<typeof GraftDiffHunkSchema>;
+
 export const GraftDiffFileSummarySchema = z.object({
   path: z.string().min(1),
   status: z.enum(["added", "modified", "deleted", "renamed"]),
+  previousPath: z.string().optional(),
+  hunks: z.array(GraftDiffHunkSchema).optional(),
+  detailStatus: z.enum(["ready", "binary", "unavailable", "truncated"]).optional(),
   additions: z.number().int().nonnegative().optional(),
   deletions: z.number().int().nonnegative().optional(),
 });
@@ -614,82 +710,92 @@ export type GraftSnapshotQuery = z.infer<typeof GraftSnapshotQuerySchema>;
 // Commands (client → host mutations / reads)
 // ---------------------------------------------------------------------------
 
-export const GraftMobileCommandSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("project.list"),
-  }),
-  z.object({
-    type: z.literal("thread.list"),
-    projectId: z.string().min(1).optional(),
-    query: z.string().max(200).optional(),
-  }),
-  z.object({
-    type: z.literal("thread.open"),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("thread.create"),
-    projectId: z.string().min(1),
-    title: z.string().min(1).max(200).optional(),
-    mode: GraftThreadModeSchema.optional(),
-    modelId: z.string().min(1).optional(),
-    providerId: z.string().min(1).optional(),
-    approvalPolicy: z.string().min(1).max(40).optional(),
-  }),
-  z.object({
-    type: z.literal("thread.set_model"),
-    threadId: z.string().min(1),
-    modelId: z.string().min(1),
-    providerId: z.string().min(1).optional(),
-  }),
-  z.object({
-    type: z.literal("thread.set_approval"),
-    threadId: z.string().min(1),
-    approvalPolicy: z.string().min(1).max(40),
-  }),
-  z.object({
-    type: z.literal("models.list"),
-  }),
-  z.object({
-    type: z.literal("turn.start"),
-    threadId: z.string().min(1),
-    text: z.string().min(1).max(100_000),
-    /** Reasoning effort for this turn; host default when omitted. */
-    effort: z.string().min(1).max(40).optional(),
-  }),
-  z.object({
-    type: z.literal("turn.cancel"),
-    runId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("turn.steer"),
-    runId: z.string().min(1),
-    text: z.string().min(1).max(100_000),
-  }),
-  z.object({
-    type: z.literal("approval.resolve"),
-    approvalId: z.string().min(1),
-    decision: GraftApprovalDecisionSchema,
-  }),
-  z.object({
-    type: z.literal("question.resolve"),
-    questionId: z.string().min(1),
-    optionId: z.string().min(1).optional(),
-    text: z.string().max(10_000).optional(),
-  }),
-  z.object({
-    type: z.literal("diff.get"),
-    diffId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("cursor.replay"),
-    afterCursor: GraftRemoteCursorSchema,
-  }),
-  z.object({
-    type: z.literal("snapshot.get"),
-    threadId: z.string().min(1).optional(),
-  }),
-]);
+export const GraftMobileCommandSchema = z
+  .discriminatedUnion("type", [
+    z.object({
+      type: z.literal("project.list"),
+    }),
+    z.object({
+      type: z.literal("thread.list"),
+      projectId: z.string().min(1).optional(),
+      query: z.string().max(200).optional(),
+    }),
+    z.object({
+      type: z.literal("thread.open"),
+      threadId: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal("thread.create"),
+      projectId: z.string().min(1),
+      title: z.string().min(1).max(200).optional(),
+      mode: GraftThreadModeSchema.optional(),
+      modelId: z.string().min(1).optional(),
+      providerId: z.string().min(1).optional(),
+      approvalPolicy: z.string().min(1).max(40).optional(),
+    }),
+    z.object({
+      type: z.literal("thread.set_model"),
+      threadId: z.string().min(1),
+      modelId: z.string().min(1),
+      providerId: z.string().min(1).optional(),
+    }),
+    z.object({
+      type: z.literal("thread.set_approval"),
+      threadId: z.string().min(1),
+      approvalPolicy: z.string().min(1).max(40),
+    }),
+    z.object({
+      type: z.literal("models.list"),
+    }),
+    z.object({
+      type: z.literal("turn.start"),
+      threadId: z.string().min(1),
+      text: z.string().max(100_000),
+      attachments: z.array(GraftAttachmentSchema).max(GRAFT_MOBILE_MAX_ATTACHMENTS).optional(),
+      interactionMode: GraftInteractionModeSchema.optional(),
+      fastMode: z.boolean().optional(),
+      /** Reasoning effort for this turn; host default when omitted. */
+      effort: z.string().min(1).max(40).optional(),
+    }),
+    z.object({
+      type: z.literal("turn.cancel"),
+      runId: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal("turn.steer"),
+      runId: z.string().min(1),
+      text: z.string().min(1).max(100_000),
+    }),
+    z.object({
+      type: z.literal("approval.resolve"),
+      approvalId: z.string().min(1),
+      decision: GraftApprovalDecisionSchema,
+    }),
+    z.object({
+      type: z.literal("question.resolve"),
+      questionId: z.string().min(1),
+      optionId: z.string().min(1).optional(),
+      text: z.string().max(10_000).optional(),
+    }),
+    z.object({
+      type: z.literal("diff.get"),
+      diffId: z.string().min(1),
+      filePath: z.string().min(1).optional(),
+    }),
+    z.object({
+      type: z.literal("cursor.replay"),
+      afterCursor: GraftRemoteCursorSchema,
+    }),
+    z.object({
+      type: z.literal("snapshot.get"),
+      threadId: z.string().min(1).optional(),
+    }),
+  ])
+  .refine(
+    (command) =>
+      command.type !== "turn.start" || Boolean(command.text.trim() || command.attachments?.length),
+    { message: "A message or attachment is required." },
+  );
 export type GraftMobileCommand = z.infer<typeof GraftMobileCommandSchema>;
 
 export const GraftMobileCommandResultSchema = z.discriminatedUnion("type", [

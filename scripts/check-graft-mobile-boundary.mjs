@@ -37,7 +37,10 @@ async function assertNoGraftContractImports(root, label) {
   const violations = [];
   for (const path of await sourceFiles(root)) {
     const contents = await readFile(path, "utf8");
-    if (contents.includes("@graft/contracts") || contents.includes("@graft/shared")) {
+    // Shared disclosure timing is UI-only; mobile still cannot import host
+    // contracts or other shared runtime modules outside the versioned protocol.
+    const protocolImports = contents.replaceAll(/["']@graft\/shared\/disclosureMotion["']/gu, '""');
+    if (protocolImports.includes("@graft/contracts") || protocolImports.includes("@graft/shared")) {
       violations.push(path.slice(repositoryRoot.length + 1));
     }
   }
@@ -58,9 +61,8 @@ const androidPackage = JSON.parse(await readFile(join(androidRoot, "package.json
 if (androidPackage.dependencies?.["@graft/mobile-contract"] !== "workspace:*") {
   throw new Error("Android must depend on @graft/mobile-contract via workspace:*");
 }
-if (androidPackage.dependencies?.["@graft/shared"] !== undefined) {
-  throw new Error("Android still depends on the legacy @graft/shared package");
-}
+// The shared package supplies disclosure timing only. The source import check
+// below rejects its host/runtime modules and direct host contract access.
 
 await Promise.all([
   assertNoGraftContractImports(androidRoot, "Android"),

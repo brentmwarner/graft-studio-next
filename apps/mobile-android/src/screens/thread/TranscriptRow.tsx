@@ -1,7 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import type { GraftTimelineEvent } from "@graft/mobile-contract";
 import { memo, useMemo, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
 
 import { ActivityCard } from "../../components/ActivityCard";
 import {
@@ -11,7 +11,7 @@ import {
 } from "../../state/mobileViewModels";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ReasoningBlock } from "./ReasoningBlock";
-import { ROW_ENTER, ToolActivityStrip, ToolRow } from "./ToolActivity";
+import { ToolActivityStrip, ToolRow } from "./ToolActivity";
 import { StreamingMarkdownMessage } from "./StreamingMarkdownMessage";
 
 const NO_ITEMS: readonly TranscriptItem[] = [];
@@ -59,29 +59,43 @@ export const TranscriptRow = memo(function TranscriptRow({
       return (
         <View style={styles.userRow}>
           <View style={[styles.userBubble, { backgroundColor: palette.bubble }]}>
-            <Text selectable style={[styles.userText, { color: palette.foreground }]}>
-              {item.text}
-            </Text>
+            {item.attachments?.map((attachment) => (
+              <View key={attachment.id} style={styles.attachment}>
+                <Ionicons
+                  name={attachment.type === "image" ? "image-outline" : "document-outline"}
+                  size={18}
+                  color={palette.foregroundMuted}
+                />
+                <Text
+                  numberOfLines={2}
+                  style={[styles.attachmentName, { color: palette.foreground }]}
+                >
+                  {attachment.name}
+                </Text>
+              </View>
+            ))}
+            {item.text ? (
+              <Text selectable style={[styles.userText, { color: palette.foreground }]}>
+                {item.text}
+              </Text>
+            ) : null}
           </View>
         </View>
       );
     case "assistant":
       return (
-        <Animated.View
-          entering={item.streaming ? ROW_ENTER : undefined}
-          style={styles.assistantRow}
-        >
-          <ReasoningBlock reasoning={item.reasoning} streaming={item.streaming && !item.text} />
+        <View style={styles.assistantRow}>
+          <ReasoningBlock reasoning={item.reasoning} />
           {item.text ? (
             <StreamingMarkdownMessage content={item.text} streaming={item.streaming} />
           ) : null}
-        </Animated.View>
+        </View>
       );
     case "tool":
       return (
-        <Animated.View entering={item.running ? ROW_ENTER : undefined}>
+        <View>
           <ToolRow item={item} />
-        </Animated.View>
+        </View>
       );
     case "toolGroup":
       return <ToolActivityStrip item={item} />;
@@ -106,6 +120,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 11,
   },
+  attachment: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  attachmentName: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   userText: { fontSize: 16, lineHeight: 22 },
   assistantRow: { alignItems: "flex-start", width: "100%" },
   centeredNote: {

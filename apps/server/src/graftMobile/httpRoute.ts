@@ -14,7 +14,7 @@ import {
   type GraftRemoteEndpointKind,
   type GraftRemoteError,
 } from "@graft/mobile-contract";
-import { DateTime, Effect, FileSystem, Layer, Queue, Semaphore, Stream } from "effect";
+import { DateTime, Effect, FileSystem, Layer, Option, Queue, Semaphore, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { makeEffectAuthRequest } from "../auth/effectHttp";
@@ -29,6 +29,7 @@ import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
+import { attachmentPrincipalForSession } from "../managedAttachmentPrincipal";
 import { isLoopbackHost, getBoundListenPort, mobilePairingBaseUrl } from "../startupAccess";
 import {
   authenticateDesktopOwner,
@@ -40,10 +41,15 @@ import {
   claimMobileCommand,
   executeMobileCommand,
   loadMobileSnapshot,
+  loadMobileUsage,
   makeGraftMobileGatewayState,
 } from "./gateway";
 import { getMobileLanGatewayPort, mobileLanGatewayAdvertisesIpv6 } from "./lanGateway";
-import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  makeGraftMobileLiveEventState,
+  seedGraftMobileLiveEventState,
+  toMobileLiveEvent,
+} from "./liveEvents";
 import {
   discoverNetworkEndpoints,
   preferredPairingEndpoint,
@@ -308,6 +314,30 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
       return HttpServerResponse.jsonUnsafe(yield* loadMobileSnapshot(threadId));
     }
 
+    if (request.method === "GET" && url.pathname === "/v1/usage") {
+      yield* serverAuth.authenticateHttpRequest(makeEffectAuthRequest(request));
+      const threadId = url.searchParams.get("threadId")?.trim();
+      if (!threadId || threadId.length > 512) {
+        return errorResponse(remoteError("validation_failed", "A thread ID is required."), 400);
+      }
+      return yield* loadMobileUsage(threadId).pipe(
+        Effect.map((usage) =>
+          HttpServerResponse.jsonUnsafe(usage, { headers: { "cache-control": "no-store" } }),
+        ),
+        Effect.catch((error) =>
+          Effect.succeed(
+            errorResponse(
+              remoteError(
+                error instanceof GraftMobileCommandError ? error.code : "internal",
+                "Could not load thread usage.",
+              ),
+              error instanceof GraftMobileCommandError && error.code === "not_found" ? 404 : 500,
+            ),
+          ),
+        ),
+      );
+    }
+
     if (url.pathname === "/v1/pairing-link") {
       const corsHeaders = graftOwnerCorsHeaders({ request, url, config });
       if (corsHeaders === null) {
@@ -449,6 +479,7 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
     const sessions = yield* SessionCredentialService;
     const environment = yield* ServerEnvironment;
     const engine = yield* OrchestrationEngineService;
+    const query = yield* ProjectionSnapshotQuery;
     const authenticated = yield* serverAuth.authenticateWebSocketUpgrade(
       makeEffectAuthRequest(request),
     );
@@ -471,17 +502,40 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
 
         const domainEvents = yield* engine.subscribeDomainEvents;
         yield* domainEvents.pipe(
-          Stream.runForEach((event) => {
-            if (!welcomed) return Effect.void;
-            const mobileEvent = toMobileLiveEvent(liveState, event);
-            return mobileEvent
-              ? send({ envelope: "event", event: mobileEvent })
-              : send({
-                  envelope: "snapshot_required",
-                  reason: "resync",
-                  message: "Workspace state changed.",
-                });
-          }),
+          Stream.runForEach((event) =>
+            Effect.gen(function* () {
+              if (!welcomed) return;
+              if (
+                event.type === "thread.message-sent" &&
+                event.payload.role === "assistant" &&
+                !liveState.snapshotCursorByThreadId.has(event.payload.threadId)
+              ) {
+                const snapshot = yield* query
+                  .getThreadDetailSnapshotById(event.payload.threadId)
+                  .pipe(Effect.catch(() => Effect.succeed(Option.none())));
+                if (Option.isNone(snapshot)) {
+                  yield* send({
+                    envelope: "snapshot_required",
+                    reason: "resync",
+                    message: "Refreshing the conversation.",
+                  });
+                  return;
+                }
+                // Seed cumulative text and its cursor together. If the snapshot
+                // already covers this frame, request a refresh and keep later
+                // deltas attached to the full message from the snapshot.
+                seedGraftMobileLiveEventState(liveState, snapshot.value);
+              }
+              const mobileEvent = toMobileLiveEvent(liveState, event);
+              yield* mobileEvent
+                ? send({ envelope: "event", event: mobileEvent })
+                : send({
+                    envelope: "snapshot_required",
+                    reason: "resync",
+                    message: "Workspace state changed.",
+                  });
+            }),
+          ),
           Effect.forkScoped,
         );
 
@@ -535,7 +589,9 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
 
             const claimed = claimMobileCommand(gatewayState, message.commandId);
             if (claimed.kind === "reserved") {
-              yield* executeMobileCommand(gatewayState, message.commandId, message.command).pipe(
+              yield* executeMobileCommand(gatewayState, message.commandId, message.command, {
+                attachmentPrincipal: attachmentPrincipalForSession(authenticated.sessionId),
+              }).pipe(
                 Effect.flatMap((result) =>
                   engine.getEventHighWaterSequence.pipe(
                     Effect.map(

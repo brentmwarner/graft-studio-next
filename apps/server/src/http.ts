@@ -1,6 +1,7 @@
 import nodePath from "node:path";
 
 import Mime from "@effect/platform-node/Mime";
+import { GRAFT_ATTACHMENT_UPLOAD_PATH, GRAFT_ATTACHMENT_CANCEL_PATH } from "@graft/mobile-contract";
 import {
   AuthBootstrapInput,
   AuthCreatePairingCredentialInput,
@@ -872,7 +873,10 @@ const binaryUploadEffectHandler = Effect.gen(function* () {
     ? LOCAL_LOOPBACK_ATTACHMENT_PRINCIPAL
     : attachmentPrincipalForSession((yield* requireAuthenticatedMutationRequest).sessionId);
 
-  if (url.pathname === ATTACHMENT_UPLOAD_ROUTE_PATH) {
+  if (
+    url.pathname === ATTACHMENT_UPLOAD_ROUTE_PATH ||
+    url.pathname === GRAFT_ATTACHMENT_UPLOAD_PATH
+  ) {
     const type = url.searchParams.get("type");
     const threadId = url.searchParams.get("threadId")?.trim() ?? "";
     const name = url.searchParams.get("name") ?? "";
@@ -932,7 +936,10 @@ const binaryUploadEffectHandler = Effect.gen(function* () {
     return HttpServerResponse.jsonUnsafe(attachment, { status: 201, headers: corsHeaders });
   }
 
-  if (url.pathname === ATTACHMENT_CANCEL_ROUTE_PATH) {
+  if (
+    url.pathname === ATTACHMENT_CANCEL_ROUTE_PATH ||
+    url.pathname === GRAFT_ATTACHMENT_CANCEL_PATH
+  ) {
     const payload = yield* readEffectJson(request, "Invalid attachment cancellation payload.");
     const attachmentId =
       payload && typeof payload === "object" && "attachmentId" in payload
@@ -1044,12 +1051,12 @@ const binaryUploadEffectHandler = Effect.gen(function* () {
   ),
 );
 
-export const binaryUploadEffectRouteLayer = Layer.merge(
+export const binaryUploadEffectRouteLayer = Layer.mergeAll(
   HttpRouter.add("*", ATTACHMENT_UPLOAD_ROUTE_PATH, binaryUploadEffectHandler),
-  Layer.merge(
-    HttpRouter.add("*", ATTACHMENT_CANCEL_ROUTE_PATH, binaryUploadEffectHandler),
-    HttpRouter.add("*", VOICE_TRANSCRIPTION_UPLOAD_ROUTE_PATH, binaryUploadEffectHandler),
-  ),
+  HttpRouter.add("*", ATTACHMENT_CANCEL_ROUTE_PATH, binaryUploadEffectHandler),
+  HttpRouter.add("*", GRAFT_ATTACHMENT_UPLOAD_PATH, binaryUploadEffectHandler),
+  HttpRouter.add("*", GRAFT_ATTACHMENT_CANCEL_PATH, binaryUploadEffectHandler),
+  HttpRouter.add("*", VOICE_TRANSCRIPTION_UPLOAD_ROUTE_PATH, binaryUploadEffectHandler),
 );
 
 export const attachmentsEffectRouteLayer = HttpRouter.add(

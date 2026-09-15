@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// The scrolling conversation surface. Pins to the bottom while streaming;
-/// new items animate in.
+/// Follows live response text until the user scrolls away.
 struct TranscriptView: View {
     let chat: ChatModel
     /// Edge-based scroll control. Opens at the bottom and re-pins by EDGE (not by
@@ -24,13 +23,10 @@ struct TranscriptView: View {
     #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let nearBottomDistance: CGFloat = 56
-    private static let awayDistance: CGFloat = 180
+    private static let nearBottomDistance: CGFloat = 24
+    private static let awayDistance: CGFloat = 64
 
-    /// Live working steps — tool calls AND the reasoning-only segments
-    /// interleaved between them — stay in one activity timeline. Once those
-    /// steps settle and an assistant reply follows, the activity folds into
-    /// that reply's reasoning/work block instead of keeping a separate row.
+    /// Group work independently of replies so completion never reparents a row.
     private var groupingSignature: TranscriptGroupingSignature {
         TranscriptGroupingSignature(
             itemCount: chat.items.count,
@@ -71,37 +67,12 @@ struct TranscriptView: View {
                 continue
             }
 
-            if Self.canFoldPendingActivity(pendingActivity, into: item) {
-                result.append(TranscriptRowGroup(
-                    id: item.id,
-                    items: [item],
-                    showInlineReasoning: true,
-                    foldedActivityItems: pendingActivity
-                ))
-                pendingActivity.removeAll(keepingCapacity: true)
-            } else {
-                flushPendingActivity()
-                result.append(TranscriptRowGroup(id: item.id, items: [item]))
-            }
+            // Work keeps its own stable row when an answer starts or settles.
+            flushPendingActivity()
+            result.append(TranscriptRowGroup(id: item.id, items: [item]))
         }
         flushPendingActivity()
         return result
-    }
-
-    private static func canFoldPendingActivity(_ activity: [TranscriptItem], into item: TranscriptItem) -> Bool {
-        guard item.kind == .assistant, !activity.isEmpty else { return false }
-        return activity.allSatisfy(Self.isSettledActivityItem)
-    }
-
-    private static func isSettledActivityItem(_ item: TranscriptItem) -> Bool {
-        switch item.kind {
-        case .tool:
-            return item.toolStatus != .running
-        case .assistant:
-            return !item.isStreaming
-        case .agents, .user, .system, .error:
-            return false
-        }
     }
 
     #if DEBUG
@@ -139,7 +110,7 @@ struct TranscriptView: View {
                         .padding(.top, 60)
                 }
                 ForEach(displayedGroupedRows) { row in
-                    Group {
+                    VStack(alignment: .leading, spacing: 0) {
                         if row.isToolGroup {
                             ToolActivityStrip(items: row.items)
                         } else {
@@ -150,11 +121,9 @@ struct TranscriptView: View {
                             )
                         }
                     }
-                    .transition(rowTransition)
                 }
                 StreamingFooter(chat: chat)
             }
-            .animation(rowAnimation, value: chat.items.count)
             .padding(.horizontal, 16)
             .padding(.top, 10)
             // Tunes the pinned tail: the newest row sits this far + the
@@ -242,7 +211,7 @@ struct TranscriptView: View {
             // changes (media decode, link previews, generated cards), but route
             // it through the coalescer so the geometry update cannot recursively
             // request layout work on every intermediate height tick.
-            guard new > old + 1, !isAwayFromBottom, !userInteracting else { return }
+            guard new > old + 1, hasLiveText, !isAwayFromBottom, !userInteracting else { return }
             requestFollowScroll()
         }
         // The jump affordance renders in the bottom chrome (ThreadView), on the
@@ -276,12 +245,6 @@ struct TranscriptView: View {
             // The user's own send: jump to the bottom and follow the new turn.
             jumpToBottom()
         }
-        .onChange(of: chat.isStreaming) { _, streaming in
-            // A turn becoming active WITHOUT a send — reconcile() resuming a live
-            // turn after a backgrounded disconnect bumps no sendTick — must not
-            // inherit a stale away-latch from before the drop.
-            if streaming { isAwayFromBottom = false }
-        }
         .onAppear {
             refreshGroupedRows(force: true)
         }
@@ -289,10 +252,7 @@ struct TranscriptView: View {
             refreshGroupedRows()
         }
         .onChange(of: followSignal) {
-            // Follow the latest content while the user is at the bottom.
-            // Streaming changes are not limited to assistant text: tool results,
-            // screenshot rows, status text, and delegated-agent cards can all
-            // change height in place without inserting a new transcript row.
+            // Only user/assistant message changes request follow.
             requestFollowScroll()
         }
         .onDisappear {
@@ -335,54 +295,21 @@ struct TranscriptView: View {
     /// made one streamed token invalidate this whole scroll container and queue a
     /// scroll. Track the active tail instead, and bucket text growth so we follow
     /// line-height changes without issuing a scroll request for every token.
-    private var followSignal: TranscriptFollowSignal {
-        guard let tail = chat.items.last(where: { !$0.isSessionNotice }) else {
-            return TranscriptFollowSignal(
-                isLoadingHistory: chat.isLoadingHistory,
-                isStreaming: chat.isStreaming,
-                statusTextBucket: textBucket(chat.statusText?.count ?? 0),
-                errorTextBucket: textBucket(chat.lastError?.count ?? 0),
-                itemCount: chat.items.count
-            )
-        }
-
-        let activeRun = tail.agentRuns.last(where: { $0.status == .working || $0.status == .queued })
-            ?? tail.agentRuns.last
-        return TranscriptFollowSignal(
-            isLoadingHistory: chat.isLoadingHistory,
-            isStreaming: chat.isStreaming,
-            statusTextBucket: textBucket(chat.statusText?.count ?? 0),
-            errorTextBucket: textBucket(chat.lastError?.count ?? 0),
-            itemCount: chat.items.count,
-            tailID: tail.id,
-            tailKind: kindSignature(tail.kind),
-            tailTextBucket: textBucket(tail.text.count),
-            tailReasoningBucket: textBucket(tail.reasoning.count),
-            tailMediaCount: tail.images.count + tail.videos.count + tail.linkPreviews.count,
-            tailStreaming: tail.isStreaming,
-            tailActivityItem: tail.isActivityTimelineItem,
-            tailToolStatus: Self.toolStatusSignature(tail.toolStatus),
-            tailToolOutputBucket: textBucket(
-                tail.toolContext.count + tail.toolSummary.count + tail.toolResultText.count
-            ),
-            tailAgentCount: tail.agentRuns.count,
-            tailAgentsSettled: tail.agentsSettled,
-            activeAgentID: activeRun?.id,
-            activeAgentStatus: activeRun.map { agentStatusSignature($0.status) } ?? -1,
-            activeAgentActivityCount: activeRun?.activity.count ?? 0,
-            activeAgentSummaryBucket: textBucket(activeRun?.summary.count ?? 0)
-        )
+    private var hasLiveText: Bool {
+        guard chat.isStreaming, !chat.needsInteraction,
+              chat.app?.gateway.state == .connected,
+              let tail = chat.items.last else { return false }
+        return tail.kind == .assistant && tail.isStreaming && !tail.text.isEmpty
     }
 
-    private func kindSignature(_ kind: TranscriptItem.Kind) -> Int {
-        switch kind {
-        case .user: 0
-        case .assistant: 1
-        case .tool: 2
-        case .agents: 3
-        case .system: 4
-        case .error: 5
-        }
+    private var followSignal: TranscriptFollowSignal {
+        let messages = chat.items.filter { $0.kind == .user || ($0.kind == .assistant && !$0.text.isEmpty) }
+        return TranscriptFollowSignal(
+            isLoadingHistory: chat.isLoadingHistory,
+            itemCount: messages.count,
+            tailID: messages.last?.id,
+            tailTextBucket: messages.last.map { textBucket($0.text.count) } ?? 0
+        )
     }
 
     private func textBucket(_ count: Int) -> Int {
@@ -397,49 +324,14 @@ struct TranscriptView: View {
         }
     }
 
-    private func agentStatusSignature(_ status: AgentRunStatus) -> Int {
-        switch status {
-        case .queued: 0
-        case .working: 1
-        case .done: 2
-        case .failed: 3
-        }
-    }
 
-    private var rowTransition: AnyTransition {
-        // Opacity only. A `.move(edge: .bottom)` insertion translates the row and
-        // grows content height on a curve — that fights bottom-pinning during
-        // streaming and turns a reconcile's row swap into a slide/flash. A fade
-        // keeps the entrance without moving the geometry the pin tracks.
-        .opacity
-    }
-
-    private var rowAnimation: Animation {
-        reduceMotion ? .linear(duration: 0.12) : .snappy(duration: 0.24)
-    }
 }
 
 private struct TranscriptFollowSignal: Equatable {
     var isLoadingHistory = false
-    var isStreaming = false
-    var statusTextBucket = 0
-    var errorTextBucket = 0
     var itemCount = 0
     var tailID: UUID?
-    var tailKind = -1
     var tailTextBucket = 0
-    var tailReasoningBucket = 0
-    var tailMediaCount = 0
-    var tailStreaming = false
-    var tailActivityItem = false
-    var tailToolStatus = -1
-    var tailToolOutputBucket = 0
-    var tailAgentCount = 0
-    var tailAgentsSettled = false
-    var activeAgentID: String?
-    var activeAgentStatus = -1
-    var activeAgentActivityCount = 0
-    var activeAgentSummaryBucket = 0
 }
 
 private struct TranscriptGroupingSignature: Equatable {
@@ -484,30 +376,33 @@ struct ScrollToBottomButton: View {
     }
 }
 
-/// Persistent turn liveness under the last item: AICSS G4 helix/globe
-/// plus a phrase that starts as "Thinking" and swaps to the current action.
-/// Like desktop, it remains visible until the active turn completes.
+/// One live status, hidden while the answer itself is visible.
 private struct StreamingFooter: View {
     let chat: ChatModel
+    private var status: String? {
+        guard chat.isStreaming else { return nil }
+        if let app = chat.app, app.gateway.state != .connected { return "Reconnecting…" }
+        if chat.needsInteraction { return "Waiting for you" }
+        if let tail = chat.items.last, tail.kind == .assistant, !tail.text.isEmpty { return nil }
+        return LiveStatusPhrase.current(from: chat.items, fallback: chat.statusText)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if chat.isStreaming {
-                LiveStatusLine(phrase: livePhrase)
-                    .transition(.opacity)
+            if let status {
+                HStack(spacing: 10) {
+                    if !chat.needsInteraction, chat.app?.gateway.state == .connected {
+                        RunStatusDotMatrixLoader(size: 18, tint: DS.Color.fgSubtle)
+                    }
+                    Text(status).font(.subheadline).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
             }
             if let error = chat.lastError {
                 Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(.caption).foregroundStyle(.red)
             }
         }
-        .padding(.vertical, 2)
-        .animation(.spring(response: 0.32, dampingFraction: 0.88), value: livePhrase)
+        .frame(minHeight: 24, alignment: .leading)
     }
-
-    private var livePhrase: String {
-        LiveStatusPhrase.current(from: chat.items, fallback: chat.statusText)
-    }
-
 }

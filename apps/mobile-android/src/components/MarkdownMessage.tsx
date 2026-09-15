@@ -3,15 +3,10 @@ import type { ReactNode } from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
 
 import { graftRadius, useGraftPalette } from "../theme/tokens";
+import { markdownBlocks } from "./markdownBlocks";
 
 interface MarkdownMessageProps {
   readonly children: string;
-}
-
-interface MarkdownBlock {
-  readonly kind: "code" | "text";
-  readonly language?: string;
-  readonly value: string;
 }
 
 interface MarkdownTable {
@@ -53,24 +48,6 @@ function tableAt(lines: readonly string[], startIndex: number): MarkdownTable | 
     endIndex = index;
   }
   return { endIndex, headers, rows };
-}
-
-function blocksFor(markdown: string): readonly MarkdownBlock[] {
-  const blocks: MarkdownBlock[] = [];
-  const expression = /```([^\n]*)\n?([\s\S]*?)```/g;
-  let cursor = 0;
-  for (const match of markdown.matchAll(expression)) {
-    const index = match.index ?? cursor;
-    if (index > cursor) blocks.push({ kind: "text", value: markdown.slice(cursor, index) });
-    blocks.push({
-      kind: "code",
-      language: match[1]?.trim() || undefined,
-      value: match[2]?.replace(/\n$/, "") ?? "",
-    });
-    cursor = index + match[0].length;
-  }
-  if (cursor < markdown.length) blocks.push({ kind: "text", value: markdown.slice(cursor) });
-  return blocks;
 }
 
 function inlineNodes(text: string, accent: string, codeBackground: string): readonly ReactNode[] {
@@ -119,7 +96,7 @@ function inlineNodes(text: string, accent: string, codeBackground: string): read
 /// threads unusable.
 export const MarkdownMessage = memo(function MarkdownMessage({ children }: MarkdownMessageProps) {
   const palette = useGraftPalette();
-  const blocks = useMemo(() => blocksFor(children), [children]);
+  const blocks = useMemo(() => markdownBlocks(children), [children]);
 
   return (
     <View style={styles.root}>
@@ -285,7 +262,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
 });
 
 const styles = StyleSheet.create({
-  root: { gap: 3 },
+  root: { gap: 3, width: "100%" },
   text: { fontSize: 16, lineHeight: 23 },
   bold: { fontWeight: "700" },
   heading: {

@@ -32,7 +32,7 @@ final class InboxGroupingTests: XCTestCase {
                     status: "idle"
                 ),
                 ThreadInfo(
-                    id: "t3",
+                    id: "t9",
                     projectId: "p2",
                     title: "Fix notifications",
                     updatedAt: 3,

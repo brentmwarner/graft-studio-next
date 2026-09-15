@@ -2,16 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import type {
   GraftApprovalDecision,
   GraftDiffSummary,
+  GraftInteractionMode,
   GraftEnvironmentSnapshot,
   GraftModelOption,
   GraftQuestionRequest,
   GraftThreadSummary,
+  GraftThreadUsage,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -24,30 +25,39 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
+import { AnchoredMenu, MenuItem } from "../components/AnchoredMenu";
+import { UsageMenu } from "./thread/UsageMenu";
 import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { LiveStatusLine } from "../components/LiveStatusLine";
 import { PressScale } from "../components/PressScale";
-import { livePhraseFromItems, shouldShowStreamingFooter } from "../state/liveStatus";
+import { transcriptLiveStatus } from "../state/liveStatus";
 import { useGraftPalette } from "../theme/tokens";
+import type { ComposerSendOptions } from "./thread/composerAttachmentSend";
+import { useComposerAttachments } from "./thread/useComposerAttachments";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
-import { ComposerConfigMenu } from "./thread/ComposerConfigMenu";
 import { ContextProgressRing } from "./thread/ContextProgressRing";
-import { contextUsageAccessibilityLabel, contextUsageDetail } from "./thread/contextUsage";
+import { contextUsageAccessibilityLabel } from "./thread/contextUsage";
 import { DiffSheet } from "./thread/DiffSheet";
 import { ApprovalPrompt, QuestionPrompt } from "./thread/InteractionPrompts";
-import { ApprovalPickerSheet, ComposerActionsSheet, ModelPickerSheet } from "./thread/ThreadSheets";
 import { renderTranscriptRow, transcriptRowKey } from "./thread/TranscriptRow";
 import { useThreadModel } from "./thread/useThreadModel";
+import { useVoiceInput } from "./thread/useVoiceInput";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 import { useTranscriptFollow } from "./thread/useTranscriptFollow";
+
+const THREAD_HEADER_HEIGHT = 44;
 
 interface ThreadScreenProps {
   readonly availableModels: readonly GraftModelOption[];
   readonly connectionState: GatewayConnectionState;
   readonly diffSummary?: GraftDiffSummary;
+  readonly onLoadDiffFile: (
+    threadId: string,
+    path: string,
+  ) => Promise<GraftDiffSummary | undefined>;
   readonly error?: string;
   readonly isRefreshing: boolean;
   readonly hostLabel: string;
@@ -56,6 +66,7 @@ interface ThreadScreenProps {
   readonly onBack: () => void;
   readonly onCancel: (runId: string) => Promise<boolean>;
   readonly onLoadDiff: (threadId: string, diffId?: string) => Promise<void>;
+  readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
   readonly onLoadModels: () => Promise<void>;
   readonly onRefresh: () => Promise<void>;
   readonly onResolveApproval: (
@@ -66,7 +77,12 @@ interface ThreadScreenProps {
     question: Pick<GraftQuestionRequest, "id">,
     answer: { readonly optionId?: string; readonly text?: string },
   ) => Promise<boolean>;
-  readonly onSend: (threadId: string, text: string, effort?: string) => Promise<boolean>;
+  readonly onSend: (
+    threadId: string,
+    text: string,
+    effort?: string,
+    options?: ComposerSendOptions,
+  ) => Promise<boolean>;
   readonly onSetApproval: (threadId: string, policy: string) => Promise<boolean>;
   readonly onSetModel: (threadId: string, model: GraftModelOption) => Promise<boolean>;
   readonly pendingSend?: boolean;
@@ -87,7 +103,9 @@ export function ThreadScreen({
   onBack,
   onCancel,
   onLoadDiff,
+  onLoadDiffFile,
   onLoadModels,
+  onLoadUsage,
   onRefresh,
   onResolveApproval,
   onResolveQuestion,
@@ -101,34 +119,66 @@ export function ThreadScreen({
 }: ThreadScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
+  const headerTop = insets.top + 12;
+  const headerBottom = headerTop + THREAD_HEADER_HEIGHT;
   const keyboardVisible = useKeyboardVisibility();
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const dictationSendPending = useRef(false);
+  const sendInFlight = useRef(false);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
-  const [showApprovalSheet, setShowApprovalSheet] = useState(false);
-  const [showActionsSheet, setShowActionsSheet] = useState(false);
   const [showDiffSheet, setShowDiffSheet] = useState(false);
-  const [showIntelligenceMenu, setShowIntelligenceMenu] = useState(false);
-  const [showModelSheet, setShowModelSheet] = useState(false);
+  const closeDiffSheet = useCallback(() => setShowDiffSheet(false), []);
 
   const model = useThreadModel({
     availableModels,
     diffSummary,
     initialEffort,
+    hasPendingSend: isSending || pendingSend,
     liveEvents,
     snapshot,
     thread,
   });
-  const follow = useTranscriptFollow(model.activeRunId);
+  const follow = useTranscriptFollow(
+    thread.id,
+    model.items,
+    Boolean(model.activeRunId) &&
+      connectionState === "connected" &&
+      !model.approval &&
+      !model.question,
+  );
 
+  const attachments = useComposerAttachments(thread.id);
+  const [selectedMode, setSelectedMode] = useState<GraftInteractionMode>();
+  const [selectedFastMode, setSelectedFastMode] = useState<boolean>();
+  const interactionMode = selectedMode ?? model.currentThread.interactionMode ?? "default";
+  const fastMode = Boolean(
+    model.currentModel?.supportsFastMode && (selectedFastMode ?? model.currentThread.fastMode),
+  );
+  const composerFeatures = snapshot?.environment.composerFeatures;
   const isConnected = connectionState === "connected";
-  const canSend = Boolean(draft.trim() && isConnected && !isSending);
+  // Dictation is local to the phone; a permission Activity can temporarily
+  // disconnect the gateway without invalidating the microphone request.
+  const voice = useVoiceInput(
+    thread.id,
+    !isSending && !attachments.isPicking && !model.activeRunId,
+    setDraft,
+  );
+  const canSend = Boolean(
+    (draft.trim() || attachments.attachments.length) &&
+    isConnected &&
+    !isSending &&
+    !attachments.isPicking &&
+    !voice.isActive,
+  );
   const pendingApproval = model.approval;
   const pendingQuestion = model.question;
-  const showLiveStatus = shouldShowStreamingFooter(
-    Boolean(isSending || pendingSend || model.activeRunId),
-  );
-  const livePhrase = livePhraseFromItems(model.items);
+  const liveStatus = transcriptLiveStatus({
+    items: model.items,
+    isWorking: Boolean(isSending || pendingSend || model.activeRunId),
+    isConnected,
+    needsInput: Boolean(pendingApproval || pendingQuestion),
+  });
 
   useEffect(() => {
     void onLoadModels();
@@ -141,15 +191,47 @@ export function ThreadScreen({
     }
   }, [model.latestDiffEvent?.id, onLoadDiff, thread.id]);
 
-  async function send() {
-    const text = draft.trim();
-    if (!text || isSending) return;
+  async function send(message = draft, fromDictation = false) {
+    const text = message.trim();
+    if (
+      (!text && !attachments.attachments.length) ||
+      !isConnected ||
+      sendInFlight.current ||
+      attachments.isPicking ||
+      (voice.isActive && !fromDictation)
+    )
+      return;
+    sendInFlight.current = true;
+    const sendingAttachments = attachments.attachments;
+    const releaseAttachments = attachments.retainForSend();
     setDraft("");
     setIsSending(true);
     follow.pinToBottomForSend();
-    const sent = await onSend(thread.id, text, model.resolvedEffort);
-    setIsSending(false);
-    if (!sent) setDraft(text);
+    let sent = false;
+    try {
+      sent = await onSend(thread.id, text, model.resolvedEffort, {
+        attachments: sendingAttachments,
+        ...(composerFeatures?.interactionModes ? { interactionMode } : {}),
+        ...(composerFeatures?.fastMode ? { fastMode } : {}),
+      });
+      if (sent) attachments.remove(sendingAttachments.map((attachment) => attachment.id));
+    } finally {
+      releaseAttachments();
+      sendInFlight.current = false;
+      setIsSending(false);
+      if (!sent) setDraft(text);
+    }
+  }
+
+  async function sendDictation() {
+    if (dictationSendPending.current) return;
+    dictationSendPending.current = true;
+    try {
+      const text = await voice.stop();
+      if (text) await send(text, true);
+    } finally {
+      dictationSendPending.current = false;
+    }
   }
 
   function handleBottomChromeLayout(event: LayoutChangeEvent) {
@@ -170,7 +252,7 @@ export function ThreadScreen({
             // gradient, which is what "the end of the conversation should be
             // readable above the composer" was asking for.
             paddingBottom: Math.max(insets.bottom + 126, bottomChromeHeight + 24),
-            paddingTop: insets.top + 84,
+            paddingTop: headerBottom + 30,
           },
           model.items.length === 0 ? styles.emptyTranscript : null,
         ]}
@@ -185,21 +267,26 @@ export function ThreadScreen({
         onMomentumScrollEnd={follow.handleScrollSettled}
         onScroll={follow.handleScroll}
         onScrollBeginDrag={follow.handleScrollBeginDrag}
-        onScrollEndDrag={follow.handleScrollSettled}
+        onScrollEndDrag={follow.handleScrollEndDrag}
+        onMomentumScrollBegin={follow.handleScrollBeginDrag}
         ref={follow.listRef}
         refreshControl={
           <RefreshControl
             onRefresh={() => void onRefresh()}
-            progressViewOffset={insets.top + 50}
+            progressViewOffset={headerBottom + 8}
             refreshing={isRefreshing}
             tintColor={palette.foregroundSubtle}
           />
         }
-        removeClippedSubviews
+        removeClippedSubviews={false}
         renderItem={renderTranscriptRow}
         scrollEventThrottle={16}
         windowSize={11}
-        ListFooterComponent={showLiveStatus ? <LiveStatusLine phrase={livePhrase} /> : null}
+        ListFooterComponent={
+          <View style={styles.liveStatusSlot}>
+            {liveStatus ? <LiveStatusLine {...liveStatus} /> : null}
+          </View>
+        }
         ListEmptyComponent={
           isRefreshing ? (
             <ActivityIndicator color={palette.foregroundSubtle} />
@@ -211,12 +298,13 @@ export function ThreadScreen({
         }
       />
 
-      <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 92 }]} />
-      <View style={[styles.topBar, { paddingTop: insets.top }]}>
+      <EdgeFade edge="top" style={[styles.topFade, { height: headerBottom + 38 }]} />
+      {/* Preserve the PR14 row's 8 dp centering space around its 44 dp controls. */}
+      <View style={[styles.topBar, { top: headerTop - 8 }]}>
         <CircleIconButton
           accessibilityLabel="Back to projects"
           icon="chevron-back"
-          iconSize={22}
+          iconSize={20}
           onPress={onBack}
         />
         <FloatingSurface style={styles.threadHeader}>
@@ -224,14 +312,14 @@ export function ThreadScreen({
             {thread.title}
           </Text>
           <View style={styles.threadContext}>
-            <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={13} />
+            <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={12} />
             <Text
               numberOfLines={1}
               style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
             >
               {projectName}
             </Text>
-            <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={13} />
+            <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={12} />
             <Text
               numberOfLines={1}
               style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
@@ -241,29 +329,43 @@ export function ThreadScreen({
           </View>
         </FloatingSurface>
         <FloatingSurface style={styles.threadActions}>
-          <PressScale
-            accessibilityLabel={contextUsageAccessibilityLabel(model.currentThread.contextUsage)}
-            onPress={() =>
-              Alert.alert("Context", contextUsageDetail(model.currentThread.contextUsage))
-            }
+          <UsageMenu
+            key={`${thread.id}:${model.currentThread.providerId}`}
+            threadId={thread.id}
+            contextUsage={model.currentThread.contextUsage}
+            onLoadUsage={onLoadUsage}
+            trigger={(open) => (
+              <PressScale
+                accessibilityLabel={contextUsageAccessibilityLabel(
+                  model.currentThread.contextUsage,
+                )}
+                onPress={open}
+              >
+                <View style={styles.headerActionButton}>
+                  <ContextProgressRing palette={palette} usage={model.currentThread.contextUsage} />
+                </View>
+              </PressScale>
+            )}
+          />
+          <AnchoredMenu
+            trigger={(open) => (
+              <PressScale accessibilityLabel="Thread options" onPress={open}>
+                <View style={styles.headerActionButton}>
+                  <Ionicons color={palette.foreground} name="ellipsis-vertical" size={18} />
+                </View>
+              </PressScale>
+            )}
           >
-            <View style={styles.headerActionButton}>
-              <ContextProgressRing palette={palette} usage={model.currentThread.contextUsage} />
-            </View>
-          </PressScale>
-          <PressScale
-            accessibilityLabel="Thread options"
-            onPress={() =>
-              Alert.alert(thread.title, undefined, [
-                { text: "Refresh", onPress: () => void onRefresh() },
-                { text: "Cancel", style: "cancel" },
-              ])
-            }
-          >
-            <View style={styles.headerActionButton}>
-              <Ionicons color={palette.foreground} name="ellipsis-vertical" size={22} />
-            </View>
-          </PressScale>
+            {(close) => (
+              <MenuItem
+                label="Refresh"
+                onPress={() => {
+                  close();
+                  void onRefresh();
+                }}
+              />
+            )}
+          </AnchoredMenu>
         </FloatingSurface>
       </View>
 
@@ -328,6 +430,10 @@ export function ThreadScreen({
           </View>
         ) : null}
         <Composer
+          attachments={attachments.attachments}
+          attachmentError={attachments.error}
+          onRemoveAttachment={(id) => attachments.remove([id])}
+          voice={voice}
           activeRunId={model.activeRunId}
           approvalIsElevated={model.approvalIsElevated}
           availableModels={availableModels}
@@ -345,62 +451,45 @@ export function ThreadScreen({
             void onCancel(runId);
           }}
           onDraftChange={setDraft}
-          onOpenActions={() => setShowActionsSheet(true)}
-          onOpenApproval={() => setShowApprovalSheet(true)}
-          onOpenModel={() => setShowIntelligenceMenu(true)}
+          menuConfig={{
+            extras: {
+              attachmentsEnabled: composerFeatures?.attachments === true,
+              modesEnabled: composerFeatures?.interactionModes === true,
+              fastModeEnabled: composerFeatures?.fastMode === true,
+              interactionMode,
+              fastMode,
+              busy: isSending || attachments.isPicking || voice.isActive,
+              onAttach: (source) => {
+                void attachments.pick(source);
+              },
+              onSelectMode: setSelectedMode,
+              onSelectFastMode: setSelectedFastMode,
+            },
+            currentApproval: model.currentApproval,
+            approvalOptions: model.approvalOptions,
+            currentModel: model.currentModel,
+            models: model.selectableModels,
+            efforts: model.efforts,
+            resolvedEffort: model.resolvedEffort,
+            enabled: isConnected,
+            onSelectApproval: (policy) => onSetApproval(thread.id, policy),
+            onSelectModel: (selected) => {
+              if (model.lockedProviderId && selected.providerId !== model.lockedProviderId)
+                return false;
+              return onSetModel(thread.id, selected);
+            },
+            onSelectEffort: model.setSelectedEffort,
+          }}
           onSend={() => void send()}
+          onSendDictation={() => void sendDictation()}
           resolvedEffort={model.resolvedEffort}
         />
       </View>
 
-      <ApprovalPickerSheet
-        currentApproval={model.currentApproval}
-        onClose={() => setShowApprovalSheet(false)}
-        onSelect={(policy) => {
-          void onSetApproval(thread.id, policy);
-        }}
-        options={model.approvalOptions}
-        visible={showApprovalSheet}
-      />
-
-      <ComposerActionsSheet
-        hasApprovalOptions={model.approvalOptions.length > 0}
-        onClose={() => setShowActionsSheet(false)}
-        onOpenApproval={() => setShowApprovalSheet(true)}
-        onOpenModel={() => setShowIntelligenceMenu(true)}
-        visible={showActionsSheet}
-      />
-
-      <ComposerConfigMenu
-        currentModel={model.currentModel}
-        efforts={model.efforts}
-        onClose={() => setShowIntelligenceMenu(false)}
-        onOpenModel={() => {
-          setShowIntelligenceMenu(false);
-          setShowModelSheet(true);
-        }}
-        onSelectEffort={model.setSelectedEffort}
-        onSpeedPress={() => Alert.alert("Speed", "Normal is currently the supported host speed.")}
-        resolvedEffort={model.resolvedEffort}
-        visible={showIntelligenceMenu}
-      />
-
-      <ModelPickerSheet
-        currentModel={model.currentModel}
-        efforts={model.efforts}
-        models={availableModels}
-        onClose={() => setShowModelSheet(false)}
-        onSelectEffort={model.setSelectedEffort}
-        onSelectModel={(selected) => {
-          void onSetModel(thread.id, selected);
-        }}
-        resolvedEffort={model.resolvedEffort}
-        visible={showModelSheet}
-      />
-
       <DiffSheet
         diff={diffSummary}
-        onClose={() => setShowDiffSheet(false)}
+        onLoadFile={onLoadDiffFile}
+        onClose={closeDiffSheet}
         visible={showDiffSheet}
       />
     </KeyboardAvoidingView>
@@ -409,6 +498,7 @@ export function ThreadScreen({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  liveStatusSlot: { minHeight: 24 },
   transcript: { flexGrow: 1, gap: 16, paddingHorizontal: 16 },
   emptyTranscript: { justifyContent: "center" },
   emptyText: { fontSize: 14, textAlign: "center" },
@@ -416,7 +506,7 @@ const styles = StyleSheet.create({
   topBar: {
     alignItems: "center",
     flexDirection: "row",
-    height: 70,
+    height: THREAD_HEADER_HEIGHT + 16,
     gap: 8,
     // Matches `bottomChrome`, so the floating circles share an edge with the
     // composer below them.
@@ -426,29 +516,30 @@ const styles = StyleSheet.create({
     top: 0,
   },
   threadHeading: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
+    lineHeight: 18,
   },
   threadHeader: {
     flex: 1,
-    height: 54,
+    height: THREAD_HEADER_HEIGHT,
     justifyContent: "center",
     maxWidth: 300,
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
   },
   threadContext: { alignItems: "center", flexDirection: "row", gap: 4 },
-  threadContextText: { flexShrink: 1, fontSize: 11 },
+  threadContextText: { flexShrink: 1, fontSize: 11, lineHeight: 14 },
   threadActions: {
     alignItems: "center",
     flexDirection: "row",
-    height: 54,
+    height: THREAD_HEADER_HEIGHT,
     overflow: "hidden",
   },
   headerActionButton: {
     alignItems: "center",
-    height: 54,
+    height: THREAD_HEADER_HEIGHT,
     justifyContent: "center",
-    width: 42,
+    width: THREAD_HEADER_HEIGHT,
   },
   bottomFade: { bottom: 0 },
   bottomChrome: {

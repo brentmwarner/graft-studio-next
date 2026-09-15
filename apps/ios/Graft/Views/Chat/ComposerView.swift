@@ -43,7 +43,6 @@ struct ComposerView: View {
     // and reads would always be false. UIKit's delegate callbacks keep this in
     // sync instead (begin/end editing in PasteAwareComposerTextView).
     @State private var focused: Bool = false
-    @State private var showModelSheet = false
 
     /// Shared collapsed height for the attach button and the text capsule so
     /// the two read as one balanced row. `@ScaledMetric` keeps them locked
@@ -220,12 +219,6 @@ struct ComposerView: View {
                 Task { await loadAttachment(from: image) }
             }
             .ignoresSafeArea()
-        }
-        .sheet(isPresented: $showModelSheet) {
-            ModelPickerSheet(chat: chat)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(DS.Radius.xl)
         }
         .onChange(of: photoItems) {
             guard !photoItems.isEmpty else { return }
@@ -433,11 +426,45 @@ struct ComposerView: View {
         app.currentModel(forThread: chat.threadId)
     }
 
+    private var selectableModels: [ModelOption] {
+        guard let providerId = app.lockedProviderId(forThread: chat.threadId) else {
+            return app.availableModels
+        }
+        return app.availableModels.filter { $0.providerId == providerId }
+    }
+
     /// Combined model + effort readout, Codex-style: "Opus 4.8 High" with the
-    /// model in ink and the effort in a muted step. Opens the picker sheet.
+    /// model in ink and the effort in a muted step. Opens an anchored native menu.
     private var modelEffortTrigger: some View {
-        Button {
-            showModelSheet = true
+        Menu {
+            Menu("Model") {
+                ForEach(selectableModels, id: \.selectionID) { model in
+                    Button {
+                        Task { _ = await app.setThreadModel(threadId: chat.threadId, model: model) }
+                    } label: {
+                        if model.id == currentModel?.id && model.providerId == currentModel?.providerId {
+                            Label(model.label, systemImage: "checkmark")
+                        } else {
+                            Text(model.label)
+                        }
+                    }
+                }
+            }
+            if let efforts = currentModel?.reasoningEfforts, !efforts.isEmpty {
+                Section("Reasoning effort") {
+                    ForEach(efforts, id: \.self) { effort in
+                        Button {
+                            app.setThreadEffort(threadId: chat.threadId, effort: effort)
+                        } label: {
+                            if effort == app.resolvedEffort(forThread: chat.threadId) {
+                                Label(Self.effortDisplayName(effort), systemImage: "checkmark")
+                            } else {
+                                Text(Self.effortDisplayName(effort))
+                            }
+                        }
+                    }
+                }
+            }
         } label: {
             HStack(spacing: 4) {
                 Text(currentModel?.label ?? "Model")

@@ -1,12 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { GraftModelOption } from "@graft/mobile-contract";
-import { useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import Animated from "react-native-reanimated";
 
+import { useDisclosureHeightTransition } from "../../components/disclosureMotion";
 import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
+import { ComposerAttachments } from "./ComposerAttachments";
+import type { ComposerAttachment } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
+import { RecordingComposer } from "./RecordingComposer";
+import type { useVoiceInput } from "./useVoiceInput";
 
 type TrailingMode = "idle" | "send" | "stop" | "stop-and-send";
 
@@ -17,6 +32,7 @@ function ComposerTrailingControls({
   mode,
   onCancel,
   onSend,
+  onStartVoice,
 }: {
   readonly canSend: boolean;
   readonly isConnected: boolean;
@@ -24,20 +40,22 @@ function ComposerTrailingControls({
   readonly mode: TrailingMode;
   readonly onCancel: () => void;
   readonly onSend: () => void;
+  readonly onStartVoice: () => void;
 }) {
   const palette = useGraftPalette();
 
-  if (mode === "idle") {
-    return (
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-        style={[styles.micHint, { opacity: isConnected ? 1 : 0.35 }]}
-      >
-        <Ionicons color={palette.foregroundMuted} name="mic-outline" size={23} />
-      </View>
-    );
-  }
+  const microphone = (
+    <PressScale
+      accessibilityLabel="Dictate message"
+      disabled={!isConnected || isSending}
+      onPress={onStartVoice}
+      style={styles.iconButton}
+    >
+      <Ionicons color={palette.foregroundMuted} name="mic-outline" size={20} />
+    </PressScale>
+  );
+
+  if (mode === "idle") return microphone;
 
   const sendButton = (
     <PressScale accessibilityLabel="Send message" disabled={!canSend} onPress={onSend}>
@@ -59,7 +77,14 @@ function ComposerTrailingControls({
     </PressScale>
   );
 
-  if (mode === "send") return sendButton;
+  if (mode === "send") {
+    return (
+      <View style={styles.trailingControls}>
+        {microphone}
+        {sendButton}
+      </View>
+    );
+  }
 
   const stopButton = (
     <PressScale accessibilityLabel="Stop response" onPress={onCancel}>
@@ -84,6 +109,9 @@ function ComposerTrailingControls({
 }
 
 export function Composer({
+  attachments,
+  attachmentError,
+  onRemoveAttachment,
   activeRunId,
   approvalIsElevated,
   availableModels,
@@ -99,12 +127,15 @@ export function Composer({
   isSending,
   onCancel,
   onDraftChange,
-  onOpenActions,
-  onOpenApproval,
-  onOpenModel,
+  menuConfig,
   onSend,
+  onSendDictation,
   resolvedEffort,
+  voice,
 }: {
+  readonly attachments: readonly ComposerAttachment[];
+  readonly attachmentError?: string;
+  readonly onRemoveAttachment: (id: string) => void;
   readonly activeRunId: string | undefined;
   readonly approvalIsElevated: boolean;
   readonly availableModels: readonly GraftModelOption[];
@@ -120,15 +151,37 @@ export function Composer({
   readonly isSending: boolean;
   readonly onCancel: (runId: string) => void;
   readonly onDraftChange: (text: string) => void;
-  readonly onOpenActions: () => void;
-  readonly onOpenApproval: () => void;
-  readonly onOpenModel: () => void;
+  readonly menuConfig: ComposerMenuConfig;
   readonly onSend: () => void;
+  readonly onSendDictation: () => void;
   readonly resolvedEffort: string | undefined;
+  readonly voice: ReturnType<typeof useVoiceInput>;
 }) {
   const palette = useGraftPalette();
+  const inputRef = useRef<TextInput>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
-  const hasDraft = Boolean(draft.trim());
+  const [contentHeight, setContentHeight] = useState(0);
+  const heightTransition = useDisclosureHeightTransition();
+  const { height: windowHeight, fontScale } = useWindowDimensions();
+  const hasDraft = Boolean(draft.trim() || attachments.length);
+  const expanded = (isComposerFocused || hasDraft) && !voice.isActive;
+  const editorMinHeight = 60 * fontScale;
+  const editorMaxHeight = Math.max(editorMinHeight, Math.min(160 * fontScale, windowHeight * 0.3));
+  const editorHeight = expanded
+    ? Math.min(editorMaxHeight, Math.max(editorMinHeight, contentHeight))
+    : Math.max(32, 20 * fontScale);
+  // Expanded: editor padding (13 + 6) plus toolbar (32 + 7). Idle: 7 on each edge.
+  const typingHeight = voice.isActive ? 0 : editorHeight + (expanded ? 58 : 14);
+  const extras = menuConfig.extras;
+
+  useEffect(() => {
+    // Android's Back button can hide the keyboard without blurring TextInput.
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      inputRef.current?.blur();
+      setIsComposerFocused(false);
+    });
+    return () => subscription.remove();
+  }, []);
 
   let trailingMode: TrailingMode = "idle";
   if (activeRunId) {
@@ -147,79 +200,230 @@ export function Composer({
         if (activeRunId) onCancel(activeRunId);
       }}
       onSend={onSend}
+      onStartVoice={() => {
+        inputRef.current?.blur();
+        void voice.start(draft);
+      }}
     />
+  );
+  const options = (
+    <ComposerConfigMenu
+      config={menuConfig}
+      initialPage="options"
+      trigger={(open) => (
+        <PressScale accessibilityLabel="Composer options" onPress={open} style={styles.iconButton}>
+          <Ionicons color={palette.foreground} name="add" size={24} />
+        </PressScale>
+      )}
+    />
+  );
+  const approvalLabel = (
+    <Text
+      numberOfLines={1}
+      style={[
+        styles.toolbarText,
+        { color: approvalIsElevated ? palette.warning : palette.foreground },
+      ]}
+    >
+      {currentApprovalLabel}
+    </Text>
   );
 
   return (
     <View style={styles.dock}>
-      <View style={styles.chipRow}>
-        {currentModel || availableModels.length > 0 ? (
-          <PressScale accessibilityLabel="Model and reasoning effort" onPress={onOpenModel}>
-            <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-              <Text numberOfLines={1} style={[styles.modelName, { color: palette.foreground }]}>
-                {currentModel?.label ?? currentModelName?.replace("[1m]", "") ?? "Model"}
-                {resolvedEffort ? ` ${displayName(resolvedEffort)}` : ""}
-              </Text>
-            </View>
+      {attachmentError ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={[styles.voiceError, { color: palette.danger }]}
+        >
+          {attachmentError}
+        </Text>
+      ) : null}
+      {voice.error ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={[styles.voiceError, { color: palette.danger }]}
+        >
+          {voice.error}
+        </Text>
+      ) : null}
+      <View style={styles.composerRow}>
+        {voice.isActive ? (
+          <PressScale
+            accessibilityLabel="Cancel recording"
+            disabled={voice.phase === "stopping"}
+            onPress={voice.cancel}
+          >
+            <FloatingSurface style={styles.cancelButton}>
+              <Ionicons color={palette.foregroundMuted} name="close" size={20} />
+            </FloatingSurface>
           </PressScale>
         ) : null}
-        {hasApprovalOptions ? (
-          canChangeApproval ? (
-            <PressScale accessibilityLabel="Permissions" onPress={onOpenApproval}>
-              <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.chipText,
-                    {
-                      color: approvalIsElevated ? palette.warning : palette.foreground,
-                    },
-                  ]}
-                >
-                  {currentApprovalLabel}
-                </Text>
-              </View>
-            </PressScale>
-          ) : (
-            <View style={[styles.chip, { backgroundColor: palette.subtle }]}>
-              <Text numberOfLines={1} style={[styles.chipText, { color: palette.foreground }]}>
-                {currentApprovalLabel}
-              </Text>
+
+        <View style={styles.composer}>
+          <FloatingSurface style={[StyleSheet.absoluteFill, styles.composerSurface]} />
+          {expanded && attachments.length > 0 ? (
+            <View style={styles.attachments}>
+              <ComposerAttachments
+                attachments={attachments}
+                disabled={isSending}
+                onRemove={onRemoveAttachment}
+              />
             </View>
-          )
-        ) : null}
-      </View>
-
-      <View style={styles.composerRow}>
-        <PressScale accessibilityLabel="Composer options" onPress={onOpenActions}>
-          <FloatingSurface style={styles.addButton}>
-            <Ionicons color={palette.foreground} name="add" size={28} />
-          </FloatingSurface>
-        </PressScale>
-
-        <FloatingSurface
-          style={[
-            styles.composer,
-            isComposerFocused || hasDraft ? styles.composerFocused : null,
-            { borderRadius: graftRadius.composer },
-          ]}
-        >
-          <TextInput
-            accessibilityLabel="Message"
-            editable={isConnected}
-            maxLength={100_000}
-            multiline
-            onBlur={() => setIsComposerFocused(false)}
-            onChangeText={onDraftChange}
-            onFocus={() => setIsComposerFocused(true)}
-            onSubmitEditing={onSend}
-            placeholder={isConnected ? `Work on ${hostLabel}` : "Reconnecting…"}
-            placeholderTextColor={palette.foregroundSubtle}
-            style={[styles.composerInput, { color: palette.foreground }]}
-            value={draft}
-          />
-          {trailing}
-        </FloatingSurface>
+          ) : null}
+          {expanded && extras && (extras.interactionMode !== "default" || extras.fastMode) ? (
+            <View style={styles.modeRow}>
+              {extras.interactionMode !== "default" ? (
+                <ComposerConfigMenu
+                  config={menuConfig}
+                  initialPage="mode"
+                  trigger={(open) => (
+                    <PressScale
+                      accessibilityLabel="Conversation mode"
+                      onPress={open}
+                      style={styles.modeButton}
+                    >
+                      <Text style={[styles.toolbarText, { color: palette.foregroundMuted }]}>
+                        {displayName(extras.interactionMode)} mode
+                      </Text>
+                    </PressScale>
+                  )}
+                />
+              ) : null}
+              {extras.fastMode ? (
+                <ComposerConfigMenu
+                  config={menuConfig}
+                  initialPage="speed"
+                  trigger={(open) => (
+                    <PressScale
+                      accessibilityLabel="Response speed"
+                      onPress={open}
+                      style={styles.modeButton}
+                    >
+                      <Text style={[styles.toolbarText, { color: palette.foregroundMuted }]}>
+                        Fast
+                      </Text>
+                    </PressScale>
+                  )}
+                />
+              ) : null}
+            </View>
+          ) : null}
+          <Animated.View
+            accessibilityElementsHidden={voice.isActive}
+            importantForAccessibility={voice.isActive ? "no-hide-descendants" : "auto"}
+            pointerEvents={voice.isActive ? "none" : "auto"}
+            style={[
+              styles.typingContent,
+              heightTransition,
+              { height: typingHeight },
+              voice.isActive ? styles.typingContentHidden : null,
+            ]}
+          >
+            <View style={[styles.typingRow, expanded ? styles.typingRowExpanded : null]}>
+              <View>{!expanded && !voice.isActive ? options : null}</View>
+              {/* Keep the same editor mounted through focus and recording transitions. */}
+              <TextInput
+                ref={inputRef}
+                accessibilityLabel="Message"
+                editable={isConnected && !isSending && !voice.isActive}
+                maxLength={100_000}
+                multiline
+                onBlur={() => setIsComposerFocused(false)}
+                onChangeText={onDraftChange}
+                onContentSizeChange={({ nativeEvent }) => {
+                  if (!voice.isActive) setContentHeight(Math.ceil(nativeEvent.contentSize.height));
+                }}
+                onFocus={() => setIsComposerFocused(true)}
+                onSubmitEditing={onSend}
+                placeholder={isConnected ? `Work on ${hostLabel}` : "Reconnecting…"}
+                placeholderTextColor={palette.foregroundSubtle}
+                scrollEnabled={expanded && contentHeight > editorMaxHeight}
+                style={[
+                  styles.composerInput,
+                  {
+                    color: palette.foreground,
+                    height: editorHeight,
+                    textAlignVertical: expanded ? "top" : "center",
+                  },
+                ]}
+                value={draft}
+              />
+              <View>{!expanded && !voice.isActive ? trailing : null}</View>
+            </View>
+            {expanded ? (
+              <View style={styles.toolbar}>
+                {options}
+                {hasApprovalOptions ? (
+                  <View style={styles.permissions}>
+                    {canChangeApproval ? (
+                      <ComposerConfigMenu
+                        config={menuConfig}
+                        initialPage="permissions"
+                        trigger={(open) => (
+                          <PressScale
+                            accessibilityLabel="Permissions"
+                            onPress={open}
+                            style={styles.toolbarButton}
+                          >
+                            {approvalLabel}
+                          </PressScale>
+                        )}
+                      />
+                    ) : (
+                      <View style={styles.toolbarButton}>{approvalLabel}</View>
+                    )}
+                  </View>
+                ) : null}
+                <View style={styles.model}>
+                  {currentModel || availableModels.length > 0 ? (
+                    <ComposerConfigMenu
+                      config={menuConfig}
+                      initialPage="intelligence"
+                      trigger={(open) => (
+                        <PressScale
+                          accessibilityLabel="Model and reasoning effort"
+                          onPress={open}
+                          style={styles.toolbarButton}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.toolbarText,
+                              styles.modelText,
+                              { color: palette.foreground },
+                            ]}
+                          >
+                            {currentModel?.label ??
+                              currentModelName?.replace("[1m]", "") ??
+                              "Model"}
+                            {resolvedEffort ? (
+                              <Text style={{ color: palette.foregroundMuted }}>
+                                {" "}
+                                {displayName(resolvedEffort)}
+                              </Text>
+                            ) : null}
+                          </Text>
+                        </PressScale>
+                      )}
+                    />
+                  ) : null}
+                </View>
+                {trailing}
+              </View>
+            ) : null}
+          </Animated.View>
+          {voice.isActive ? (
+            <View style={styles.recordingRow}>
+              <RecordingComposer
+                phase={voice.phase}
+                canSend={isConnected && !isSending}
+                onStop={() => void voice.stop()}
+                onSend={onSendDictation}
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -227,66 +431,48 @@ export function Composer({
 
 const styles = StyleSheet.create({
   dock: { gap: 7 },
-  chipRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 7,
-    paddingLeft: 2,
-  },
-  chip: {
-    borderRadius: graftRadius.pill,
-    justifyContent: "center",
-    maxWidth: 236,
-    minHeight: 32,
-    paddingHorizontal: 12,
-  },
-  chipText: { fontSize: 12, fontWeight: "600" },
-  modelName: { fontSize: 12, fontWeight: "600" },
   composerRow: { alignItems: "flex-end", flexDirection: "row", gap: 8 },
-  addButton: {
-    alignItems: "center",
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  composer: {
-    alignItems: "flex-end",
-    flex: 1,
-    flexDirection: "row",
-    minHeight: 44,
-    padding: 4,
-    paddingLeft: 10,
-  },
-  composerFocused: { minHeight: 44 },
+  cancelButton: { alignItems: "center", height: 46, justifyContent: "center", width: 46 },
+  composer: { flex: 1, minWidth: 0, minHeight: 46 },
+  composerSurface: { borderRadius: 23 },
+  attachments: { paddingHorizontal: 8, paddingTop: 10, paddingBottom: 2 },
+  modeRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 7 },
+  modeButton: { minHeight: 28, justifyContent: "center" },
+  typingContent: { overflow: "hidden", borderRadius: 23 },
+  typingContentHidden: { position: "absolute", width: "100%", opacity: 0 },
+  typingRow: { alignItems: "center", flexDirection: "row", gap: 5, padding: 7 },
+  typingRowExpanded: { gap: 0, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 6 },
   composerInput: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 18,
-    maxHeight: 122,
-    minHeight: 36,
-    paddingHorizontal: 2,
-    paddingVertical: 8,
+    minWidth: 0,
+    fontSize: 16,
+    lineHeight: 20,
+    includeFontPadding: false,
+    padding: 0,
   },
-  micHint: {
+  toolbar: { alignItems: "center", flexDirection: "row", paddingHorizontal: 7, paddingBottom: 7 },
+  toolbarButton: { minHeight: 32, paddingHorizontal: 8, justifyContent: "center" },
+  toolbarText: { fontSize: 12, fontWeight: "500" },
+  permissions: { maxWidth: 104, flexShrink: 1 },
+  model: { flex: 1, minWidth: 0, marginLeft: 8 },
+  modelText: { textAlign: "right" },
+  iconButton: { alignItems: "center", height: 32, justifyContent: "center", width: 32 },
+  recordingRow: {
+    flexDirection: "row",
     alignItems: "center",
-    height: 36,
-    justifyContent: "center",
-    width: 36,
+    height: 46,
+    paddingLeft: 16,
+    paddingRight: 5,
   },
-  trailingControls: { alignItems: "center", flexDirection: "row", gap: 2 },
+  voiceError: { fontSize: 12, paddingHorizontal: 12 },
+  trailingControls: { alignItems: "center", flexDirection: "row", gap: 5 },
   sendButton: {
     alignItems: "center",
     borderRadius: graftRadius.pill,
-    height: 36,
-    justifyContent: "center",
-    width: 36,
-  },
-  secondaryStopButton: {
-    alignItems: "center",
-    height: 38,
+    height: 32,
     justifyContent: "center",
     width: 32,
   },
+  secondaryStopButton: { alignItems: "center", height: 32, justifyContent: "center", width: 32 },
   stopGlyph: { borderRadius: 2, height: 12, width: 12 },
 });

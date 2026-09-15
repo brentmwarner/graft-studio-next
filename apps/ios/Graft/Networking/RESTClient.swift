@@ -58,6 +58,22 @@ struct RESTClient: Sendable {
         return try decode(EnvironmentSnapshot.self, from: data)
     }
 
+    func usage(threadId: String) async throws -> ThreadUsageInfo {
+        var components = URLComponents(
+            url: baseURL.appending(path: "/v1/usage"), resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "threadId", value: threadId)]
+        guard let url = components?.url else {
+            throw GraftError.decoding("Cannot construct usage URL")
+        }
+        let data = try await get(url)
+        let usage = try decode(ThreadUsageInfo.self, from: data)
+        guard usage.threadId == threadId else {
+            throw GraftError.decoding("Usage belongs to another thread")
+        }
+        return usage
+    }
+
     /// `PUT /v1/push-registration` — registration only; the host does not deliver pushes yet.
     func registerPushToken(
         _ token: String,

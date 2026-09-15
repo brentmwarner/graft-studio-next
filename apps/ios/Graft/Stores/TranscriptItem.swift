@@ -24,12 +24,14 @@ final class TranscriptItem: Identifiable {
 
     let id = UUID()
     let kind: Kind
+    var sourceID: String?
 
     var text = "" { didSet { cachedNormalizedMergeText = nil; refreshDerivedFlags() } }
     var reasoning = "" { didSet { refreshDerivedFlags() } }
     /// Images attached to this row: agent screenshots/tool images, user
     /// composer attachments, or markdown/path refs in prose.
     var images: [ChatImage] = []
+    var attachments: [TimelineAttachment] = []
     /// Playable clips referenced in this row's prose (agent media paths).
     var videos: [ChatVideo] = []
     /// Web links in assistant prose surfaced as preview cards below the text.
@@ -86,9 +88,10 @@ final class TranscriptItem: Identifiable {
         refreshDerivedFlags()
     }
 
-    static func user(_ text: String) -> TranscriptItem {
+    static func user(_ text: String, attachments: [TimelineAttachment] = []) -> TranscriptItem {
         let item = TranscriptItem(kind: .user)
         item.text = text
+        item.attachments = attachments
         return item
     }
 
@@ -201,6 +204,7 @@ final class TranscriptItem: Identifiable {
     /// matches its settled twin; tool rows prefer the gateway id, else
     /// name+context; agents key on their goal set.
     var mergeKey: String {
+        if let sourceID { return sourceID }
         switch kind {
         case .user, .assistant, .system, .error:
             return "\(kind):\(normalizedMergeText.prefix(64))"
@@ -218,6 +222,8 @@ final class TranscriptItem: Identifiable {
     /// (and its realized SwiftUI subtree). Live-stream scratch state
     /// (`reasoningStartedAt`, `isStreaming`) is deliberately left untouched.
     func absorb(_ other: TranscriptItem) {
+        sourceID = other.sourceID
+        isStreaming = other.isStreaming
         // Equivalent prose in a different spelling (a raw history row whose
         // media refs the live bubble already scrubbed) keeps the displayed
         // text; a material change adopts the server's and re-arms the lazy
@@ -227,6 +233,7 @@ final class TranscriptItem: Identifiable {
             richContentAttached = false
         }
         reasoning = other.reasoning
+        attachments = other.attachments
         if !other.images.isEmpty { images = other.images }
         if !other.videos.isEmpty { videos = other.videos }
         if !other.linkPreviews.isEmpty { linkPreviews = other.linkPreviews }

@@ -1,11 +1,17 @@
 import {
   GRAFT_MOBILE_PROTOCOL_VERSION,
+  GRAFT_ATTACHMENT_UPLOAD_PATH,
+  GRAFT_ATTACHMENT_CANCEL_PATH,
   GraftEnvironmentSnapshotSchema,
+  GraftAttachmentSchema,
+  type GraftAttachment,
   GraftPairExchangeErrorSchema,
   GraftPairExchangeRequestSchema,
   GraftPairExchangeResponseSchema,
   GraftRemoteErrorSchema,
   GraftRemoteHealthSchema,
+  GraftThreadUsageSchema,
+  type GraftThreadUsage,
   type GraftEnvironmentSnapshot,
   type GraftPairExchangeRequest,
   type GraftPairingPayload,
@@ -38,6 +44,14 @@ export interface PairingClientInfo {
 }
 
 export interface GatewayClient {
+  uploadAttachment(
+    session: GraftSessionCredential,
+    threadId: string,
+    attachment: GraftAttachment,
+    body: Blob,
+  ): Promise<GraftAttachment>;
+  cancelAttachment(session: GraftSessionCredential, attachmentId: string): Promise<void>;
+  usage(session: GraftSessionCredential, threadId: string): Promise<GraftThreadUsage>;
   health(baseUrl: string): Promise<GraftRemoteHealth>;
   pair(pairing: GraftPairingPayload, client: PairingClientInfo): Promise<GraftSessionCredential>;
   snapshot(session: GraftSessionCredential, threadId?: string): Promise<GraftEnvironmentSnapshot>;
@@ -74,6 +88,10 @@ function errorFromResponse(response: Response, body: unknown): GatewayError {
     return new GatewayError(remoteError.data.message, remoteError.data.code, response.status);
   }
 
+  if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
+    return new GatewayError(body.error, "invalid_response", response.status);
+  }
+
   return new GatewayError(
     `The Graft host returned HTTP ${response.status}.`,
     "invalid_response",
@@ -81,9 +99,14 @@ function errorFromResponse(response: Response, body: unknown): GatewayError {
   );
 }
 
-async function request(fetcher: GatewayFetch, url: string, init?: RequestInit): Promise<Response> {
+async function request(
+  fetcher: GatewayFetch,
+  url: string,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetcher(url, { ...init, signal: controller.signal });
@@ -101,6 +124,55 @@ async function request(fetcher: GatewayFetch, url: string, init?: RequestInit): 
 
 export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayClient {
   return {
+    async uploadAttachment(session, threadId, attachment, body) {
+      const url = new URL(endpoint(session.httpBaseUrl, GRAFT_ATTACHMENT_UPLOAD_PATH));
+      for (const [key, value] of Object.entries({
+        threadId,
+        type: attachment.type,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+      })) {
+        url.searchParams.set(key, value);
+      }
+      const response = await request(
+        fetcher,
+        url.toString(),
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${session.bearerToken}`,
+            "content-type": attachment.mimeType,
+          },
+          // SDK 57's Blob normalization replaces Content-Type with File.type,
+          // which can be null for cached documents without a file extension.
+          body: await body.arrayBuffer(),
+        },
+        120_000,
+      );
+      const json = await responseJson(response);
+      if (!response.ok) throw errorFromResponse(response, json);
+      const parsed = GraftAttachmentSchema.safeParse(json);
+      if (!parsed.success)
+        throw new GatewayError("The host returned an invalid attachment.", "invalid_response");
+      return parsed.data;
+    },
+
+    async cancelAttachment(session, attachmentId) {
+      const response = await request(
+        fetcher,
+        endpoint(session.httpBaseUrl, GRAFT_ATTACHMENT_CANCEL_PATH),
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${session.bearerToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ attachmentId }),
+        },
+      );
+      if (!response.ok) throw errorFromResponse(response, await responseJson(response));
+    },
+
     async health(baseUrl) {
       const response = await request(fetcher, endpoint(baseUrl, "/v1/health"));
       const body = await responseJson(response);
@@ -152,6 +224,25 @@ export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayC
         );
       }
       return parsed.data.session;
+    },
+
+    async usage(session, threadId) {
+      const url = new URL(endpoint(session.httpBaseUrl, "/v1/usage"));
+      url.searchParams.set("threadId", threadId);
+      const response = await request(fetcher, url.toString(), {
+        headers: { authorization: `Bearer ${session.bearerToken}` },
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw errorFromResponse(response, body);
+      const parsed = GraftThreadUsageSchema.safeParse(body);
+      if (!parsed.success || parsed.data.threadId !== threadId) {
+        throw new GatewayError(
+          "The host returned invalid usage data.",
+          "invalid_response",
+          response.status,
+        );
+      }
+      return parsed.data;
     },
 
     async snapshot(session, threadId) {
