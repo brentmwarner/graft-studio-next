@@ -2,69 +2,49 @@ import XCTest
 @testable import Graft
 
 final class StreamingRevealTests: XCTestCase {
-    func testRevealLandsOnWordBoundary() {
-        let text = "Hello streaming world"
-        let length = StreamingReveal.advanceToWordBoundary(text, index: 8)
-        XCTAssertEqual(length, 15)
-        XCTAssertEqual(StreamingReveal.prefix(text, utf16Length: length), "Hello streaming")
+    func testMountPreservesReceivedText() {
+        let stream = StreamingReveal(text: "Already received 😀")
+        XCTAssertEqual(stream.displayedText, "Already received 😀")
     }
 
-    func testRevealFinishesShortUnbrokenTail() {
-        XCTAssertEqual(StreamingReveal.advanceToWordBoundary("hello", index: 2), 5)
+    func testCommitDrainsAnEntireLargeSnapshot() {
+        var stream = StreamingReveal(text: "Start")
+        let target = "Start " + String(repeating: "received text 😀 ", count: 500)
+        stream.receive(target, isStreaming: true, reduceMotion: false)
+        XCTAssertEqual(stream.displayedText, "Start")
+        XCTAssertTrue(stream.commit())
+        XCTAssertEqual(stream.displayedText, target)
+        XCTAssertFalse(stream.commit())
     }
 
-    func testRevealHardCutsPathologicalTokenAfterBoundedLookahead() {
-        XCTAssertEqual(
-            StreamingReveal.advanceToWordBoundary(String(repeating: "x", count: 100), index: 10),
-            10
-        )
+    func testCoalescesToTheLatestSnapshot() {
+        var stream = StreamingReveal(text: "A")
+        stream.receive("A B", isStreaming: true, reduceMotion: false)
+        stream.receive("A B C", isStreaming: true, reduceMotion: false)
+        stream.commit()
+        XCTAssertEqual(stream.displayedText, "A B C")
     }
 
-    func testSparseSnapshotBacklogAcceleratesReveal() {
-        let text = String(repeating: "word ", count: 100) + "done"
-        let quietStep = StreamingReveal.nextLength(
-            in: String(text.prefix(80)),
-            currentLength: 0,
-            elapsedMilliseconds: 40
-        )
-        let backlogStep = StreamingReveal.nextLength(
-            in: text,
-            currentLength: 0,
-            elapsedMilliseconds: 40
-        )
-        XCTAssertGreaterThan(backlogStep, quietStep)
+    func testCompletionFlushesImmediately() {
+        var stream = StreamingReveal(text: "A")
+        stream.receive("A B", isStreaming: true, reduceMotion: false)
+        stream.receive("A B C", isStreaming: false, reduceMotion: false)
+        XCTAssertEqual(stream.displayedText, "A B C")
+        XCTAssertFalse(stream.commit())
     }
 
-    func testRevealNeverAdvancesBeyondTarget() {
-        XCTAssertEqual(
-            StreamingReveal.nextLength(in: "Done", currentLength: 3, elapsedMilliseconds: 200),
-            4
-        )
-        XCTAssertEqual(
-            StreamingReveal.nextLength(in: "Done", currentLength: 4, elapsedMilliseconds: 200),
-            4
-        )
+    func testCorrectionReplacesThePendingTail() {
+        var stream = StreamingReveal(text: "Original")
+        stream.receive("Original pending", isStreaming: true, reduceMotion: false)
+        stream.receive("Corrected", isStreaming: true, reduceMotion: false)
+        XCTAssertEqual(stream.displayedText, "Corrected")
+        XCTAssertFalse(stream.commit())
     }
 
-    func testActiveStreamStartsEmptyUntilTheRevealLoopRuns() {
-        XCTAssertEqual(
-            StreamingReveal.initialDisplayedLength(in: "First provider snapshot", isStreaming: true),
-            0
-        )
-        XCTAssertEqual(
-            StreamingReveal.initialDisplayedLength(in: "Settled", isStreaming: false),
-            7
-        )
-        XCTAssertEqual(
-            StreamingReveal.initialDisplayedLength(
-                in: String(repeating: "x", count: 20_001),
-                isStreaming: true
-            ),
-            20_001
-        )
-    }
-
-    func testPrefixNeverSplitsEmojiSurrogatePair() {
-        XCTAssertEqual(StreamingReveal.prefix("A😀B", utf16Length: 2), "A😀")
+    func testReducedMotionFlushesImmediately() {
+        var stream = StreamingReveal(text: "A")
+        stream.receive("A B C", isStreaming: true, reduceMotion: true)
+        XCTAssertEqual(stream.displayedText, "A B C")
+        XCTAssertFalse(stream.commit())
     }
 }

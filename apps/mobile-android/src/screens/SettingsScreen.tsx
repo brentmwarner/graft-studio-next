@@ -19,11 +19,7 @@ interface SettingsScreenProps {
 /// case, never the shouty grouped-list default.
 function SectionHeader({ title }: { readonly title: string }) {
   const palette = useGraftPalette();
-  return (
-    <Text style={[styles.sectionHeader, { color: palette.foreground }]}>
-      {title}
-    </Text>
-  );
+  return <Text style={[styles.sectionHeader, { color: palette.foreground }]}>{title}</Text>;
 }
 
 export function SettingsScreen({
@@ -44,12 +40,7 @@ export function SettingsScreen({
       trailingAccessory={
         <Pressable accessibilityRole="button" onPress={onClose}>
           {({ pressed }) => (
-            <Text
-              style={[
-                styles.done,
-                { color: palette.accent, opacity: pressed ? 0.55 : 1 },
-              ]}
-            >
+            <Text style={[styles.done, { color: palette.accent, opacity: pressed ? 0.55 : 1 }]}>
               Done
             </Text>
           )}
@@ -61,25 +52,18 @@ export function SettingsScreen({
         <SectionHeader title="Connection" />
         <View style={[styles.group, { backgroundColor: palette.subtle }]}>
           <View style={styles.row}>
-            <Text style={[styles.key, { color: palette.foreground }]}>
-              Studio
-            </Text>
+            <Text style={[styles.key, { color: palette.foreground }]}>Studio</Text>
             <View style={styles.hostValue}>
               <View
                 accessibilityLabel={isConnected ? "Connected" : "Disconnected"}
                 style={[
                   styles.connectionDot,
                   {
-                    backgroundColor: isConnected
-                      ? palette.success
-                      : palette.foregroundSubtle,
+                    backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
                   },
                 ]}
               />
-              <Text
-                numberOfLines={1}
-                style={[styles.value, { color: palette.foregroundSubtle }]}
-              >
+              <Text numberOfLines={1} style={[styles.value, { color: palette.foregroundSubtle }]}>
                 {session.environmentLabel}
               </Text>
             </View>
@@ -94,9 +78,7 @@ export function SettingsScreen({
           >
             {({ pressed }) => (
               <View style={[styles.row, { opacity: pressed ? 0.55 : 1 }]}>
-                <Text style={[styles.key, { color: palette.danger }]}>
-                  Disconnect
-                </Text>
+                <Text style={[styles.key, { color: palette.danger }]}>Disconnect</Text>
               </View>
             )}
           </Pressable>
@@ -105,12 +87,8 @@ export function SettingsScreen({
         <SectionHeader title="About" />
         <View style={[styles.group, { backgroundColor: palette.subtle }]}>
           <View style={styles.row}>
-            <Text style={[styles.key, { color: palette.foreground }]}>
-              Version
-            </Text>
-            <Text style={[styles.value, { color: palette.foregroundSubtle }]}>
-              {APP_VERSION}
-            </Text>
+            <Text style={[styles.key, { color: palette.foreground }]}>Version</Text>
+            <Text style={[styles.value, { color: palette.foregroundSubtle }]}>{APP_VERSION}</Text>
           </View>
         </View>
       </ScrollView>

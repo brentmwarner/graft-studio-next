@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BackHandler, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { MenuProvider } from "./src/components/MenuProvider";
 import { NavDrawerLayout } from "./src/components/NavDrawer";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { NewChatScreen } from "./src/screens/NewChatScreen";
@@ -53,28 +54,22 @@ function GraftApp() {
   }, [session.state.status]);
 
   useEffect(() => {
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        // Back dismisses the drawer before it pops the route, matching the
-        // way iOS treats the open drawer as the topmost presentation.
-        if (isDrawerOpen) {
-          setIsDrawerOpen(false);
-          return true;
-        }
-        if (route.name === "home") return false;
-        session.closeThread();
-        setRoute({ name: "home" });
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      // Back dismisses the drawer before it pops the route, matching the
+      // way iOS treats the open drawer as the topmost presentation.
+      if (isDrawerOpen) {
+        setIsDrawerOpen(false);
         return true;
-      },
-    );
+      }
+      if (route.name === "home") return false;
+      session.closeThread();
+      setRoute({ name: "home" });
+      return true;
+    });
     return () => subscription.remove();
   }, [isDrawerOpen, route.name, session.closeThread]);
 
-  const projectGroups = useMemo(
-    () => groupProjects(pairedSnapshot, ""),
-    [pairedSnapshot],
-  );
+  const projectGroups = useMemo(() => groupProjects(pairedSnapshot, ""), [pairedSnapshot]);
 
   function openThread(thread: GraftThreadSummary) {
     setIsDrawerOpen(false);
@@ -91,8 +86,7 @@ function GraftApp() {
     <View style={[styles.root, { backgroundColor: palette.background }]}>
       <StatusBar style={palette.isDark ? "light" : "dark"} />
       {session.state.status === "loading" ? <SplashScreen /> : null}
-      {session.state.status === "unpaired" ||
-      session.state.status === "pairing" ? (
+      {session.state.status === "unpaired" || session.state.status === "pairing" ? (
         <PairingScreen
           error={session.state.error}
           initialInput={session.state.pendingInput}
@@ -121,9 +115,7 @@ function GraftApp() {
                 connectionState={paired.connectionState}
                 error={paired.error}
                 isRefreshing={paired.isRefreshing}
-                onNewChat={(initialProjectId) =>
-                  setRoute({ name: "new-chat", initialProjectId })
-                }
+                onNewChat={(initialProjectId) => setRoute({ name: "new-chat", initialProjectId })}
                 onOpenMenu={() => setIsDrawerOpen(true)}
                 onOpenThread={(item) => {
                   const thread = pairedSnapshot?.threads.find(
@@ -162,11 +154,7 @@ function GraftApp() {
                     initialEffort: request.effort,
                   });
                   await session.openThread(thread.id);
-                  return await session.sendMessage(
-                    thread.id,
-                    request.text,
-                    request.effort,
-                  );
+                  return await session.sendMessage(thread.id, request.text, request.effort);
                 }}
                 onLoadModels={session.loadModels}
                 projects={projectGroups}
@@ -184,6 +172,8 @@ function GraftApp() {
                 onBack={backToHome}
                 onCancel={session.cancelTurn}
                 onLoadDiff={session.loadDiff}
+                onLoadDiffFile={session.loadDiffFile}
+                onLoadUsage={session.loadUsage}
                 onLoadModels={session.loadModels}
                 onRefresh={session.refresh}
                 onResolveApproval={session.resolveApproval}
@@ -193,9 +183,8 @@ function GraftApp() {
                 onSetModel={session.setThreadModel}
                 pendingSend={session.pendingSendThreadId === route.thread.id}
                 projectName={
-                  projectGroups.find(
-                    (project) => project.id === route.thread.projectId,
-                  )?.name ?? "Project"
+                  projectGroups.find((project) => project.id === route.thread.projectId)?.name ??
+                  "Project"
                 }
                 snapshot={paired.snapshot}
                 thread={route.thread}
@@ -218,7 +207,9 @@ function GraftApp() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <GraftApp />
+      <MenuProvider>
+        <GraftApp />
+      </MenuProvider>
     </SafeAreaProvider>
   );
 }

@@ -76,3 +76,46 @@ describe("createGatewayClient", () => {
     } satisfies Partial<GatewayError>);
   });
 });
+
+describe("account usage endpoint", () => {
+  const result = {
+    threadId: "thread/a b",
+    allowance: {
+      providerId: "codex",
+      status: "ok",
+      stale: false,
+      limits: [{ label: "Weekly", remainingPercent: 64 }],
+    },
+  };
+  it("authenticates and escapes the selected thread ID", async () => {
+    const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json(result));
+    await expect(createGatewayClient(fetcher).usage(session, result.threadId)).resolves.toEqual(
+      result,
+    );
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(new URL(url).pathname).toBe("/v1/usage");
+    expect(new URL(url).searchParams.get("threadId")).toBe(result.threadId);
+    expect(init?.headers).toEqual({ authorization: `Bearer ${session.bearerToken}` });
+  });
+  it("rejects responses for another thread and invalid quota values", async () => {
+    await expect(
+      createGatewayClient(async () => Response.json(result)).usage(session, "different"),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+    await expect(
+      createGatewayClient(async () =>
+        Response.json({
+          ...result,
+          allowance: { ...result.allowance, limits: [{ label: "Weekly", remainingPercent: 150 }] },
+        }),
+      ).usage(session, result.threadId),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+  it("preserves a legacy host's 404 for the menu's unavailable state", async () => {
+    await expect(
+      createGatewayClient(async () => new Response("Not Found", { status: 404 })).usage(
+        session,
+        result.threadId,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});

@@ -1,10 +1,7 @@
-import type {
-  GraftEnvironmentSnapshot,
-  GraftTimelineEvent,
-} from "@graft/mobile-contract";
+import type { GraftEnvironmentSnapshot, GraftTimelineEvent } from "@graft/mobile-contract";
 import { describe, expect, it } from "vitest";
 
-import { livePhraseFromItems, shouldShowStreamingFooter } from "./liveStatus";
+import { livePhraseFromItems, transcriptLiveStatus } from "./liveStatus";
 import {
   buildTranscriptItems,
   groupProjects,
@@ -76,17 +73,18 @@ describe("mobile view models", () => {
       [event(1, "user.message", "Make Android match iOS")],
       [
         event(2, "thinking.delta", "Inspecting the views"),
-        event(3, "assistant.delta", "I am"),
-        event(4, "assistant.delta", "I am working on it."),
+        { ...event(3, "assistant.delta", "I am"), id: "reply" },
+        { ...event(4, "assistant.delta", "I am working on it."), id: "reply" },
       ],
     );
 
     expect(items).toMatchObject([
       { kind: "user", text: "Make Android match iOS" },
+      { kind: "assistant", text: "", reasoning: "Inspecting the views", streaming: false },
       {
         kind: "assistant",
         text: "I am working on it.",
-        reasoning: "Inspecting the views",
+        reasoning: "",
         streaming: true,
       },
     ]);
@@ -95,10 +93,7 @@ describe("mobile view models", () => {
   it("drops live events already covered by a newer snapshot", () => {
     expect(
       mergeTimelineEvents(
-        [
-          event(1, "user.message", "Hello"),
-          event(2, "assistant.message", "Hi"),
-        ],
+        [event(1, "user.message", "Hello"), event(2, "assistant.message", "Hi")],
         [event(2, "assistant.message", "Hi"), event(3, "user.message", "Next")],
         2,
       ).map((item) => item.cursor),
@@ -116,11 +111,7 @@ describe("mobile view models", () => {
     );
 
     expect(
-      mergeTimelineEvents(
-        settled,
-        [event(41, "assistant.delta", "streaming reply")],
-        40,
-      ).at(-1),
+      mergeTimelineEvents(settled, [event(41, "assistant.delta", "streaming reply")], 40).at(-1),
     ).toMatchObject({ text: "streaming reply" });
   });
 
@@ -130,11 +121,7 @@ describe("mobile view models", () => {
     );
 
     expect(
-      mergeTimelineEvents(
-        settled,
-        [event(39, "assistant.delta", "already settled")],
-        40,
-      ),
+      mergeTimelineEvents(settled, [event(39, "assistant.delta", "already settled")], 40),
     ).toHaveLength(500);
   });
 
@@ -148,9 +135,7 @@ describe("mobile view models", () => {
     };
 
     expect(
-      groupToolRuns([message, tool("t1"), tool("t2"), tool("t3", true)]).map(
-        (row) => row.kind,
-      ),
+      groupToolRuns([message, tool("t1"), tool("t2"), tool("t9", true)]).map((row) => row.kind),
     ).toEqual(["assistant", "toolGroup"]);
   });
 
@@ -170,16 +155,12 @@ describe("mobile view models", () => {
     };
 
     expect(
-      groupToolRuns([tool("t1"), thinking, tool("t2"), status, tool("t3")]).map(
-        (row) => row.kind,
-      ),
+      groupToolRuns([tool("t1"), thinking, tool("t2"), status, tool("t9")]).map((row) => row.kind),
     ).toEqual(["toolGroup"]);
   });
 
   it("leaves a lone tool call as its own row", () => {
-    expect(groupToolRuns([tool("t1")]).map((row) => row.kind)).toEqual([
-      "tool",
-    ]);
+    expect(groupToolRuns([tool("t1")]).map((row) => row.kind)).toEqual(["tool"]);
   });
 
   it("does not fold across an interleaved message", () => {
@@ -192,13 +173,9 @@ describe("mobile view models", () => {
     };
 
     expect(
-      groupToolRuns([
-        tool("t1"),
-        tool("t2"),
-        message,
-        tool("t3"),
-        tool("t4"),
-      ]).map((row) => row.kind),
+      groupToolRuns([tool("t1"), tool("t2"), message, tool("t9"), tool("t4")]).map(
+        (row) => row.kind,
+      ),
     ).toEqual(["toolGroup", "assistant", "toolGroup"]);
   });
 
@@ -268,18 +245,13 @@ describe("mobile view models", () => {
     expect(after[0]).not.toBe(before[0]);
   });
 
-  it("falls back to the host's text when a payload has no card", () => {
+  it("keeps transient status out of transcript rows", () => {
     const items = buildTranscriptItems(
       [],
       [{ ...event(1, "status", "Compacting conversation") }],
       0,
     );
-    expect(items).toEqual([
-      expect.objectContaining({
-        kind: "activity",
-        text: "Compacting conversation",
-      }),
-    ]);
+    expect(items).toEqual([]);
   });
 
   it("removes a transient status when the run produces visible output", () => {
@@ -329,10 +301,7 @@ describe("mobile view models", () => {
       text: "continue",
     };
 
-    const items = buildTranscriptItems(
-      [event(1, "user.message", "continue")],
-      [optimistic],
-    );
+    const items = buildTranscriptItems([event(1, "user.message", "continue")], [optimistic]);
 
     expect(items.filter((item) => item.kind === "user")).toHaveLength(1);
   });
@@ -347,10 +316,7 @@ describe("mobile view models", () => {
       text: "continue",
     };
 
-    const items = buildTranscriptItems(
-      [],
-      [optimistic, event(1, "user.message", "continue")],
-    );
+    const items = buildTranscriptItems([], [optimistic, event(1, "user.message", "continue")]);
 
     expect(items.filter((item) => item.kind === "user")).toHaveLength(1);
   });
@@ -366,10 +332,7 @@ describe("mobile view models", () => {
     };
 
     const items = buildTranscriptItems(
-      [
-        event(1, "user.message", "continue"),
-        event(2, "assistant.message", "Done"),
-      ],
+      [event(1, "user.message", "continue"), event(2, "assistant.message", "Done")],
       [optimistic],
     );
 
@@ -387,11 +350,8 @@ describe("mobile view models", () => {
     };
 
     const items = buildTranscriptItems(
-      [
-        event(1, "user.message", "continue"),
-        event(2, "assistant.message", "Done"),
-      ],
-      [optimistic, event(3, "assistant.delta", "Done")],
+      [event(1, "user.message", "continue"), event(2, "assistant.message", "Done")],
+      [optimistic, { ...event(3, "assistant.delta", "Done"), id: "event-2" }],
     );
 
     expect(items.filter((item) => item.kind === "assistant")).toHaveLength(1);
@@ -416,14 +376,8 @@ describe("mobile view models", () => {
     // A settled run and its still-streaming live tail both derive their row id
     // from the same runId; duplicate keys make FlatList stop updating rows.
     const items = buildTranscriptItems(
-      [
-        event(1, "user.message", "Go"),
-        event(2, "assistant.delta", "Settled reply"),
-      ],
-      [
-        event(3, "tool.start", "reading"),
-        event(4, "assistant.delta", "Live continuation"),
-      ],
+      [event(1, "user.message", "Go"), event(2, "assistant.delta", "Settled reply")],
+      [event(3, "tool.start", "reading"), event(4, "assistant.delta", "Live continuation")],
     );
 
     const ids = items.map((item) => item.id);
@@ -432,16 +386,9 @@ describe("mobile view models", () => {
   });
 
   it("reuses unchanged rows so only the streaming tail re-renders", () => {
-    const settled = [
-      event(1, "user.message", "Go"),
-      event(2, "assistant.message", "First answer"),
-    ];
-    const before = buildTranscriptItems(settled, [
-      event(3, "assistant.delta", "Partial"),
-    ]);
-    const after = buildTranscriptItems(settled, [
-      event(3, "assistant.delta", "Partial answer"),
-    ]);
+    const settled = [event(1, "user.message", "Go"), event(2, "assistant.message", "First answer")];
+    const before = buildTranscriptItems(settled, [event(3, "assistant.delta", "Partial")]);
+    const after = buildTranscriptItems(settled, [event(3, "assistant.delta", "Partial answer")]);
 
     const reconciled = reconcileTranscriptItems(before, after);
 
@@ -452,10 +399,7 @@ describe("mobile view models", () => {
   });
 
   it("returns the previous array when a snapshot changes nothing", () => {
-    const settled = [
-      event(1, "user.message", "Go"),
-      event(2, "assistant.message", "Answer"),
-    ];
+    const settled = [event(1, "user.message", "Go"), event(2, "assistant.message", "Answer")];
     const before = buildTranscriptItems(settled, []);
     const identical = buildTranscriptItems(settled, []);
 
@@ -464,14 +408,8 @@ describe("mobile view models", () => {
 
   it("is idempotent, so a repeated render never churns row identity", () => {
     const settled = [event(1, "user.message", "Go")];
-    const first = reconcileTranscriptItems(
-      [],
-      buildTranscriptItems(settled, []),
-    );
-    const second = reconcileTranscriptItems(
-      first,
-      buildTranscriptItems(settled, []),
-    );
+    const first = reconcileTranscriptItems([], buildTranscriptItems(settled, []));
+    const second = reconcileTranscriptItems(first, buildTranscriptItems(settled, []));
 
     expect(second).toBe(first);
   });
@@ -491,12 +429,10 @@ describe("live status phrases", () => {
     expect(toolRunningPhrase("write")).toBe("Editing a file");
     expect(toolRunningPhrase("web_search")).toBe("Searching the web");
     expect(toolRunningPhrase("  Image  ")).toBe("Looking at an image");
-    expect(toolRunningPhrase("fetch", "https://nytimes.com/story")).toBe(
-      "Reading nytimes.com",
+    expect(toolRunningPhrase("fetch", "https://nytimes.com/story")).toBe("Reading nytimes.com");
+    expect(toolRunningPhrase("fetch", 'fetch({"url":"https://example.com"})')).toBe(
+      "Reading example.com",
     );
-    expect(
-      toolRunningPhrase("fetch", 'fetch({"url":"https://example.com"})'),
-    ).toBe("Reading example.com");
   });
 
   it("tracks the latest running tool in the transcript", () => {
@@ -532,8 +468,25 @@ describe("live status phrases", () => {
     ).toBe("Thinking");
   });
 
-  it("keeps the footer visible throughout the active turn", () => {
-    expect(shouldShowStreamingFooter(true)).toBe(true);
-    expect(shouldShowStreamingFooter(false)).toBe(false);
+  it("shows one status only while working without visible reply text", () => {
+    const input = { items: [], isWorking: true, isConnected: true, needsInput: false };
+    expect(transcriptLiveStatus(input)).toEqual({ phrase: "Thinking", animating: true });
+    expect(transcriptLiveStatus({ ...input, isWorking: false })).toBeNull();
+    expect(transcriptLiveStatus({ ...input, isConnected: false })).toEqual({
+      phrase: "Reconnecting…",
+      animating: false,
+    });
+    expect(transcriptLiveStatus({ ...input, needsInput: true })).toEqual({
+      phrase: "Waiting for you",
+      animating: false,
+    });
+    for (const streaming of [true, false]) {
+      expect(
+        transcriptLiveStatus({
+          ...input,
+          items: [{ id: "a", kind: "assistant", text: "Answer", reasoning: "", streaming }],
+        }),
+      ).toBeNull();
+    }
   });
 });

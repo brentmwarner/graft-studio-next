@@ -64,6 +64,12 @@ struct ThreadView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingContextDetails = true
@@ -71,12 +77,11 @@ struct ThreadView: View {
                     ContextProgressRing(usage: contextUsage)
                 }
                 .accessibilityLabel(contextAccessibilityLabel)
+                .popover(isPresented: $showingContextDetails) {
+                    ThreadUsagePopover(threadId: threadId, fallbackContext: contextUsage)
+                        .presentationCompactAdaptation(.popover)
+                }
             }
-        }
-        .alert("Context", isPresented: $showingContextDetails) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(contextDetail)
         }
         .task(id: threadId) {
             await app.openThread(threadId, title: title)
@@ -91,7 +96,9 @@ struct ThreadView: View {
             )
         ) {
             if let diff = boundChat?.openedDiff {
-                DiffSheet(diff: diff)
+                DiffSheet(diff: diff) { path in
+                    await app.fetchDiff(diffId: diff.id, filePath: path)
+                }
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
@@ -116,62 +123,35 @@ struct ThreadView: View {
         return "Context: \(contextUsage.percent)% used"
     }
 
-    private var contextDetail: String {
-        guard let contextUsage, contextUsage.source == "measured" else {
-            return "This provider does not report context-window usage yet."
-        }
-        guard contextUsage.tokensMax > 0 else {
-            return "\(contextUsage.percent)% of the context window is used."
-        }
-        return "\(contextUsage.percent)% used · \(Self.formatTokens(contextUsage.tokensUsed)) of \(Self.formatTokens(contextUsage.tokensMax)) tokens"
-    }
 
-    private static func formatTokens(_ tokens: Int) -> String {
-        if tokens >= 1_000_000 {
-            return String(format: "%.1fM", Double(tokens) / 1_000_000)
-                .replacingOccurrences(of: ".0M", with: "M")
-        }
-        if tokens >= 1_000 {
-            return String(format: "%.1fK", Double(tokens) / 1_000)
-                .replacingOccurrences(of: ".0K", with: "K")
-        }
-        return String(tokens)
-    }
 }
 
 private struct ContextProgressRing: View {
     let usage: ContextUsageInfo?
 
-    private var isUnknown: Bool {
-        usage?.source != "measured"
+    var body: some View {
+        UsageProgressRing(percent: usage?.source == "measured" ? Double(usage?.percent ?? 0) : nil)
     }
+}
 
-    private var progress: CGFloat {
-        CGFloat(min(100, max(0, usage?.percent ?? 0))) / 100
-    }
+private struct UsageProgressRing: View {
+    let percent: Double?
+    var size: CGFloat = 20
 
     var body: some View {
+        let lineWidth: CGFloat = size > 24 ? 3 : 2
         ZStack {
             Circle()
-                .stroke(
-                    Color.secondary.opacity(isUnknown ? 0.56 : 0.2),
-                    style: StrokeStyle(
-                        lineWidth: 2,
-                        lineCap: .round,
-                        dash: isUnknown ? [2.5, 3.5] : []
-                    )
-                )
-            if !isUnknown {
+                .stroke(Color.secondary.opacity(percent == nil ? 0.56 : 0.2), lineWidth: lineWidth)
+            if let percent {
                 Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        Color.secondary,
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                    )
+                    .trim(from: 0, to: CGFloat(min(100, max(0, percent)) / 100))
+                    .stroke(Color.secondary, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
         }
-        .frame(width: 22, height: 22)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -179,5 +159,107 @@ private struct ContextProgressRing: View {
     NavigationStack {
         ThreadView(threadId: "thread-1", title: "Build native mobile app")
             .environment(AppModel())
+    }
+}
+
+
+private struct ThreadUsagePopover: View {
+    @Environment(AppModel.self) private var app
+    @State private var usage: ThreadUsageInfo?
+    @State private var loading = true
+    @State private var failed = false
+    @State private var reload = 0
+    let threadId: String
+    let fallbackContext: ContextUsageInfo?
+
+    private var context: ContextUsageInfo? {
+        if let usage { return usage.contextUsage }
+        return fallbackContext
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if let context, context.source == "measured" {
+                    meter("Context window", value: "\(context.percent)% used", percent: Double(context.percent))
+                    if context.tokensMax > 0 {
+                        Text("\(context.tokensUsed.formatted(.number.notation(.compactName))) of \(context.tokensMax.formatted(.number.notation(.compactName))) tokens")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Context window").font(.caption).foregroundStyle(.secondary)
+                    Text("Not reported").font(.subheadline.weight(.semibold))
+                }
+                Divider()
+                Text("Account usage").font(.caption).foregroundStyle(.secondary)
+                if loading {
+                    Text("Checking allowance…").font(.caption).foregroundStyle(.secondary)
+                } else if let allowance = usage?.allowance {
+                    if let plan = allowance.planName { Text(plan).font(.caption) }
+                    ForEach(Array(allowance.limits.enumerated()), id: \.offset) { _, limit in
+                        VStack(alignment: .leading, spacing: 6) {
+                            meter(limit.label == "5h" ? "5-hour limit" : limit.label,
+                                  value: "\(Int(limit.remainingPercent.rounded()))% remaining", percent: limit.remainingPercent)
+                            if let reset = limit.resetsAt, let date = parseDate(reset) {
+                                if date > .now {
+                                    Text("Resets \(date.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                } else {
+                                    Text("Awaiting updated allowance").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    if allowance.stale {
+                        Text("Last reported allowance · may be out of date").font(.caption).foregroundStyle(.secondary)
+                    }
+                    if allowance.limits.isEmpty {
+                        Text(allowance.status == "needs-auth"
+                             ? "Sign in to the provider on your host to see allowance."
+                             : "Account allowance is unavailable from this provider.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } else if failed {
+                    Text("Account usage isn’t available right now.").font(.caption).foregroundStyle(.secondary)
+                    Button("Try again") { reload += 1 }
+                }
+            }
+            .padding(18)
+        }
+        .frame(width: 280, height: 380)
+        .task(id: reload) {
+            loading = true
+            failed = false
+            do {
+                guard let rest = app.rest else { loading = false; failed = true; return }
+                let result = try await rest.usage(threadId: threadId)
+                try Task.checkCancellation()
+                usage = result
+                loading = false
+            } catch {
+                if !Task.isCancelled { failed = true; loading = false }
+            }
+        }
+    }
+
+    private func meter(_ title: String, value: String, percent: Double) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text(value).font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.trailing)
+            }
+            ProgressView(value: min(100, max(0, percent)), total: 100)
+                .progressViewStyle(.linear)
+                .tint(.secondary)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func parseDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 }

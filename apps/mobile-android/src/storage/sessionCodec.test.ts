@@ -1,14 +1,7 @@
-import {
-  GRAFT_MOBILE_PROTOCOL_VERSION,
-  type GraftSessionCredential,
-} from "@graft/mobile-contract";
+import { GRAFT_MOBILE_PROTOCOL_VERSION, type GraftSessionCredential } from "@graft/mobile-contract";
 import { describe, expect, it } from "vitest";
 
-import {
-  decodeSessionMetadata,
-  encodeSessionMetadata,
-  SessionStorageError,
-} from "./sessionCodec";
+import { decodeSessionMetadata, encodeSessionMetadata, SessionStorageError } from "./sessionCodec";
 
 const session: GraftSessionCredential = {
   sessionId: "session-1",
@@ -28,9 +21,7 @@ describe("session metadata codec", () => {
     const encoded = encodeSessionMetadata(session);
 
     expect(encoded).not.toContain(session.bearerToken);
-    expect(decodeSessionMetadata(encoded, session.bearerToken)).toEqual(
-      session,
-    );
+    expect(decodeSessionMetadata(encoded, session.bearerToken)).toEqual(session);
   });
 
   it("remembers that a session was issued over the managed relay", () => {
@@ -50,16 +41,11 @@ describe("session metadata codec", () => {
   });
 
   it("still reads sessions stored before the relay existed", () => {
-    const decoded = decodeSessionMetadata(
-      encodeSessionMetadata(session),
-      session.bearerToken,
-    );
+    const decoded = decodeSessionMetadata(encodeSessionMetadata(session), session.bearerToken);
     expect(decoded.endpointKind).toBeUndefined();
   });
 
   it("rejects corrupted metadata", () => {
-    expect(() => decodeSessionMetadata("{}", session.bearerToken)).toThrow(
-      SessionStorageError,
-    );
+    expect(() => decodeSessionMetadata("{}", session.bearerToken)).toThrow(SessionStorageError);
   });
 });

@@ -6,6 +6,8 @@ import {
   GraftPairExchangeResponseSchema,
   GraftRemoteErrorSchema,
   GraftRemoteHealthSchema,
+  GraftThreadUsageSchema,
+  type GraftThreadUsage,
   type GraftEnvironmentSnapshot,
   type GraftPairExchangeRequest,
   type GraftPairingPayload,
@@ -38,15 +40,10 @@ export interface PairingClientInfo {
 }
 
 export interface GatewayClient {
+  usage(session: GraftSessionCredential, threadId: string): Promise<GraftThreadUsage>;
   health(baseUrl: string): Promise<GraftRemoteHealth>;
-  pair(
-    pairing: GraftPairingPayload,
-    client: PairingClientInfo,
-  ): Promise<GraftSessionCredential>;
-  snapshot(
-    session: GraftSessionCredential,
-    threadId?: string,
-  ): Promise<GraftEnvironmentSnapshot>;
+  pair(pairing: GraftPairingPayload, client: PairingClientInfo): Promise<GraftSessionCredential>;
+  snapshot(session: GraftSessionCredential, threadId?: string): Promise<GraftEnvironmentSnapshot>;
 }
 
 function endpoint(baseUrl: string, path: string): string {
@@ -77,11 +74,7 @@ function errorFromResponse(response: Response, body: unknown): GatewayError {
 
   const remoteError = GraftRemoteErrorSchema.safeParse(body);
   if (remoteError.success) {
-    return new GatewayError(
-      remoteError.data.message,
-      remoteError.data.code,
-      response.status,
-    );
+    return new GatewayError(remoteError.data.message, remoteError.data.code, response.status);
   }
 
   return new GatewayError(
@@ -91,11 +84,7 @@ function errorFromResponse(response: Response, body: unknown): GatewayError {
   );
 }
 
-async function request(
-  fetcher: GatewayFetch,
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
+async function request(fetcher: GatewayFetch, url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -113,9 +102,7 @@ async function request(
   }
 }
 
-export function createGatewayClient(
-  fetcher: GatewayFetch = expoFetch,
-): GatewayClient {
+export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayClient {
   return {
     async health(baseUrl) {
       const response = await request(fetcher, endpoint(baseUrl, "/v1/health"));
@@ -141,26 +128,21 @@ export function createGatewayClient(
     },
 
     async pair(pairing, client) {
-      const body: GraftPairExchangeRequest =
-        GraftPairExchangeRequestSchema.parse({
-          token: pairing.token,
-          protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
-          client: {
-            platform: "android",
-            appVersion: client.appVersion,
-            deviceId: client.deviceId,
-            deviceLabel: client.deviceLabel,
-          },
-        });
-      const response = await request(
-        fetcher,
-        endpoint(pairing.host, "/v1/pair"),
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
+      const body: GraftPairExchangeRequest = GraftPairExchangeRequestSchema.parse({
+        token: pairing.token,
+        protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
+        client: {
+          platform: "android",
+          appVersion: client.appVersion,
+          deviceId: client.deviceId,
+          deviceLabel: client.deviceLabel,
         },
-      );
+      });
+      const response = await request(fetcher, endpoint(pairing.host, "/v1/pair"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const json = await responseJson(response);
       if (!response.ok) throw errorFromResponse(response, json);
 
@@ -173,6 +155,25 @@ export function createGatewayClient(
         );
       }
       return parsed.data.session;
+    },
+
+    async usage(session, threadId) {
+      const url = new URL(endpoint(session.httpBaseUrl, "/v1/usage"));
+      url.searchParams.set("threadId", threadId);
+      const response = await request(fetcher, url.toString(), {
+        headers: { authorization: `Bearer ${session.bearerToken}` },
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw errorFromResponse(response, body);
+      const parsed = GraftThreadUsageSchema.safeParse(body);
+      if (!parsed.success || parsed.data.threadId !== threadId) {
+        throw new GatewayError(
+          "The host returned invalid usage data.",
+          "invalid_response",
+          response.status,
+        );
+      }
+      return parsed.data;
     },
 
     async snapshot(session, threadId) {

@@ -34,6 +34,8 @@ import {
   type RuntimeMode,
 } from "@synara/contracts";
 
+import { toMobileContextUsage } from "./usage";
+
 export const MOBILE_PROVIDER_ORDER = [
   "codex",
   "claudeAgent",
@@ -453,7 +455,11 @@ export function toMobileSnapshot(input: {
   return {
     environment: toMobileEnvironmentSummary(input.descriptor, input.cursor, input.capabilities),
     projects: input.projects.map(toMobileProject),
-    threads: input.threads.map(toMobileThread),
+    threads: input.threads.map((thread) => {
+      const detail = input.details.find((candidate) => candidate.id === thread.id);
+      const contextUsage = detail ? toMobileContextUsage(detail.activities) : undefined;
+      return { ...toMobileThread(thread), ...(contextUsage ? { contextUsage } : {}) };
+    }),
     activeRuns: input.threads
       .map(toMobileRun)
       .filter(

@@ -21,22 +21,13 @@ struct ToolCallCard: View {
                 withAnimation(.snappy) { expanded.toggle() }
             } label: {
                 HStack(spacing: 7) {
-                    if item.toolStatus == .running {
-                        ProgressView()
-                            .controlSize(.mini)
-                    } else {
-                        Image(systemName: presentation.symbol)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 16)
-                    }
-                    if item.toolStatus == .running {
-                        ShimmerText(text: presentation.runningPhrase, font: .subheadline.weight(.medium))
-                    } else {
-                        Text(headline(presentation))
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
+                    Image(systemName: presentation.symbol)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+                    Text(headline(presentation))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(DS.Color.fgSubtle)

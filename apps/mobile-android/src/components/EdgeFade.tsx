@@ -14,18 +14,8 @@ export function EdgeFade({ edge, style }: EdgeFadeProps) {
   const transparent = "rgba(0, 0, 0, 0)";
   const colors =
     edge === "top"
-      ? ([
-          palette.background,
-          palette.background,
-          palette.fadeMid,
-          transparent,
-        ] as const)
-      : ([
-          transparent,
-          palette.fadeMid,
-          palette.background,
-          palette.background,
-        ] as const);
+      ? ([palette.background, palette.background, palette.fadeMid, transparent] as const)
+      : ([transparent, palette.fadeMid, palette.background, palette.background] as const);
 
   return (
     <LinearGradient

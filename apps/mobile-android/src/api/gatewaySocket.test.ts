@@ -1,7 +1,4 @@
-import {
-  GRAFT_MOBILE_PROTOCOL_VERSION,
-  type GraftSessionCredential,
-} from "@graft/mobile-contract";
+import { GRAFT_MOBILE_PROTOCOL_VERSION, type GraftSessionCredential } from "@graft/mobile-contract";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildWebSocketUrl } from "./gatewaySocket";
@@ -30,8 +27,8 @@ describe("buildWebSocketUrl", () => {
   });
 
   it("does not duplicate an already resolved gateway route", () => {
-    expect(
-      buildWebSocketUrl({ ...session, wsBaseUrl: "wss://studio.test/v1/ws" }),
-    ).toBe("wss://studio.test/v1/ws?sessionId=session-1");
+    expect(buildWebSocketUrl({ ...session, wsBaseUrl: "wss://studio.test/v1/ws" })).toBe(
+      "wss://studio.test/v1/ws?sessionId=session-1",
+    );
   });
 });

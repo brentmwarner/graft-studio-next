@@ -345,10 +345,12 @@ struct ApprovalResolveCommand: Codable, Sendable {
 struct DiffGetCommand: Codable, Sendable {
     let type: String
     let diffId: String
+    let filePath: String?
 
-    init(diffId: String) {
+    init(diffId: String, filePath: String? = nil) {
         type = "diff.get"
         self.diffId = diffId
+        self.filePath = filePath
     }
 }
 
@@ -547,6 +549,26 @@ struct ThreadInfo: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+struct ThreadUsageInfo: Codable, Sendable {
+    let threadId: String
+    let contextUsage: ContextUsageInfo?
+    let allowance: ProviderAllowanceInfo
+}
+
+struct ProviderAllowanceInfo: Codable, Sendable {
+    struct Limit: Codable, Sendable {
+        let label: String
+        let remainingPercent: Double
+        let resetsAt: String?
+    }
+    let providerId: String
+    let status: String
+    let updatedAt: String?
+    let stale: Bool
+    let planName: String?
+    let limits: [Limit]
+}
+
 struct ContextUsageInfo: Codable, Sendable, Equatable {
     let percent: Int
     let tokensUsed: Int
@@ -720,7 +742,33 @@ struct DiffFile: Codable, Sendable, Equatable, Identifiable {
     let additions: Int?
     let deletions: Int?
 
+    let previousPath: String?
+    let hunks: [DiffHunk]?
+    let detailStatus: String?
+
     var id: String { path }
+}
+
+struct DiffHunk: Codable, Sendable, Equatable {
+    let oldStart: Int
+    let newStart: Int
+    let collapsedBefore: Int
+    let lines: [DiffLine]
+}
+
+struct DiffLine: Codable, Sendable, Equatable {
+    let kind: String
+    let text: String
+    let oldLine: Int?
+    let newLine: Int?
+    let tokens: [DiffToken]?
+}
+
+struct DiffToken: Codable, Sendable, Equatable {
+    let text: String
+    let lightColor: String?
+    let darkColor: String?
+    let changed: Bool?
 }
 
 // MARK: - Protocol Constants

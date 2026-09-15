@@ -14,7 +14,7 @@ import {
   type GraftRemoteEndpointKind,
   type GraftRemoteError,
 } from "@graft/mobile-contract";
-import { DateTime, Effect, FileSystem, Layer, Queue, Stream } from "effect";
+import { DateTime, Effect, FileSystem, Layer, Option, Queue, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { makeEffectAuthRequest } from "../auth/effectHttp";
@@ -29,9 +29,14 @@ import {
   GraftMobileCommandError,
   executeMobileCommand,
   loadMobileSnapshot,
+  loadMobileUsage,
   makeGraftMobileGatewayState,
 } from "./gateway";
-import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  makeGraftMobileLiveEventState,
+  seedGraftMobileLiveEventState,
+  toMobileLiveEvent,
+} from "./liveEvents";
 
 const MOBILE_JSON_BODY_MAX_BYTES = 256 * 1024;
 
@@ -245,6 +250,30 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
       return HttpServerResponse.jsonUnsafe(yield* loadMobileSnapshot(threadId));
     }
 
+    if (request.method === "GET" && url.pathname === "/v1/usage") {
+      yield* serverAuth.authenticateHttpRequest(makeEffectAuthRequest(request));
+      const threadId = url.searchParams.get("threadId")?.trim();
+      if (!threadId || threadId.length > 512) {
+        return errorResponse(remoteError("validation_failed", "A thread ID is required."), 400);
+      }
+      return yield* loadMobileUsage(threadId).pipe(
+        Effect.map((usage) =>
+          HttpServerResponse.jsonUnsafe(usage, { headers: { "cache-control": "no-store" } }),
+        ),
+        Effect.catch((error) =>
+          Effect.succeed(
+            errorResponse(
+              remoteError(
+                error instanceof GraftMobileCommandError ? error.code : "internal",
+                "Could not load thread usage.",
+              ),
+              error instanceof GraftMobileCommandError && error.code === "not_found" ? 404 : 500,
+            ),
+          ),
+        ),
+      );
+    }
+
     if (request.method === "POST" && url.pathname === "/v1/pairing-link") {
       const authenticated = yield* serverAuth.authenticateHttpRequest(
         makeEffectAuthRequest(request),
@@ -356,6 +385,7 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
     const serverAuth = yield* ServerAuth;
     const environment = yield* ServerEnvironment;
     const engine = yield* OrchestrationEngineService;
+    const query = yield* ProjectionSnapshotQuery;
     const authenticated = yield* serverAuth.authenticateWebSocketUpgrade(
       makeEffectAuthRequest(request),
     );
@@ -374,17 +404,45 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
 
     const domainEvents = yield* engine.subscribeDomainEvents;
     yield* domainEvents.pipe(
-      Stream.runForEach((event) => {
-        if (!welcomed) return Effect.void;
-        const mobileEvent = toMobileLiveEvent(liveState, event);
-        return mobileEvent
-          ? send({ envelope: "event", event: mobileEvent })
-          : send({
-              envelope: "snapshot_required",
-              reason: "resync",
-              message: "Workspace state changed.",
-            });
-      }),
+      Stream.runForEach((event) =>
+        Effect.gen(function* () {
+          if (!welcomed) return;
+          if (
+            event.type === "thread.message-sent" &&
+            event.payload.role === "assistant" &&
+            !liveState.snapshotCursorByThreadId.has(event.payload.threadId)
+          ) {
+            const snapshot = yield* query
+              .getThreadDetailSnapshotById(event.payload.threadId)
+              .pipe(Effect.catch(() => Effect.succeed(Option.none())));
+            if (Option.isNone(snapshot)) {
+              yield* send({
+                envelope: "snapshot_required",
+                reason: "resync",
+                message: "Refreshing the conversation.",
+              });
+              return;
+            }
+            // Seed only when reconnecting mid-stream (snapshot behind this
+            // live event). Seeding an up-to-date snapshot marks the first
+            // assistant frame as already covered and forces snapshot_required
+            // on a fresh connection before any text can stream.
+            if (event.sequence > snapshot.value.snapshotSequence) {
+              seedGraftMobileLiveEventState(liveState, snapshot.value);
+            } else {
+              liveState.snapshotCursorByThreadId.set(event.payload.threadId, 0);
+            }
+          }
+          const mobileEvent = toMobileLiveEvent(liveState, event);
+          yield* mobileEvent
+            ? send({ envelope: "event", event: mobileEvent })
+            : send({
+                envelope: "snapshot_required",
+                reason: "resync",
+                message: "Workspace state changed.",
+              });
+        }),
+      ),
       Effect.forkScoped,
     );
 

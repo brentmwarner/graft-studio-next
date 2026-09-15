@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   FlatList,
   LayoutChangeEvent,
@@ -7,128 +7,142 @@ import type {
 } from "react-native";
 
 import type { TranscriptItem } from "../../state/mobileViewModels";
-import { nextFollowLatch } from "../../state/transcriptFollow";
+import { nextFollowLatch, transcriptFollowContent } from "../../state/transcriptFollow";
 
-export function useTranscriptFollow(activeRunId: string | undefined) {
+export function useTranscriptFollow(
+  threadId: string,
+  items: readonly TranscriptItem[],
+  canStream: boolean,
+) {
   const listRef = useRef<FlatList<TranscriptItem>>(null);
-  // The two numbers `scrollToBottom` needs, kept off state so a follow-scroll
-  // never waits on a render.
   const contentHeightRef = useRef(0);
-  const viewportHeightRef = useRef(0);
+  const isAwayRef = useRef(false);
+  const isDraggingRef = useRef(false);
+  const pendingContentRef = useRef(true);
+  const streamingRef = useRef(false);
+  const frameRef = useRef<number | null>(null);
   const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
-  const isAwayFromBottomRef = useRef(false);
-  const isUserDraggingRef = useRef(false);
+  const content = transcriptFollowContent(items);
 
-  // Mirrored into a ref so the scroll handlers can read the latch without
-  // taking it as a dependency — otherwise every frame hands `FlatList` a new
-  // callback identity.
-  const setAwayFromBottom = useCallback((away: boolean) => {
-    if (isAwayFromBottomRef.current === away) return;
-    isAwayFromBottomRef.current = away;
+  const setAway = useCallback((away: boolean) => {
+    if (isAwayRef.current === away) return;
+    isAwayRef.current = away;
     setIsAwayFromBottom(away);
   }, []);
 
-  /// Scroll to the true end of the transcript.
-  ///
-  /// Deliberately NOT `scrollToEnd()`. That helper targets
-  /// `contentLength - visibleLength` off `VirtualizedList`'s own scroll
-  /// metrics, and those metrics are still the PREVIOUS content height while
-  /// our `onContentSizeChange` is running — so every follow-scroll landed one
-  /// growth-step short. Measured: content 46029, scrollToEnd stopped at 44017,
-  /// i.e. 1097pt of transcript left stranded under the composer. Streaming
-  /// grows the content continuously, so the list never caught up and the tail
-  /// stayed hidden. Tracking the height RN hands us and scrolling to an offset
-  /// we compute ourselves sidesteps the stale read entirely.
   const scrollToBottom = useCallback((animated: boolean) => {
-    // Deliberately one viewport PAST the computed end. The exact target would
-    // be `contentHeight - viewport`, but the native scroll range trails the
-    // content height JS reports while rows are still being measured — during
-    // streaming that left us ~90pt short every time, which is exactly the band
-    // the composer covers. Asking for more than the maximum lets the native
-    // scroller clamp to its own true bottom, whatever it currently is.
-    listRef.current?.scrollToOffset({
-      animated,
-      offset: contentHeightRef.current,
-    });
+    // Native clamps to its current maximum. VirtualizedList's cached end can
+    // still refer to the previous text measurement during this callback.
+    listRef.current?.scrollToOffset({ offset: contentHeightRef.current, animated });
   }, []);
 
-  // A turn becoming active without a send — resuming a live run after a
-  // reconnect — must not inherit a stale latch from before the drop.
-  useEffect(() => {
-    if (!activeRunId) return;
-    isUserDraggingRef.current = false;
-    setAwayFromBottom(false);
-  }, [activeRunId, setAwayFromBottom]);
+  const cancelFollowFrame = useCallback(() => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+  }, []);
+
+  const scheduleFollow = useCallback(
+    (animated: boolean) => {
+      cancelFollowFrame();
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        if (!isAwayRef.current && !isDraggingRef.current) scrollToBottom(animated);
+      });
+    },
+    [cancelFollowFrame, scrollToBottom],
+  );
+
+  useLayoutEffect(() => {
+    cancelFollowFrame();
+    contentHeightRef.current = 0;
+    isDraggingRef.current = false;
+    pendingContentRef.current = true;
+    setAway(false);
+  }, [cancelFollowFrame, setAway, threadId]);
+
+  useLayoutEffect(() => {
+    streamingRef.current = canStream && content.streaming;
+  }, [canStream, content.streaming]);
+
+  // Only real message changes request follow. Tool rows, reasoning, status,
+  // snapshot refreshes and reconnects cannot re-arm the user's scroll latch.
+  useLayoutEffect(() => {
+    pendingContentRef.current = true;
+    scheduleFollow(false);
+  }, [content.messageCount, content.lastMessageId, content.lastMessageText, scheduleFollow]);
+
+  useEffect(() => cancelFollowFrame, [cancelFollowFrame]);
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset, contentSize, layoutMeasurement } =
-        event.nativeEvent;
-      // Freshest measurements we get — keep the scroll refs honest even if a
-      // content-size or layout callback was coalesced away.
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
       contentHeightRef.current = contentSize.height;
-      viewportHeightRef.current = layoutMeasurement.height;
-      setAwayFromBottom(
+      setAway(
         nextFollowLatch({
-          distanceFromBottom:
-            contentSize.height - (contentOffset.y + layoutMeasurement.height),
-          isAway: isAwayFromBottomRef.current,
-          isUserDragging: isUserDraggingRef.current,
+          distanceFromBottom: contentSize.height - contentOffset.y - layoutMeasurement.height,
+          isAway: isAwayRef.current,
+          isUserDragging: isDraggingRef.current,
         }),
       );
     },
-    [setAwayFromBottom],
+    [setAway],
   );
 
-  // Only finger-driven scrolling may arm the latch. Without this gate the app's
-  // own follow-scroll armed it — the transcript grows a frame before the scroll
-  // lands, which looks exactly like the user pulling away — and the transcript
-  // then stopped following the stream for the rest of the session.
   const handleScrollBeginDrag = useCallback(() => {
-    isUserDraggingRef.current = true;
-  }, []);
+    cancelFollowFrame();
+    isDraggingRef.current = true;
+    pendingContentRef.current = false;
+  }, [cancelFollowFrame]);
 
   const handleScrollSettled = useCallback(() => {
-    isUserDraggingRef.current = false;
+    isDraggingRef.current = false;
   }, []);
 
-  const jumpToLatest = useCallback(() => {
-    isUserDraggingRef.current = false;
-    setAwayFromBottom(false);
-    scrollToBottom(true);
-  }, [scrollToBottom, setAwayFromBottom]);
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handleScroll(event);
+      // A fling is still user scrolling. MomentumScrollEnd releases this guard.
+      if (!event.nativeEvent.velocity?.y) isDraggingRef.current = false;
+    },
+    [handleScroll],
+  );
 
-  // `h` is the authoritative new content height, and it is the whole reason
-  // this doesn't call `scrollToEnd`. See `scrollToBottom`.
   const handleContentSizeChange = useCallback(
     (_width: number, height: number) => {
       contentHeightRef.current = height;
-      if (!isAwayFromBottomRef.current) scrollToBottom(false);
+      const shouldFollow = pendingContentRef.current || streamingRef.current;
+      pendingContentRef.current = false;
+      if (shouldFollow && !isAwayRef.current && !isDraggingRef.current) scheduleFollow(false);
     },
-    [scrollToBottom],
+    [scheduleFollow],
   );
 
-  function handleListLayout(event: LayoutChangeEvent) {
-    viewportHeightRef.current = event.nativeEvent.layout.height;
-  }
+  const handleListLayout = useCallback(
+    (_event: LayoutChangeEvent) => {
+      // Keyboard/viewport changes preserve the bottom only if already following.
+      pendingContentRef.current = true;
+      scheduleFollow(false);
+    },
+    [scheduleFollow],
+  );
 
-  const pinToBottomForSend = useCallback(() => {
-    // The user's own send re-pins: clear the latch as well as scrolling, or the
-    // new turn streams in off-screen behind a stuck jump button.
-    isUserDraggingRef.current = false;
-    setAwayFromBottom(false);
-    requestAnimationFrame(() => scrollToBottom(true));
-  }, [scrollToBottom, setAwayFromBottom]);
+  const jumpToLatest = useCallback(() => {
+    isDraggingRef.current = false;
+    setAway(false);
+    pendingContentRef.current = true;
+    scheduleFollow(true);
+  }, [scheduleFollow, setAway]);
 
   return {
     handleContentSizeChange,
     handleListLayout,
     handleScroll,
     handleScrollBeginDrag,
+    handleScrollEndDrag,
     handleScrollSettled,
     isAwayFromBottom,
     jumpToLatest,
     listRef,
-    pinToBottomForSend,
+    pinToBottomForSend: jumpToLatest,
   };
 }

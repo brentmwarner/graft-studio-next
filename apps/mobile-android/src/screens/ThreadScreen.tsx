@@ -6,12 +6,12 @@ import type {
   GraftModelOption,
   GraftQuestionRequest,
   GraftThreadSummary,
+  GraftThreadUsage,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -24,40 +24,36 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
+import { AnchoredMenu, MenuItem } from "../components/AnchoredMenu";
+import { UsageMenu } from "./thread/UsageMenu";
 import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { LiveStatusLine } from "../components/LiveStatusLine";
 import { PressScale } from "../components/PressScale";
-import {
-  livePhraseFromItems,
-  shouldShowStreamingFooter,
-} from "../state/liveStatus";
+import { transcriptLiveStatus } from "../state/liveStatus";
 import { useGraftPalette } from "../theme/tokens";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
-import { ComposerConfigMenu } from "./thread/ComposerConfigMenu";
 import { ContextProgressRing } from "./thread/ContextProgressRing";
-import {
-  contextUsageAccessibilityLabel,
-  contextUsageDetail,
-} from "./thread/contextUsage";
+import { contextUsageAccessibilityLabel } from "./thread/contextUsage";
 import { DiffSheet } from "./thread/DiffSheet";
 import { ApprovalPrompt, QuestionPrompt } from "./thread/InteractionPrompts";
-import {
-  ApprovalPickerSheet,
-  ComposerActionsSheet,
-  ModelPickerSheet,
-} from "./thread/ThreadSheets";
 import { renderTranscriptRow, transcriptRowKey } from "./thread/TranscriptRow";
 import { useThreadModel } from "./thread/useThreadModel";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 import { useTranscriptFollow } from "./thread/useTranscriptFollow";
 
+const THREAD_HEADER_HEIGHT = 44;
+
 interface ThreadScreenProps {
   readonly availableModels: readonly GraftModelOption[];
   readonly connectionState: GatewayConnectionState;
   readonly diffSummary?: GraftDiffSummary;
+  readonly onLoadDiffFile: (
+    threadId: string,
+    path: string,
+  ) => Promise<GraftDiffSummary | undefined>;
   readonly error?: string;
   readonly isRefreshing: boolean;
   readonly hostLabel: string;
@@ -66,6 +62,7 @@ interface ThreadScreenProps {
   readonly onBack: () => void;
   readonly onCancel: (runId: string) => Promise<boolean>;
   readonly onLoadDiff: (threadId: string, diffId?: string) => Promise<void>;
+  readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
   readonly onLoadModels: () => Promise<void>;
   readonly onRefresh: () => Promise<void>;
   readonly onResolveApproval: (
@@ -76,19 +73,9 @@ interface ThreadScreenProps {
     question: Pick<GraftQuestionRequest, "id">,
     answer: { readonly optionId?: string; readonly text?: string },
   ) => Promise<boolean>;
-  readonly onSend: (
-    threadId: string,
-    text: string,
-    effort?: string,
-  ) => Promise<boolean>;
-  readonly onSetApproval: (
-    threadId: string,
-    policy: string,
-  ) => Promise<boolean>;
-  readonly onSetModel: (
-    threadId: string,
-    model: GraftModelOption,
-  ) => Promise<boolean>;
+  readonly onSend: (threadId: string, text: string, effort?: string) => Promise<boolean>;
+  readonly onSetApproval: (threadId: string, policy: string) => Promise<boolean>;
+  readonly onSetModel: (threadId: string, model: GraftModelOption) => Promise<boolean>;
   readonly pendingSend?: boolean;
   readonly snapshot: GraftEnvironmentSnapshot | null;
   readonly projectName: string;
@@ -107,7 +94,9 @@ export function ThreadScreen({
   onBack,
   onCancel,
   onLoadDiff,
+  onLoadDiffFile,
   onLoadModels,
+  onLoadUsage,
   onRefresh,
   onResolveApproval,
   onResolveQuestion,
@@ -125,11 +114,8 @@ export function ThreadScreen({
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
-  const [showApprovalSheet, setShowApprovalSheet] = useState(false);
-  const [showActionsSheet, setShowActionsSheet] = useState(false);
   const [showDiffSheet, setShowDiffSheet] = useState(false);
-  const [showIntelligenceMenu, setShowIntelligenceMenu] = useState(false);
-  const [showModelSheet, setShowModelSheet] = useState(false);
+  const closeDiffSheet = useCallback(() => setShowDiffSheet(false), []);
 
   const model = useThreadModel({
     availableModels,
@@ -139,16 +125,25 @@ export function ThreadScreen({
     snapshot,
     thread,
   });
-  const follow = useTranscriptFollow(model.activeRunId);
+  const follow = useTranscriptFollow(
+    thread.id,
+    model.items,
+    Boolean(model.activeRunId) &&
+      connectionState === "connected" &&
+      !model.approval &&
+      !model.question,
+  );
 
   const isConnected = connectionState === "connected";
   const canSend = Boolean(draft.trim() && isConnected && !isSending);
   const pendingApproval = model.approval;
   const pendingQuestion = model.question;
-  const showLiveStatus = shouldShowStreamingFooter(
-    Boolean(isSending || pendingSend || model.activeRunId),
-  );
-  const livePhrase = livePhraseFromItems(model.items);
+  const liveStatus = transcriptLiveStatus({
+    items: model.items,
+    isWorking: Boolean(isSending || pendingSend || model.activeRunId),
+    isConnected,
+    needsInput: Boolean(pendingApproval || pendingQuestion),
+  });
 
   useEffect(() => {
     void onLoadModels();
@@ -189,11 +184,8 @@ export function ThreadScreen({
             // (`insets.bottom + 116`) — at 12 the last line settled inside the
             // gradient, which is what "the end of the conversation should be
             // readable above the composer" was asking for.
-            paddingBottom: Math.max(
-              insets.bottom + 126,
-              bottomChromeHeight + 24,
-            ),
-            paddingTop: insets.top + 84,
+            paddingBottom: Math.max(insets.bottom + 126, bottomChromeHeight + 24),
+            paddingTop: insets.top + THREAD_HEADER_HEIGHT + 30,
           },
           model.items.length === 0 ? styles.emptyTranscript : null,
         ]}
@@ -208,7 +200,8 @@ export function ThreadScreen({
         onMomentumScrollEnd={follow.handleScrollSettled}
         onScroll={follow.handleScroll}
         onScrollBeginDrag={follow.handleScrollBeginDrag}
-        onScrollEndDrag={follow.handleScrollSettled}
+        onScrollEndDrag={follow.handleScrollEndDrag}
+        onMomentumScrollBegin={follow.handleScrollBeginDrag}
         ref={follow.listRef}
         refreshControl={
           <RefreshControl
@@ -218,20 +211,20 @@ export function ThreadScreen({
             tintColor={palette.foregroundSubtle}
           />
         }
-        removeClippedSubviews
+        removeClippedSubviews={false}
         renderItem={renderTranscriptRow}
         scrollEventThrottle={16}
         windowSize={11}
         ListFooterComponent={
-          showLiveStatus ? <LiveStatusLine phrase={livePhrase} /> : null
+          <View style={styles.liveStatusSlot}>
+            {liveStatus ? <LiveStatusLine {...liveStatus} /> : null}
+          </View>
         }
         ListEmptyComponent={
           isRefreshing ? (
             <ActivityIndicator color={palette.foregroundSubtle} />
           ) : (
-            <Text
-              style={[styles.emptyText, { color: palette.foregroundSubtle }]}
-            >
+            <Text style={[styles.emptyText, { color: palette.foregroundSubtle }]}>
               Start the conversation below.
             </Text>
           )
@@ -240,129 +233,101 @@ export function ThreadScreen({
 
       <EdgeFade
         edge="top"
-        style={[styles.topFade, { height: insets.top + 92 }]}
+        style={[styles.topFade, { height: insets.top + THREAD_HEADER_HEIGHT + 38 }]}
       />
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
         <CircleIconButton
           accessibilityLabel="Back to projects"
           icon="chevron-back"
-          iconSize={22}
+          iconSize={20}
           onPress={onBack}
         />
         <FloatingSurface style={styles.threadHeader}>
-          <Text
-            numberOfLines={1}
-            style={[styles.threadHeading, { color: palette.foreground }]}
-          >
+          <Text numberOfLines={1} style={[styles.threadHeading, { color: palette.foreground }]}>
             {thread.title}
           </Text>
           <View style={styles.threadContext}>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="folder-outline"
-              size={13}
-            />
+            <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={12} />
             <Text
               numberOfLines={1}
-              style={[
-                styles.threadContextText,
-                { color: palette.foregroundSubtle },
-              ]}
+              style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
             >
               {projectName}
             </Text>
-            <Ionicons
-              color={palette.foregroundSubtle}
-              name="laptop-outline"
-              size={13}
-            />
+            <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={12} />
             <Text
               numberOfLines={1}
-              style={[
-                styles.threadContextText,
-                { color: palette.foregroundSubtle },
-              ]}
+              style={[styles.threadContextText, { color: palette.foregroundSubtle }]}
             >
               {hostLabel}
             </Text>
           </View>
         </FloatingSurface>
         <FloatingSurface style={styles.threadActions}>
-          <PressScale
-            accessibilityLabel={contextUsageAccessibilityLabel(
-              model.currentThread.contextUsage,
+          <UsageMenu
+            key={`${thread.id}:${model.currentThread.providerId}`}
+            threadId={thread.id}
+            contextUsage={model.currentThread.contextUsage}
+            onLoadUsage={onLoadUsage}
+            trigger={(open) => (
+              <PressScale
+                accessibilityLabel={contextUsageAccessibilityLabel(
+                  model.currentThread.contextUsage,
+                )}
+                onPress={open}
+              >
+                <View style={styles.headerActionButton}>
+                  <ContextProgressRing palette={palette} usage={model.currentThread.contextUsage} />
+                </View>
+              </PressScale>
             )}
-            onPress={() =>
-              Alert.alert(
-                "Context",
-                contextUsageDetail(model.currentThread.contextUsage),
-              )
-            }
+          />
+          <AnchoredMenu
+            trigger={(open) => (
+              <PressScale accessibilityLabel="Thread options" onPress={open}>
+                <View style={styles.headerActionButton}>
+                  <Ionicons color={palette.foreground} name="ellipsis-vertical" size={18} />
+                </View>
+              </PressScale>
+            )}
           >
-            <View style={styles.headerActionButton}>
-              <ContextProgressRing
-                palette={palette}
-                usage={model.currentThread.contextUsage}
+            {(close) => (
+              <MenuItem
+                label="Refresh"
+                onPress={() => {
+                  close();
+                  void onRefresh();
+                }}
               />
-            </View>
-          </PressScale>
-          <PressScale
-            accessibilityLabel="Thread options"
-            onPress={() =>
-              Alert.alert(thread.title, undefined, [
-                { text: "Refresh", onPress: () => void onRefresh() },
-                { text: "Cancel", style: "cancel" },
-              ])
-            }
-          >
-            <View style={styles.headerActionButton}>
-              <Ionicons
-                color={palette.foreground}
-                name="ellipsis-vertical"
-                size={22}
-              />
-            </View>
-          </PressScale>
+            )}
+          </AnchoredMenu>
         </FloatingSurface>
       </View>
 
-      <EdgeFade
-        edge="bottom"
-        style={[styles.bottomFade, { height: insets.bottom + 116 }]}
-      />
+      <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 116 }]} />
       <View
         onLayout={handleBottomChromeLayout}
         style={[
           styles.bottomChrome,
           {
-            paddingBottom: composerBottomPadding(
-              insets.bottom,
-              keyboardVisible,
-            ),
+            paddingBottom: composerBottomPadding(insets.bottom, keyboardVisible),
           },
         ]}
       >
         {pendingApproval ? (
           <ApprovalPrompt
             approval={pendingApproval}
-            onResolve={(decision) =>
-              void onResolveApproval(pendingApproval.id, decision)
-            }
+            onResolve={(decision) => void onResolveApproval(pendingApproval.id, decision)}
           />
         ) : null}
         {pendingQuestion ? (
           <QuestionPrompt
-            onResolve={(answer) =>
-              void onResolveQuestion(pendingQuestion, answer)
-            }
+            onResolve={(answer) => void onResolveQuestion(pendingQuestion, answer)}
             question={pendingQuestion}
           />
         ) : null}
         {error ? (
-          <Text
-            numberOfLines={2}
-            style={[styles.inlineError, { color: palette.danger }]}
-          >
+          <Text numberOfLines={2} style={[styles.inlineError, { color: palette.danger }]}>
             {error}
           </Text>
         ) : null}
@@ -377,12 +342,7 @@ export function ThreadScreen({
                 onPress={() => setShowDiffSheet(true)}
               >
                 <FloatingSurface style={styles.diffChip}>
-                  <Text
-                    style={[
-                      styles.diffLabel,
-                      { color: palette.foregroundMuted },
-                    ]}
-                  >
+                  <Text style={[styles.diffLabel, { color: palette.foregroundMuted }]}>
                     {diffSummary?.files.length ?? 0} files changed
                   </Text>
                   <Text style={[styles.diffCount, { color: palette.success }]}>
@@ -396,16 +356,9 @@ export function ThreadScreen({
             ) : null}
             <View style={styles.accessorySpacer} />
             {follow.isAwayFromBottom ? (
-              <PressScale
-                accessibilityLabel="Jump to latest message"
-                onPress={follow.jumpToLatest}
-              >
+              <PressScale accessibilityLabel="Jump to latest message" onPress={follow.jumpToLatest}>
                 <FloatingSurface style={styles.jumpButton}>
-                  <Ionicons
-                    color={palette.foreground}
-                    name="arrow-down"
-                    size={19}
-                  />
+                  <Ionicons color={palette.foreground} name="arrow-down" size={19} />
                 </FloatingSurface>
               </PressScale>
             ) : null}
@@ -429,64 +382,27 @@ export function ThreadScreen({
             void onCancel(runId);
           }}
           onDraftChange={setDraft}
-          onOpenActions={() => setShowActionsSheet(true)}
-          onOpenApproval={() => setShowApprovalSheet(true)}
-          onOpenModel={() => setShowIntelligenceMenu(true)}
+          menuConfig={{
+            currentApproval: model.currentApproval,
+            approvalOptions: model.approvalOptions,
+            currentModel: model.currentModel,
+            models: availableModels,
+            efforts: model.efforts,
+            resolvedEffort: model.resolvedEffort,
+            enabled: isConnected,
+            onSelectApproval: (policy) => onSetApproval(thread.id, policy),
+            onSelectModel: (selected) => onSetModel(thread.id, selected),
+            onSelectEffort: model.setSelectedEffort,
+          }}
           onSend={() => void send()}
           resolvedEffort={model.resolvedEffort}
         />
       </View>
 
-      <ApprovalPickerSheet
-        currentApproval={model.currentApproval}
-        onClose={() => setShowApprovalSheet(false)}
-        onSelect={(policy) => {
-          void onSetApproval(thread.id, policy);
-        }}
-        options={model.approvalOptions}
-        visible={showApprovalSheet}
-      />
-
-      <ComposerActionsSheet
-        hasApprovalOptions={model.approvalOptions.length > 0}
-        onClose={() => setShowActionsSheet(false)}
-        onOpenApproval={() => setShowApprovalSheet(true)}
-        onOpenModel={() => setShowIntelligenceMenu(true)}
-        visible={showActionsSheet}
-      />
-
-      <ComposerConfigMenu
-        currentModel={model.currentModel}
-        efforts={model.efforts}
-        onClose={() => setShowIntelligenceMenu(false)}
-        onOpenModel={() => {
-          setShowIntelligenceMenu(false);
-          setShowModelSheet(true);
-        }}
-        onSelectEffort={model.setSelectedEffort}
-        onSpeedPress={() =>
-          Alert.alert("Speed", "Normal is currently the supported host speed.")
-        }
-        resolvedEffort={model.resolvedEffort}
-        visible={showIntelligenceMenu}
-      />
-
-      <ModelPickerSheet
-        currentModel={model.currentModel}
-        efforts={model.efforts}
-        models={availableModels}
-        onClose={() => setShowModelSheet(false)}
-        onSelectEffort={model.setSelectedEffort}
-        onSelectModel={(selected) => {
-          void onSetModel(thread.id, selected);
-        }}
-        resolvedEffort={model.resolvedEffort}
-        visible={showModelSheet}
-      />
-
       <DiffSheet
         diff={diffSummary}
-        onClose={() => setShowDiffSheet(false)}
+        onLoadFile={onLoadDiffFile}
+        onClose={closeDiffSheet}
         visible={showDiffSheet}
       />
     </KeyboardAvoidingView>
@@ -495,6 +411,7 @@ export function ThreadScreen({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  liveStatusSlot: { minHeight: 24 },
   transcript: { flexGrow: 1, gap: 16, paddingHorizontal: 16 },
   emptyTranscript: { justifyContent: "center" },
   emptyText: { fontSize: 14, textAlign: "center" },
@@ -502,7 +419,7 @@ const styles = StyleSheet.create({
   topBar: {
     alignItems: "center",
     flexDirection: "row",
-    height: 70,
+    height: THREAD_HEADER_HEIGHT + 16,
     gap: 8,
     // Matches `bottomChrome`, so the floating circles share an edge with the
     // composer below them.
@@ -512,29 +429,30 @@ const styles = StyleSheet.create({
     top: 0,
   },
   threadHeading: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
+    lineHeight: 18,
   },
   threadHeader: {
     flex: 1,
-    height: 54,
+    height: THREAD_HEADER_HEIGHT,
     justifyContent: "center",
     maxWidth: 300,
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
   },
   threadContext: { alignItems: "center", flexDirection: "row", gap: 4 },
-  threadContextText: { flexShrink: 1, fontSize: 11 },
+  threadContextText: { flexShrink: 1, fontSize: 11, lineHeight: 14 },
   threadActions: {
     alignItems: "center",
     flexDirection: "row",
-    height: 54,
+    height: THREAD_HEADER_HEIGHT,
     overflow: "hidden",
   },
   headerActionButton: {
     alignItems: "center",
-    height: 54,
+    height: THREAD_HEADER_HEIGHT,
     justifyContent: "center",
-    width: 42,
+    width: THREAD_HEADER_HEIGHT,
   },
   bottomFade: { bottom: 0 },
   bottomChrome: {

@@ -139,65 +139,47 @@ private struct AssistantMessage: View {
     }
 }
 
-/// Keeps provider batching out of the presentation layer. The view receives
-/// cumulative text snapshots but reveals their new suffix at Graft's standard
-/// cadence, flushing the exact final value as soon as the turn settles.
+/// Coalesces rapid snapshots without holding back received text.
 private struct StreamingAssistantText: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let text: String
     let isStreaming: Bool
 
-    @State private var targetText: String
-    @State private var displayedText: String
-    @State private var displayedLength: Int
+    @State private var stream: StreamingReveal
     @State private var reveal: Double = 1
-    @State private var lastCommitAt: Date?
     @State private var lastHapticAt = Date.distantPast
     @State private var hapticTick = 0
 
     init(text: String, isStreaming: Bool) {
         self.text = text
         self.isStreaming = isStreaming
-        let initialLength = StreamingReveal.initialDisplayedLength(
-            in: text,
-            isStreaming: isStreaming
-        )
-        _targetText = State(initialValue: text)
-        _displayedText = State(
-            initialValue: StreamingReveal.prefix(text, utf16Length: initialLength)
-        )
-        _displayedLength = State(initialValue: initialLength)
+        _stream = State(initialValue: StreamingReveal(text: text))
     }
 
     var body: some View {
         MarkdownText(
-            reduceMotion ? text : displayedText,
+            !isStreaming || reduceMotion ? text : stream.displayedText,
             revealTail: isStreaming && !reduceMotion ? reveal : nil
         )
             .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.65), trigger: hapticTick)
             .onChange(of: text) { _, newText in
-                targetText = newText
-                if reduceMotion
-                    || newText.utf16.count > StreamingReveal.maximumAnimatedCharacters
-                    || !newText.hasPrefix(displayedText) {
-                    flushTarget(newText)
-                }
+                receive(newText)
             }
-            .onChange(of: isStreaming) { _, streaming in
-                if !streaming {
-                    targetText = text
-                    flushTarget(text)
-                }
+            .onChange(of: isStreaming) { _, _ in
+                receive(text)
             }
             .task(id: RevealLoopID(streaming: isStreaming, reduceMotion: reduceMotion)) {
-                targetText = text
-                if !isStreaming || reduceMotion {
-                    flushTarget(text)
-                    return
-                }
+                receive(text)
+                guard isStreaming, !reduceMotion else { return }
                 await runRevealLoop()
             }
+    }
+
+    @MainActor
+    private func receive(_ text: String) {
+        stream.receive(text, isStreaming: isStreaming, reduceMotion: reduceMotion)
+        if stream.displayedText == text { reveal = 1 }
     }
 
     @MainActor
@@ -208,57 +190,26 @@ private struct StreamingAssistantText: View {
             } catch {
                 return
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, stream.displayedText != stream.targetText else { continue }
 
-            let target = targetText
-            let targetLength = target.utf16.count
-            guard displayedLength < targetLength else {
-                lastCommitAt = nil
-                continue
-            }
-
-            let now = Date()
-            let elapsed = lastCommitAt.map {
-                min(200, now.timeIntervalSince($0) * 1_000)
-            } ?? Double(StreamingReveal.commitIntervalMilliseconds)
-            lastCommitAt = now
-
-            let previousLength = displayedLength
-            let nextLength = StreamingReveal.nextLength(
-                in: target,
-                currentLength: previousLength,
-                elapsedMilliseconds: elapsed
-            )
-            let nextText = StreamingReveal.prefix(target, utf16Length: nextLength)
+            let previousLength = stream.displayedText.utf16.count
+            let nextLength = stream.targetText.utf16.count
             let settled = Double(previousLength) / Double(max(nextLength, 1))
-
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                displayedText = nextText
-                displayedLength = nextLength
+                stream.commit()
                 reveal = min(reveal, settled)
             }
-            withAnimation(.easeOut(duration: 0.22)) {
+            withAnimation(.easeOut(duration: 0.12)) {
                 reveal = 1
             }
 
+            let now = Date()
             if now.timeIntervalSince(lastHapticAt) >= 0.1 {
                 lastHapticAt = now
                 hapticTick &+= 1
             }
-        }
-    }
-
-    @MainActor
-    private func flushTarget(_ target: String) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            displayedText = target
-            displayedLength = target.utf16.count
-            reveal = 1
-            lastCommitAt = nil
         }
     }
 
@@ -287,28 +238,12 @@ private struct AssistantMediaGrid: View {
     }
 }
 
-/// ChatGPT-style chain-of-thought presentation. While the model is thinking
-/// it shows a shimmering "Thinking" header and the latest reasoning line;
-/// once output starts it collapses to "Thought for Ns", expandable to the
-/// full trace.
+/// A stable, expandable reasoning summary. Live progress belongs to the footer.
 private struct ReasoningView: View {
     let item: TranscriptItem
     var foldedActivityItems: [TranscriptItem] = []
     var includeReasoning = true
     @State private var expanded = false
-
-    private var isThinking: Bool {
-        foldedActivityItems.isEmpty
-            && item.isStreaming
-            && item.text.isEmpty
-            && item.reasoningDuration == nil
-    }
-
-    private var latestLine: String {
-        latestReasoning
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .last.map { String($0).strippedStatusFace } ?? ""
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -316,13 +251,9 @@ private struct ReasoningView: View {
                 withAnimation(.snappy) { expanded.toggle() }
             } label: {
                 HStack(spacing: 5) {
-                    if isThinking {
-                        ShimmerText(text: "Thinking")
-                    } else {
-                        Text(headerText)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(headerText)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(DS.Color.fgSubtle)
@@ -338,14 +269,6 @@ private struct ReasoningView: View {
 
             if expanded {
                 expandedContent
-            } else if isThinking, !latestLine.isEmpty {
-                Text(latestLine)
-                    .font(.footnote)
-                    .foregroundStyle(DS.Color.fgSubtle)
-                    .lineLimit(2)
-                    .id(latestLine)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.25), value: latestLine)
             }
         }
     }

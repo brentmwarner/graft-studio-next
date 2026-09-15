@@ -356,9 +356,9 @@ final class AppModel {
 
     /// Request a diff summary. `diffId` is typically a thread id (working tree)
     /// or a run id — matching the desktop adapter's lookup rules.
-    func fetchDiff(diffId: String) async -> DiffSummary? {
+    func fetchDiff(diffId: String, filePath: String? = nil) async -> DiffSummary? {
         let envelope = ClientCommandEnvelope(
-            command: .diffGet(DiffGetCommand(diffId: diffId))
+            command: .diffGet(DiffGetCommand(diffId: diffId, filePath: filePath))
         )
         do {
             let response = try await sendCommand(envelope)
