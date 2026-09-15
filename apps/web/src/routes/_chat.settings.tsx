@@ -1292,9 +1292,11 @@ function SettingsRouteView() {
                     <h1 className="text-xl font-medium tracking-tight text-foreground">
                       {activeSectionItem.label}
                     </h1>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                      {activeSectionItem.description}
-                    </p>
+                    {activeSectionItem.description ? (
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                        {activeSectionItem.description}
+                      </p>
+                    ) : null}
                   </div>
                   <Button
                     size="xs"

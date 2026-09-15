@@ -41,7 +41,7 @@ export type SettingsNavItem = {
   id: SettingsSectionId;
   group: SettingsNavGroupId;
   label: string;
-  description: string;
+  description?: string;
   /** Central icon basename resolved by the shared icon registry. */
   icon: string;
   eyebrow: string;
@@ -135,7 +135,6 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     id: "connections",
     group: "integrations",
     label: "Connections",
-    description: "Connect to your computers and manage paired devices.",
     icon: "phone",
     eyebrow: "Phones and SSH hosts",
   },
