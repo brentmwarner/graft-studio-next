@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import {
   GRAFT_DESKTOP_ENDPOINTS,
   GRAFT_DESKTOP_PROTOCOL_VERSION,
@@ -16,7 +17,7 @@ import {
   SSH_HOST_PROJECTS_PATH,
   SshProjectAddInput,
 } from "@synara/contracts";
-import { isExplicitRelativePath, isWindowsAbsolutePath } from "@synara/shared/path";
+import { isWindowsAbsolutePath } from "@synara/shared/path";
 import { Effect, FileSystem, Layer, Queue, Schema, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
@@ -182,8 +183,12 @@ const occupancyHttpRouteLayer = HttpRouter.add(
           }).pipe(
             Effect.mapError(() => new InvalidOccupancyRequestError("Invalid directory request.")),
           );
+          const isHomePath =
+            input.partialPath === "~" ||
+            input.partialPath.startsWith("~/") ||
+            input.partialPath.startsWith("~\\");
           if (
-            isExplicitRelativePath(input.partialPath) ||
+            (!isAbsolute(input.partialPath) && !isHomePath) ||
             (process.platform !== "win32" && isWindowsAbsolutePath(input.partialPath)) ||
             input.partialPath.includes("\0")
           ) {

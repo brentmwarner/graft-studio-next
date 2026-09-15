@@ -197,8 +197,6 @@ describe("SshRemoteConnectionManager", () => {
       if (retryOperation === "closeAll") {
         await manager.closeAll();
         expect(manager.activeConnection(saved.id)).toBeNull();
-      } else {
-        await expect(manager.connect(saved.id)).rejects.toThrow("SSH process did not exit");
       }
     }
     await expect(manager.deleteMachine(saved.id)).resolves.toBe(true);
@@ -742,6 +740,118 @@ describe("SSH startup failure recovery", () => {
     const machine = manager.saveMachine({ label: "Test", sshTarget: "test@machine" });
     return { manager, machine };
   }
+
+  it.each(["recovers", "fails again", "is cancelled"] as const)(
+    "retries a failed active connection cleanup when reconnect %s",
+    async (outcome) => {
+      let enrollments = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+          const url = String(input);
+          if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.health)) {
+            return Response.json({
+              service: "graft-host",
+              protocolVersion: bootstrap.protocolVersion,
+              daemonVersion: bootstrap.daemonVersion,
+              environmentId: bootstrap.environmentId,
+              environmentLabel: bootstrap.environmentLabel,
+              platform: bootstrap.platform,
+              port: bootstrap.port,
+              activeRunCount: 0,
+              activePtyCount: 0,
+              capabilities: ["projects"],
+              cursor: 0,
+              replayFloor: 0,
+            });
+          }
+          if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.enroll)) {
+            enrollments += 1;
+            return Response.json({
+              protocolVersion: GRAFT_DESKTOP_PROTOCOL_VERSION,
+              session: {
+                sessionId: `session-reconnect-${enrollments}`,
+                environmentId: bootstrap.environmentId,
+                profile: "desktop_occupancy",
+                clientId: "test",
+                clientLabel: "test",
+                grants: ["projects"],
+                createdAt: 1,
+                expiresAt: Date.now() + 10_000,
+                lastSeenAt: 1,
+                revokedAt: null,
+              },
+              bearer: `desktop-bearer-value-000000000000000000${enrollments}`,
+            });
+          }
+          if (url.endsWith(GRAFT_DESKTOP_ENDPOINTS.session) && init?.method === "DELETE") {
+            return Response.json({ ok: true });
+          }
+          throw new Error(`Unexpected request: ${url}`);
+        }),
+      );
+      const tunnels: ManagedSshTunnel[] = [];
+      const children: FakeTunnelProcess[] = [];
+      const { manager, machine } = createManager((options) => {
+        const child = new FakeTunnelProcess();
+        children.push(child);
+        const tunnel = new ManagedSshTunnel({
+          ...options,
+          localPort: 43_129,
+          spawnProcess: () => child,
+        });
+        tunnels.push(tunnel);
+        return tunnel;
+      });
+      const connection = await manager.connect(machine.id);
+      const tunnel = tunnels[0]!;
+      const close = tunnel.close.bind(tunnel);
+      const closeMock = vi
+        .spyOn(tunnel, "close")
+        .mockRejectedValueOnce(new Error("SSH process did not exit"));
+      await expect(manager.disconnect(machine.id)).rejects.toThrow("SSH process did not exit");
+      expect(manager.activeConnection(machine.id)).toBe(connection);
+
+      if (outcome === "fails again") {
+        closeMock.mockRejectedValueOnce(new Error("SSH process still did not exit"));
+        await expect(manager.connect(machine.id)).rejects.toThrow("SSH process still did not exit");
+        expect(closeMock).toHaveBeenCalledTimes(2);
+        expect(manager.activeConnection(machine.id)).toBe(connection);
+        expect(children).toHaveLength(1);
+        expect(children[0]?.exitCode).toBeNull();
+        await manager.disconnect(machine.id);
+      } else {
+        const cleanup = Promise.withResolvers<void>();
+        closeMock.mockImplementationOnce(() => cleanup.promise.then(close));
+        const reconnecting = manager.connect(machine.id);
+        await vi.waitFor(() => expect(closeMock).toHaveBeenCalledTimes(2));
+        expect(manager.activeConnection(machine.id)).toBe(connection);
+        expect(children).toHaveLength(1);
+        if (outcome === "is cancelled") {
+          const cancelled = expect(reconnecting).rejects.toMatchObject({
+            code: "connection_closed",
+          });
+          const disconnecting = manager.disconnect(machine.id);
+          cleanup.resolve();
+          await cancelled;
+          await disconnecting;
+          expect(children).toHaveLength(1);
+          expect(manager.activeConnection(machine.id)).toBeNull();
+        } else {
+          const concurrent = manager.connect(machine.id);
+          cleanup.resolve();
+          const replacement = await reconnecting;
+          expect(await concurrent).toBe(replacement);
+          expect(replacement).not.toBe(connection);
+          expect(manager.activeConnection(machine.id)).toBe(replacement);
+          expect(children).toHaveLength(2);
+          expect(children[1]?.exitCode).toBeNull();
+        }
+        expect(children[0]?.exitCode).toBe(0);
+      }
+      await manager.closeAll();
+    },
+  );
 
   it.each(["disconnect", "closeAll", "connect"] as const)(
     "retains an unreaped startup process for a later %s attempt",

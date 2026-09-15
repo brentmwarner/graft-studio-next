@@ -114,7 +114,9 @@ export class SshRemoteConnectionManager {
       if (signal.aborted)
         throw new SshRemoteError("connection_closed", "SSH connection was cancelled.", false);
     };
-    await this.closing.get(machineId);
+    const existing = this.activeConnections.get(machineId);
+    if (existing) await existing.close();
+    else await this.closing.get(machineId);
     await this.closePendingTunnel(machineId);
     checkCancelled();
     const originalMachine = this.options.machineStore.get(machineId);

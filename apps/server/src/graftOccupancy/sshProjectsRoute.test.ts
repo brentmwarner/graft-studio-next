@@ -1,6 +1,6 @@
 import http from "node:http";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -176,6 +176,37 @@ it("keeps invalid JSON, schemas, and folder paths as bad requests", async () => 
     expect(response.status).toBe(400);
   }
   expect(host.engine.dispatch).not.toHaveBeenCalled();
+});
+
+it("requires absolute or home paths when browsing remote folders", async () => {
+  const host = await startHost();
+  const invalidPaths = ["secrets", "secrets/", "~someone", ".", "..", "./secrets", "../secrets"];
+  if (process.platform !== "win32") {
+    invalidPaths.push("C:\\workspace", "C:/workspace", "\\\\server\\share");
+  }
+  for (const path of invalidPaths) {
+    const response = await fetch(
+      `${host.origin}${SSH_HOST_DIRECTORY_PATH}?path=${encodeURIComponent(path)}`,
+      { headers: host.headers },
+    );
+    expect(response.status, path).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Choose an absolute folder path on the remote computer.",
+    });
+  }
+  for (const [path, parentPath] of [
+    [`${host.root}/`, host.root],
+    ["~", homedir()],
+    ["~/", homedir()],
+    ["~\\", homedir()],
+  ] as const) {
+    const response = await fetch(
+      `${host.origin}${SSH_HOST_DIRECTORY_PATH}?path=${encodeURIComponent(path)}`,
+      { headers: host.headers },
+    );
+    expect(response.status, path).toBe(200);
+    expect(await response.json()).toMatchObject({ parentPath });
+  }
 });
 
 it("returns server errors for projection, read model, dispatch, and startup failures", async () => {
