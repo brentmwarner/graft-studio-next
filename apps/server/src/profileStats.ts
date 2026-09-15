@@ -1285,6 +1285,7 @@ const makeProfileStatsQuery = Effect.gen(function* () {
       const tz = sqliteModifierFromUtcOffsetMinutes(input.utcOffsetMinutes);
       const todayKey = localToday(input.utcOffsetMinutes);
       const rows = yield* queryTokenActivity(tz);
+      const historySinceDay = addDaysIso(todayKey, 1 - HEATMAP_WINDOW_DAYS);
       const turnInsightRows = yield* queryTurnInsights();
       const { tokensByDay, tokensByProvider, tokensByProviderModel, lifetime } =
         aggregateTokenActivity(rows);
@@ -1361,6 +1362,29 @@ const makeProfileStatsQuery = Effect.gen(function* () {
         models,
         heatmapMetric: "tokens",
         heatmap: buildHeatmap(tokensByDay, todayKey),
+        ...(input.includeHistory
+          ? {
+              history: {
+                today: todayKey,
+                // Filter after cumulative deltas are computed, so activity before
+                // the window remains the baseline for the first included update.
+                days: rows.flatMap((row) => {
+                  const day = nonEmptyString(row.day);
+                  const tokens = Math.floor(num(row.tokens));
+                  return day && day >= historySinceDay && day <= todayKey && tokens > 0
+                    ? [
+                        {
+                          day,
+                          provider: normalizeProviderKind(row.provider),
+                          model: nonEmptyString(row.model) ?? "unknown",
+                          tokens,
+                        },
+                      ]
+                    : [];
+                }),
+              },
+            }
+          : {}),
       } satisfies ProfileTokenStats;
     });
 

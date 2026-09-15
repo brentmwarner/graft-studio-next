@@ -110,10 +110,10 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
     id: "usage",
     group: "personal",
-    label: "Usage & limits",
-    description: "See remaining quota and credits for every signed-in provider.",
+    label: "Usage",
+    description: "Explore token activity, model breakdowns, and remaining provider quota.",
     icon: "gauge",
-    eyebrow: "Provider limits",
+    eyebrow: "Activity & limits",
   },
   {
     id: "appsnap",

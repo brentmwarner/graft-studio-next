@@ -1,5 +1,5 @@
 // FILE: stats.ts
-// Purpose: Schemas for the local profile-stats RPCs that power the Profile page and
+// Purpose: Schemas for local stats RPCs that power Profile, Usage history, and
 // the shareable activity card. All metrics are backed by Synara's local DB
 // projections; no provider archive or cloud data is part of this contract.
 // Metrics are lifetime totals: deleting a thread or project from the app never
@@ -20,7 +20,11 @@ export const StatsGetProfileStatsInput = Schema.Struct({
 });
 export type StatsGetProfileStatsInput = typeof StatsGetProfileStatsInput.Type;
 
-export const StatsGetProfileTokenStatsInput = StatsGetProfileStatsInput;
+export const StatsGetProfileTokenStatsInput = Schema.Struct({
+  ...StatsGetProfileStatsInput.fields,
+  // Usage requests daily detail; Profile keeps its smaller lifetime-only payload.
+  includeHistory: Schema.optional(Schema.Boolean),
+});
 export type StatsGetProfileTokenStatsInput = typeof StatsGetProfileTokenStatsInput.Type;
 
 // ── Building blocks ──────────────────────────────────────────────────
@@ -53,6 +57,14 @@ export const ProfileTokenModelUsage = Schema.Struct({
   percent: Schema.Number,
 });
 export type ProfileTokenModelUsage = typeof ProfileTokenModelUsage.Type;
+
+export const ProfileTokenDayUsage = Schema.Struct({
+  day: TrimmedNonEmptyString,
+  provider: Schema.Union([ProviderKind, Schema.Literal("unknown")]),
+  model: TrimmedNonEmptyString,
+  tokens: NonNegativeInt,
+});
+export type ProfileTokenDayUsage = typeof ProfileTokenDayUsage.Type;
 
 export const ProfileSkillUsage = Schema.Struct({
   name: TrimmedNonEmptyString,
@@ -168,6 +180,14 @@ export const ProfileTokenStats = Schema.Struct({
   models: Schema.Array(ProfileTokenModelUsage),
   heatmapMetric: Schema.Literal("tokens"),
   heatmap: Schema.Array(ProfileHeatmapCell),
+  // Same accounting as the lifetime totals, bounded to the heatmap window.
+  // Optional for older servers and callers that don't request history.
+  history: Schema.optional(
+    Schema.Struct({
+      today: TrimmedNonEmptyString,
+      days: Schema.Array(ProfileTokenDayUsage),
+    }),
+  ),
 });
 export type ProfileTokenStats = typeof ProfileTokenStats.Type;
 

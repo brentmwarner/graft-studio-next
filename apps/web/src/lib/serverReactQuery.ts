@@ -340,10 +340,14 @@ export function serverProfileStatsQueryOptions(input: { enabled?: boolean } = {}
 
 // DB-backed token totals and token heatmap, split from core stats so the Profile
 // page can paint first and upgrade token-only surfaces later.
-export function serverProfileTokenStatsQueryOptions(input: { enabled?: boolean } = {}) {
+export function serverProfileTokenStatsQueryOptions(
+  input: { enabled?: boolean; includeHistory?: boolean } = {},
+) {
   const utcOffsetMinutes = -new Date().getTimezoneOffset();
   return queryOptions({
-    queryKey: serverQueryKeys.profileTokenStats(utcOffsetMinutes),
+    queryKey: input.includeHistory
+      ? [...serverQueryKeys.profileTokenStats(utcOffsetMinutes), "history"]
+      : serverQueryKeys.profileTokenStats(utcOffsetMinutes),
     enabled: input.enabled ?? true,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
@@ -352,6 +356,7 @@ export function serverProfileTokenStatsQueryOptions(input: { enabled?: boolean }
       const api = ensureNativeApi();
       return api.stats.getProfileTokenStats({
         utcOffsetMinutes,
+        ...(input.includeHistory ? { includeHistory: true } : {}),
       });
     },
   });

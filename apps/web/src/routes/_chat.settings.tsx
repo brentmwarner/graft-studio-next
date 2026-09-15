@@ -1282,10 +1282,12 @@ function SettingsRouteView() {
             <div
               className={cn(
                 "mx-auto w-full px-6 py-8",
-                activeSection === "profile" ? "max-w-3xl" : "max-w-2xl",
+                activeSection === "profile" || activeSection === "usage"
+                  ? "max-w-3xl"
+                  : "max-w-2xl",
               )}
             >
-              {activeSection !== "profile" ? (
+              {activeSection !== "profile" && activeSection !== "usage" ? (
                 <div className="mb-8 flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <h1 className="text-xl font-medium tracking-tight text-foreground">

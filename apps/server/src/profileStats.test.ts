@@ -6,7 +6,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, Layer } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ServerConfig } from "./config";
 import { SqlitePersistenceMemory } from "./persistence/Layers/Sqlite";
@@ -70,6 +70,61 @@ describe("heatmapIntensity", () => {
 });
 
 describe("ProfileStatsQuery", () => {
+  it("returns optional bounded daily history with cumulative baselines and archived tokens intact", async () => {
+    // Fake only Date: Effect and SQLite keep their real scheduling/timers.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
+    try {
+      await runProfileStatsTest(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const stats = yield* ProfileStatsQuery;
+          yield* sql`
+          INSERT INTO projection_threads
+            (thread_id, project_id, title, model_selection_json, runtime_mode, interaction_mode, env_mode, created_at, updated_at)
+          VALUES ('history', 'project', 'History', '{"provider":"codex","model":"gpt-5-codex"}',
+            'full-access', 'default', 'local', '2025-01-01', '2026-09-15')
+        `;
+          for (const [id, sequence, date, tokens] of [
+            ["baseline", 1, "2025-01-01T12:00:00Z", 1000],
+            ["previous-day", 2, "2026-09-15T02:00:00Z", 1400],
+            ["today", 3, "2026-09-15T12:00:00Z", 1700],
+          ] as const) {
+            yield* sql`
+            INSERT INTO projection_thread_activities
+              (activity_id, thread_id, tone, kind, summary, payload_json, sequence, created_at)
+            VALUES (${id}, 'history', 'info', 'context-window.updated', 'tokens',
+              ${JSON.stringify({ totalProcessedTokens: tokens })}, ${sequence}, ${date})
+          `;
+          }
+          yield* sql`
+          INSERT INTO profile_stats_deleted_tokens (thread_id, created_at, provider, model, tokens, token_accounting_version)
+          VALUES ('deleted', '2026-09-15T12:00:00Z', 'cursor', 'shared-model', 500, NULL)
+        `;
+          const lifetime = yield* stats.getProfileTokenStats({ utcOffsetMinutes: -240 });
+          const detailed = yield* stats.getProfileTokenStats({
+            utcOffsetMinutes: -240,
+            includeHistory: true,
+          });
+          expect(lifetime.history).toBeUndefined();
+          expect(detailed.lifetimeTotalTokens).toBe(2200);
+          expect(detailed.history).toEqual({
+            today: "2026-09-15",
+            days: [
+              { day: "2026-09-14", provider: "codex", model: "gpt-5-codex", tokens: 400 },
+              { day: "2026-09-15", provider: "codex", model: "gpt-5-codex", tokens: 300 },
+              { day: "2026-09-15", provider: "cursor", model: "shared-model", tokens: 500 },
+            ],
+          });
+          expect(detailed.heatmap.find((day) => day.day === "2026-09-15")?.count).toBe(800);
+          expect({ ...detailed, history: undefined }).toEqual({ ...lifetime, history: undefined });
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses versioned Claude results once, recovers retained main usage, and excludes unverifiable history", async () => {
     await runProfileStatsTest(
       Effect.gen(function* () {

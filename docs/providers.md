@@ -35,6 +35,22 @@ Synara provides the shared operating surface around each provider:
 - Provider handoffs
 - Usage information where the provider exposes it
 
+## Usage dashboard
+
+Settings → **Usage** shows live account quotas above a dashboard of tokens recorded by tasks in
+this Synara instance. Choose **Today**, **7 days**, **30 days**, or **90 days** to update the token
+total, provider chart, daily metrics, and model/day breakdown. The activity heatmap always shows
+the past six months. **Refresh** reloads both quotas and history.
+
+History uses the same token accounting as Profile, including retained totals from deleted tasks.
+It does not import activity from standalone provider CLIs. Day boundaries use the computer's current
+UTC offset, matching Profile. Providers without token telemetry are listed beneath the dashboard;
+account quotas may still be available for them. The summary shows total tokens, active days, daily
+average, and peak day because input, output, and cache splits are not consistently recorded.
+
+If a refresh fails, the page keeps the last loaded values and shows an error. Older connected
+servers can still show quotas but must be updated to return date-based usage history.
+
 ## What remains provider-owned
 
 The provider still controls:
