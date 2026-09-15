@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet } from "react-native";
 
+import { canUseLiquidGlass, iosSystemNameForIcon } from "../chrome/liquidGlass";
 import { useGraftPalette } from "../theme/tokens";
 import { FloatingSurface } from "./FloatingSurface";
+import { IosGlassIconButton } from "./IosGlassIconButton";
 import { PressScale } from "./PressScale";
 
 interface CircleIconButtonProps {
@@ -25,6 +27,12 @@ export function CircleIconButton({
   onPress,
 }: CircleIconButtonProps) {
   const palette = useGraftPalette();
+
+  if (canUseLiquidGlass() && iosSystemNameForIcon(icon)) {
+    return (
+      <IosGlassIconButton accessibilityLabel={accessibilityLabel} icon={icon} onPress={onPress} />
+    );
+  }
 
   return (
     <PressScale accessibilityLabel={accessibilityLabel} onPress={onPress}>

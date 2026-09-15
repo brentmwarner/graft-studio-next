@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { GraftEnvironmentSnapshot, GraftSessionCredential } from "@graft/mobile-contract";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -17,6 +17,7 @@ import type { GatewayConnectionState } from "../api/gatewaySocket";
 import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
+import { GlassStack } from "../components/GlassStack";
 import { PressScale } from "../components/PressScale";
 import { groupProjects, type InboxThreadItem } from "../state/mobileViewModels";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
@@ -30,6 +31,7 @@ interface HomeScreenProps {
   readonly onOpenThread: (thread: InboxThreadItem) => void;
   readonly onRefresh: () => Promise<void>;
   readonly onUnpair: () => Promise<void>;
+  readonly searchFocusNonce?: number;
   readonly session: GraftSessionCredential;
   readonly snapshot: GraftEnvironmentSnapshot | null;
 }
@@ -129,11 +131,13 @@ export function HomeScreen({
   onOpenThread,
   onRefresh,
   onUnpair,
+  searchFocusNonce = 0,
   session,
   snapshot,
 }: HomeScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
+  const searchRef = useRef<TextInput>(null);
   const [searchText, setSearchText] = useState("");
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<ReadonlySet<string>>(new Set());
   const projects = useMemo(() => groupProjects(snapshot, searchText), [searchText, snapshot]);
@@ -147,6 +151,12 @@ export function HomeScreen({
       return next;
     });
   }
+
+  useEffect(() => {
+    if (searchFocusNonce === 0) return;
+    const timer = setTimeout(() => searchRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [searchFocusNonce]);
 
   function confirmUnpair() {
     Alert.alert("Environment", undefined, [
@@ -232,7 +242,10 @@ export function HomeScreen({
       </View>
 
       {error ? (
-        <FloatingSurface style={[styles.errorBanner, { bottom: insets.bottom + 78 }]}>
+        <FloatingSurface
+          interactive={false}
+          style={[styles.errorBanner, { bottom: insets.bottom + 78 }]}
+        >
           <Ionicons color={palette.warning} name="warning" size={17} />
           <Text numberOfLines={2} style={[styles.errorText, { color: palette.foregroundMuted }]}>
             {error}
@@ -241,7 +254,7 @@ export function HomeScreen({
       ) : null}
 
       <EdgeFade edge="bottom" style={[styles.bottomFade, { height: insets.bottom + 92 }]} />
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 10 }]}>
+      <GlassStack spacing={10} style={[styles.bottomBar, { bottom: insets.bottom + 10 }]}>
         <FloatingSurface style={styles.searchPill}>
           <Ionicons color={palette.foregroundSubtle} name="search" size={20} />
           <TextInput
@@ -249,6 +262,7 @@ export function HomeScreen({
             autoCapitalize="none"
             autoCorrect={false}
             onChangeText={setSearchText}
+            ref={searchRef}
             placeholder="Search Chats"
             placeholderTextColor={palette.foregroundSubtle}
             style={[styles.searchInput, { color: palette.foreground }]}
@@ -256,11 +270,11 @@ export function HomeScreen({
           />
         </FloatingSurface>
         <PressScale accessibilityLabel="New chat" onPress={() => onNewChat()}>
-          <View style={[styles.composeButton, { backgroundColor: palette.foreground }]}>
-            <Ionicons color={palette.background} name="create-outline" size={22} />
-          </View>
+          <FloatingSurface style={styles.composeButton} tintColor="#09090B">
+            <Ionicons color="#FFFFFF" name="create-outline" size={22} />
+          </FloatingSurface>
         </PressScale>
-      </View>
+      </GlassStack>
     </View>
   );
 }
@@ -361,11 +375,13 @@ const styles = StyleSheet.create({
   errorBanner: {
     alignItems: "center",
     alignSelf: "center",
+    borderRadius: 12,
     flexDirection: "row",
     gap: 8,
     left: 16,
     maxWidth: 420,
     minHeight: 44,
+    overflow: "hidden",
     paddingHorizontal: 12,
     position: "absolute",
     right: 16,

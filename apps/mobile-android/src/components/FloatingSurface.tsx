@@ -1,15 +1,42 @@
 import type { PropsWithChildren } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { StyleSheet, View } from "react-native";
+import { GlassView } from "expo-glass-effect";
 
+import { canUseLiquidGlass } from "../chrome/liquidGlass";
 import { graftRadius, useGraftPalette } from "../theme/tokens";
 
 interface FloatingSurfaceProps extends PropsWithChildren {
   readonly style?: StyleProp<ViewStyle>;
+  /// Native iOS uses `.regular.interactive()` on toolbar circles and search.
+  readonly interactive?: boolean;
+  /// Dark liquid-glass fill for primary actions (compose / welcome pill).
+  readonly tintColor?: string;
+  readonly glassEffectStyle?: "regular" | "clear";
 }
 
-export function FloatingSurface({ children, style }: FloatingSurfaceProps) {
+export function FloatingSurface({
+  children,
+  glassEffectStyle = "regular",
+  interactive = true,
+  style,
+  tintColor,
+}: FloatingSurfaceProps) {
   const palette = useGraftPalette();
+
+  if (canUseLiquidGlass()) {
+    return (
+      <GlassView
+        colorScheme={palette.isDark ? "dark" : "light"}
+        glassEffectStyle={glassEffectStyle}
+        isInteractive={interactive}
+        style={[styles.glass, style]}
+        tintColor={tintColor}
+      >
+        {children}
+      </GlassView>
+    );
+  }
 
   return (
     <View
@@ -28,6 +55,12 @@ export function FloatingSurface({ children, style }: FloatingSurfaceProps) {
 }
 
 const styles = StyleSheet.create({
+  /// Do not set `overflow: "hidden"` on GlassView — that composites the
+  /// material into a flat slab, the same failure as wrapping native
+  /// `GlassSurface` in `compositingGroup()`.
+  glass: {
+    borderRadius: graftRadius.pill,
+  },
   surface: {
     borderRadius: graftRadius.pill,
     borderWidth: StyleSheet.hairlineWidth,
