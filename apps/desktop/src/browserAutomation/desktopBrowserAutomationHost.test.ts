@@ -1,4 +1,4 @@
-import { ThreadId, type BrowserElementRef, type BrowserSnapshotId } from "@synara/contracts";
+import { ThreadId, type BrowserElementRef, type BrowserSnapshotId } from "@graft/contracts";
 import type { WebContents } from "electron";
 import { EventEmitter } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -15,7 +15,7 @@ import { runBetterwright } from "./betterwrightRuntime";
 vi.mock("./betterwrightRuntime", () => ({ runBetterwright: vi.fn() }));
 
 vi.mock("electron", () => ({
-  app: { getPath: () => "/isolated/synara/userdata" },
+  app: { getPath: () => "/isolated/graft/userdata" },
   webContents: { getFocusedWebContents: () => null },
 }));
 
@@ -114,12 +114,12 @@ const createWebContents = () => {
     }
     if (method === "Runtime.evaluate") {
       const expression = String(params?.expression ?? "");
-      if (expression === "globalThis.__synaraWebMcpBridgeV1") {
+      if (expression === "globalThis.__graftWebMcpBridgeV1") {
         return { result: { objectId: "webmcp-bridge", type: "object" } };
       }
       if (expression.includes("performance.getEntriesByType")) return { result: { value: 0 } };
       if (
-        expression.includes('const key = "__synaraBrowserAutomationV1"') &&
+        expression.includes('const key = "__graftBrowserAutomationV1"') &&
         expression.includes("elements = []")
       ) {
         return {
@@ -148,7 +148,7 @@ const createWebContents = () => {
       ) {
         return { result: { value: { count: 1, generation: 1 } } };
       }
-      if (expression.includes("globalThis.__synaraBrowserAutomationV1.currentTarget")) {
+      if (expression.includes("globalThis.__graftBrowserAutomationV1.currentTarget")) {
         return { result: { objectId: "target-1", type: "object", subtype: "node" } };
       }
       if (expression.includes("document.activeElement || document.body")) {
@@ -459,7 +459,7 @@ describe("DesktopBrowserAutomationHost", () => {
     expect(runBetterwright).toHaveBeenCalledWith(
       expect.objectContaining({
         contents: webContents,
-        home: "/isolated/synara/userdata/browser-engine",
+        home: "/isolated/graft/userdata/browser-engine",
         code: "return {answer: 42}",
       }),
     );

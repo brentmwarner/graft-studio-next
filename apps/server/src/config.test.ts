@@ -20,9 +20,9 @@ import {
 } from "./config";
 
 const tempDirs = new Set<string>();
-const originalSynaraStaticDir = process.env.SYNARA_STATIC_DIR;
+const originalGraftStaticDir = process.env.GRAFT_STATIC_DIR;
 
-function makeTempDir(prefix = "synara-config-test-"): string {
+function makeTempDir(prefix = "graft-config-test-"): string {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   tempDirs.add(directory);
   return directory;
@@ -33,18 +33,18 @@ afterEach(() => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
   tempDirs.clear();
-  if (originalSynaraStaticDir === undefined) {
-    delete process.env.SYNARA_STATIC_DIR;
+  if (originalGraftStaticDir === undefined) {
+    delete process.env.GRAFT_STATIC_DIR;
   } else {
-    process.env.SYNARA_STATIC_DIR = originalSynaraStaticDir;
+    process.env.GRAFT_STATIC_DIR = originalGraftStaticDir;
   }
 });
 
 describe("resolveStaticDir", () => {
-  it("uses the desktop static snapshot exposed through the Synara environment", async () => {
-    const snapshotDir = makeTempDir("synara-static-snapshot-test-");
-    fs.writeFileSync(path.join(snapshotDir, "index.html"), "<main>Synara</main>");
-    process.env.SYNARA_STATIC_DIR = snapshotDir;
+  it("uses the desktop static snapshot exposed through the Graft environment", async () => {
+    const snapshotDir = makeTempDir("graft-static-snapshot-test-");
+    fs.writeFileSync(path.join(snapshotDir, "index.html"), "<main>Graft</main>");
+    process.env.GRAFT_STATIC_DIR = snapshotDir;
 
     const resolved = await Effect.runPromise(
       resolveStaticDir().pipe(Effect.provide(NodeServices.layer)),
@@ -118,9 +118,9 @@ describe("resolveDefaultStudioWorkspaceRoot", () => {
     ).toBe("/home/tester/Documents/Graft/Studio");
   });
 
-  it("keeps new Graft workspaces separate when Documents/Synara exists", () => {
+  it("keeps new Graft workspaces separate when Documents/Graft exists", () => {
     const homeDir = makeTempDir("graft-chat-workspace-legacy-");
-    const legacy = path.join(homeDir, "Documents", "Synara");
+    const legacy = path.join(homeDir, "Documents", "Graft");
     fs.mkdirSync(legacy, { recursive: true });
 
     expect(resolveDefaultChatWorkspaceRoot({ homeDir, platform: "linux" })).toBe(

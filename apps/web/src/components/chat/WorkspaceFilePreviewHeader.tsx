@@ -13,7 +13,7 @@
 // Layer: Chat/editor file-preview UI
 // Exports: WorkspaceFilePreviewHeader
 
-import { isWorkspaceRelativePathSafe, joinWorkspaceRelativePath } from "@synara/shared/path";
+import { isWorkspaceRelativePathSafe, joinWorkspaceRelativePath } from "@graft/shared/path";
 import { Fragment, useLayoutEffect, useRef, useState } from "react";
 
 import { basenameOfPath } from "~/file-icons";

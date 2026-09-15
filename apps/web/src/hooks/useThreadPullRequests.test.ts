@@ -1,4 +1,4 @@
-import type { OrchestrationThreadPullRequest } from "@synara/contracts";
+import type { OrchestrationThreadPullRequest } from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import { resolveThreadPullRequestFallback } from "./useThreadPullRequests";
@@ -6,7 +6,7 @@ import { resolveThreadPullRequestFallback } from "./useThreadPullRequests";
 const staleOpenPullRequest: OrchestrationThreadPullRequest = {
   number: 841,
   title: "Previous branch pull request",
-  url: "https://github.com/acme/synara/pull/841",
+  url: "https://github.com/acme/graft/pull/841",
   baseBranch: "main",
   headBranch: "feat/previous-branch",
   state: "open",

@@ -7,14 +7,14 @@ import {
   type ProviderOptionDescriptor,
   type ProviderKind,
   type ProviderModelDescriptor,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   applyClaudePromptEffortPrefix,
   getProviderOptionCurrentValue,
   getProviderOptionDescriptors,
   isClaudeUltrathinkPrompt,
   trimOrNull,
-} from "@synara/shared/model";
+} from "@graft/shared/model";
 
 import { buildProviderOptionPatch, type ProviderOptions } from "../../providerModelOptions";
 import { getRuntimeAwareModelCapabilities } from "./runtimeModelCapabilities";

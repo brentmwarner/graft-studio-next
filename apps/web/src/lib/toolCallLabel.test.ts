@@ -4,12 +4,12 @@ import {
   deriveInlineCommandCall,
   deriveReadableCommandDisplay,
   deriveReadableToolTitle,
-  deriveSynaraMcpToolTitle,
+  deriveGraftMcpToolTitle,
   extractWebFetchUrl,
-  isSynaraBrowserToolCall,
+  isGraftBrowserToolCall,
   normalizeCompactToolLabel,
   resolveCommandVisualKind,
-  sanitizeSynaraMcpToolPreview,
+  sanitizeGraftMcpToolPreview,
 } from "./toolCallLabel";
 
 describe("extractWebFetchUrl", () => {
@@ -71,105 +71,97 @@ describe("normalizeCompactToolLabel", () => {
   });
 });
 
-describe("deriveSynaraMcpToolTitle", () => {
+describe("deriveGraftMcpToolTitle", () => {
   it.each([
     ["browser_run", "Run browser actions"],
     ["browser_click", "Click browser target"],
     ["browser_wait", "Wait for browser condition"],
     ["browser_webmcp_call", "Call page WebMCP tool"],
   ])("keeps current and historical %s messages readable", (toolName, title) => {
-    expect(deriveSynaraMcpToolTitle({ toolName, status: "completed" })).toBe(title);
-    expect(isSynaraBrowserToolCall({ title })).toBe(true);
+    expect(deriveGraftMcpToolTitle({ toolName, status: "completed" })).toBe(title);
+    expect(isGraftBrowserToolCall({ title })).toBe(true);
   });
 
-  it("uses stable action-first names for Synara browser tools", () => {
+  it("uses stable action-first names for Graft browser tools", () => {
     for (const status of ["running", "completed", "failed"] as const) {
       expect(
-        deriveSynaraMcpToolTitle({
-          toolName: "mcp__synara__browser_open",
+        deriveGraftMcpToolTitle({
+          toolName: "mcp__graft__browser_open",
           status,
         }),
       ).toBe("Open browser tab");
     }
 
     expect(
-      deriveSynaraMcpToolTitle({
-        title: "Synara: Browser Snapshot",
+      deriveGraftMcpToolTitle({
+        title: "Graft: Browser Snapshot",
         status: "completed",
       }),
     ).toBe("Snapshot browser page");
   });
 
-  it("has intentional running and completed copy for every Synara gateway action", () => {
+  it("has intentional running and completed copy for every Graft gateway action", () => {
     const cases = [
-      ["synara_context", "Graft is checking its context", "Graft checked its context"],
+      ["graft_context", "Graft is checking its context", "Graft checked its context"],
       [
-        "synara_capabilities",
+        "graft_capabilities",
         "Graft is checking available agents",
         "Graft checked available agents",
       ],
-      ["synara_list_projects", "Graft is listing projects", "Graft listed projects"],
-      ["synara_list_threads", "Graft is listing threads", "Graft listed threads"],
-      ["synara_read_thread", "Graft is reading a thread", "Graft read a thread"],
+      ["graft_list_projects", "Graft is listing projects", "Graft listed projects"],
+      ["graft_list_threads", "Graft is listing threads", "Graft listed threads"],
+      ["graft_read_thread", "Graft is reading a thread", "Graft read a thread"],
       [
-        "synara_read_thread_activity",
+        "graft_read_thread_activity",
         "Graft is reading thread activity",
         "Graft read thread activity",
       ],
-      ["synara_read_thread_events", "Graft is reading thread events", "Graft read thread events"],
+      ["graft_read_thread_events", "Graft is reading thread events", "Graft read thread events"],
       [
-        "synara_read_thread_runtime_events",
+        "graft_read_thread_runtime_events",
         "Graft is reading thread runtime events",
         "Graft read thread runtime events",
       ],
-      ["synara_diagnose_thread", "Graft is diagnosing a thread", "Graft diagnosed a thread"],
-      ["synara_create_thread", "Graft is creating a thread", "Graft created a thread"],
-      ["synara_create_threads", "Graft is creating threads", "Graft created threads"],
+      ["graft_diagnose_thread", "Graft is diagnosing a thread", "Graft diagnosed a thread"],
+      ["graft_create_thread", "Graft is creating a thread", "Graft created a thread"],
+      ["graft_create_threads", "Graft is creating threads", "Graft created threads"],
       [
-        "synara_wait_for_threads",
+        "graft_wait_for_threads",
         "Graft is waiting for threads",
         "Graft finished waiting for threads",
       ],
-      ["synara_send_message", "Graft is sending a message", "Graft sent a message"],
-      ["synara_interrupt_thread", "Graft is interrupting a thread", "Graft interrupted a thread"],
-      ["synara_set_thread_title", "Graft is renaming a thread", "Graft renamed a thread"],
-      ["synara_set_thread_archived", "Graft is updating a thread", "Graft updated a thread"],
+      ["graft_send_message", "Graft is sending a message", "Graft sent a message"],
+      ["graft_interrupt_thread", "Graft is interrupting a thread", "Graft interrupted a thread"],
+      ["graft_set_thread_title", "Graft is renaming a thread", "Graft renamed a thread"],
+      ["graft_set_thread_archived", "Graft is updating a thread", "Graft updated a thread"],
+      ["graft_create_automation", "Graft is creating an automation", "Graft created an automation"],
+      ["graft_list_automations", "Graft is listing automations", "Graft listed automations"],
+      ["graft_cancel_automation", "Graft is stopping an automation", "Graft stopped an automation"],
+      ["graft_overview", "Graft is gathering an overview", "Graft gathered an overview"],
       [
-        "synara_create_automation",
-        "Graft is creating an automation",
-        "Graft created an automation",
-      ],
-      ["synara_list_automations", "Graft is listing automations", "Graft listed automations"],
-      [
-        "synara_cancel_automation",
-        "Graft is stopping an automation",
-        "Graft stopped an automation",
-      ],
-      ["synara_overview", "Graft is gathering an overview", "Graft gathered an overview"],
-      [
-        "synara_list_allowed_projects",
+        "graft_list_allowed_projects",
         "Graft is listing allowed projects",
         "Graft listed allowed projects",
       ],
-      ["synara_create_task", "Graft is creating a task", "Graft created a task"],
-      ["synara_wait_for_task", "Graft is waiting for a task", "Graft finished waiting for a task"],
-      ["synara_read_task", "Graft is reading a task", "Graft read a task"],
+      ["graft_create_task", "Graft is creating a task", "Graft created a task"],
+      ["graft_wait_for_task", "Graft is waiting for a task", "Graft finished waiting for a task"],
+      ["graft_read_task", "Graft is reading a task", "Graft read a task"],
     ] as const;
 
     for (const [toolName, running, completed] of cases) {
-      expect(deriveSynaraMcpToolTitle({ toolName, status: "running" })).toBe(running);
-      expect(deriveSynaraMcpToolTitle({ toolName, status: "completed" })).toBe(completed);
+      expect(deriveGraftMcpToolTitle({ toolName, status: "running" })).toBe(running);
+      expect(deriveGraftMcpToolTitle({ toolName, status: "completed" })).toBe(completed);
     }
 
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "synara_create_threads",
+      deriveGraftMcpToolTitle({
+        toolName: "graft_create_threads",
         status: "failed",
       }),
     ).toBe("Graft couldn't create threads");
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "synara_create_thread",
+      deriveGraftMcpToolTitle({
+        toolName: "graft_create_thread",
         status: "cancelled",
       }),
     ).toBe("Graft stopped creating a thread");
@@ -177,53 +169,53 @@ describe("deriveSynaraMcpToolTitle", () => {
 
   it("turns provider-specific create-thread identifiers into activity sentences", () => {
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "Synara__synara_create_thread",
+      deriveGraftMcpToolTitle({
+        toolName: "Graft__graft_create_thread",
         status: "running",
       }),
     ).toBe("Graft is creating a thread");
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "mcp__synara__synara_create_thread",
+      deriveGraftMcpToolTitle({
+        toolName: "mcp__graft__graft_create_thread",
         status: "completed",
       }),
     ).toBe("Graft created a thread");
   });
 
-  it("recognizes bare and already-humanized Synara tool names", () => {
-    expect(deriveSynaraMcpToolTitle({ toolName: "synara_send_message", status: "running" })).toBe(
+  it("recognizes bare and already-humanized Graft tool names", () => {
+    expect(deriveGraftMcpToolTitle({ toolName: "graft_send_message", status: "running" })).toBe(
       "Graft is sending a message",
     );
     expect(
-      deriveSynaraMcpToolTitle({ title: "Synara: Synara List Threads", status: "completed" }),
+      deriveGraftMcpToolTitle({ title: "Graft: Graft List Threads", status: "completed" }),
     ).toBe("Graft listed threads");
   });
 
   it("ignores tools from other MCP servers", () => {
     expect(
-      deriveSynaraMcpToolTitle({
+      deriveGraftMcpToolTitle({
         toolName: "mcp__codex_apps__github_fetch_pr",
         status: "running",
       }),
     ).toBeNull();
   });
 
-  it("keeps future Synara actions branded without exposing raw identifiers", () => {
+  it("keeps future Graft actions branded without exposing raw identifiers", () => {
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "mcp__synara__synara_delete_project",
+      deriveGraftMcpToolTitle({
+        toolName: "mcp__graft__graft_delete_project",
         status: "running",
       }),
     ).toBe("Graft is handling delete project");
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "Synara__synara_delete_project",
+      deriveGraftMcpToolTitle({
+        toolName: "Graft__graft_delete_project",
         status: "completed",
       }),
     ).toBe("Graft handled delete project");
     expect(
-      deriveSynaraMcpToolTitle({
-        toolName: "synara_is_handling_delete_project",
+      deriveGraftMcpToolTitle({
+        toolName: "graft_is_handling_delete_project",
         status: "completed",
       }),
     ).toBe("Graft handled delete project");
@@ -231,50 +223,50 @@ describe("deriveSynaraMcpToolTitle", () => {
 
   it("does not reinterpret free text beginning with fallback status copy", () => {
     expect(
-      deriveSynaraMcpToolTitle({
+      deriveGraftMcpToolTitle({
         title: "Graft is handling delete project after recovery",
         status: "completed",
       }),
     ).toBeNull();
     expect(
-      deriveSynaraMcpToolTitle({
+      deriveGraftMcpToolTitle({
         title: "Graft handled delete project after recovery",
         status: "running",
       }),
     ).toBeNull();
     expect(
-      deriveSynaraMcpToolTitle({
-        title: "Synara couldn't handle delete project after recovery",
+      deriveGraftMcpToolTitle({
+        title: "Graft couldn't handle delete project after recovery",
         status: "failed",
       }),
     ).toBeNull();
   });
 
-  it("leaves free-text activity summaries starting with Synara untouched", () => {
+  it("leaves free-text activity summaries starting with Graft untouched", () => {
     expect(
-      deriveSynaraMcpToolTitle({
-        title: "Synara recovered a stale running state",
+      deriveGraftMcpToolTitle({
+        title: "Graft recovered a stale running state",
         status: "completed",
       }),
     ).toBeNull();
     expect(
-      deriveSynaraMcpToolTitle({
-        fallbackLabel: "Synara restarted the provider session",
+      deriveGraftMcpToolTitle({
+        fallbackLabel: "Graft restarted the provider session",
         status: "running",
       }),
     ).toBeNull();
   });
 
-  it("removes transport identifiers without hiding meaningful Synara details", () => {
+  it("removes transport identifiers without hiding meaningful Graft details", () => {
     expect(
-      sanitizeSynaraMcpToolPreview({
-        preview: "Synara__synara_create_threads",
+      sanitizeGraftMcpToolPreview({
+        preview: "Graft__graft_create_threads",
         heading: "Graft created threads",
         status: "completed",
       }),
     ).toBeNull();
     expect(
-      sanitizeSynaraMcpToolPreview({
+      sanitizeGraftMcpToolPreview({
         preview: 'Unexpected key "reasoningEffort" for Claude Agent',
         heading: "Graft couldn't create threads",
         status: "failed",
@@ -283,11 +275,11 @@ describe("deriveSynaraMcpToolTitle", () => {
   });
 });
 
-describe("isSynaraBrowserToolCall", () => {
+describe("isGraftBrowserToolCall", () => {
   it("recognizes canonical presentation titles without a tool identifier", () => {
-    expect(isSynaraBrowserToolCall({ title: "Open browser tab" })).toBe(true);
-    expect(isSynaraBrowserToolCall({ fallbackLabel: "Snapshot browser page" })).toBe(true);
-    expect(isSynaraBrowserToolCall({ title: "Graft listed threads" })).toBe(false);
+    expect(isGraftBrowserToolCall({ title: "Open browser tab" })).toBe(true);
+    expect(isGraftBrowserToolCall({ fallbackLabel: "Snapshot browser page" })).toBe(true);
+    expect(isGraftBrowserToolCall({ title: "Graft listed threads" })).toBe(false);
   });
 });
 
@@ -478,13 +470,13 @@ describe("deriveReadableCommandDisplay", () => {
   it("removes env and timeout wrappers from inline command summaries", () => {
     expect(
       deriveReadableCommandDisplay(
-        "env -u SYNARA_AUTH_TOKEN SYNARA_PORT_OFFSET=3158 timeout 180s bun run dev",
+        "env -u GRAFT_AUTH_TOKEN GRAFT_PORT_OFFSET=3158 timeout 180s bun run dev",
         true,
       ),
     ).toEqual({
       verb: "Running",
       target: "bun run dev",
-      fullCommand: "env -u SYNARA_AUTH_TOKEN SYNARA_PORT_OFFSET=3158 timeout 180s bun run dev",
+      fullCommand: "env -u GRAFT_AUTH_TOKEN GRAFT_PORT_OFFSET=3158 timeout 180s bun run dev",
     });
   });
 

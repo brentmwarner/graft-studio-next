@@ -111,25 +111,25 @@ try {
   }
   assert.match(
     homepage,
-    /<title>Synara — AI Coding Workspace for Claude Code, Codex &amp; Cursor<\/title>/,
+    /<title>Graft — AI Coding Workspace for Claude Code, Codex &amp; Cursor<\/title>/,
   );
   assert.match(
     homepage,
-    /<link rel="canonical" href="https:\/\/www\.trysynara\.com"\/>/,
+    /<link rel="canonical" href="https:\/\/www\.graftapp\.io"\/>/,
     "homepage must emit the exact canonical production origin",
   );
   assert.ok(homepage.includes('"@type":"SoftwareApplication"'));
   assert.ok(homepage.includes('"@type":"FAQPage"'));
 
   const install = await readRoute("/install", /text\/html/i);
-  assert.ok(install.includes("Download Synara"));
+  assert.ok(install.includes("Download Graft"));
   assert.ok(install.includes("coding-agent runtime already authenticated"));
-  assert.match(install, /<title>Download Synara — Coding Agent Workspace<\/title>/);
+  assert.match(install, /<title>Download Graft — Coding Agent Workspace<\/title>/);
 
   const docs = await readRoute("/docs", /text\/html/i);
   assert.match(
     docs,
-    /<link rel="canonical" href="https:\/\/www\.trysynara\.com\/docs"/,
+    /<link rel="canonical" href="https:\/\/www\.graftapp\.io\/docs"/,
     "docs page is missing its absolute self-canonical",
   );
   assert.match(docs, /property="og:type" content="website"/);
@@ -139,8 +139,8 @@ try {
   assert.ok(docs.includes('"@type":"BreadcrumbList"'), "docs page is missing breadcrumb JSON-LD");
 
   const docsIndexMarkdown = await readRoute("/docs.md", /text\/markdown/i);
-  assert.ok(docsIndexMarkdown.includes("# Synara documentation"));
-  assert.ok(docsIndexMarkdown.includes("## What is Synara?"));
+  assert.ok(docsIndexMarkdown.includes("# Graft documentation"));
+  assert.ok(docsIndexMarkdown.includes("## What is Graft?"));
 
   const { body: docsMarkdown, response: docsMarkdownResponse } = await getRoute(
     "/docs/providers/claude-code.md",
@@ -149,11 +149,11 @@ try {
   assert.equal(docsMarkdownResponse.headers.get("x-robots-tag"), "noindex, follow");
   assert.equal(
     docsMarkdownResponse.headers.get("link"),
-    '<https://www.trysynara.com/docs/providers/claude-code>; rel="canonical"',
+    '<https://www.graftapp.io/docs/providers/claude-code>; rel="canonical"',
   );
   for (const marker of [
     "# Claude Code",
-    "Canonical URL: https://www.trysynara.com/docs/providers/claude-code",
+    "Canonical URL: https://www.graftapp.io/docs/providers/claude-code",
     "## Install",
     "claude --version",
   ]) {
@@ -180,7 +180,7 @@ try {
     "User-Agent: PerplexityBot",
     "User-Agent: GPTBot",
     "Disallow: /api/",
-    "Sitemap: https://www.trysynara.com/sitemap-index.xml",
+    "Sitemap: https://www.graftapp.io/sitemap-index.xml",
   ]) {
     assert.ok(robots.includes(marker), `robots.txt is missing ${marker}`);
   }
@@ -191,8 +191,8 @@ try {
     2,
     "sitemap index must contain the main and changelog sitemaps",
   );
-  assert.ok(sitemapIndex.includes("https://www.trysynara.com/sitemap.xml"));
-  assert.ok(sitemapIndex.includes("https://www.trysynara.com/changelog/sitemap.xml"));
+  assert.ok(sitemapIndex.includes("https://www.graftapp.io/sitemap.xml"));
+  assert.ok(sitemapIndex.includes("https://www.graftapp.io/changelog/sitemap.xml"));
 
   const sitemap = await readRoute("/sitemap.xml", /application\/xml/i);
   for (const route of [
@@ -202,13 +202,13 @@ try {
     "/docs/troubleshooting/report-a-problem",
   ]) {
     assert.ok(
-      sitemap.includes(`https://www.trysynara.com${route}`),
+      sitemap.includes(`https://www.graftapp.io${route}`),
       `sitemap.xml is missing ${route}`,
     );
   }
   for (const utilityPath of ["/llms.txt", "/llms-full.txt", "/ai.txt"]) {
     assert.equal(
-      sitemap.includes(`https://www.trysynara.com${utilityPath}`),
+      sitemap.includes(`https://www.graftapp.io${utilityPath}`),
       false,
       `sitemap.xml should not advertise ${utilityPath} as a search-result page`,
     );
@@ -220,9 +220,9 @@ try {
     "## Product model",
     "One task owns one line of work",
     "## Documentation index",
-    "https://www.trysynara.com/docs/providers.md",
-    "https://www.trysynara.com/docs/workflows.md",
-    "https://www.trysynara.com/docs/troubleshooting.md",
+    "https://www.graftapp.io/docs/providers.md",
+    "https://www.graftapp.io/docs/workflows.md",
+    "https://www.graftapp.io/docs/troubleshooting.md",
     "robots.txt and page-level indexing directives remain authoritative",
   ]) {
     assert.ok(llms.includes(marker), `llms.txt is missing ${marker}`);
@@ -233,7 +233,7 @@ try {
   assert.ok(llmsFull.includes("# Report a problem"));
   assert.ok(
     llmsFull.includes(
-      "Canonical URL: https://www.trysynara.com/docs/troubleshooting/report-a-problem",
+      "Canonical URL: https://www.graftapp.io/docs/troubleshooting/report-a-problem",
     ),
   );
   assert.ok(llmsFull.includes("claude --version"));
@@ -242,7 +242,7 @@ try {
   assert.ok(ai.includes("AI search and user-directed retrieval agents:"));
   assert.ok(ai.includes("Model-development controls, separate from search visibility:"));
   assert.ok(ai.includes("Supported runtimes: Claude Code, Codex, OpenCode"));
-  assert.ok(ai.includes("Markdown documentation: https://www.trysynara.com/docs.md"));
+  assert.ok(ai.includes("Markdown documentation: https://www.graftapp.io/docs.md"));
   assert.ok(
     ai.includes("This file is informational and does not grant or revoke crawler permission."),
   );

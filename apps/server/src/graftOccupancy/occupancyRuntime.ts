@@ -7,7 +7,7 @@ import {
   OccupancyProtocol,
   OccupancyStore,
 } from "@graft/occupancy";
-import type { OrchestrationShellSnapshot } from "@synara/contracts";
+import type { OrchestrationShellSnapshot } from "@graft/contracts";
 
 import type { ServerConfigShape } from "../config";
 import { dispatchOccupancyCommand } from "./occupancyDispatch";

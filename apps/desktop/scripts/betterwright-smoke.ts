@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runBetterwright } from "../src/browserAutomation/betterwrightRuntime";
 
-const home = path.resolve(process.env.SYNARA_SMOKE_HOME ?? ".synara-betterwright-smoke");
+const home = path.resolve(process.env.GRAFT_SMOKE_HOME ?? ".graft-betterwright-smoke");
 app.setPath("userData", path.join(home, "electron"));
 async function smoke() {
   await mkdir(home, { recursive: true });
@@ -25,7 +25,7 @@ async function smoke() {
   await contents.loadURL(
     "data:text/html," +
       encodeURIComponent(
-        `<!doctype html><title>Synara browser fixture</title><style>body{font:18px system-ui;padding:48px;color:#171717}input,button{font:inherit;padding:12px}output{display:block;margin-top:24px}</style><h1>Browser integration fixture</h1><label>Message <input></label> <button onclick="document.querySelector('output').textContent=document.querySelector('input').value">Apply</button><output>Waiting</output>`,
+        `<!doctype html><title>Graft browser fixture</title><style>body{font:18px system-ui;padding:48px;color:#171717}input,button{font:inherit;padding:12px}output{display:block;margin-top:24px}</style><h1>Browser integration fixture</h1><label>Message <input></label> <button onclick="document.querySelector('output').textContent=document.querySelector('input').value">Apply</button><output>Waiting</output>`,
       ),
   );
   const options = { home: path.join(home, "worker"), contents, timeoutMs: 10_000 };

@@ -2,7 +2,7 @@
 // Purpose: Link a forked transcript back to the immediate source chat.
 // Layer: Chat transcript UI
 
-import { type ThreadId } from "@synara/contracts";
+import { type ThreadId } from "@graft/contracts";
 import { memo, type MouseEvent } from "react";
 
 import { GitForkIcon } from "~/lib/icons";

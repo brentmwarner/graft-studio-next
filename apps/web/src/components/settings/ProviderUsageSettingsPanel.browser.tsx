@@ -1,6 +1,6 @@
 import "../../index.css";
 
-import type { ProfileTokenStats, ServerProviderUsageSnapshot } from "@synara/contracts";
+import type { ProfileTokenStats, ServerProviderUsageSnapshot } from "@graft/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";

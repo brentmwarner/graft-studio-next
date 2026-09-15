@@ -1,15 +1,15 @@
 // FILE: skillPromptInjection.ts
 // Purpose: Inlines portable skill instructions into the outgoing prompt for providers
 //          that cannot natively load the referenced skill files. This is the fallback
-//          that makes Synara catalog skills usable on every provider.
+//          that makes Graft catalog skills usable on every provider.
 // Layer: Server provider helper
 // Exports: shouldInlineSkillForProvider, buildInlineSkillInstructions
 
 import * as fs from "node:fs/promises";
 import * as nodePath from "node:path";
 
-import type { ProviderKind, ProviderSkillReference } from "@synara/contracts";
-import { isAppHomeDirectoryName } from "@synara/shared/synaraHome";
+import type { ProviderKind, ProviderSkillReference } from "@graft/contracts";
+import { isAppHomeDirectoryName } from "@graft/shared/graftHome";
 
 // Per-skill cap keeps a single oversized SKILL.md from eating the turn budget.
 const MAX_INLINE_SKILL_CONTENT_CHARS = 24_000;

@@ -59,7 +59,7 @@ const approvedAttributions: readonly ApprovedAttribution[] = [
   {
     path: "README.md",
     markdownSection: "## Origins",
-    line: `Synara began as a clone of [${retiredFirstDisplayName}](https://github.com/pingdotgg/${retiredFirstName}), but it has since become a substantially different product with its own branding, packaging, release system, provider orchestration, desktop app behavior, and product direction.`,
+    line: `Graft began as a clone of [${retiredFirstDisplayName}](https://github.com/pingdotgg/${retiredFirstName}), but it has since become a substantially different product with its own branding, packaging, release system, provider orchestration, desktop app behavior, and product direction.`,
   },
   {
     path: "CHANGELOG.md",
@@ -68,16 +68,16 @@ const approvedAttributions: readonly ApprovedAttribution[] = [
   },
   {
     path: "apps/web/src/whatsNew/entries.ts",
-    line: `"A review of the Synara codebase found an analytics configuration that came from the original ${retiredFirstSpacedDisplayName} codebase when Synara was created as a clone in March.",`,
+    line: `"A review of the Graft codebase found an analytics configuration that came from the original ${retiredFirstSpacedDisplayName} codebase when Graft was created as a clone in March.",`,
   },
   {
     // The website's copy of the same published disclosure as CHANGELOG.md.
     path: "apps/marketing/src/data/changelog.ts",
-    line: `"A review of the Synara codebase found an analytics configuration that came from the original ${retiredFirstDisplayName.slice(0, 2)} Code codebase when Synara was created as a clone in March.",`,
+    line: `"A review of the Graft codebase found an analytics configuration that came from the original ${retiredFirstDisplayName.slice(0, 2)} Code codebase when Graft was created as a clone in March.",`,
   },
   {
     // A real user's words, quoted verbatim on the homepage. The retired name
-    // here refers to someone else's product, not to Synara's own identity.
+    // here refers to someone else's product, not to Graft's own identity.
     path: "apps/marketing/src/data/testimonials.ts",
     line: `"I've been using @trySynara for a few hours now. I'm really impressed. I'd already tried ${retiredFirstDisplayName.slice(0, 2)} Chat, Orca, and Terax, but none of them managed to grab my attention quite like Synara did.",`,
   },
@@ -92,7 +92,7 @@ const approvedVisualAssetDigests = new Map<string, string>([
     "0b4be139f13dd08885a1aac26fc1f7c623697db157777d16360e985c93d47bcf",
   ],
   [
-    "assets/prod/synara-hero.jpeg",
+    "assets/prod/graft-hero.jpeg",
     "07fbd00bde259b5ed2c69f404c00c1347de2fa46fa4a5e2aa70f016912dc2490",
   ],
 ]);
@@ -209,7 +209,7 @@ function main(): void {
     ...findVisualBrandAssetViolations(trackedFiles),
   ];
   if (violations.length === 0) {
-    console.log("Synara identity check passed.");
+    console.log("Graft identity check passed.");
     return;
   }
 

@@ -80,8 +80,8 @@ const REQUIRED_SECTIONS = [
   "Install",
   "Authenticate",
   "Verify",
-  "Connect to Synara",
-  "Capabilities in Synara",
+  "Connect to Graft",
+  "Capabilities in Graft",
   "Troubleshooting",
   "Official documentation",
 ];

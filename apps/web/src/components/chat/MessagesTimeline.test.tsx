@@ -3,7 +3,7 @@
 // Layer: Web chat component tests
 // Depends on: renderToStaticMarkup and a mocked LegendList.
 
-import { CheckpointRef, MessageId, ThreadId, TurnId } from "@synara/contracts";
+import { CheckpointRef, MessageId, ThreadId, TurnId } from "@graft/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { formatShortTimestamp } from "../../timestampFormat";
@@ -2838,7 +2838,7 @@ describe("MessagesTimeline", () => {
     expect(markup).toContain('data-tool-icon="mcp"');
   });
 
-  it("shows the Synara mark for every provider-specific tool row shape", async () => {
+  it("shows the Graft mark for every provider-specific tool row shape", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
     const baseProps = makeTimelineBaseProps();
 
@@ -2848,28 +2848,28 @@ describe("MessagesTimeline", () => {
         {...baseProps}
         timelineEntries={[
           {
-            id: "entry-inline-synara-claude",
+            id: "entry-inline-graft-claude",
             kind: "work",
             createdAt: "2026-03-17T19:12:28.000Z",
             entry: {
-              id: "work-inline-synara-claude",
+              id: "work-inline-graft-claude",
               createdAt: "2026-03-17T19:12:28.000Z",
               label: "MCP tool call",
               tone: "tool",
               itemType: "dynamic_tool_call",
-              toolTitle: "Synara__synara_create_thread",
-              toolName: "Synara__synara_create_thread",
-              detail: "Synara__synara_create_thread",
+              toolTitle: "Graft__graft_create_thread",
+              toolName: "Graft__graft_create_thread",
+              detail: "Graft__graft_create_thread",
               activityKind: "tool.started",
             },
           },
         ]}
       />,
     );
-    expect(claudeMarkup).toContain('data-tool-icon="synara"');
+    expect(claudeMarkup).toContain('data-tool-icon="graft"');
     expect(claudeMarkup).not.toContain('data-tool-icon="mcp"');
     expect(claudeMarkup).toContain("Graft is creating a thread");
-    expect(claudeMarkup).not.toContain("Synara__synara_create_thread");
+    expect(claudeMarkup).not.toContain("Graft__graft_create_thread");
 
     // A provider may misclassify an MCP action containing "create" or "list"
     // as a file change. Tool identity still wins over that transport category.
@@ -2878,41 +2878,41 @@ describe("MessagesTimeline", () => {
         {...baseProps}
         timelineEntries={[
           {
-            id: "entry-inline-synara-codex",
+            id: "entry-inline-graft-codex",
             kind: "work",
             createdAt: "2026-03-17T19:12:28.000Z",
             entry: {
-              id: "work-inline-synara-codex",
+              id: "work-inline-graft-codex",
               createdAt: "2026-03-17T19:12:28.000Z",
               label: "MCP tool call",
               tone: "tool",
               itemType: "file_change",
-              toolTitle: "mcp__Synara__synara_list_threads",
-              detail: "mcp__Synara__synara_list_threads",
+              toolTitle: "mcp__Graft__graft_list_threads",
+              detail: "mcp__Graft__graft_list_threads",
             },
           },
         ]}
       />,
     );
-    expect(codexMarkup).toContain('data-tool-icon="synara"');
+    expect(codexMarkup).toContain('data-tool-icon="graft"');
     expect(codexMarkup).toContain("Graft listed threads");
-    expect(codexMarkup).not.toContain("mcp__Synara__synara_list_threads");
+    expect(codexMarkup).not.toContain("mcp__Graft__graft_list_threads");
 
     const failedMarkup = renderToStaticMarkup(
       <MessagesTimeline
         {...baseProps}
         timelineEntries={[
           {
-            id: "entry-inline-synara-failed",
+            id: "entry-inline-graft-failed",
             kind: "work",
             createdAt: "2026-03-17T19:12:28.000Z",
             entry: {
-              id: "work-inline-synara-failed",
+              id: "work-inline-graft-failed",
               createdAt: "2026-03-17T19:12:28.000Z",
               label: "MCP tool call",
               tone: "tool",
               itemType: "mcp_tool_call",
-              toolName: "mcp__synara__synara_create_threads",
+              toolName: "mcp__graft__graft_create_threads",
               toolStatus: "failed",
               detail: "Claude rejected reasoningEffort",
               activityKind: "tool.completed",
@@ -2925,29 +2925,29 @@ describe("MessagesTimeline", () => {
     expect(failedMarkup).toContain("Claude rejected reasoningEffort");
   });
 
-  // Browser calls get the globe rather than the generic Synara mark: a browsing
+  // Browser calls get the globe rather than the generic Graft mark: a browsing
   // row is about a page, and the surface it acted on is the first thing to read.
-  it("uses the browser icon and action name for Synara browser calls", async () => {
+  it("uses the browser icon and action name for Graft browser calls", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
         {...makeTimelineBaseProps()}
         timelineEntries={[
           {
-            id: "entry-inline-synara-browser",
+            id: "entry-inline-graft-browser",
             kind: "work",
             createdAt: "2026-03-17T19:12:28.000Z",
             entry: {
-              id: "work-inline-synara-browser",
+              id: "work-inline-graft-browser",
               createdAt: "2026-03-17T19:12:28.000Z",
               label: "MCP tool call",
               tone: "tool",
               itemType: "mcp_tool_call",
-              toolName: "mcp__synara__browser_open",
+              toolName: "mcp__graft__browser_open",
               toolStatus: "completed",
               liveActivity: {
                 state: "completed",
-                label: "Synara: Browser Open",
+                label: "Graft: Browser Open",
                 startedAt: "2026-03-17T19:12:27.000Z",
                 lastActivityAt: "2026-03-17T19:12:28.000Z",
                 elapsedSeconds: 1,
@@ -2963,7 +2963,7 @@ describe("MessagesTimeline", () => {
     // A settled call reads as its action alone — no lifecycle or timing tail.
     expect(markup).not.toContain("elapsed");
     expect(markup).not.toContain("Completed tool");
-    expect(markup).not.toContain("Synara: Browser Open");
+    expect(markup).not.toContain("Graft: Browser Open");
 
     const presentationOnlyMarkup = renderToStaticMarkup(
       <MessagesTimeline
@@ -3010,31 +3010,31 @@ describe("MessagesTimeline", () => {
       );
 
     const readThreadMarkup = renderSingleToolRow({
-      id: "work-synara-read-thread-args",
+      id: "work-graft-read-thread-args",
       createdAt: "2026-03-17T19:12:28.000Z",
       label: "MCP tool call",
       tone: "tool",
       itemType: "mcp_tool_call",
-      toolName: "mcp__synara__synara_read_thread",
-      detail: 'mcp__synara__synara_read_thread: {"threadId":"c357d8c5-b4c1-47d0"}',
+      toolName: "mcp__graft__graft_read_thread",
+      detail: 'mcp__graft__graft_read_thread: {"threadId":"c357d8c5-b4c1-47d0"}',
       activityKind: "tool.completed",
     });
     expect(readThreadMarkup).toContain("Graft read a thread");
-    expect(readThreadMarkup).not.toContain("mcp__synara__synara_read_thread:");
+    expect(readThreadMarkup).not.toContain("mcp__graft__graft_read_thread:");
     expect(readThreadMarkup).not.toContain("threadId");
 
     const diagnoseMarkup = renderSingleToolRow({
-      id: "work-synara-diagnose-args",
+      id: "work-graft-diagnose-args",
       createdAt: "2026-03-17T19:12:28.000Z",
       label: "MCP tool call",
       tone: "tool",
       itemType: "mcp_tool_call",
-      toolName: "mcp__synara__synara_diagnose_thread",
-      detail: 'mcp__synara__synara_diagnose_thread: {"threadId":"09a1615d-084f-40b9"}',
+      toolName: "mcp__graft__graft_diagnose_thread",
+      detail: 'mcp__graft__graft_diagnose_thread: {"threadId":"09a1615d-084f-40b9"}',
       activityKind: "tool.completed",
     });
     expect(diagnoseMarkup).toContain("Graft diagnosed a thread");
-    expect(diagnoseMarkup).not.toContain("mcp__synara__synara_diagnose_thread:");
+    expect(diagnoseMarkup).not.toContain("mcp__graft__graft_diagnose_thread:");
     expect(diagnoseMarkup).not.toContain("threadId");
 
     const dynamicToolMarkup = renderSingleToolRow({
@@ -3045,7 +3045,7 @@ describe("MessagesTimeline", () => {
       itemType: "dynamic_tool_call",
       toolName: "ToolSearch",
       toolTitle: "ToolSearch",
-      detail: 'ToolSearch: {"query":"select:mcp__synara__synara_read_thread_events"}',
+      detail: 'ToolSearch: {"query":"select:mcp__graft__graft_read_thread_events"}',
       activityKind: "tool.completed",
     });
     expect(dynamicToolMarkup).toContain("ToolSearch");
@@ -3054,12 +3054,12 @@ describe("MessagesTimeline", () => {
     // Failed calls are exempt: the JSON-shaped detail may be the only place
     // the error surfaces, so it stays visible inline.
     const failedArgsMarkup = renderSingleToolRow({
-      id: "work-synara-failed-args",
+      id: "work-graft-failed-args",
       createdAt: "2026-03-17T19:12:28.000Z",
       label: "MCP tool call",
       tone: "tool",
       itemType: "mcp_tool_call",
-      toolName: "mcp__synara__synara_create_threads",
+      toolName: "mcp__graft__graft_create_threads",
       toolStatus: "failed",
       detail: 'McpError: {"code":-32602,"message":"Invalid params"}',
       activityKind: "tool.completed",
@@ -3068,36 +3068,36 @@ describe("MessagesTimeline", () => {
     expect(failedArgsMarkup).toContain("Invalid params");
   });
 
-  it("keeps Synara tool calls and adds a thread creation recap at the end of the turn", async () => {
+  it("keeps Graft tool calls and adds a thread creation recap at the end of the turn", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
-    const assistantMessageId = MessageId.makeUnsafe("message-synara-recap");
+    const assistantMessageId = MessageId.makeUnsafe("message-graft-recap");
     const workEntries = [
       {
-        id: "entry-synara-create-tool",
+        id: "entry-graft-create-tool",
         kind: "work",
         createdAt: "2026-03-17T19:12:28.000Z",
         entry: {
-          id: "work-synara-create-tool",
+          id: "work-graft-create-tool",
           createdAt: "2026-03-17T19:12:28.000Z",
           label: "MCP tool call",
           tone: "tool",
           itemType: "mcp_tool_call",
-          toolName: "mcp__synara__synara_create_threads",
+          toolName: "mcp__graft__graft_create_threads",
           toolTitle: "Graft created threads",
           activityKind: "tool.completed",
         },
       },
       {
-        id: "entry-synara-create-recap",
+        id: "entry-graft-create-recap",
         kind: "work",
         createdAt: "2026-03-17T19:12:29.000Z",
         entry: {
-          id: "work-synara-create-recap",
+          id: "work-graft-create-recap",
           createdAt: "2026-03-17T19:12:29.000Z",
-          label: "Created 2 Synara threads",
+          label: "Created 2 Graft threads",
           tone: "info",
-          activityKind: "synara.threads.created",
-          synaraThreadCreation: {
+          activityKind: "graft.threads.created",
+          graftThreadCreation: {
             operationId: "gateway:create:two-workers",
             requestedCount: 2,
             createdCount: 2,
@@ -3137,7 +3137,7 @@ describe("MessagesTimeline", () => {
       />,
     );
     expect(liveMarkup).toContain("Graft created threads");
-    expect(liveMarkup).not.toContain('data-synara-thread-creation-card="true"');
+    expect(liveMarkup).not.toContain('data-graft-thread-creation-card="true"');
 
     const markup = renderToStaticMarkup(
       <MessagesTimeline
@@ -3147,7 +3147,7 @@ describe("MessagesTimeline", () => {
         timelineEntries={[
           ...workEntries,
           {
-            id: "entry-synara-recap-assistant",
+            id: "entry-graft-recap-assistant",
             kind: "message",
             createdAt: "2026-03-17T19:12:30.000Z",
             message: {
@@ -3166,7 +3166,7 @@ describe("MessagesTimeline", () => {
     // The original MCP tool call is preserved inside the settled turn's
     // "Worked for..." disclosure; the recap is an additional final artifact.
     expect(markup).toContain("Worked for");
-    expect(markup).toContain('data-synara-thread-creation-card="true"');
+    expect(markup).toContain('data-graft-thread-creation-card="true"');
     expect(markup).toContain("2 threads created");
     expect(markup).toContain("2/2 requested threads created");
     expect(markup).toContain("Explain the repository with Terra");
@@ -3174,7 +3174,7 @@ describe("MessagesTimeline", () => {
     expect(markup).toContain("GPT-5.6 Terra");
     expect(markup).toContain("Claude Sonnet 5");
     expect(markup.indexOf("Both threads are running.")).toBeLessThan(
-      markup.indexOf('data-synara-thread-creation-card="true"'),
+      markup.indexOf('data-graft-thread-creation-card="true"'),
     );
   });
 
@@ -3386,7 +3386,7 @@ describe("MessagesTimeline", () => {
                 turnId: TurnId.makeUnsafe("turn-diff-1"),
                 checkpointTurnCount: 1,
                 checkpointTurnCounts: [1],
-                checkpointRef: CheckpointRef.makeUnsafe("refs/synara/checkpoints/thread/turn/1"),
+                checkpointRef: CheckpointRef.makeUnsafe("refs/graft/checkpoints/thread/turn/1"),
                 status: "ready",
                 completedAt: "2026-03-17T19:12:30.000Z",
                 assistantMessageId,

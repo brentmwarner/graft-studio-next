@@ -5,8 +5,8 @@ import {
   PROVIDER_DISPLAY_NAMES,
   type ProviderKind,
   type ServerGetProviderUsageSnapshotResult,
-} from "@synara/contracts";
-import { providerUsageNeedsAuthDetail } from "@synara/shared/providerUsage";
+} from "@graft/contracts";
+import { providerUsageNeedsAuthDetail } from "@graft/shared/providerUsage";
 import { type ReactNode } from "react";
 
 import { useAppSettings } from "~/appSettings";

@@ -18,9 +18,9 @@ import { copyMacAppBundle } from "./electron-launcher.mjs";
 
 describe("macOS Electron launcher copy", { skip: process.platform !== "darwin" }, () => {
   it("keeps framework symlink targets relative after relocation", (t) => {
-    const root = mkdtempSync(join(tmpdir(), "synara-electron-launcher-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-electron-launcher-"));
     const source = join(root, "source", "Electron.app");
-    const target = join(root, "runtime", "Synara (Dev).app");
+    const target = join(root, "runtime", "Graft (Dev).app");
     const framework = join(source, "Contents", "Frameworks", "Electron Framework.framework");
 
     mkdirSync(join(framework, "Versions", "A", "Resources"), { recursive: true });

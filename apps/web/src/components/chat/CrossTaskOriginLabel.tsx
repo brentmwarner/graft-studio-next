@@ -1,11 +1,11 @@
 // FILE: CrossTaskOriginLabel.tsx
-// Purpose: Identify the source thread for conversations created by another Synara agent.
+// Purpose: Identify the source thread for conversations created by another Graft agent.
 // Layer: Chat transcript UI
 
-import { type ProviderKind, type ThreadId } from "@synara/contracts";
+import { type ProviderKind, type ThreadId } from "@graft/contracts";
 import { memo, type ReactNode } from "react";
 
-import { SynaraLogo } from "../SynaraLogo";
+import { GraftLogo } from "../GraftLogo";
 import { cn } from "~/lib/utils";
 
 export interface CrossTaskOrigin {
@@ -14,13 +14,13 @@ export interface CrossTaskOrigin {
 }
 
 // A single, app-level attribution: the message reached this thread from another
-// Synara thread, so it always reads as "Sent by Synara" with the Synara mark
+// Graft thread, so it always reads as "Sent by Graft" with the Graft mark
 // (the origin provider is not surfaced here to keep one consistent label).
 function OriginContent(): ReactNode {
   return (
     <>
       <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/70">
-        <SynaraLogo className="h-4 w-auto" aria-label="Graft" />
+        <GraftLogo className="h-4 w-auto" aria-label="Graft" />
       </span>
       <span className="truncate">Sent by Graft from another thread</span>
     </>

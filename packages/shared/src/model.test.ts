@@ -10,7 +10,7 @@ import {
   DEFAULT_MODEL_BY_PROVIDER,
   MODEL_OPTIONS_BY_PROVIDER,
   CODEX_REASONING_EFFORT_OPTIONS,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 import {
   applyClaudePromptEffortPrefix,

@@ -20,8 +20,8 @@ import {
   SettingsIcon,
   SunIcon,
 } from "~/lib/icons";
-import { type FilesystemBrowseResult, type ProviderKind } from "@synara/contracts";
-import { isGenericChatThreadTitle } from "@synara/shared/chatThreads";
+import { type FilesystemBrowseResult, type ProviderKind } from "@graft/contracts";
+import { isGenericChatThreadTitle } from "@graft/shared/chatThreads";
 import { type ComponentType, useEffect, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FolderClosed } from "./FolderClosed";

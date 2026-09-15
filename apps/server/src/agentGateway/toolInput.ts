@@ -1,10 +1,10 @@
 import {
   DEFAULT_MODEL_BY_PROVIDER,
-  SynaraCreateThreadsInput,
-  SynaraWaitForThreadsInput,
+  GraftCreateThreadsInput,
+  GraftWaitForThreadsInput,
   type ModelSelection,
   type ProviderKind,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Schema } from "effect";
 
 import { AGENT_GATEWAY_TARGET_OPTIONS_DESCRIPTION } from "./targetResolver.ts";
@@ -28,7 +28,7 @@ export const MODEL_SELECTION_INPUT_SCHEMA = {
     provider: { type: "string", enum: [...PROVIDER_KINDS] },
     model: {
       type: "string",
-      description: "Exact model slug from synara_capabilities providers[].models[].slug.",
+      description: "Exact model slug from graft_capabilities providers[].models[].slug.",
     },
     options: {
       type: "object",
@@ -163,16 +163,16 @@ export function buildModelSelection(
 
 export function decodeCreateThreadsInput(value: unknown) {
   try {
-    return Schema.decodeUnknownSync(SynaraCreateThreadsInput)(value);
+    return Schema.decodeUnknownSync(GraftCreateThreadsInput)(value);
   } catch (error) {
-    throw new ToolInputError(`Invalid Synara creation plan: ${errorText(error)}`);
+    throw new ToolInputError(`Invalid Graft creation plan: ${errorText(error)}`);
   }
 }
 
 export function decodeWaitForThreadsInput(value: unknown) {
   try {
-    return Schema.decodeUnknownSync(SynaraWaitForThreadsInput)(value);
+    return Schema.decodeUnknownSync(GraftWaitForThreadsInput)(value);
   } catch (error) {
-    throw new ToolInputError(`Invalid Synara wait request: ${errorText(error)}`);
+    throw new ToolInputError(`Invalid Graft wait request: ${errorText(error)}`);
   }
 }

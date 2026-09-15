@@ -108,19 +108,19 @@ script `https://opencode.ai/install`.
 **Primary source:** [Pi docs in earendil-works/pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/index.md)
 checked 2026-08-07 (HTTP 200); `https://pi.dev/install.sh` HTTP 200.
 
-## Synara (project self-links)
+## Graft (project self-links)
 
 **Claims:** GitHub issues / new-issue links, releases, main-branch repository, and canary
 setup docs.
 
-**Primary source:** Local checkout `/tmp/synara` (checked 2026-08-07): `docs/canary.md`
-(Canary isolation, app name `Synara Canary`, bundle ID `com.emanueledipietro.synara.canary`,
-data dir `~/.synara-canary`) and `README.md` (MCP-native agent harness description).
-Live GitHub URLs `https://github.com/Emanuele-web04/synara*` verified HTTP 200 on 2026-08-07.
+**Primary source:** Local checkout `/tmp/graft` (checked 2026-08-07): `docs/canary.md`
+(Canary isolation, app name `Graft Canary`, bundle ID `com.emanueledipietro.graft.canary`,
+data dir `~/.graft-canary`) and `README.md` (MCP-native agent harness description).
+Live GitHub URLs `https://github.com/brentmwarner/graft-studio-next*` verified HTTP 200 on 2026-08-07.
 
 ## Site metadata (src/lib/seo.ts)
 
-**Claims:** `https://www.trysynara.com` (canonical site URL), `https://emanueledipietro.com`
+**Claims:** `https://github.com/brentmwarner/graft-studio-next` (canonical site URL), `https://emanueledipietro.com`
 (author site), `https://x.com/emanueledpt` (X profile), `https://youtube.com/@emanueledpt`
 (YouTube channel), `https://schema.org` (schema vocabulary), `https://opensource.org/licenses/MIT`
 (MIT license).
@@ -151,7 +151,7 @@ contains no cursor-agent mentions, so the live web check is the authoritative so
 
 **Decision — CORRECT:** removal of `cursor-agent upgrade` stands.
 
-## Synara — `/config` slash command (evidence-trail addendum)
+## Graft — `/config` slash command (evidence-trail addendum)
 
 **Claim removed:** `content/docs/reference/slash-commands.mdx` listed `/config` ("Open
 settings") among built-in slash commands.
@@ -164,7 +164,7 @@ the app.
 **Decision — REMOVAL STANDS:** evidence source is the app's built-in command list
 (unverified in this repo) — **needs app-source confirmation, low risk**.
 
-## Synara v0.7.2 feature documentation
+## Graft v0.7.2 feature documentation
 
 Date checked: **2026-08-15**
 
@@ -173,8 +173,8 @@ mode; full-thread and message-level forks; native fork coverage; local/worktree 
 the macOS iOS Simulator pane and device controls; workspace file and source search; stacked
 pull-request navigation and prefix merging; automation consecutive-failure policies.
 
-**Primary source:** Local Synara checkout
-`/Users/emanueledipietro/Developer/synara` at release tag `v0.7.2`, commit
+**Primary source:** Local Graft checkout
+`/Users/emanueledipietro/Developer/graft` at release tag `v0.7.2`, commit
 `18ff99857d5b84adab2019c2839fa4f6df761b7c`.
 
 Key source paths checked:
@@ -201,18 +201,18 @@ Key source paths checked:
 `docs/device-pane-spec.md` was treated as historical design context only because several
 pre-implementation non-goals changed before v0.7.2 shipped.
 
-## Synara v0.7.3 feature documentation
+## Graft v0.7.3 feature documentation
 
 Date checked: **2026-08-21**
 
 **Claims:** Guarded desktop quit and startup continuation; a floating task-owned browser;
 usage views for every locally verifiable provider; first-class WSL UNC launching; optional
-custom title bars on Windows and Linux; the headless release tarball and `synara server
+custom title bars on Windows and Linux; the headless release tarball and `graft server
 status`; cross-provider `/side`; and provider streaming, diagnostic, workspace, and runtime
 reliability fixes.
 
-**Primary source:** Local Synara checkout
-`/Users/emanueledipietro/Developer/synara` at the v0.7.3 release commit
+**Primary source:** Local Graft checkout
+`/Users/emanueledipietro/Developer/graft` at the v0.7.3 release commit
 `a93c47e275870f34ec7aa8cd72f2a0ff6246db7c`. The audited range from v0.7.2 contains 224
 commits, including 50 merge commits, across 321 changed files.
 
@@ -242,7 +242,7 @@ Key source paths checked:
 intermediate merge. The experimental DeepSeek Harness work was reverted before v0.7.3 and
 is therefore explicitly excluded from the shipped provider list.
 
-## Synara v0.8.0 feature documentation
+## Graft v0.8.0 feature documentation
 
 Date checked: **2026-09-01**
 
@@ -253,8 +253,8 @@ side-chat panes; sidebar navigation ordering; file actions and path/PDF handling
 Code removal and migration to OpenCode; and the release's security and platform boundary
 fixes.
 
-**Primary source:** Local Synara checkout
-`/Users/emanueledipietro/Developer/synara` at pre-release head
+**Primary source:** Local Graft checkout
+`/Users/emanueledipietro/Developer/graft` at pre-release head
 `8b428c474d49583637ad899fd9ada61cc40b18da`. The audited range from v0.7.3 contains 94
 commits, including 61 merged pull requests, across 518 changed files.
 
@@ -278,7 +278,7 @@ Key source paths checked:
 the 0.8.0 release. Historical Kilo Code references remain only inside older release notes;
 current provider navigation and marketing surfaces point to Devin CLI.
 
-## Synara v0.8.2 — 2026-09-06
+## Graft v0.8.2 — 2026-09-06
 
 Release-range audit: `v0.8.1..6edbd1b1a9a8d947f06a3d7f6b2e0f28654ae9a4` (43 commits). Product behavior was checked against this source head; the release commit adds version metadata and documentation to that source.
 
@@ -294,11 +294,11 @@ Release-range audit: `v0.8.1..6edbd1b1a9a8d947f06a3d7f6b2e0f28654ae9a4` (43 comm
 
 Source range: v0.8.2 through 1ff70e178 (the complete code changes included in v0.8.3). Provider recovery is grounded in apps/server/package.json and commit c34389ae8; packaged validation in apps/server/src/runtimeDependencySmoke.ts and scripts/verify-packaged-desktop-startup.ts. Persistent diff layout is grounded in apps/web/src/components/DiffPanel.tsx and its browser regression test. Existing organize and provider-troubleshooting guides were updated with focused contract coverage; no new navigation entries or external links were needed.
 
-## Synara v0.8.4 feature documentation
+## Graft v0.8.4 feature documentation
 
 Date checked: **2026-09-14**
 
-**Authority:** Local Synara checkout at pre-release product head
+**Authority:** Local Graft checkout at pre-release product head
 `0eaf3831e`, audited across the complete `v0.8.3..0eaf3831e` range.
 Release preparation additionally fixes Node 24 SQLite embedded-NUL text preservation,
 with completion/restart/resume regression coverage; this does not change the documented

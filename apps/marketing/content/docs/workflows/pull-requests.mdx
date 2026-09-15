@@ -1,15 +1,15 @@
 ---
 title: Pull requests
-description: Discover, inspect, fix, verify, and manage GitHub pull requests from the Synara workspace.
+description: Discover, inspect, fix, verify, and manage GitHub pull requests from the Graft workspace.
 ---
 
-Synara’s pull-request workspace brings repository context, review discussion, checks, diffs, and agent tasks into one workflow. Use it to understand and repair a pull request, but keep Git and GitHub as the authoritative state for commits, branches, checks, and remote actions.
+Graft’s pull-request workspace brings repository context, review discussion, checks, diffs, and agent tasks into one workflow. Use it to understand and repair a pull request, but keep Git and GitHub as the authoritative state for commits, branches, checks, and remote actions.
 
 ## Requirements
 
 The repository must have:
 
-- A local Git checkout available to Synara
+- A local Git checkout available to Graft
 - A GitHub remote that resolves to the intended repository
 - Git installed and usable
 - GitHub CLI (`gh`) installed for GitHub-backed operations
@@ -83,7 +83,7 @@ Confirm the task’s branch and diff before sending a fix prompt.
 
 ## Use Fix prompts carefully
 
-Synara can gather visible unresolved review comments into a numbered composer prompt. Merge conflicts can be supplied through a separate Fix flow.
+Graft can gather visible unresolved review comments into a numbered composer prompt. Merge conflicts can be supplied through a separate Fix flow.
 
 Before sending:
 
@@ -183,7 +183,7 @@ Avoid posting speculative findings as confirmed defects. Reproduce or trace the 
 
 ## Work with stacked pull requests
 
-When GitHub exposes a dependent pull-request stack, Synara adds a position badge to list and detail views. Open it to see the ordered stack from its base branch upward, each PR's state and branch, the current PR, and an assessment such as **Ready to merge**, **Merge status pending**, or **Stack needs attention**.
+When GitHub exposes a dependent pull-request stack, Graft adds a position badge to list and detail views. Open it to see the ordered stack from its base branch upward, each PR's state and branch, the current PR, and an assessment such as **Ready to merge**, **Merge status pending**, or **Stack needs attention**.
 
 Before merging a stack:
 
@@ -193,13 +193,13 @@ Before merging a stack:
 4. Refresh if stack metadata is incomplete or GitHub still reports unknown state.
 5. Read the merge confirmation's exact PR count, target, and method.
 
-**Merge stack** affects the open stack prefix through the selected PR, not every PR above it. Synara asks GitHub to merge that prefix atomically when the preview endpoint is available, polls the asynchronous result, and falls back to ordinary GitHub CLI merge behavior when the preview operation is unavailable. PRs above the selected one can remain open and be retargeted by GitHub.
+**Merge stack** affects the open stack prefix through the selected PR, not every PR above it. Graft asks GitHub to merge that prefix atomically when the preview endpoint is available, polls the asynchronous result, and falls back to ordinary GitHub CLI merge behavior when the preview operation is unavailable. PRs above the selected one can remain open and be retargeted by GitHub.
 
 Do not infer stack safety from one green leaf PR. Each dependency changes the code and base inherited by the pull request above it.
 
 ## Remote actions
 
-Synara can expose GitHub actions such as commenting, merging, closing, and reopening. These mutate shared remote state.
+Graft can expose GitHub actions such as commenting, merging, closing, and reopening. These mutate shared remote state.
 
 Before confirming a remote action, verify:
 

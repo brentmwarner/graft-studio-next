@@ -28,7 +28,7 @@ function tokenCountLine(timestamp: string, totalTokens: number, note?: string): 
 }
 
 async function makeSessionFile(contents: string, name = "rollout.jsonl"): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "synara-provider-usage-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "graft-provider-usage-"));
   tempDirs.push(dir);
   const file = path.join(dir, name);
   await fs.writeFile(file, contents);

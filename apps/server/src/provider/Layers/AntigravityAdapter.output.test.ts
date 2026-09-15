@@ -6,7 +6,7 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { ThreadId } from "@synara/contracts";
+import { ThreadId } from "@graft/contracts";
 import { Effect, Fiber, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -45,7 +45,7 @@ async function runPrintTurn(input: {
   stop?: boolean;
   interrupt?: boolean;
 }) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "synara-antigravity-output-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "graft-antigravity-output-"));
   let child: ChildProcess;
   let eventFile: string;
   const transcriptFile = path.join(root, "transcript.jsonl");
@@ -54,7 +54,7 @@ async function runPrintTurn(input: {
     _args: readonly string[],
     options: { env?: NodeJS.ProcessEnv },
   ) => {
-    eventFile = options.env!.SYNARA_ANTIGRAVITY_EVENTS!;
+    eventFile = options.env!.GRAFT_ANTIGRAVITY_EVENTS!;
     child = Object.assign(new EventEmitter(), {
       stdout: new PassThrough(),
       stderr: new PassThrough(),

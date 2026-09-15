@@ -1,27 +1,27 @@
-// FILE: SynaraThreadCreationCard.tsx
-// Purpose: End-of-turn recap for threads created through the Synara MCP harness.
+// FILE: GraftThreadCreationCard.tsx
+// Purpose: End-of-turn recap for threads created through the Graft MCP harness.
 // Layer: Chat transcript UI
 
-import { PROVIDER_DISPLAY_NAMES } from "@synara/contracts";
-import { formatModelDisplayName } from "@synara/shared/model";
+import { PROVIDER_DISPLAY_NAMES } from "@graft/contracts";
+import { formatModelDisplayName } from "@graft/shared/model";
 import { memo } from "react";
 
-import type { WorkLogSynaraThreadCreation } from "../../session-logic";
+import type { WorkLogGraftThreadCreation } from "../../session-logic";
 import { ProviderIcon } from "../ProviderIcon";
-import { SynaraLogo } from "../SynaraLogo";
+import { GraftLogo } from "../GraftLogo";
 import { Button } from "../ui/button";
 
-function threadMeta(thread: WorkLogSynaraThreadCreation["threads"][number]): string {
+function threadMeta(thread: WorkLogGraftThreadCreation["threads"][number]): string {
   const model = formatModelDisplayName(thread.model) ?? thread.model;
   const environment = thread.environment === "worktree" ? "Worktree" : "Local";
   return `${PROVIDER_DISPLAY_NAMES[thread.provider]} · ${model} · ${environment}`;
 }
 
-export const SynaraThreadCreationCard = memo(function SynaraThreadCreationCard({
+export const GraftThreadCreationCard = memo(function GraftThreadCreationCard({
   creation,
   onOpenThread,
 }: {
-  readonly creation: WorkLogSynaraThreadCreation;
+  readonly creation: WorkLogGraftThreadCreation;
   readonly onOpenThread?: (threadId: string) => void;
 }) {
   const singleThread = creation.threads.length === 1 ? creation.threads[0] : undefined;
@@ -33,11 +33,11 @@ export const SynaraThreadCreationCard = memo(function SynaraThreadCreationCard({
   return (
     <div
       className="overflow-hidden rounded-[0.65rem] border border-[color:var(--color-border-light)] bg-[var(--color-background-elevated-primary)] dark:border-[color:color-mix(in_srgb,var(--color-border-light)_55%,transparent)]"
-      data-synara-thread-creation-card="true"
+      data-graft-thread-creation-card="true"
     >
       <div className="flex min-w-0 items-center gap-3 px-3 py-2.5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-background-elevated-secondary)] text-foreground">
-          <SynaraLogo className="h-[22px] w-auto" aria-label="Graft" />
+          <GraftLogo className="h-[22px] w-auto" aria-label="Graft" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-system-ui text-[length:var(--app-font-size-ui-lg,13px)] font-medium text-foreground/95">

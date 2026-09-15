@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GitPullRequestComment, PullRequestComment } from "@synara/contracts";
+import type { GitPullRequestComment, PullRequestComment } from "@graft/contracts";
 
 import {
   buildFixFailingChecksPrompt,
@@ -34,7 +34,7 @@ function makeComment(overrides: Partial<GitPullRequestComment> = {}): GitPullReq
 const cardPr: PullRequestCardSource = {
   number: 321,
   title: "Keep PR context visible",
-  url: "https://github.com/example/synara/pull/321",
+  url: "https://github.com/example/graft/pull/321",
   baseBranch: "main",
   headBranch: "fix/pr-panel",
   state: "open",
@@ -308,7 +308,7 @@ describe("buildResolveConflictsPrompt", () => {
   });
 
   it("points at the current checkout instead of asserting the local branch name", () => {
-    // Fork threads check the PR out under `synara/pr-N/<branch>`, so the prompt must not
+    // Fork threads check the PR out under `graft/pr-N/<branch>`, so the prompt must not
     // claim the local branch is named after the GitHub head branch.
     const prompt = buildResolveConflictsPrompt({
       prNumber: 488,

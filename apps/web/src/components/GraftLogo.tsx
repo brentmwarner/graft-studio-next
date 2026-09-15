@@ -1,12 +1,12 @@
-// FILE: SynaraLogo.tsx
+// FILE: GraftLogo.tsx
 // Purpose: Render the Graft mark as an inline SVG that follows theme foreground color.
 // Layer: Shared app branding primitive
 
 import type { SVGProps } from "react";
-import { GRAFT_MARK_VIEWBOX, SYNARA_LOGO_PATHS } from "~/assets/synaraLogoPath";
+import { GRAFT_MARK_VIEWBOX, GRAFT_LOGO_PATHS } from "~/assets/graftLogoPath";
 import { cn } from "~/lib/utils";
 
-export function SynaraLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
+export function GraftLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   const ariaLabel = props["aria-label"];
 
   return (
@@ -18,7 +18,7 @@ export function SynaraLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
       {...props}
       className={cn("shrink-0 text-foreground", className)}
     >
-      {SYNARA_LOGO_PATHS.map((path) => (
+      {GRAFT_LOGO_PATHS.map((path) => (
         <path key={path} d={path} fill="currentColor" />
       ))}
     </svg>

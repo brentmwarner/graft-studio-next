@@ -17,7 +17,7 @@ import type {
   ProviderKind,
   ResolvedKeybindingsConfig,
   ThreadId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useAppSettings } from "~/appSettings";

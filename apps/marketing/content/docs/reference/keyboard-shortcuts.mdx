@@ -1,6 +1,6 @@
 ---
 title: Keyboard shortcuts
-description: The full default keymap, verified against the Synara source, plus JSON customization.
+description: The full default keymap, verified against the Graft source, plus JSON customization.
 ---
 
 `mod` means Command on macOS and Control on Windows or Linux.
@@ -59,16 +59,16 @@ description: The full default keymap, verified against the Synara source, plus J
 Opening a file or source match sends it to the current task's file pane. Content search requires at least two characters and shows the matching path, line number, and source excerpt. The iOS Simulator exposes a customizable `device.toggle` command but has no default shortcut; open it from the right-dock add menu or assign a key in Settings.
 
 <Callout type="info" title="Spaces (preview on main)">
-  Synara `main` adds project spaces with `mod+alt+←` / `mod+alt+→` to switch spaces and
+  Graft `main` adds project spaces with `mod+alt+←` / `mod+alt+→` to switch spaces and
   `mod+alt+1`…`9` to jump. See [Features on main](/docs/reference/main-preview).
 </Callout>
 
 ## Custom keybindings
 
-A settings panel lets you explore and remap shortcuts. For full control, Synara reads user overrides from:
+A settings panel lets you explore and remap shortcuts. For full control, Graft reads user overrides from:
 
 ```text
-~/.synara/userdata/keybindings.json
+~/.graft/userdata/keybindings.json
 ```
 
 The file contains an ordered JSON array. The last matching rule whose `when` expression is true wins.

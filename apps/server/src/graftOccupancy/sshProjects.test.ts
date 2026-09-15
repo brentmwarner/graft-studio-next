@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CommandId, ProjectId, type OrchestrationCommand } from "@synara/contracts";
+import { CommandId, ProjectId, type OrchestrationCommand } from "@graft/contracts";
 import { Effect } from "effect";
 import { afterEach, expect, it, vi } from "vitest";
 

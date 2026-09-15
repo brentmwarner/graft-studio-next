@@ -8,11 +8,11 @@ Open **Settings → Connections** to manage remote computers and paired mobile d
 2. Enter an SSH config alias (for example, `workstation`) or a remote username and host (`dev@workstation`). The display name is optional.
 3. Select **Add computer**, then **Connect** beside the computer.
 
-Synara uses the system OpenSSH client and your existing SSH configuration, keys, and agent. Set custom ports, jump hosts, and identity files in `~/.ssh/config`; the address field accepts a host or `user@host`, not command-line options. If you omit a username, OpenSSH uses the user configured for the host or your local username.
+Graft uses the system OpenSSH client and your existing SSH configuration, keys, and agent. Set custom ports, jump hosts, and identity files in `~/.ssh/config`; the address field accepts a host or `user@host`, not command-line options. If you omit a username, OpenSSH uses the user configured for the host or your local username.
 
 The remote service currently supports **Linux x64 with glibc**. The remote computer needs Node.js **22.19+, 23.11+, 24.10+, or a newer major release**, available to non-interactive SSH commands. Password and passphrase prompts must be completed outside the app; load encrypted keys into your SSH agent first.
 
-On first connection, Synara copies its bundled host service to the remote computer and installs it under `~/.local/share/graft/host/installation` (or `XDG_DATA_HOME`). It starts a loopback-only service, opens an SSH tunnel, checks the service identity, and enrolls a desktop session. The remote host currently advertises project and thread capabilities. Connecting does not itself launch a provider or a remote task.
+On first connection, Graft copies its bundled host service to the remote computer and installs it under `~/.local/share/graft/host/installation` (or `XDG_DATA_HOME`). It starts a loopback-only service, opens an SSH tunnel, checks the service identity, and enrolls a desktop session. The remote host currently advertises project and thread capabilities. Connecting does not itself launch a provider or a remote task.
 
 **Disconnect** closes the local tunnel. **Remove** forgets the saved computer and deletes its local session credential; remote session revocation is best-effort when the host is reachable. Disconnecting does not uninstall the remote service or stop its existing work.
 

@@ -32,7 +32,7 @@ import {
   type ProviderKind,
   type ProviderModelDescriptor,
   type RuntimeMode,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 export const MOBILE_PROVIDER_ORDER = [
   "codex",

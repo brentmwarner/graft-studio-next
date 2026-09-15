@@ -14,7 +14,7 @@ import type {
   ModelSelection,
   ProviderStartOptions,
   ServerGenerateAutomationIntentResult,
-} from "@synara/contracts";
+} from "@graft/contracts";
 
 import type { TextGenerationError } from "../Errors.ts";
 
@@ -248,7 +248,7 @@ export interface TextGenerationShape {
 export class CodexTextGeneration extends ServiceMap.Service<
   CodexTextGeneration,
   TextGenerationShape
->()("synara/git/Services/TextGeneration/CodexTextGeneration") {}
+>()("graft/git/Services/TextGeneration/CodexTextGeneration") {}
 
 /**
  * OpenCodeTextGeneration - Provider-specific OpenCode implementation for git text generation.
@@ -256,7 +256,7 @@ export class CodexTextGeneration extends ServiceMap.Service<
 export class OpenCodeTextGeneration extends ServiceMap.Service<
   OpenCodeTextGeneration,
   TextGenerationShape
->()("synara/git/Services/TextGeneration/OpenCodeTextGeneration") {}
+>()("graft/git/Services/TextGeneration/OpenCodeTextGeneration") {}
 
 /**
  * CursorTextGeneration - Provider-specific Cursor implementation for git text generation.
@@ -264,7 +264,7 @@ export class OpenCodeTextGeneration extends ServiceMap.Service<
 export class CursorTextGeneration extends ServiceMap.Service<
   CursorTextGeneration,
   TextGenerationShape
->()("synara/git/Services/TextGeneration/CursorTextGeneration") {}
+>()("graft/git/Services/TextGeneration/CursorTextGeneration") {}
 
 /**
  * DroidTextGeneration - Provider-specific Droid implementation for git text generation.
@@ -272,11 +272,11 @@ export class CursorTextGeneration extends ServiceMap.Service<
 export class DroidTextGeneration extends ServiceMap.Service<
   DroidTextGeneration,
   TextGenerationShape
->()("synara/git/Services/TextGeneration/DroidTextGeneration") {}
+>()("graft/git/Services/TextGeneration/DroidTextGeneration") {}
 
 /**
  * TextGeneration - Service tag for commit and PR text generation.
  */
 export class TextGeneration extends ServiceMap.Service<TextGeneration, TextGenerationShape>()(
-  "synara/git/Services/TextGeneration",
+  "graft/git/Services/TextGeneration",
 ) {}

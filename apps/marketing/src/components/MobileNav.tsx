@@ -86,7 +86,7 @@ export default function MobileNav() {
       >
         <nav aria-label="Mobile navigation" className="grid gap-1">
           <a
-            href="https://x.com/trySynara"
+            href="https://x.com/emanueledpt"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}

@@ -10,7 +10,7 @@ import {
   type OrchestrationProjectShell,
   type OrchestrationThread,
   type OrchestrationThreadShell,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import { makeGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
@@ -135,7 +135,7 @@ function thread(): OrchestrationThread {
 }
 
 describe("Graft mobile protocol adapter", () => {
-  it("maps Synara project and thread identity without changing the mobile contract", () => {
+  it("maps Graft project and thread identity without changing the mobile contract", () => {
     expect(toMobileProject(project())).toMatchObject({
       id: "project-1",
       name: "Graft Studio",
@@ -218,7 +218,7 @@ describe("Graft mobile protocol adapter", () => {
     expect(toMobileTranscript(thread(), 12).events).toHaveLength(2);
   });
 
-  it("turns Synara assistant deltas into cumulative mobile frames", () => {
+  it("turns Graft assistant deltas into cumulative mobile frames", () => {
     const state = makeGraftMobileLiveEventState();
     const event = (sequence: number, text: string, streaming = true): OrchestrationEvent => ({
       sequence,

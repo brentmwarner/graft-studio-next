@@ -4,8 +4,8 @@
 
 import { useMemo, type ReactNode } from "react";
 
-import { isGenericChatThreadTitle } from "@synara/shared/chatThreads";
-import { pluralize } from "@synara/shared/text";
+import { isGenericChatThreadTitle } from "@graft/shared/chatThreads";
+import { pluralize } from "@graft/shared/text";
 
 import { createThreadSelector } from "../storeSelectors";
 import { useStore } from "../store";

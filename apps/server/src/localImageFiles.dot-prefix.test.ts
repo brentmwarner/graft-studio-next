@@ -16,7 +16,7 @@ afterEach(() => {
 
 describe("local preview dot-prefixed directories", () => {
   it("allows workspace files below a child directory beginning with two dots", async () => {
-    const workspace = mkdtempSync(path.join(os.tmpdir(), "synara-dot-preview-"));
+    const workspace = mkdtempSync(path.join(os.tmpdir(), "graft-dot-preview-"));
     tempDirs.push(workspace);
     writeFileSync(path.join(workspace, ".git"), "gitdir: .git");
     const previewDirectory = path.join(workspace, "..assets");

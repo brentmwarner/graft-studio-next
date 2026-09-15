@@ -10,10 +10,10 @@ import {
   type ServerProviderStatus,
   type ServerSettingsView,
   type WsCompatibilityError,
-} from "@synara/contracts";
-import { defaultTerminalTitleForCliKind } from "@synara/shared/terminalThreads";
+} from "@graft/contracts";
+import { defaultTerminalTitleForCliKind } from "@graft/shared/terminalThreads";
 import { BrowserVaultDialog } from "~/components/BrowserVault";
-import { isThreadDetailEventFor } from "@synara/shared/threadDetailEvents";
+import { isThreadDetailEventFor } from "@graft/shared/threadDetailEvents";
 import {
   Outlet,
   createRootRouteWithContext,

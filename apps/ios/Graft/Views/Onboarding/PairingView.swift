@@ -32,7 +32,7 @@ struct PairingView: View {
                 .padding(.bottom, DS.Space.s4)
             }
             .drawerSurface()
-            .navigationTitle("Pair with Studio")
+            .navigationTitle("Pair with Graft Studio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -251,7 +251,7 @@ private func pairingErrorMessage(_ error: GraftError) -> String {
             localized: "Pairing token was rejected. Make sure the link is fresh."
         )
     case .unreachable(let detail):
-        return String(localized: "Couldn't reach the Studio Mac: \(detail)")
+        return String(localized: "Couldn't reach this computer: \(detail)")
     case .malformedPairingURL(let detail):
         return detail
     case .hostError(_, let message, _):

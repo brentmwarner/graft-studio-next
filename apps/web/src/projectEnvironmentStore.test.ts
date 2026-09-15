@@ -1,4 +1,4 @@
-import { ProjectId } from "@synara/contracts";
+import { ProjectId } from "@graft/contracts";
 import { assert, beforeEach, describe, expect, it } from "vitest";
 
 import { useProjectEnvironmentStore } from "./projectEnvironmentStore";

@@ -1,5 +1,5 @@
-import type { ProfileTokenDayUsage } from "@synara/contracts";
-import { providerUsageDisplayName } from "@synara/shared/providerUsage";
+import type { ProfileTokenDayUsage } from "@graft/contracts";
+import { providerUsageDisplayName } from "@graft/shared/providerUsage";
 
 export type UsageProvider = ProfileTokenDayUsage["provider"];
 

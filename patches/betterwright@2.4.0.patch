@@ -486,7 +486,7 @@ index c53eda622f60b7f5084698e850ef6a00f66e60f3..17a70911b9fe57357660a4c60486dac5
  });
  async function installDownloadGuard(context) {
      await closeDownloadGuard();
-+    // Synara's target lease enforces downloads without changing a shared browser context.
++    // Graft's target lease enforces downloads without changing a shared browser context.
 +    if (launchConfig.hostOwnedTarget === true && launchConfig.downloadPolicy === "deny") return;
      const browser = context.browser?.();
      if (!browser || !isCallable(untrustedField(browser, "newBrowserCDPSession"))) {
@@ -655,7 +655,7 @@ index 7fbd0aa6136ac82660443871a5177afdebf6818d..272b8fdce93dd5948d5e2b3fec0325c1
  }
  
  export interface BetterWrightOptions {
-+  /** Synara-local: caller owns a single scoped target and enforces download denial. */
++  /** Graft-local: caller owns a single scoped target and enforces download denial. */
 +  hostOwnedTarget?: boolean;
 +  /** Trusted host-only, exact staged paths allowed for file input selection. */
 +  hostUploadFiles?: readonly string[];
@@ -679,7 +679,7 @@ index 0876c43aa1fab6643fc4c080cb0c5631295a7047..ca87e73231102ec4e4cd800611d1ee12
  
    /** Return a cloned value with every active secret replaced. */
    redact<T>(value: T): T;
-+  /** Synara-local: retain captured secrets while host-owned pages remain alive. */
++  /** Graft-local: retain captured secrets while host-owned pages remain alive. */
 +  trackRedactionSecret(value: string): void;
  
    /** Clear tracked material after every page in the owning worker is closed. */

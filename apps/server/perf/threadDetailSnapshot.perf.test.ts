@@ -1,14 +1,14 @@
 // Perf probe: cost of the per-thread detail snapshot RPC and the replay poll against a
-// copy of a real Synara database. Run with:
-//   SYNARA_PERF_DB=/tmp/synara-perf/state.copy.sqlite bunx vitest run perf/threadDetailSnapshot.perf.test.ts
+// copy of a real Graft database. Run with:
+//   GRAFT_PERF_DB=/tmp/graft-perf/state.copy.sqlite bunx vitest run perf/threadDetailSnapshot.perf.test.ts
 import { writeFileSync } from "node:fs";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import { Effect, Layer, Option, Stream } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import { describe } from "vitest";
-import { ThreadId } from "@synara/contracts";
-import { THREAD_DETAIL_EVENT_TYPES } from "@synara/shared/threadDetailEvents";
+import { ThreadId } from "@graft/contracts";
+import { THREAD_DETAIL_EVENT_TYPES } from "@graft/shared/threadDetailEvents";
 
 import { OrchestrationEventStoreLive } from "../src/persistence/Layers/OrchestrationEventStore.ts";
 import { OrchestrationEventStore } from "../src/persistence/Services/OrchestrationEventStore.ts";
@@ -16,8 +16,8 @@ import { makeSqlitePersistenceLive } from "../src/persistence/Layers/Sqlite.ts";
 import { OrchestrationProjectionSnapshotQueryLive } from "../src/orchestration/Layers/ProjectionSnapshotQuery.ts";
 import { ProjectionSnapshotQuery } from "../src/orchestration/Services/ProjectionSnapshotQuery.ts";
 
-const DB = process.env.SYNARA_PERF_DB;
-const SAMPLES = Number(process.env.SYNARA_PERF_SAMPLES ?? 5);
+const DB = process.env.GRAFT_PERF_DB;
+const SAMPLES = Number(process.env.GRAFT_PERF_SAMPLES ?? 5);
 
 const percentile = (values: number[], p: number) => {
   const sorted = values.toSorted((a, b) => a - b);
@@ -72,7 +72,7 @@ describe.skipIf(!DB)("thread detail snapshot perf", () => {
               const json = JSON.stringify(snapshot.value);
               stringifyMs.push(performance.now() - t1);
               bytes = json.length;
-              if (i === 0) writeFileSync(`/tmp/synara-perf/snapshot-${label}.json`, json);
+              if (i === 0) writeFileSync(`/tmp/graft-perf/snapshot-${label}.json`, json);
               messages = snapshot.value.thread.messages.length;
               activities = snapshot.value.thread.activities.length;
             }
@@ -106,7 +106,7 @@ describe.skipIf(!DB)("thread detail snapshot perf", () => {
           });
         }
         writeFileSync(
-          process.env.SYNARA_PERF_OUT ?? "/tmp/synara-perf/snapshot-report.json",
+          process.env.GRAFT_PERF_OUT ?? "/tmp/graft-perf/snapshot-report.json",
           JSON.stringify({ threads: rows.length, highWater, samples: SAMPLES, report }, null, 2),
         );
       }).pipe(Effect.provide(layer)),

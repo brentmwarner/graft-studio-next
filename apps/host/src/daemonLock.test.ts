@@ -138,7 +138,7 @@ describe("graft-host daemon upgrade", () => {
     expect(alive).toBe(false);
   });
 
-  it("signals the process group so a Synara child in the same group is stopped", async () => {
+  it("signals the process group so a Graft child in the same group is stopped", async () => {
     const pid = 4_400;
     const targets: number[] = [];
     const alive = new Set([pid]);

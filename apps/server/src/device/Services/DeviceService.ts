@@ -14,5 +14,5 @@ export interface DeviceServiceShape {
 }
 
 export class DeviceService extends ServiceMap.Service<DeviceService, DeviceServiceShape>()(
-  "synara/device/Services/DeviceService",
+  "graft/device/Services/DeviceService",
 ) {}

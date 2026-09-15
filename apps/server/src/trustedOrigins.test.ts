@@ -3,10 +3,7 @@
 // Layer: Server utility tests
 
 import { describe, expect, it } from "vitest";
-import {
-  SYNARA_CANARY_DESKTOP_ORIGIN,
-  SYNARA_DESKTOP_ORIGIN,
-} from "@synara/shared/desktopIdentity";
+import { GRAFT_CANARY_DESKTOP_ORIGIN, GRAFT_DESKTOP_ORIGIN } from "@graft/shared/desktopIdentity";
 
 import type { ServerConfigShape } from "./config";
 import {
@@ -39,14 +36,14 @@ describe("trustedOrigins", () => {
     ).toBe(true);
     expect(
       isTrustedAppOrigin({
-        origin: SYNARA_DESKTOP_ORIGIN,
+        origin: GRAFT_DESKTOP_ORIGIN,
         requestOrigin: "http://127.0.0.1:58090",
         config,
       }),
     ).toBe(true);
     expect(
       isTrustedAppOrigin({
-        origin: SYNARA_CANARY_DESKTOP_ORIGIN,
+        origin: GRAFT_CANARY_DESKTOP_ORIGIN,
         requestOrigin: "http://127.0.0.1:58090",
         config,
       }),
@@ -54,7 +51,7 @@ describe("trustedOrigins", () => {
   });
 
   it("rejects unrelated browser origins but allows non-browser requests without Origin", () => {
-    for (const origin of ["https://example.test", "synara://app", "synara-canary://app"]) {
+    for (const origin of ["https://example.test", "chrome-extension://evil", "https://evil.test"]) {
       expect(
         isTrustedAppOrigin({
           origin,
@@ -100,12 +97,12 @@ describe("trustedOrigins", () => {
     const remoteConfig = {
       ...config,
       host: "0.0.0.0",
-      publicUrl: new URL("https://synara.example.test/"),
+      publicUrl: new URL("https://graft.example.test/"),
     };
     expect(
       isTrustedAppOrigin({
-        origin: "https://synara.example.test",
-        requestOrigin: "http://synara.example.test",
+        origin: "https://graft.example.test",
+        requestOrigin: "http://graft.example.test",
         config: remoteConfig,
       }),
     ).toBe(true);
@@ -119,9 +116,9 @@ describe("trustedOrigins", () => {
   });
 
   it("normalizes desktop origins with trailing slashes", () => {
-    expect(normalizeCorsOrigin(`${SYNARA_DESKTOP_ORIGIN}/`)).toBe(SYNARA_DESKTOP_ORIGIN);
-    expect(normalizeCorsOrigin(`${SYNARA_CANARY_DESKTOP_ORIGIN}/`)).toBe(
-      SYNARA_CANARY_DESKTOP_ORIGIN,
+    expect(normalizeCorsOrigin(`${GRAFT_DESKTOP_ORIGIN}/`)).toBe(GRAFT_DESKTOP_ORIGIN);
+    expect(normalizeCorsOrigin(`${GRAFT_CANARY_DESKTOP_ORIGIN}/`)).toBe(
+      GRAFT_CANARY_DESKTOP_ORIGIN,
     );
   });
 
@@ -202,7 +199,7 @@ describe("trustedOrigins", () => {
       requiresWebSocketAuthentication({
         host: "127.0.0.1",
         authToken: undefined,
-        publicUrl: new URL("https://synara.example.test/"),
+        publicUrl: new URL("https://graft.example.test/"),
       }),
     ).toBe(true);
   });

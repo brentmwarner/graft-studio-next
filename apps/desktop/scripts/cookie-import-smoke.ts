@@ -8,7 +8,7 @@ import { BetterWright, NetworkPolicy } from "betterwright";
 import { openBetterwrightConnection } from "../src/browserAutomation/betterwrightConnection";
 
 void (async () => {
-  const home = await mkdtemp(join(tmpdir(), "synara-import-native-"));
+  const home = await mkdtemp(join(tmpdir(), "graft-import-native-"));
   app.setPath("userData", join(home, "electron"));
   await app.whenReady();
   // Generate the source here so this smoke can never select a personal profile.
@@ -45,7 +45,7 @@ void (async () => {
     if (!result.ok) return;
     assert.equal(result.synced, 1);
     assert.deepEqual(result.cookieImportDomains, ["127.0.0.1"]);
-    const stored = await view.webContents.session.cookies.get({ name: "synara_synthetic_import" });
+    const stored = await view.webContents.session.cookies.get({ name: "graft_synthetic_import" });
     assert.equal(stored.length, 1);
     assert.equal(stored[0]?.value, "synthetic-only");
     console.log("Native fixture import and stored-domain metadata passed");

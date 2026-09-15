@@ -7,7 +7,7 @@ import type {
   ServerProviderStatus,
   ThreadId,
   RuntimeMode,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { ChevronDownIcon, RaisingHandIcon, WorktreeIcon } from "~/lib/icons";
 import { CentralIcon } from "~/lib/central-icons";
 import { useCallback, useMemo, useState, type ReactNode } from "react";

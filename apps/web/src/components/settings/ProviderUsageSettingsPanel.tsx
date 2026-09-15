@@ -1,12 +1,12 @@
 // Settings usage dashboard, adapted from the legacy Graft Studio page.
-// Quotas are live account snapshots; activity is recorded in this Synara instance.
-import type { ServerProviderUsageSnapshot } from "@synara/contracts";
+// Quotas are live account snapshots; activity is recorded in this Graft instance.
+import type { ServerProviderUsageSnapshot } from "@graft/contracts";
 import {
   PROVIDER_USAGE_PROVIDERS,
   providerUsageDisplayName,
   providerUsageNeedsAuthDetail,
   selectVisibleProviderUsageSnapshots,
-} from "@synara/shared/providerUsage";
+} from "@graft/shared/providerUsage";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 

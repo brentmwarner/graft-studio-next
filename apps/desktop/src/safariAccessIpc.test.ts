@@ -7,8 +7,8 @@ function setup(platform: NodeJS.Platform = "darwin", systemVersion = "26.0") {
   const options = {
     platform,
     systemVersion,
-    execPath: "/Applications/Synara (Dev).app/Contents/MacOS/Synara",
-    appName: "Synara",
+    execPath: "/Applications/Graft (Dev).app/Contents/MacOS/Graft",
+    appName: "Graft",
     isTrustedRenderer: (id: number) => id === 1,
     openExternal: vi.fn(async (_url: string) => {}),
     showItemInFolder: vi.fn(),
@@ -35,17 +35,17 @@ describe("Safari access setup IPC", () => {
     const { options, call } = setup();
     await expect(call("getInfo")).resolves.toEqual({
       supported: true,
-      appName: "Synara (Dev)",
-      appPath: "/Applications/Synara (Dev).app",
+      appName: "Graft (Dev)",
+      appPath: "/Applications/Graft (Dev).app",
     });
     expect(options.openExternal).not.toHaveBeenCalled();
     await expect(call("revealApp")).resolves.toBe(true);
     expect(options.showItemInFolder).toHaveBeenCalledExactlyOnceWith(
-      "/Applications/Synara (Dev).app",
+      "/Applications/Graft (Dev).app",
     );
-    expect(getSafariAccessInfo({ ...options, execPath: "/usr/bin/synara" })).toEqual({
+    expect(getSafariAccessInfo({ ...options, execPath: "/usr/bin/graft" })).toEqual({
       supported: true,
-      appName: "Synara",
+      appName: "Graft",
       appPath: null,
     });
   });

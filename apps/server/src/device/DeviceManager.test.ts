@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DeviceEvent } from "@synara/contracts";
+import type { DeviceEvent } from "@graft/contracts";
 
 import type { BootOwnershipStore } from "./bootOwnership.ts";
 import { DeviceBackendError } from "./DeviceBackend.ts";
@@ -192,7 +192,7 @@ describe("DeviceManager discovery before the helper exists", () => {
     kind: "setup-required" as const,
     steps: [
       { id: "install-xcode" as const, label: "Install Xcode", done: true },
-      { id: "build-device-helper" as const, label: "Build the Synara device helper", done: false },
+      { id: "build-device-helper" as const, label: "Build the Graft device helper", done: false },
     ],
   };
 
@@ -377,7 +377,7 @@ describe("DeviceManager stream transition ordering", () => {
 });
 
 describe("DeviceManager boot ownership", () => {
-  it("marks devices it booted as synara-owned and leaves discovered ones alone", async () => {
+  it("marks devices it booted as graft-owned and leaves discovered ones alone", async () => {
     const { backend, manager } = makeManager();
     backend.bootExternally(DEVICE_B);
 
@@ -385,7 +385,7 @@ describe("DeviceManager boot ownership", () => {
     const listed = await manager.list();
 
     expect(booted).toMatchObject({ kind: "booted" });
-    expect(listed.devices.find((device) => device.udid === DEVICE_A)?.bootSource).toBe("synara");
+    expect(listed.devices.find((device) => device.udid === DEVICE_A)?.bootSource).toBe("graft");
     expect(listed.devices.find((device) => device.udid === DEVICE_B)?.bootSource).toBe("user");
   });
 
@@ -400,11 +400,7 @@ describe("DeviceManager boot ownership", () => {
     expect(result.kind).toBe("boot-limit-reached");
     if (result.kind !== "boot-limit-reached") throw new Error("expected boot-limit-reached");
     expect(result.limit).toBe(3);
-    expect(result.synaraBooted.map((device) => device.udid)).toEqual([
-      DEVICE_A,
-      DEVICE_B,
-      DEVICE_C,
-    ]);
+    expect(result.graftBooted.map((device) => device.udid)).toEqual([DEVICE_A, DEVICE_B, DEVICE_C]);
   });
 
   it("stops counting devices that were shut down behind its back", async () => {
@@ -433,7 +429,7 @@ describe("DeviceManager boot ownership", () => {
 
     // Still at the cap on paper, but B is gone, so it must not be offered as
     // something the user can free.
-    expect((await manager.synaraBootedDevices()).map((device) => device.udid)).toEqual([
+    expect((await manager.graftBootedDevices()).map((device) => device.udid)).toEqual([
       DEVICE_A,
       DEVICE_C,
     ]);
@@ -452,7 +448,7 @@ describe("DeviceManager boot ownership", () => {
     expect(backend.callsOfKind("boot").map((call) => call.udid)).not.toContain(DEVICE_D);
   });
 
-  it("frees a cap slot when a synara-booted device is shut down", async () => {
+  it("frees a cap slot when a graft-booted device is shut down", async () => {
     const { manager } = makeManager();
     await manager.boot(DEVICE_A);
     await manager.boot(DEVICE_B);
@@ -485,7 +481,7 @@ describe("DeviceManager idle shutdown", () => {
     vi.useRealTimers();
   });
 
-  it("shuts down a synara-booted device after the idle timeout following detach", async () => {
+  it("shuts down a graft-booted device after the idle timeout following detach", async () => {
     const { backend, manager } = makeManager();
     await manager.boot(DEVICE_A);
     await manager.attach(THREAD_A, DEVICE_A);
@@ -684,7 +680,7 @@ describe("surviving a crash", () => {
   });
 
   it("leaves the devices of a server that is still running", async () => {
-    // Two Synara processes can overlap; the record belongs to the live one.
+    // Two Graft processes can overlap; the record belongs to the live one.
     const owner = makeStore();
     const { backend, manager } = makeManager(new FakeDeviceBackend(), {
       bootOwnership: owner.store,
@@ -700,7 +696,7 @@ describe("surviving a crash", () => {
 });
 
 describe("DeviceManager lifecycle and agent activity", () => {
-  it("shuts down only synara-booted devices on dispose", async () => {
+  it("shuts down only graft-booted devices on dispose", async () => {
     const { backend, manager } = makeManager();
     await manager.boot(DEVICE_A);
     backend.bootExternally(DEVICE_B);

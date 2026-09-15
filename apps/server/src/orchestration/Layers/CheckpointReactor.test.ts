@@ -8,7 +8,7 @@ import type {
   ProviderKind,
   ProviderRuntimeEvent,
   ProviderSession,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   CheckpointRef,
   CommandId,
@@ -18,7 +18,7 @@ import {
   ProjectId,
   ThreadId,
   TurnId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, Exit, Layer, ManagedRuntime, PubSub, Scope, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -223,7 +223,7 @@ function listRevertRescueRefs(cwd: string): ReadonlyArray<string> {
 }
 
 function createGitRepository(hasInitialCommit = true) {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "synara-checkpoint-handler-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "graft-checkpoint-handler-"));
   runGit(cwd, ["init", "--initial-branch=main"]);
   runGit(cwd, ["config", "user.email", "test@example.com"]);
   runGit(cwd, ["config", "user.name", "Test User"]);
@@ -363,7 +363,7 @@ describe("CheckpointReactor", () => {
     ).pipe(Layer.provide(CheckpointStoreLive.pipe(Layer.provide(GitCoreLive))));
 
     const ServerConfigLayer = ServerConfig.layerTest(process.cwd(), {
-      prefix: "synara-checkpoint-reactor-test-",
+      prefix: "graft-checkpoint-reactor-test-",
     });
 
     const layer = CheckpointReactorLive.pipe(
@@ -1093,7 +1093,7 @@ describe("CheckpointReactor", () => {
 
   it("does not report a missing baseline when the turn itself initializes the git repository", async () => {
     // A scaffolding turn starts in a plain folder and runs `git init` mid-turn.
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "synara-checkpoint-plain-"));
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "graft-checkpoint-plain-"));
     tempDirs.push(workspace);
     const harness = await createHarness({
       seedFilesystemCheckpoints: false,
@@ -2392,11 +2392,11 @@ describe("CheckpointReactor", () => {
     const createdAt = new Date().toISOString();
     const threadId = ThreadId.makeUnsafe("thread-1");
     const historicalTurnZeroRef = checkpointRefForThreadTurn(threadId, 0).replace(
-      "refs/synara/",
+      "refs/graft/",
       "refs/historical/",
     );
     const historicalTurnOneRef = CheckpointRef.makeUnsafe(
-      checkpointRefForThreadTurn(threadId, 1).replace("refs/synara/", "refs/historical/"),
+      checkpointRefForThreadTurn(threadId, 1).replace("refs/graft/", "refs/historical/"),
     );
 
     runGit(harness.cwd, ["update-ref", historicalTurnZeroRef, "HEAD"]);

@@ -10,11 +10,11 @@ import {
   readWindowsPersistentEnvironment,
   type ShellEnvironmentReader,
   type WindowsEnvironmentReader,
-} from "@synara/shared/shell";
+} from "@graft/shared/shell";
 import {
   createCachedLoginShellEnvironmentReader,
   LOGIN_SHELL_ENVIRONMENT_NAMES,
-} from "@synara/shared/loginShellEnvironment";
+} from "@graft/shared/loginShellEnvironment";
 
 function logShellEnvironmentWarning(message: string, error?: unknown): void {
   console.warn(`[desktop] ${message}`, error instanceof Error ? error.message : (error ?? ""));

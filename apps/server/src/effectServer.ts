@@ -7,7 +7,7 @@ import {
   stopMobileRelay,
 } from "./graftMobile/relayRuntime";
 
-import type { ServerSettingsError } from "@synara/contracts";
+import type { ServerSettingsError } from "@graft/contracts";
 import { Effect, Exit, FileSystem, Layer, Path, Schema, Scope, ServiceMap } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -114,7 +114,7 @@ export interface ServerShape {
 }
 
 export class Server extends ServiceMap.Service<Server, ServerShape>()(
-  "synara/effectServer/Server",
+  "graft/effectServer/Server",
 ) {}
 
 export class ServerLifecycleError extends Schema.TaggedErrorClass<ServerLifecycleError>()(

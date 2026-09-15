@@ -1,4 +1,4 @@
-import type { GitStatusResult, GitStatusStreamEvent } from "@synara/contracts";
+import type { GitStatusResult, GitStatusStreamEvent } from "@graft/contracts";
 import { Deferred, Effect, Layer, Scope, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

@@ -4,7 +4,7 @@ import {
   listCookieSourceProfiles,
   NetworkPolicy,
 } from "betterwright";
-import type { BrowserCookieImportInput, BrowserCookieImportResult } from "@synara/contracts";
+import type { BrowserCookieImportInput, BrowserCookieImportResult } from "@graft/contracts";
 import type { DesktopBrowserManager } from "../browserManager";
 import { openBetterwrightConnection } from "./betterwrightConnection";
 

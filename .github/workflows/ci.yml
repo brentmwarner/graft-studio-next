@@ -77,7 +77,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
 
-      - name: Verify Synara identity
+      - name: Verify Graft identity
         run: bun run brand:check
 
       - name: Verify Windows runtime boundary
@@ -121,17 +121,17 @@ jobs:
       matrix:
         include:
           - pkg: core
-            filters: "--filter=@synara/contracts --filter=@synara/shared --filter=@synara/scripts --filter=@synara/desktop"
+            filters: "--filter=@graft/contracts --filter=@graft/shared --filter=@graft/scripts --filter=@graft/desktop"
             test-args: ""
           - pkg: web
-            filters: "--filter=@synara/web"
+            filters: "--filter=@graft/web"
             test-args: ""
-          # Server lane tests the CLI package (package name @synara/cli).
+          # Server lane tests the CLI package (package name @graft/cli).
           - pkg: server 1/2
-            filters: "--filter=@synara/cli"
+            filters: "--filter=@graft/cli"
             test-args: "--shard=1/2"
           - pkg: server 2/2
-            filters: "--filter=@synara/cli"
+            filters: "--filter=@graft/cli"
             test-args: "--shard=2/2"
     steps:
       - name: Checkout
@@ -141,7 +141,7 @@ jobs:
         uses: ./.github/actions/setup-workspace
 
       - name: Verify Linux terminal PTY native dependency
-        if: matrix.filters == '--filter=@synara/cli'
+        if: matrix.filters == '--filter=@graft/cli'
         run: node scripts/node-pty-smoke.mjs
 
       - name: Test (${{ matrix.pkg }})
@@ -399,7 +399,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Verify Synara identity
+      - name: Verify Graft identity
         run: bun run brand:check
 
       - name: Exercise release-only workflow steps

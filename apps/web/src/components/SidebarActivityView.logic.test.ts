@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ProjectId, ThreadId } from "@synara/contracts";
+import { ProjectId, ThreadId } from "@graft/contracts";
 
 import type { SidebarThreadSummary, ThreadSession } from "../types";
 import { resolveThreadProjectLabel } from "./Sidebar.logic";
@@ -448,7 +448,7 @@ describe("project filter", () => {
     ]);
   });
 
-  it("merges every project-less chat container into one Synara scope", () => {
+  it("merges every project-less chat container into one Graft scope", () => {
     const CHAT_PROJECT_A = ProjectId.makeUnsafe("chat-project-a");
     const CHAT_PROJECT_B = ProjectId.makeUnsafe("chat-project-b");
     const realProject = makeThread({
@@ -556,7 +556,7 @@ describe("resolveActivityScope", () => {
     });
   });
 
-  it("expands the Synara chats scope to its container projects", () => {
+  it("expands the Graft chats scope to its container projects", () => {
     expect(resolveActivityScope("chats", options)).toEqual({
       scope: "chats",
       projectFilterIds: new Set([OTHER_PROJECT_ID]),
@@ -767,10 +767,10 @@ describe("collectUnreadActivityThreads", () => {
 });
 
 describe("resolveThreadProjectLabel", () => {
-  it("uses the project name for real projects and Synara otherwise", () => {
+  it("uses the project name for real projects and Graft otherwise", () => {
     expect(
-      resolveThreadProjectLabel({ kind: "project", name: "Synara App", folderName: "synara" }),
-    ).toBe("Synara App");
+      resolveThreadProjectLabel({ kind: "project", name: "Graft App", folderName: "graft" }),
+    ).toBe("Graft App");
     expect(resolveThreadProjectLabel({ kind: "chat", name: "Chats", folderName: "chats" })).toBe(
       "Graft",
     );

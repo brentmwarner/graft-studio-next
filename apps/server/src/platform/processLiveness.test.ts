@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 const { spawnProcessSync } = vi.hoisted(() => ({ spawnProcessSync: vi.fn() }));
-vi.mock("@synara/shared/processRuntime", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@synara/shared/processRuntime")>()),
+vi.mock("@graft/shared/processRuntime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@graft/shared/processRuntime")>()),
   spawnProcessSync,
 }));
 

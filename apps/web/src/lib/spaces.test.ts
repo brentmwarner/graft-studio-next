@@ -6,7 +6,7 @@ import {
   type NativeApi,
   type ProjectId,
   SpaceId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import { moveProjectsToSpace } from "./spaces";

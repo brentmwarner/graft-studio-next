@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 
@@ -7,7 +6,7 @@ export interface GraftHostPaths {
   databasePath: string;
   lockPath: string;
   statePath: string;
-  synaraHome: string;
+  graftHome: string;
   archivePath: string;
 }
 
@@ -18,22 +17,13 @@ export function defaultGraftHostDataRoot(environment: NodeJS.ProcessEnv = proces
     : join(homedir(), ".local", "share", "graft", "host");
 }
 
-function preferExistingHostHome(dataRoot: string): string {
-  const preferred = join(dataRoot, "graft");
-  const legacy = join(dataRoot, "synara");
-  if (existsSync(preferred) || !existsSync(legacy)) {
-    return preferred;
-  }
-  return legacy;
-}
-
 export function resolveGraftHostPaths(dataRoot: string): GraftHostPaths {
   return {
     dataRoot,
     databasePath: join(dataRoot, "graft-host.db"),
     lockPath: join(dataRoot, "daemon.lock"),
     statePath: join(dataRoot, "daemon.json"),
-    synaraHome: preferExistingHostHome(dataRoot),
+    graftHome: join(dataRoot, "graft"),
     archivePath: join(dataRoot, "graft-host-linux-x64.tar.gz"),
   };
 }

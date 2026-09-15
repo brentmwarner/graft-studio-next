@@ -6,16 +6,16 @@ import {
   type ModelSelection,
   type ProviderOptionDescriptor,
   type ThreadId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   automationContinuationThreadId,
   automationRequiresTargetThread,
-} from "@synara/shared/automationMode";
+} from "@graft/shared/automationMode";
 import {
   getModelCapabilities,
   getProviderOptionCurrentValue,
   getProviderOptionDescriptors,
-} from "@synara/shared/model";
+} from "@graft/shared/model";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -61,7 +61,7 @@ import { automationCronExpressionError, automationTimezoneError } from "~/lib/au
 import {
   completionPolicyFromStopWhen,
   stopWhenFromCompletionPolicy,
-} from "@synara/shared/automationCompletionPolicy";
+} from "@graft/shared/automationCompletionPolicy";
 import { automationLifecycleState, canPauseAutomation } from "~/lib/automationStatus";
 import {
   useDesktopTopBarTrafficLightGutterClassName,

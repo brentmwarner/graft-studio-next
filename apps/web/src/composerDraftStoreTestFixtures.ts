@@ -1,4 +1,4 @@
-import { ThreadId, type ModelSelection, type ProviderModelOptions } from "@synara/contracts";
+import { ThreadId, type ModelSelection, type ProviderModelOptions } from "@graft/contracts";
 import {
   useComposerDraftStore,
   type ComposerFileAttachment,

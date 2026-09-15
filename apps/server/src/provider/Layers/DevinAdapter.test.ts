@@ -5,7 +5,7 @@
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type * as Acp from "@agentclientprotocol/sdk";
-import { ThreadId, TurnId } from "@synara/contracts";
+import { ThreadId, TurnId } from "@graft/contracts";
 import { Deferred, Effect, Exit, Fiber, Layer, Queue, Scope, Semaphore, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -267,7 +267,7 @@ const SPAWN_READY_LINE =
   "2026-09-02T04:43:31.297623Z  INFO toolbox::tools::exec::session_manager: session_id=abc123 [create_session] waiting for shell ready";
 
 const stripHarnessPrefix = (text: string): string =>
-  text.replace(/^<synara_host_context>[\s\S]*?<\/synara_host_context>/, "");
+  text.replace(/^<graft_host_context>[\s\S]*?<\/graft_host_context>/, "");
 
 /** Advance past the supervisor tick, the fuse, and the recovery's resume-replay gate. */
 function advanceThroughRecovery(): Effect.Effect<void> {
@@ -302,8 +302,8 @@ describe("resolveDevinAdapterTimeouts", () => {
   it("uses valid environment overrides", () => {
     expect(
       resolveDevinAdapterTimeouts({
-        SYNARA_DEVIN_TURN_IDLE_TIMEOUT_MS: "1234",
-        SYNARA_DEVIN_TOOL_IDLE_TIMEOUT_MS: "5678",
+        GRAFT_DEVIN_TURN_IDLE_TIMEOUT_MS: "1234",
+        GRAFT_DEVIN_TOOL_IDLE_TIMEOUT_MS: "5678",
       }),
     ).toEqual({ turnIdleMs: 1234, toolIdleMs: 5678 });
   });
@@ -483,7 +483,7 @@ describe("Devin wedge auto-recovery", () => {
               event.turnId === String(wedgedTurn.turnId) &&
               event.payload?.state === "cancelled",
           );
-          expect(settled?.payload?.stopReason).toBe("synara.devin.wedge-recovery");
+          expect(settled?.payload?.stopReason).toBe("graft.devin.wedge-recovery");
         }).pipe(Effect.scoped, Effect.provide(makeWedgeTestLayer(factory))),
       );
     },
@@ -805,7 +805,7 @@ describe("Devin wedge auto-recovery", () => {
             turnId: turn.turnId,
             payload: expect.objectContaining({
               message: expect.stringContaining("start failed"),
-              detail: { reason: "synara.devin.wedge-recovery" },
+              detail: { reason: "graft.devin.wedge-recovery" },
             }),
           }),
         ]);

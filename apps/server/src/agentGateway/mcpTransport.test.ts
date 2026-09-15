@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { ProjectId, ThreadId, TurnId, type OrchestrationThreadShell } from "@synara/contracts";
+import { ProjectId, ThreadId, TurnId, type OrchestrationThreadShell } from "@graft/contracts";
 import { Deferred, Effect, Fiber, Option } from "effect";
 
 import type { ProjectionSnapshotQueryShape } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
@@ -473,7 +473,7 @@ describe("makeAgentGatewayMcpTransport tools/list schema sanitization", () => {
     Effect.gen(function* () {
       const recursiveTool: ToolEntry = {
         definition: {
-          name: "synara_recursive",
+          name: "graft_recursive",
           description: "tool with a cyclic schema",
           inputSchema: {
             type: "object",
@@ -507,7 +507,7 @@ describe("makeAgentGatewayMcpTransport tools/list schema sanitization", () => {
       if (!Array.isArray(response.body.result.tools)) {
         throw new Error("Expected tools/list to answer with a tools array.");
       }
-      const listed = findToolOrThrow(response.body.result.tools, "synara_recursive");
+      const listed = findToolOrThrow(response.body.result.tools, "graft_recursive");
       assert.deepEqual(listed.inputSchema, {
         type: "object",
         properties: {

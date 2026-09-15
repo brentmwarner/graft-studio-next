@@ -47,7 +47,7 @@ export function sshConnectionManager(config: Pick<ServerConfigShape, "stateDir" 
     secretStore: new SshSecretStore(defaultSshSecretStorePath(config.secretsDir)),
     hostArchivePath: resolveGraftHostArchivePath(),
     hostVersion: GRAFT_HOST_VERSION,
-    clientId: `synara-${hostname()}`,
+    clientId: `graft-${hostname()}`,
     clientLabel: hostname() || "Graft",
     clientVersion: GRAFT_HOST_VERSION,
   });

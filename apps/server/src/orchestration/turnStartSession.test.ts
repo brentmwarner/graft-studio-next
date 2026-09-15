@@ -1,4 +1,4 @@
-import { ThreadId, type OrchestrationSession } from "@synara/contracts";
+import { ThreadId, type OrchestrationSession } from "@graft/contracts";
 import { describe, expect, it } from "vitest";
 
 import {

@@ -1,6 +1,6 @@
 import "../index.css";
-import type { BrowserVaultMethods, BrowserVaultSnapshot } from "@synara/contracts";
-import { ThreadId } from "@synara/contracts";
+import type { BrowserVaultMethods, BrowserVaultSnapshot } from "@graft/contracts";
+import { ThreadId } from "@graft/contracts";
 import { page } from "vitest/browser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -72,7 +72,7 @@ describe("browser saved logins", () => {
           getInfo: async () => ({
             supported: true,
             appName: "Graft",
-            appPath: "/Applications/Synara.app",
+            appPath: "/Applications/Graft.app",
           }),
           openSettings: async () => true,
           revealApp: async () => true,

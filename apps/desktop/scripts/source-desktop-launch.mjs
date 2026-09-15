@@ -3,12 +3,12 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import {
-  resolveSynaraDesktopFlavor,
-  SYNARA_SOURCE_DESKTOP_BUILD_MARKER,
-  synaraDesktopIdentity,
-} from "@synara/shared/desktopIdentity";
-import { resolveSynaraHomeDirectory } from "@synara/shared/synaraHome";
-import { readWindowsPersistentEnvironment } from "@synara/shared/shell";
+  resolveGraftDesktopFlavor,
+  GRAFT_SOURCE_DESKTOP_BUILD_MARKER,
+  graftDesktopIdentity,
+} from "@graft/shared/desktopIdentity";
+import { resolveGraftHomeDirectory } from "@graft/shared/graftHome";
+import { readWindowsPersistentEnvironment } from "@graft/shared/shell";
 
 function environmentValue(environment, name, caseInsensitive) {
   const exactValue = environment[name];
@@ -39,23 +39,23 @@ export function createSourceDesktopEnvironment({
   platform = process.platform,
   readWindowsEnvironment = readWindowsPersistentEnvironment,
 } = {}) {
-  const flavor = resolveSynaraDesktopFlavor({
+  const flavor = resolveGraftDesktopFlavor({
     isDevelopment: true,
-    requestedFlavor: environment.SYNARA_DESKTOP_FLAVOR,
+    requestedFlavor: environment.GRAFT_DESKTOP_FLAVOR,
   });
-  const identity = synaraDesktopIdentity(flavor);
+  const identity = graftDesktopIdentity(flavor);
   const configuredHome = configuredSourceDesktopHome(environment, platform, readWindowsEnvironment);
   const childEnvironment = {
     ...environment,
-    SYNARA_DESKTOP_FLAVOR: flavor,
+    GRAFT_DESKTOP_FLAVOR: flavor,
     GRAFT_HOME:
       configuredHome ||
-      resolveSynaraHomeDirectory({
+      resolveGraftHomeDirectory({
         env: {},
         homeDirectory,
         directoryName: identity.defaultHomeDirectoryName,
       }),
-    SYNARA_SOURCE_DESKTOP_BUILD_MARKER,
+    GRAFT_SOURCE_DESKTOP_BUILD_MARKER,
   };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
   return childEnvironment;
@@ -64,7 +64,7 @@ export function createSourceDesktopEnvironment({
 function assertCurrentSourceDesktopBuild(desktopDirectory, readBuiltMain) {
   const builtMainPath = join(desktopDirectory, "dist-electron/main.js");
   const builtMain = readBuiltMain(builtMainPath, "utf8");
-  if (!builtMain.includes(SYNARA_SOURCE_DESKTOP_BUILD_MARKER)) {
+  if (!builtMain.includes(GRAFT_SOURCE_DESKTOP_BUILD_MARKER)) {
     throw new Error(
       "Source desktop build is stale. Run `bun run build:desktop`, then launch it again.",
     );

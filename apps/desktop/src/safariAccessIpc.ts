@@ -1,5 +1,5 @@
 import { basename, dirname } from "node:path";
-import type { DesktopSafariAccessInfo } from "@synara/contracts";
+import type { DesktopSafariAccessInfo } from "@graft/contracts";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
 import { DESKTOP_IPC_CHANNELS } from "./ipcChannels";
 

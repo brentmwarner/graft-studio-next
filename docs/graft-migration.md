@@ -1,22 +1,26 @@
-# Graft migration onto the Synara base
+# Graft Studio identity and migration notes
 
 ## Repository roles
 
 - `graft-studio` remains the releasable legacy product and rollback path.
-- `graft-studio-next` is the only migration repository. Its migration branch is
-  based on Synara and carries Graft-owned product work as additive commits.
-- Synara is the upstream source. Fetch its verified commit through the Cursor
-  `origin` mirror; never push branches, tags, issues, or pull requests to Synara
-  as part of the Graft workflow.
+- `graft-studio-next` is the current Graft product repository. It was based
+  on the Synara codebase and now ships Graft identity, packages, and product
+  work as the only releasable next host.
+- Fetch verified upstream history through the Cursor `origin` mirror. Do not
+  push Graft branches, tags, issues, or pull requests to the historical Synara
+  GitHub repository as part of the Graft workflow.
 
 No third repository is part of this migration.
 
 ## Pinned recovery points
 
-| Purpose               | Repository          | Ref                                            | Commit                                     |
-| --------------------- | ------------------- | ---------------------------------------------- | ------------------------------------------ |
-| Legacy Graft rollback | `graft-studio`      | `graft-legacy/pre-synara-migration-2026-09-02` | `bd1206fe6d8c4f2f059c4bd111d8ad88797c1b09` |
-| Synara migration base | `graft-studio-next` | `graft-base/synara-2026-09-02`                 | `562c5fea77cff1dacb29d5e6216ed94a05f1b6a1` |
+Published ref names below are historical and must not be rewritten. They
+still name Synara because that is how they were published.
+
+| Purpose                 | Repository          | Ref                                            | Commit                                     |
+| ----------------------- | ------------------- | ---------------------------------------------- | ------------------------------------------ |
+| Legacy Graft rollback   | `graft-studio`      | `graft-legacy/pre-synara-migration-2026-09-02` | `bd1206fe6d8c4f2f059c4bd111d8ad88797c1b09` |
+| Pre-Graft-identity base | `graft-studio-next` | `graft-base/synara-2026-09-02`                 | `562c5fea77cff1dacb29d5e6216ed94a05f1b6a1` |
 
 Graft work is now on `graft-studio-next/main`. The original pins above remain
 recovery points; subsequent upstream integrations are recorded below. Legacy
@@ -24,26 +28,26 @@ recovery points; subsequent upstream integrations are recorded below. Legacy
 
 ## Mobile compatibility boundary
 
-Synara has desktop, server, and web applications but no production Graft mobile
-clients. Both existing clients therefore live in this repository:
+Graft has desktop, server, and web applications plus Graft mobile clients in
+this repository:
 
 - `apps/ios` — native SwiftUI
 - `apps/mobile-android` — Expo / React Native
 - `packages/mobile-contract` — the versioned, Graft-owned wire contract shared
-  by Android and the Synara server adapter; its golden fixtures also
+  by Android and the Graft server adapter; its golden fixtures also
   validate the Swift decoder.
 
-Neither mobile app may import Synara's internal contracts. The server adapter
-must translate between `@graft/mobile-contract` and Synara orchestration. This
-keeps released mobile clients compatible with both the legacy host and the new
-host during the rollback window.
+Neither mobile app may import Graft's internal desktop/server contracts. The
+server adapter must translate between `@graft/mobile-contract` and Graft
+orchestration. This keeps released mobile clients compatible with both the legacy
+host and the new host during the rollback window.
 
 Run `bun run migration:check` to verify this boundary and
 `bun run check:ios-fixtures` to verify Swift fixtures.
 
 ## Mobile adapter
 
-The Synara server now mounts a Graft mobile compatibility API:
+The Graft server mounts a Graft mobile compatibility API:
 
 - `GET /v1/health`
 - `POST /v1/pair`
@@ -52,14 +56,14 @@ The Synara server now mounts a Graft mobile compatibility API:
 - `PUT` and `DELETE /v1/push-registration`
 - owner-only `POST /v1/pairing-link`
 
-The adapter translates mobile commands into Synara orchestration commands. It
+The adapter translates mobile commands into Graft orchestration commands. It
 supports project and thread browsing, model discovery, thread creation, model
 and permission changes, streamed turns, cancellation and steering, approvals,
 questions, and diff summaries. Cursor replay currently requests an
 authoritative snapshot when the client is behind instead of replaying a large
 event range.
 
-Enabled Synara providers and their live-discovered models are returned by
+Enabled Graft providers and their live-discovered models are returned by
 `models.list`; the built-in catalog is used as a fallback when a provider CLI
 cannot be queried. A model appearing in the picker does not install or sign in
 to its provider CLI—the corresponding provider must still be installed and
@@ -74,7 +78,7 @@ server for remote access:
 bun run apps/server/src/index.ts \
   --host 0.0.0.0 \
   --auth-token <long-random-secret> \
-  --public-url https://synara.example.com \
+  --public-url https://graft.example.com \
   --no-browser
 ```
 
@@ -90,14 +94,14 @@ bun run apps/server/src/index.ts \
 
 Startup prints a one-time `graft://pair?...#token=...` link using the public
 origin or a reachable LAN address. Open that link on either mobile app. The
-token is exchanged once for a revocable Synara client bearer session.
+token is exchanged once for a revocable Graft client bearer session.
 
 ## Cutover and rollback rules
 
 1. Develop changes on dedicated integration branches from the existing local
    checkout; preserve published Graft history and the legacy rollback branch.
-2. Keep the Graft mobile HTTP/WebSocket adapter over Synara orchestration as the
-   compatibility boundary; do not couple either mobile client to Synara internals.
+2. Keep the Graft mobile HTTP/WebSocket adapter over Graft orchestration as the
+   compatibility boundary; do not couple either mobile client to Graft internals.
 3. Ship preview builds with distinct update channels and isolated data roots.
    Mobile previews use TestFlight and Play internal testing.
 4. Data migration copies into a new store. It never deletes or rewrites the
@@ -108,18 +112,18 @@ token is exchanged once for a revocable Synara client bearer session.
 6. A release remains prohibited until it receives explicit approval under the
    Graft release policy.
 
-## Adopting later Synara updates
+## Adopting later upstream updates
 
-Verify Synara's current `main` SHA, fetch that commit through the Cursor
+Verify the current upstream `main` SHA, fetch that commit through the Cursor
 `origin` mirror, and merge it on a dedicated integration branch based on
 `origin/main`. Preserve Graft changes when resolving conflicts. Never rebase
 published Graft commits onto upstream, auto-merge unattended updates, or push
-to Synara.
+to the historical Synara GitHub repository.
 
 ### September 14, 2026 integration
 
 - Graft main: `f1c3a3e6f55340404df97e88577103b03af8af7d`.
-- Synara main: `70f5ed0e4757c0f69891b258171da80d324f0e18` (0.8.4).
+- Upstream main: `70f5ed0e4757c0f69891b258171da80d324f0e18` (0.8.4).
 - Previous shared ancestor: `182208581e9436149bdfffe3418cbb78a21528f9`;
   this integration brings in all 169 subsequent upstream commits.
 - Retained Graft logos, Central icon mappings, landing background, mobile
@@ -131,15 +135,15 @@ to Synara.
 
 Graft's desktop display name, window title, onboarding, settings, browser labels,
 and tool activity copy use the Graft product identity. Development favicons use
-the existing Graft artwork. Upstream release notes and feedback remain attributed
-to Synara. Internal package and IPC names remain compatible with upstream. Graft's desktop
-identity is isolated: `com.graft.studio.next` (with `.dev` and `.canary` suffixes),
-`graft://app`, and `graft-studio-next*` Electron profiles. Desktop home overrides
-use `GRAFT_HOME`; defaults remain `.graft*` and never fall back to `.synara*`.
-The desktop always binds its private backend to loopback. Do not set global
-`SYNARA_HOST`, `SYNARA_HOME`, or remote-access overrides for Graft: those also
-affect the installed Synara app. Synara databases and browser profiles must not
-be adopted implicitly. Graft's updater channel is `graft`.
+the existing Graft artwork. First-party packages use the `@graft/*` scope.
+Graft's desktop identity is isolated: `com.graft.studio.next` (with `.dev` and
+`.canary` suffixes), `graft://app`, and `graft-studio-next*` Electron profiles.
+Desktop home overrides use `GRAFT_HOME`; defaults remain `.graft*` and never
+fall back to `.synara*`. The desktop always binds its private backend to
+loopback. Do not set global `GRAFT_BIND_HOST`, `GRAFT_HOME`, or remote-access
+overrides for Graft desktop: those also affect other Graft processes. Leftover
+Synara databases and browser profiles must not be adopted implicitly. Graft's
+updater channel is `graft`.
 
 ## Cellular access
 

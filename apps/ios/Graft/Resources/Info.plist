@@ -34,7 +34,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Scan a pairing QR code shown by Graft Studio.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Connect directly to Graft Studio running on your Mac over your local network.</string>
+	<string>Connect directly to Graft Studio running on this computer over your local network.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Dictate messages to your agents with the composer mic.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

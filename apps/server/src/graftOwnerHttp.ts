@@ -1,4 +1,4 @@
-import { AuthSessionId } from "@synara/contracts";
+import { AuthSessionId } from "@graft/contracts";
 import { Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 

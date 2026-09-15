@@ -5,7 +5,7 @@
 import { existsSync } from "node:fs";
 import { win32 } from "node:path";
 
-import { executableCandidates } from "@synara/shared/executable";
+import { executableCandidates } from "@graft/shared/executable";
 
 export interface ProviderBinaryResolutionOptions {
   readonly env?: NodeJS.ProcessEnv;

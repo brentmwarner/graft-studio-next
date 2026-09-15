@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
-import { AuthSessionId } from "@synara/contracts";
+import { AuthSessionId } from "@graft/contracts";
 
 import { ServerAuth } from "../auth/Services/ServerAuth";
 import { ServerConfig } from "../config";

@@ -28,7 +28,7 @@ import {
   type DeviceHardwareButton,
   type DeviceOpenPaneReason,
   type ProviderKind,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { Effect } from "effect";
 
 import type { DeviceManager } from "../device/DeviceManager.ts";
@@ -52,7 +52,7 @@ import {
 export const DEVICE_CONTROL_CAPABILITY = "device:control" as const;
 
 /**
- * Providers whose sessions run without a per-tool approval gate. Synara cannot
+ * Providers whose sessions run without a per-tool approval gate. Graft cannot
  * put a human in the loop for them, so device actions with a physical or
  * exfiltration effect are refused rather than silently auto-approved.
  */
@@ -139,7 +139,7 @@ const DEVICE_SCROLL_BUDGET_RANGE = {
 const DEVICE_APPROVAL_AGENT_GUIDANCE =
   "If this reports DeviceApprovalRequired, the action was refused before it ran because the session has no approval gate; explain that the user must perform it from the device pane and do not retry.";
 const DEVICE_BUILD_AGENT_GUIDANCE =
-  "Synara never builds the app; when needed, build it first with xcodebuild or the project's build tool. This tool surfaces the driven device in the pane.";
+  "Graft never builds the app; when needed, build it first with xcodebuild or the project's build tool. This tool surfaces the driven device in the pane.";
 const DEVICE_INPUT_RESULT_AGENT_GUIDANCE =
   "If HID events were not delivered, nothing happened and the server already retried once, so surface the failure. Never report success without observing the result in device_describe_ui; an unchanged tree means the action missed or changed nothing.";
 
@@ -280,7 +280,7 @@ export function makeAgentGatewayDeviceTools(
       definition: {
         name: "device_list",
         description:
-          "List iOS simulators Synara can drive, with their runtime, boot state, and who booted them. Call this before any other device_* tool and use an already-booted device when one is available; booting another wastes time and can leave the user watching the wrong pane.",
+          "List iOS simulators Graft can drive, with their runtime, boot state, and who booted them. Call this before any other device_* tool and use an already-booted device when one is available; booting another wastes time and can leave the user watching the wrong pane.",
         inputSchema: {
           type: "object",
           properties: {
@@ -303,7 +303,7 @@ export function makeAgentGatewayDeviceTools(
       definition: {
         name: "device_boot",
         description: approvalRequiredDeviceDescription(
-          'Boot a simulator only when device_list finds nothing booted or the user named a different device. Synara caps the simulators it boots; kind "boot-limit-reached" lists devices to relay to the user so they can choose one to shut down, and must not be retried.',
+          'Boot a simulator only when device_list finds nothing booted or the user named a different device. Graft caps the simulators it boots; kind "boot-limit-reached" lists devices to relay to the user so they can choose one to shut down, and must not be retried.',
         ),
         inputSchema: {
           type: "object",
@@ -425,7 +425,7 @@ export function makeAgentGatewayDeviceTools(
       definition: {
         name: "device_tap",
         description: deviceInputDescription(
-          "Tap by label with device_tap {udid, label}; add role as {udid, label, role} only to disambiguate a repeated label. Synara re-reads the accessibility tree, scrolls the element into view, and uses its activationPoint, which is required for a switch, checkbox, stepper, or other control merged into a row whose centre is dead space. Use x and y only for an unlabeled target, and copy device points from device_describe_ui rather than screenshot pixels or computed coordinates.",
+          "Tap by label with device_tap {udid, label}; add role as {udid, label, role} only to disambiguate a repeated label. Graft re-reads the accessibility tree, scrolls the element into view, and uses its activationPoint, which is required for a switch, checkbox, stepper, or other control merged into a row whose centre is dead space. Use x and y only for an unlabeled target, and copy device points from device_describe_ui rather than screenshot pixels or computed coordinates.",
         ),
         inputSchema: {
           type: "object",
@@ -643,7 +643,7 @@ export function makeAgentGatewayDeviceTools(
       definition: {
         name: "device_scroll_to_element",
         description: deviceInputDescription(
-          "Scroll a labelled element into view in one call. Synara swipes and re-reads the tree until the element reaches the tappable band, then returns its tap point. Use this instead of a device_swipe loop when reading or confirming content below the fold; labelled device_tap already scrolls on its own.",
+          "Scroll a labelled element into view in one call. Graft swipes and re-reads the tree until the element reaches the tappable band, then returns its tap point. Use this instead of a device_swipe loop when reading or confirming content below the fold; labelled device_tap already scrolls on its own.",
         ),
         inputSchema: {
           type: "object",

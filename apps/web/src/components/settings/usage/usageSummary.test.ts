@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProfileTokenDayUsage } from "@synara/contracts";
+import type { ProfileTokenDayUsage } from "@graft/contracts";
 
 import { summarizeUsage, usageDayOffset } from "./usageSummary";
 

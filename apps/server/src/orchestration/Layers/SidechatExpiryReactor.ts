@@ -3,12 +3,12 @@ import {
   ThreadId,
   type OrchestrationEvent,
   type OrchestrationThread,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import {
   SIDECHAT_VISIBLE_ACTIVITY_HEARTBEAT_MS,
   createSidechatExpiryTimer,
   type SidechatExpiryTimerClock,
-} from "@synara/shared/sidechatExpiry";
+} from "@graft/shared/sidechatExpiry";
 import { Cause, Duration, Effect, Layer, Schedule, Stream } from "effect";
 
 import { ProviderService } from "../../provider/Services/ProviderService.ts";

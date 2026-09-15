@@ -51,7 +51,7 @@ function withFakeAcpAgent<A, E, R>(
 ): Effect.Effect<A, E, R> {
   return Effect.acquireUseRelease(
     Effect.sync(() => {
-      const tempDir = mkdtempSync(path.join(os.tmpdir(), "synara-droid-text-acp-"));
+      const tempDir = mkdtempSync(path.join(os.tmpdir(), "graft-droid-text-acp-"));
       return {
         tempDir,
         agentPath: makeAcpAgentWrapper(tempDir, env(tempDir)),
@@ -113,8 +113,8 @@ const cases: TestCase[] = [
   {
     name: "uses ACP model config options instead of raw CLI model ids",
     env: (tempDir) => ({
-      SYNARA_ACP_REQUEST_LOG_PATH: path.join(tempDir, "requests.ndjson"),
-      SYNARA_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
+      GRAFT_ACP_REQUEST_LOG_PATH: path.join(tempDir, "requests.ndjson"),
+      GRAFT_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
         subject: "Add generated Droid commit message",
         body: "- verify droid acp model config path",
       }),
@@ -150,7 +150,7 @@ const cases: TestCase[] = [
   {
     name: "generates diff summaries through Droid ACP text generation",
     env: () => ({
-      SYNARA_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
+      GRAFT_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
         summary: "## Summary\n- Route git summaries through Droid.",
       }),
     }),
@@ -169,7 +169,7 @@ const cases: TestCase[] = [
   },
   {
     name: "falls back to raw text when Droid replies without JSON for a thread title",
-    env: () => ({ SYNARA_ACP_PROMPT_RESPONSE_TEXT: "Sidebar Thread Row Spacing" }),
+    env: () => ({ GRAFT_ACP_PROMPT_RESPONSE_TEXT: "Sidebar Thread Row Spacing" }),
     run: (agentPath) =>
       Effect.gen(function* () {
         const textGeneration = yield* TextGeneration;
@@ -186,7 +186,7 @@ const cases: TestCase[] = [
   {
     name: "rejects sentence-length prose instead of using it as a title",
     env: () => ({
-      SYNARA_ACP_PROMPT_RESPONSE_TEXT:
+      GRAFT_ACP_PROMPT_RESPONSE_TEXT:
         "I'm sorry, but I cannot generate a concise title for this particular request right now.",
     }),
     run: (agentPath) =>
@@ -216,8 +216,8 @@ const cases: TestCase[] = [
   {
     name: "closes the ACP child process after text generation completes",
     env: (tempDir) => ({
-      SYNARA_ACP_EXIT_LOG_PATH: path.join(tempDir, "exit.log"),
-      SYNARA_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
+      GRAFT_ACP_EXIT_LOG_PATH: path.join(tempDir, "exit.log"),
+      GRAFT_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
         title: '"Trim reconnect spinner status after resume."',
       }),
     }),

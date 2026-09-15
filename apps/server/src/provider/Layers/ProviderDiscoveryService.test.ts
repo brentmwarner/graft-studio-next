@@ -1,6 +1,6 @@
 // FILE: ProviderDiscoveryService.test.ts
 // Purpose: Verifies the discovery service merges provider-native skills with the
-//          unified Synara catalog, filters user-disabled skills, and reports
+//          unified Graft catalog, filters user-disabled skills, and reports
 //          skill discovery as supported for every provider.
 // Layer: Server provider tests
 
@@ -16,7 +16,7 @@ import type {
   ProviderListCommandsResult,
   ProviderListModelsResult,
   ProviderListSkillsResult,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, Layer } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -133,7 +133,7 @@ beforeEach(async () => {
   clearSkillsCatalogCacheForTests();
   root = mkdtempSync(path.join(os.tmpdir(), "discovery-service-"));
   homeDir = path.join(root, "home");
-  baseDir = path.join(homeDir, ".synara");
+  baseDir = path.join(homeDir, ".graft");
   cwd = path.join(root, "repo");
   await mkdir(cwd, { recursive: true });
 });

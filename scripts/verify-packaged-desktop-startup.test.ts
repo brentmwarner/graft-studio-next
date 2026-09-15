@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("packaged desktop startup verification", () => {
   it("retains bounded failure diagnostics even when a startup log is missing", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-startup-diagnostics-test-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-startup-diagnostics-test-"));
     temporaryRoots.push(root);
     writeFileSync(join(root, "desktop-main.log"), "old entry" + "x".repeat(20_000) + "app ready");
 
@@ -70,7 +70,7 @@ describe("packaged desktop startup verification", () => {
   });
 
   it("isolates user state and removes inherited runtime authority", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-packaged-smoke-env-test-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-packaged-smoke-env-test-"));
     temporaryRoots.push(root);
 
     const env = createPackagedDesktopSmokeEnvironment(
@@ -78,12 +78,12 @@ describe("packaged desktop startup verification", () => {
       { platform: "linux", version: "1.2.3" },
       {
         PATH: process.env.PATH,
-        SYNARA_AUTH_TOKEN: "must-not-leak",
+        GRAFT_AUTH_TOKEN: "must-not-leak",
         ELECTRON_RUN_AS_NODE: "1",
       },
     );
 
-    expect(env.SYNARA_AUTH_TOKEN).toBeUndefined();
+    expect(env.GRAFT_AUTH_TOKEN).toBeUndefined();
     expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     for (const name of [
       "HOME",
@@ -93,7 +93,7 @@ describe("packaged desktop startup verification", () => {
       "XDG_CONFIG_HOME",
       "XDG_CACHE_HOME",
       "XDG_DATA_HOME",
-      "SYNARA_HOME",
+      "GRAFT_HOME",
     ] as const) {
       expect(env[name]?.startsWith(root)).toBe(true);
       expect(existsSync(env[name]!)).toBe(true);
@@ -107,7 +107,7 @@ describe("packaged desktop startup verification", () => {
   });
 
   it("rejects a missing packaged peer even when the development tree provides it", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-runtime-deps-test-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-runtime-deps-test-"));
     temporaryRoots.push(root);
     const app = join(root, "app.asar");
     const dist = join(app, "apps/server/dist");
@@ -144,7 +144,7 @@ describe("packaged desktop startup verification", () => {
   });
 
   it("bounds a runtime import that never finishes", () => {
-    const root = mkdtempSync(join(tmpdir(), "synara-runtime-timeout-test-"));
+    const root = mkdtempSync(join(tmpdir(), "graft-runtime-timeout-test-"));
     temporaryRoots.push(root);
     const dist = join(root, "app.asar/apps/server/dist");
     mkdirSync(dist, { recursive: true });

@@ -1,5 +1,5 @@
 // FILE: AppSnapCoordinator.tsx
-// Purpose: Routes native macOS AppSnaps into the correct Synara composer draft.
+// Purpose: Routes native macOS AppSnaps into the correct Graft composer draft.
 // Layer: Root web coordinator
 // Depends on: Desktop bridge, focused chat context, and existing composer attachment intake.
 
@@ -8,7 +8,7 @@ import {
   type DesktopAppSnapShortcut,
   type DesktopBridge,
   type ThreadId,
-} from "@synara/contracts";
+} from "@graft/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef } from "react";
 
