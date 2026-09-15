@@ -69,13 +69,15 @@ function MenuOverlay({
   useEffect(() => {
     measure();
     const show = Keyboard.addListener("keyboardDidShow", measure);
-    const hide = Keyboard.addListener("keyboardDidHide", measure);
+    // The composer moves when Android dismisses its keyboard. Close the menu
+    // with that dismissal so it cannot remain attached to the old position.
+    const hide = Keyboard.addListener("keyboardDidHide", onClose);
     return () => {
       generation.current += 1;
       show.remove();
       hide.remove();
     };
-  }, [measure]);
+  }, [measure, onClose]);
 
   const layout = geometry
     ? anchoredMenuLayout({
