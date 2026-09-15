@@ -12,7 +12,7 @@ import { PairingScreen } from "./src/screens/PairingScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { ThreadScreen } from "./src/screens/ThreadScreen";
-import { groupProjects } from "./src/state/mobileViewModels";
+import { groupProjects, recentThreads } from "./src/state/mobileViewModels";
 import { useGraftSession } from "./src/state/useGraftSession";
 import { useGraftPalette } from "./src/theme/tokens";
 
@@ -30,6 +30,7 @@ function GraftApp() {
   const session = useGraftSession();
   const [route, setRoute] = useState<AppRoute>({ name: "home" });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [searchFocusNonce, setSearchFocusNonce] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const paired = session.state.status === "paired" ? session.state : null;
   const pairedSnapshot = paired?.snapshot ?? null;
@@ -70,6 +71,7 @@ function GraftApp() {
   }, [isDrawerOpen, route.name, session.closeThread]);
 
   const projectGroups = useMemo(() => groupProjects(pairedSnapshot, ""), [pairedSnapshot]);
+  const drawerRecents = useMemo(() => recentThreads(pairedSnapshot), [pairedSnapshot]);
 
   function openThread(thread: GraftThreadSummary) {
     setIsDrawerOpen(false);
@@ -100,15 +102,25 @@ function GraftApp() {
               whole screen — top bar included — exactly like the iOS
               `NavDrawerLayout` wrapping its `NavigationStack`. */}
           <NavDrawerLayout
+            canSwipeOpen={route.name === "home"}
             connectionState={paired.connectionState}
             hostLabel={paired.session.environmentLabel}
             isOpen={isDrawerOpen}
             onClose={() => setIsDrawerOpen(false)}
+            onNewChat={() => setRoute({ name: "new-chat" })}
             onOpen={() => setIsDrawerOpen(true)}
+            onSearch={() => setSearchFocusNonce((nonce) => nonce + 1)}
+            onSelectThread={(item) => {
+              const thread = pairedSnapshot?.threads.find(
+                (candidate) => candidate.id === item.id,
+              );
+              if (thread) openThread(thread);
+            }}
             onSettings={() => {
               setIsDrawerOpen(false);
               setShowSettings(true);
             }}
+            recentThreads={drawerRecents}
           >
             {route.name === "home" ? (
               <HomeScreen
@@ -125,6 +137,7 @@ function GraftApp() {
                 }}
                 onRefresh={session.refresh}
                 onUnpair={session.unpair}
+                searchFocusNonce={searchFocusNonce}
                 session={paired.session}
                 snapshot={paired.snapshot}
               />

@@ -182,6 +182,45 @@ export function groupProjects(
   });
 }
 
+const PLACEHOLDER_TITLES = new Set(["new thread", "untitled"]);
+
+/// Native `InboxGrouping.recentThreads` — attention first, then live runs,
+/// then the freshest named threads. Idle placeholders stay out of the drawer.
+export function recentThreads(
+  snapshot: GraftEnvironmentSnapshot | null,
+  limit = 10,
+): readonly InboxThreadItem[] {
+  if (!snapshot) return [];
+  const activeThreadIds = new Set(snapshot.activeRuns.map((run) => run.threadId));
+
+  function rank(thread: GraftEnvironmentSnapshot["threads"][number]): number {
+    if (thread.status === "needs_attention") return 0;
+    if (thread.status === "running" || activeThreadIds.has(thread.id)) return 1;
+    return 2;
+  }
+
+  return snapshot.threads
+    .filter(
+      (thread) =>
+        rank(thread) < 2 || !PLACEHOLDER_TITLES.has(thread.title.toLocaleLowerCase()),
+    )
+    .slice()
+    .sort((left, right) => {
+      const delta = rank(left) - rank(right);
+      if (delta !== 0) return delta;
+      return right.updatedAt - left.updatedAt;
+    })
+    .slice(0, limit)
+    .map((thread) => ({
+      id: thread.id,
+      title: thread.title,
+      showsAttentionDot:
+        activeThreadIds.has(thread.id) ||
+        thread.status === "running" ||
+        thread.status === "needs_attention",
+    }));
+}
+
 function isTerminalRunStatus(status: GraftTimelineEvent["runStatus"]): boolean {
   switch (status) {
     case "completed":

@@ -4,10 +4,18 @@
     "slug": "graft-mobile-android",
     "scheme": "graft",
     "version": "0.1.0",
-    "platforms": ["android"],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "studio.graft.mobile.expo",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Graft to scan a pairing QR code shown by Graft Studio.",
+        "CADisableMinimumFrameDurationOnPhone": true
+      }
+    },
     "android": {
       "package": "studio.graft.mobile",
       "predictiveBackGestureEnabled": false,
@@ -30,6 +38,9 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",
+          "ios": {
+            "image": "./assets/icon.png"
+          },
           "android": {
             "image": "./assets/adaptive-icon.png",
             "imageWidth": 192
@@ -40,11 +51,20 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "deploymentTarget": "26.0"
+          },
           "android": {
             "usesCleartextTraffic": true
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "493cee18-fb3c-4e70-8c69-9d9fa903e962"
+      }
+    },
+    "owner": "brentmwarner"
   }
 }

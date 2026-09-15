@@ -10,6 +10,7 @@ vi.mock("react-native", () => ({
   View: "View",
   Text: "Text",
   Pressable: "Pressable",
+  Platform: { OS: "android" },
   StyleSheet: { create: (styles: unknown) => styles },
   useColorScheme: () => "light",
   Linking: { openURL: vi.fn() },
