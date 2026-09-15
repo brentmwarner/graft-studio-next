@@ -41,7 +41,7 @@ export type SettingsNavItem = {
   id: SettingsSectionId;
   group: SettingsNavGroupId;
   label: string;
-  description: string;
+  description?: string;
   /** Central icon basename resolved by the shared icon registry. */
   icon: string;
   eyebrow: string;
@@ -110,10 +110,10 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
     id: "usage",
     group: "personal",
-    label: "Usage & limits",
-    description: "See remaining quota and credits for every signed-in provider.",
+    label: "Usage",
+    description: "Explore token activity, model breakdowns, and remaining provider quota.",
     icon: "gauge",
-    eyebrow: "Provider limits",
+    eyebrow: "Activity & limits",
   },
   {
     id: "appsnap",
@@ -135,7 +135,6 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     id: "connections",
     group: "integrations",
     label: "Connections",
-    description: "Pair Graft iOS or Android, and occupy a Linux machine over SSH.",
     icon: "phone",
     eyebrow: "Phones and SSH hosts",
   },

@@ -9,6 +9,7 @@ import * as QRCode from "qrcode";
 
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "~/components/ui/collapsible";
 import { copyTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { CentralIcon } from "~/lib/central-icons";
 import {
@@ -17,10 +18,11 @@ import {
   disclosureContentClassName,
 } from "~/lib/disclosureMotion";
 import { cn } from "~/lib/utils";
-import { SettingsCard, SettingsEmptyState, SettingsSectionShell } from "./SettingsPanelPrimitives";
+import { SettingsCard, SettingsSectionShell } from "./SettingsPanelPrimitives";
 import {
   SETTINGS_CARD_ROW_CLASS_NAME,
   SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME,
+  SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME,
   SETTINGS_CARD_ROW_TITLE_CLASS_NAME,
   SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME,
 } from "~/settingsPanelStyles";
@@ -150,40 +152,35 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
 
   return (
     <div data-testid="connections-panel">
-      <section aria-labelledby="paired-devices-heading" className="mb-8">
+      <section aria-labelledby="paired-devices-heading" className="mb-9">
         <div className="mb-3 flex items-center justify-between gap-4">
-          <h2 id="paired-devices-heading" className="px-2 text-[13px] font-medium text-foreground">
+          <h2 id="paired-devices-heading" className="text-[13px] font-medium text-foreground">
             Devices that can control this computer
           </h2>
-          {status.devices.length > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => openPairingDialog("intro")}
-              data-testid="connections-add-device"
-            >
-              Add device
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => openPairingDialog("intro")}
+            data-testid="connections-add-device"
+          >
+            Add device
+          </Button>
         </div>
 
         {status.devices.length === 0 ? (
-          <SettingsEmptyState>
-            <CentralIcon name="devices" className="mx-auto mb-3 size-8 text-foreground" />
-            <p>Add a device to control this computer remotely</p>
-            <Button
-              type="button"
-              size="lg"
-              className="mt-4 px-4"
-              disabled={busy}
-              onClick={() => openPairingDialog("intro")}
-              data-testid="connections-add-device"
-            >
-              Add
-            </Button>
-          </SettingsEmptyState>
+          <SettingsCard>
+            <div className="flex items-center gap-3.5 px-4 py-5">
+              <CentralIcon name="devices" className="size-6 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="text-[13px] font-medium text-foreground">No paired devices</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Add a device to control this computer remotely.
+                </p>
+              </div>
+            </div>
+          </SettingsCard>
         ) : (
           <SettingsCard>
             <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
@@ -227,7 +224,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                   </div>
                   <Button
                     type="button"
-                    variant="destructive"
+                    variant="ghost"
                     size="sm"
                     onClick={() => onRevokeDevice(device.deviceId)}
                     disabled={busy}
@@ -244,9 +241,6 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
       </section>
 
       <SettingsSectionShell title="Connection options">
-        <p className="px-2 pb-2 text-[11px] text-muted-foreground">
-          Manage network access and this computer's availability.
-        </p>
         <div className="space-y-3">
           <SettingsCard>
             <div className={cn(SETTINGS_CARD_ROW_CLASS_NAME, "flex items-center justify-between")}>
@@ -255,8 +249,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                   Allow other devices to connect
                 </span>
                 <p className={cn(SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME, "mt-0.5")}>
-                  Reaches your devices through the Graft relay, plus this computer's private LAN and
-                  Tailnet addresses
+                  Access this computer from your paired devices, wherever you are.
                 </p>
               </div>
               <Switch
@@ -318,96 +311,109 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
             </div>
           </SettingsCard>
 
-          <SettingsCard>
-            <div className={SETTINGS_CARD_ROW_CLASS_NAME}>
-              <span className={SETTINGS_CARD_ROW_TITLE_CLASS_NAME}>Candidate addresses</span>
-              <p className={cn(SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME, "mt-0.5")}>
-                Detected on this computer. Firewalls and VPN access rules still apply.
-              </p>
-            </div>
-            {!status.enabled ? (
-              <p
-                className={cn(SETTINGS_CARD_ROW_CLASS_NAME, "text-[12px] text-muted-foreground")}
-                data-testid="connections-endpoint"
-              >
-                Gateway off — enable connections to detect addresses.
-              </p>
-            ) : (
-              <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
-                {status.endpoints.map((endpoint) => (
-                  <li
-                    key={`${endpoint.kind}:${endpoint.address}`}
-                    className={cn(
-                      SETTINGS_CARD_ROW_CLASS_NAME,
-                      "flex items-center justify-between gap-3",
-                    )}
-                    data-testid={`connections-endpoint-${endpoint.kind}`}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-medium text-foreground">
-                        {endpointLabel(endpoint.kind)}
-                      </p>
-                      <code className="block truncate text-[11px] text-muted-foreground">
-                        {endpoint.httpBaseUrl}
-                      </code>
-                      <p className="text-[10px] text-muted-foreground">
-                        {endpoint.kind === "relay"
-                          ? "Works from any network"
-                          : `Interface: ${endpoint.interfaceName}`}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => onCopyEndpoint(endpoint.httpBaseUrl)}
-                      aria-label={`Copy ${endpointLabel(endpoint.kind)} address`}
+          <SettingsCard divided={false}>
+            <Collapsible>
+              <CollapsibleTrigger className="group flex w-full items-center justify-between px-4 py-3 text-xs text-muted-foreground hover:text-foreground">
+                Connection details
+                <CentralIcon
+                  name="chevron-down-small"
+                  className="size-3.5 group-data-panel-open:rotate-180"
+                />
+              </CollapsibleTrigger>
+              <CollapsiblePanel className={SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME}>
+                <div className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+                  {!status.enabled ? (
+                    <p
+                      className={cn(
+                        SETTINGS_CARD_ROW_CLASS_NAME,
+                        "text-[12px] text-muted-foreground",
+                      )}
+                      data-testid="connections-endpoint"
                     >
-                      Copy
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {status.enabled && !hasRemoteEndpoint ? (
-              <p
-                className="px-3 py-2 text-[11px] text-muted-foreground"
-                data-testid="connections-local-only"
-              >
-                Local only — no relay, private LAN, or Tailnet address was detected.
-              </p>
-            ) : null}
-            <p className="px-3 py-2 text-[11px] text-muted-foreground">
-              Environment: {status.environmentLabel || "Studio"}
-            </p>
+                      Gateway off — enable connections to detect addresses.
+                    </p>
+                  ) : (
+                    <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+                      {status.endpoints.map((endpoint) => (
+                        <li
+                          key={`${endpoint.kind}:${endpoint.address}`}
+                          className={cn(
+                            SETTINGS_CARD_ROW_CLASS_NAME,
+                            "flex items-center justify-between gap-3",
+                          )}
+                          data-testid={`connections-endpoint-${endpoint.kind}`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[12px] font-medium text-foreground">
+                              {endpointLabel(endpoint.kind)}
+                            </p>
+                            <code className="block truncate text-[11px] text-muted-foreground">
+                              {endpoint.httpBaseUrl}
+                            </code>
+                            <p className="text-[10px] text-muted-foreground">
+                              {endpoint.kind === "relay"
+                                ? "Works from any network"
+                                : `Interface: ${endpoint.interfaceName}`}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => onCopyEndpoint(endpoint.httpBaseUrl)}
+                            aria-label={`Copy ${endpointLabel(endpoint.kind)} address`}
+                          >
+                            Copy
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {status.enabled && !hasRemoteEndpoint ? (
+                    <p
+                      className="px-4 py-3 text-[11px] text-muted-foreground"
+                      data-testid="connections-local-only"
+                    >
+                      Local only — no relay, private LAN, or Tailnet address was detected.
+                    </p>
+                  ) : null}
+                  <p className="px-4 py-3 text-[11px] text-muted-foreground">
+                    Environment: {status.environmentLabel || "Studio"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 px-4 pb-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={onCopyDiagnostics}
+                    data-testid="connections-copy-diagnostics"
+                  >
+                    Copy diagnostics
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={onRefresh}
+                    data-testid="connections-refresh"
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </CollapsiblePanel>
+            </Collapsible>
           </SettingsCard>
 
-          <div className="flex items-center gap-2 px-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={onCopyDiagnostics}
-              data-testid="connections-copy-diagnostics"
-            >
-              Copy diagnostics
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={onRefresh}
-              data-testid="connections-refresh"
-            >
-              Refresh
-            </Button>
-          </div>
-
           {error ? (
-            <p className="px-2 text-[12px] text-destructive" data-testid="connections-error">
+            <p
+              role="alert"
+              className="px-2 text-xs text-destructive"
+              data-testid="connections-error"
+            >
               {error}
             </p>
           ) : null}

@@ -56,6 +56,7 @@ import {
   SettingsSelectControl,
 } from "../components/settings/SettingControls";
 import {
+  SettingsCard,
   SettingsRow,
   SettingsSection,
   SettingsSectionShell,
@@ -746,13 +747,11 @@ function SettingsRouteView() {
           ) : null
         }
       >
-        {/* The mode picker is the one settings control that sits directly on the page
-            instead of inside a card — the mockups are the whole UI, so boxing them in
-            a card reads as chrome around chrome. The anchor keeps search deep-links
-            (`?target=setting-theme`) working without the SettingsRow. */}
-        <div id={settingRowAnchorId("Theme")} className="scroll-mt-24 pb-1.5">
-          <ThemeModePicker value={theme} onValueChange={setTheme} ariaLabel="Theme preference" />
-        </div>
+        <SettingsCard divided={false}>
+          <div id={settingRowAnchorId("Theme")} className="scroll-mt-24 p-4">
+            <ThemeModePicker value={theme} onValueChange={setTheme} ariaLabel="Theme preference" />
+          </div>
+        </SettingsCard>
 
         <div className="space-y-3">
           {(resolvedTheme === "dark"
@@ -1283,18 +1282,22 @@ function SettingsRouteView() {
             <div
               className={cn(
                 "mx-auto w-full px-6 py-8",
-                activeSection === "profile" ? "max-w-3xl" : "max-w-2xl",
+                activeSection === "profile" || activeSection === "usage"
+                  ? "max-w-3xl"
+                  : "max-w-2xl",
               )}
             >
-              {activeSection !== "profile" ? (
+              {activeSection !== "profile" && activeSection !== "usage" ? (
                 <div className="mb-8 flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <h1 className="text-xl font-medium tracking-tight text-foreground">
                       {activeSectionItem.label}
                     </h1>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                      {activeSectionItem.description}
-                    </p>
+                    {activeSectionItem.description ? (
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                        {activeSectionItem.description}
+                      </p>
+                    ) : null}
                   </div>
                   <Button
                     size="xs"

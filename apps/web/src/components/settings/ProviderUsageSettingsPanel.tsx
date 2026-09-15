@@ -1,8 +1,5 @@
-// FILE: ProviderUsageSettingsPanel.tsx
-// Purpose: Settings → Usage panel. One card per supported provider showing live remaining
-// quota/credits with linear progress meters, the provider brand icon, and plan/status pills.
-// Usage is fetched read-only from each CLI's stored credentials by the server.
-
+// Settings usage dashboard, adapted from the legacy Graft Studio page.
+// Quotas are live account snapshots; activity is recorded in this Synara instance.
 import type { ServerProviderUsageSnapshot } from "@synara/contracts";
 import {
   PROVIDER_USAGE_PROVIDERS,
@@ -15,47 +12,41 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAppSettings } from "~/appSettings";
 import { ProviderIcon } from "~/components/ProviderIcon";
-import { ProviderUsageLimitRows } from "~/components/ProviderUsageLimitRows";
 import { ProviderUsageLineList } from "~/components/ProviderUsageLineList";
-import { SettingsCard, SettingsSectionShell } from "~/components/settings/SettingsPanelPrimitives";
-import { Button } from "~/components/ui/button";
+import { SettingsCard } from "~/components/settings/SettingsPanelPrimitives";
 import { useProviderUsageSummary } from "~/hooks/useProviderUsageSummary";
-import { RotateCcwIcon, TriangleAlertIcon } from "~/lib/icons";
 import { deriveProviderUsageDisplayRows } from "~/lib/providerUsageDisplay";
 import { deriveAccountRateLimits, type ProviderRateLimit } from "~/lib/rateLimits";
 import {
   fetchAllProviderUsage,
   serverAllProviderUsageQueryOptions,
+  serverProfileTokenStatsQueryOptions,
   serverQueryKeys,
 } from "~/lib/serverReactQuery";
 import { cn } from "~/lib/utils";
 import { useStore } from "~/store";
 import { createAllThreadsSelector } from "~/storeSelectors";
+import { UsageDashboard } from "./usage/UsageDashboard";
 
-const PILL_CLASS_NAME = "shrink-0 rounded-full px-2 py-1 text-[11px] font-medium leading-none";
-
-interface StatusPill {
-  label: string;
-  className: string;
-}
-
-function statusPill(status: ServerProviderUsageSnapshot["status"]): StatusPill | null {
+function quotaStatus(status: ServerProviderUsageSnapshot["status"]): string | null {
   switch (status) {
     case "needs-auth":
-      return {
-        label: "Not signed in",
-        className: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
-      };
+      return "Not signed in";
     case "unsupported":
-      return { label: "Unsupported", className: "bg-muted text-muted-foreground" };
+      return "Unsupported";
     case "error":
-      return { label: "Unavailable", className: "bg-red-500/12 text-red-600 dark:text-red-400" };
-    default:
+      return "Unavailable";
+    case "ok":
+    case undefined:
       return null;
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
   }
 }
 
-function ProviderUsageCard({
+function ProviderQuotaCard({
   snapshot,
   threadRateLimits,
   codexHomePath,
@@ -66,65 +57,71 @@ function ProviderUsageCard({
 }) {
   const provider = snapshot.provider;
   const status = snapshot.status ?? "ok";
-  const usageSummary = useProviderUsageSummary({
+  const summary = useProviderUsageSummary({
     provider,
     threadRateLimits,
     codexHomePath,
     providerSnapshot: snapshot,
   });
-  const meterRows = deriveProviderUsageDisplayRows(usageSummary.rateLimits);
-  const usageLines = usageSummary.usageLines;
-
-  const hasUsage = meterRows.length > 0 || usageLines.length > 0;
-  const pill = status === "ok" ? null : statusPill(snapshot.status);
-
+  const rows = deriveProviderUsageDisplayRows(summary.rateLimits);
   return (
-    <SettingsCard>
-      <div className="space-y-3.5 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border)] bg-muted/60">
-              <ProviderIcon provider={provider} className="size-4" />
-            </span>
-            <span className="truncate text-sm font-semibold text-foreground">
-              {providerUsageDisplayName(provider)}
-            </span>
-          </div>
-          {status === "ok" && snapshot.planName ? (
-            <span className={cn(PILL_CLASS_NAME, "bg-muted text-muted-foreground")}>
-              {snapshot.planName}
-            </span>
-          ) : pill ? (
-            <span className={cn(PILL_CLASS_NAME, pill.className)}>{pill.label}</span>
-          ) : null}
+    <SettingsCard divided={false}>
+      <div className="space-y-3 p-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+          <span className="flex items-center gap-1.5 font-medium">
+            <ProviderIcon provider={provider} className="size-3.5 shrink-0" />
+            {providerUsageDisplayName(provider)}
+          </span>
+          <span
+            className={cn(
+              "text-[10px] text-muted-foreground",
+              status === "error" && "text-destructive",
+            )}
+          >
+            {quotaStatus(status) ?? snapshot.planName}
+          </span>
         </div>
-
-        {status === "ok" && hasUsage ? (
+        {status === "ok" ? (
           <>
-            {usageSummary.usageNotice ? (
-              <p className="flex items-start gap-1.5 text-xs leading-relaxed text-amber-600 dark:text-amber-300/90">
-                <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                <span>{usageSummary.usageNotice}</span>
+            {rows.map((row) => (
+              <div key={row.id} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>{row.label}</span>
+                  <span className="tabular-nums">{row.remainingLabel} left</span>
+                </div>
+                <div
+                  role="meter"
+                  aria-label={`${providerUsageDisplayName(provider)} ${row.label} remaining`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={row.remainingPercent}
+                  className="h-1 overflow-hidden rounded-full bg-muted"
+                >
+                  <div
+                    className="h-full rounded-full bg-foreground/75"
+                    style={{ width: `${row.remainingPercent}%` }}
+                  />
+                </div>
+                {row.resetText ? (
+                  <p className="text-[10px] text-muted-foreground">{row.resetText}</p>
+                ) : null}
+              </div>
+            ))}
+            {summary.usageLines.length > 0 ? (
+              <ProviderUsageLineList lines={summary.usageLines} surface="popover" />
+            ) : null}
+            {summary.usageNotice ? (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                {summary.usageNotice}
               </p>
             ) : null}
-            {meterRows.length > 0 ? (
-              <ProviderUsageLimitRows rows={meterRows} surface="settings" />
-            ) : null}
-            {usageLines.length > 0 ? (
-              <ProviderUsageLineList
-                className={cn(
-                  meterRows.length > 0 && "border-t border-[color:var(--color-border)] pt-3",
-                )}
-                lines={usageLines}
-                surface="settings"
-              />
+            {rows.length === 0 && summary.usageLines.length === 0 && !summary.usageNotice ? (
+              <p className="text-[11px] text-muted-foreground">No quota reported yet.</p>
             ) : null}
           </>
         ) : (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {status === "ok"
-              ? "No usage data reported yet."
-              : (snapshot.detail ?? providerUsageNeedsAuthDetail(provider))}
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            {snapshot.detail ?? providerUsageNeedsAuthDetail(provider)}
           </p>
         )}
       </div>
@@ -136,9 +133,7 @@ function mergeProviderUsageRefresh(
   previous: readonly ServerProviderUsageSnapshot[] | undefined,
   next: readonly ServerProviderUsageSnapshot[],
 ): readonly ServerProviderUsageSnapshot[] {
-  if (!previous) {
-    return next;
-  }
+  if (!previous) return next;
   const previousByProvider = new Map(previous.map((snapshot) => [snapshot.provider, snapshot]));
   const nextByProvider = new Map(next.map((snapshot) => [snapshot.provider, snapshot]));
   return PROVIDER_USAGE_PROVIDERS.map(
@@ -149,11 +144,10 @@ function mergeProviderUsageRefresh(
 export function ProviderUsageSettingsPanel() {
   const queryClient = useQueryClient();
   const { settings } = useAppSettings();
-  const codexHomePath = settings.codexHomePath || null;
   const threads = useStore(useMemo(() => createAllThreadsSelector(), []));
-  // Account/thread fallback rows are shared by every provider card; derive them once per panel.
   const threadRateLimits = deriveAccountRateLimits(threads);
-  const usageQuery = useQuery(serverAllProviderUsageQueryOptions());
+  const quotaQuery = useQuery(serverAllProviderUsageQueryOptions());
+  const historyQuery = useQuery(serverProfileTokenStatsQueryOptions({ includeHistory: true }));
   const refreshMutation = useMutation({
     mutationFn: () => fetchAllProviderUsage({ forceRefresh: true }),
     onSuccess: (data) => {
@@ -163,54 +157,54 @@ export function ProviderUsageSettingsPanel() {
       );
     },
   });
-
-  // Use the live payload only. Inventing error placeholders for omitted providers
-  // would count as "connected" and hide unsigned cards.
-  const cards = selectVisibleProviderUsageSnapshots(usageQuery.data ?? []);
-
-  const showInitialLoading = usageQuery.isPending && !usageQuery.data;
-
-  const isRefreshing = usageQuery.isFetching || refreshMutation.isPending;
+  const cards = selectVisibleProviderUsageSnapshots(quotaQuery.data ?? []);
+  const quotaError = quotaQuery.isError || refreshMutation.isError;
+  const refreshing = quotaQuery.isFetching || refreshMutation.isPending || historyQuery.isFetching;
 
   return (
-    <SettingsSectionShell
-      title="Provider usage"
-      action={
-        <Button
-          size="xs"
-          variant="outline"
-          className="shrink-0"
-          disabled={isRefreshing}
-          onClick={() => refreshMutation.mutate()}
-        >
-          <RotateCcwIcon className={cn("size-3.5", isRefreshing && "animate-spin")} />
-          Refresh
-        </Button>
+    <UsageDashboard
+      stats={historyQuery.data}
+      loading={historyQuery.isPending}
+      historyError={historyQuery.isError ? "Could not refresh usage history. Try again." : null}
+      refreshing={refreshing}
+      onRefresh={() => {
+        refreshMutation.mutate();
+        void historyQuery.refetch();
+      }}
+      quotas={
+        <section aria-label="Provider quotas" className="space-y-2">
+          {quotaError ? (
+            <p role="alert" className="text-xs text-destructive">
+              Could not refresh provider quotas.
+              {cards.length > 0 ? " Showing the last loaded quotas." : " Try again."}
+            </p>
+          ) : null}
+          {quotaQuery.isPending && !quotaQuery.data ? (
+            <SettingsCard>
+              <p role="status" className="px-4 py-5 text-xs text-muted-foreground">
+                Loading provider quotas…
+              </p>
+            </SettingsCard>
+          ) : cards.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {cards.map((snapshot) => (
+                <ProviderQuotaCard
+                  key={snapshot.provider}
+                  snapshot={snapshot}
+                  threadRateLimits={threadRateLimits}
+                  codexHomePath={settings.codexHomePath || null}
+                />
+              ))}
+            </div>
+          ) : !quotaError ? (
+            <SettingsCard>
+              <p className="px-4 py-5 text-xs text-muted-foreground">
+                Sign in to a provider to see its remaining quota.
+              </p>
+            </SettingsCard>
+          ) : null}
+        </section>
       }
-    >
-      {showInitialLoading ? (
-        <SettingsCard>
-          <div className="px-4 py-3.5 text-xs text-muted-foreground">Loading provider usage…</div>
-        </SettingsCard>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {cards.map((snapshot) => (
-            <ProviderUsageCard
-              key={snapshot.provider}
-              snapshot={snapshot}
-              threadRateLimits={threadRateLimits}
-              codexHomePath={codexHomePath}
-            />
-          ))}
-        </div>
-      )}
-
-      <p className="px-2 text-[11px] leading-relaxed text-muted-foreground">
-        Usage is read locally from each provider CLI&apos;s stored credentials and fetched directly
-        from the provider. The list follows whatever you are signed into; unsigned providers stay
-        visible until any account is connected, then drop away. Short-lived tokens are refreshed
-        through the provider&apos;s own CLI or official token endpoint.
-      </p>
-    </SettingsSectionShell>
+    />
   );
 }

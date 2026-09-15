@@ -53,6 +53,7 @@ import {
 } from "~/providerUpdates";
 import { SETTINGS_TARGETS } from "~/settingsNavigation";
 import {
+  SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME,
   SETTINGS_INSET_LIST_CLASS_NAME,
   SETTINGS_INSET_RADIUS_CLASS_NAME,
   SETTINGS_OUTLINED_SURFACE_CLASS_NAME,
@@ -695,7 +696,7 @@ function ProviderToolRow(props: {
 
   return (
     <Collapsible open={props.open} onOpenChange={props.onOpenChange}>
-      <div className="border-t border-border/70 first:border-t-0">
+      <div>
         <div className="flex min-h-11 items-center gap-2 px-3 py-2">
           <CollapsibleTrigger
             type="button"
@@ -733,7 +734,7 @@ function ProviderToolRow(props: {
         </div>
 
         <CollapsiblePanel>
-          <div className="border-t border-border/70 bg-muted/20 px-3 py-3">
+          <div className={cn(SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME, "px-4 py-3")}>
             <div className="space-y-3">
               <ProviderDocsLinks docs={props.config.docs} />
               {showProviderUpdateStatus && updateAdvisory?.status === "behind_latest" ? (
@@ -1182,7 +1183,12 @@ export function ProvidersSettingsPanel({
             }
           >
             <div className="mt-4">
-              <div className={SETTINGS_INSET_LIST_CLASS_NAME}>
+              <div
+                className={cn(
+                  SETTINGS_INSET_LIST_CLASS_NAME,
+                  SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME,
+                )}
+              >
                 {PROVIDER_INSTALL_SETTINGS.map((config) => (
                   <ProviderToolRow
                     key={config.provider}

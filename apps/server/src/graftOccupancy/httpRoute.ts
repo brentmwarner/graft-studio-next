@@ -10,12 +10,22 @@ import {
   LINUX_X64_GLIBC_PLATFORM,
   type OccupancyConnection,
 } from "@graft/occupancy";
-import { Effect, FileSystem, Layer, Queue, Stream } from "effect";
+import {
+  FilesystemBrowseInput,
+  SSH_HOST_DIRECTORY_PATH,
+  SSH_HOST_PROJECTS_PATH,
+  SshProjectAddInput,
+} from "@synara/contracts";
+import { Effect, FileSystem, Layer, Queue, Schema, Stream } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
+import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
+import { browseWorkspaceEntries } from "../workspaceEntries";
+import { ServerRuntimeStartup } from "../serverRuntimeStartup";
+import { addSshProject } from "./sshProjects";
 import {
   closeOccupancyRuntime,
   getOccupancyListenPort,
@@ -128,6 +138,69 @@ const occupancyHttpRouteLayer = HttpRouter.add(
       if (!session) return jsonResponse({ error: "Unauthorized" }, 401);
       occupancy.store.revokeSession(session.sessionId);
       return jsonResponse({ ok: true });
+    }
+
+    if (url.pathname === SSH_HOST_PROJECTS_PATH || url.pathname === SSH_HOST_DIRECTORY_PATH) {
+      const bearer = parseOccupancyBearer(request.headers.authorization);
+      const session = bearer ? occupancy.store.authenticateBearer(bearer) : null;
+      if (!session) return jsonResponse({ error: "Unauthorized" }, 401);
+      if (!session.grants.includes("projects"))
+        return jsonResponse({ error: "Project access is not allowed." }, 403);
+      return yield* Effect.gen(function* () {
+        if (request.method === "GET" && url.pathname === SSH_HOST_DIRECTORY_PATH) {
+          const input = yield* Schema.decodeUnknownEffect(FilesystemBrowseInput)({
+            partialPath: url.searchParams.get("path") || "~/",
+          });
+          return jsonResponse(
+            yield* Effect.tryPromise({
+              try: () => browseWorkspaceEntries(input),
+              catch: (error) => error,
+            }),
+          );
+        }
+        if (request.method === "GET" && url.pathname === SSH_HOST_PROJECTS_PATH) {
+          const shell = yield* query.getShellSnapshot();
+          return jsonResponse({
+            projects: shell.projects
+              .filter((project) => project.kind === "project")
+              .map((project) => ({
+                id: project.id,
+                name: project.title,
+                path: project.workspaceRoot,
+              })),
+          });
+        }
+        if (request.method === "POST" && url.pathname === SSH_HOST_PROJECTS_PATH) {
+          const input = yield* Schema.decodeUnknownEffect(SshProjectAddInput)(
+            yield* readJson(request),
+          );
+          const engine = yield* OrchestrationEngineService;
+          const startup = yield* ServerRuntimeStartup;
+          return jsonResponse(
+            yield* Effect.tryPromise({
+              try: () =>
+                addSshProject(input, {
+                  getReadModel: engine.getReadModel,
+                  dispatch: (command) => startup.enqueueCommand(engine.dispatch(command)),
+                }),
+              catch: (error) => error,
+            }),
+          );
+        }
+        return jsonResponse({ error: "Not found" }, 404);
+      }).pipe(
+        Effect.catch((error) =>
+          Effect.succeed(
+            jsonResponse(
+              {
+                error:
+                  error instanceof Error ? error.message : "Could not access the remote project.",
+              },
+              400,
+            ),
+          ),
+        ),
+      );
     }
 
     return jsonResponse({ error: "Not found" }, 404);

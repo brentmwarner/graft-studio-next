@@ -100,6 +100,38 @@
 }
 
 @layer components {
+  /* Inset separators leave the rounded group outline unbroken. Hidden rows
+     do not add a divider before the first visible row. */
+  :where(
+    .settings-divided > :not([hidden]) ~ :not([hidden]),
+    .settings-divider,
+    .settings-stats-grid > * + *
+  ) {
+    position: relative;
+  }
+
+  :where(
+    .settings-divided > :not([hidden]) ~ :not([hidden]),
+    .settings-divider,
+    .settings-stats-grid > * + *
+  )::before {
+    content: "";
+    position: absolute;
+    inset-inline: var(--settings-divider-inset, 1rem);
+    top: 0;
+    height: 1px;
+    background: var(--color-border);
+    pointer-events: none;
+  }
+
+  @media (min-width: 40rem) {
+    .settings-stats-grid > * + *::before {
+      inset: 1rem auto 1rem 0;
+      width: 1px;
+      height: auto;
+    }
+  }
+
   .sidebar-icon-button {
     @apply items-center justify-center rounded-sm p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground/82 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring;
     background: transparent;

@@ -1,7 +1,7 @@
 // FILE: ProfileSettingsPanel.tsx
 // Purpose: Local-first profile / stats dashboard rendered inside Settings → Profile. Core
 // stats render instantly from a fast SQL RPC; lifetime/peak token figures and the tokens/day
-// heatmap stream in from a second DB-backed RPC. Centered, low-chrome layout
+// heatmap stream in from a second DB-backed RPC. Shares outlined settings groups
 // with an explicit edit mode for the local name + handle.
 // Layer: web profile feature (settings panel body).
 
@@ -30,6 +30,8 @@ import { useProfileName } from "../profile/useProfileName";
 import { useProfileAvatarColor } from "../profile/useProfileAvatarColor";
 import { useProfileAvatarImage } from "../profile/useProfileAvatarImage";
 import { ProfileAvatar } from "../profile/ProfileAvatar";
+import { SettingsCard, SettingsSectionShell } from "./SettingsPanelPrimitives";
+import { SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME } from "~/settingsPanelStyles";
 import {
   formatCompact,
   formatDays,
@@ -46,12 +48,12 @@ export function ProfileSettingsPanel() {
   }
   if (coreQuery.isError || !coreQuery.data) {
     return (
-      <div className="flex flex-col items-center gap-3 py-24 text-center">
+      <SettingsCard divided={false} className="flex flex-col items-center gap-3 py-16 text-center">
         <p className="text-sm text-muted-foreground">Couldn’t load your local stats.</p>
         <Button variant="outline" size="sm" onClick={() => void coreQuery.refetch()}>
           Try again
         </Button>
-      </div>
+      </SettingsCard>
     );
   }
 
@@ -91,41 +93,42 @@ function ProfileContent({
 
   return (
     <div className="flex min-w-0 flex-col gap-7">
-      {/* Action row */}
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-          <CentralIcon name="share-os" />
-          Share
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-          <CentralIcon name="pencil" />
-          Edit
-        </Button>
-      </div>
-
-      {/* Centered identity header */}
-      <header className="flex flex-col items-center gap-3 text-center">
-        <ProfileAvatar
-          initials={stats.identity.initials}
-          color={avatarColor}
-          image={avatarImage}
-          className="size-16 shadow-sm"
-          textClassName="text-xl"
-        />
-        <div className="flex flex-col items-center gap-1.5">
-          <h2 className="text-2xl font-semibold tracking-tight">{name}</h2>
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <span>{handle}</span>
-            <span aria-hidden>·</span>
-            <span className="rounded-full border px-1.5 py-px text-xs text-muted-foreground">
-              Graft
-            </span>
-          </div>
+      <SettingsCard divided={false}>
+        <div className="flex items-center justify-end gap-2 px-4 pt-4">
+          <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+            <CentralIcon name="share-os" />
+            Share
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <CentralIcon name="pencil" />
+            Edit
+          </Button>
         </div>
-      </header>
+
+        {/* Centered identity header */}
+        <header className="flex flex-col items-center gap-3 px-4 pb-6 text-center">
+          <ProfileAvatar
+            initials={stats.identity.initials}
+            color={avatarColor}
+            image={avatarImage}
+            className="size-16 shadow-sm"
+            textClassName="text-xl"
+          />
+          <div className="flex flex-col items-center gap-1.5">
+            <h2 className="text-2xl font-semibold tracking-tight">{name}</h2>
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span>{handle}</span>
+              <span aria-hidden>·</span>
+              <span className="rounded-full border px-1.5 py-px text-xs text-muted-foreground">
+                Graft
+              </span>
+            </div>
+          </div>
+        </header>
+      </SettingsCard>
 
       {/* Stat tiles */}
-      <div className="grid grid-cols-2 divide-x divide-y divide-border/50 overflow-hidden rounded-2xl border border-border/60 sm:grid-cols-3 lg:grid-cols-5 lg:divide-y-0">
+      <SettingsCard divided={false} className="settings-stats-grid grid sm:grid-cols-5">
         <StatTile
           label="Lifetime tokens"
           value={tokensPending ? null : formatCompact(tokenStats?.lifetimeTotalTokens ?? null)}
@@ -137,7 +140,7 @@ function ProfileContent({
         <StatTile label="Total prompts" value={formatNumber(stats.activity.totalPromptsSent)} />
         <StatTile label="Current streak" value={formatDays(stats.activity.currentStreakDays)} />
         <StatTile label="Longest streak" value={formatDays(stats.activity.longestStreakDays)} />
-      </div>
+      </SettingsCard>
 
       {/* Heatmap */}
       {stats.providerModels.some((entry) => entry.provider === "claudeAgent") ||
@@ -147,113 +150,119 @@ function ProfileContent({
           incomplete.
         </p>
       ) : null}
-      <section className="flex min-w-0 flex-col gap-3">
-        <h3 className="text-sm font-medium">Activity</h3>
-        {tokensPending ? (
-          <Skeleton className="h-28 w-full rounded-lg" />
-        ) : (
-          <ActivityHeatmap
-            cells={heatmap.cells}
-            fill
-            radius={5}
-            gap={3}
-            tooltip
-            tooltipUnit={heatmap.unit}
-            showMonths
-            monthsPosition="bottom"
-          />
-        )}
-      </section>
+      <SettingsSectionShell title="Activity">
+        <SettingsCard divided={false} className="min-w-0 p-4">
+          {tokensPending ? (
+            <Skeleton className="h-28 w-full rounded-lg" />
+          ) : (
+            <ActivityHeatmap
+              cells={heatmap.cells}
+              fill
+              radius={5}
+              gap={3}
+              tooltip
+              tooltipUnit={heatmap.unit}
+              showMonths
+              monthsPosition="bottom"
+            />
+          )}
+        </SettingsCard>
+      </SettingsSectionShell>
 
       {/* Insights + plugins */}
-      <div className="grid gap-x-12 gap-y-7 md:grid-cols-2">
-        <section className="flex flex-col gap-3">
-          <h3 className="text-sm font-medium">Activity insights</h3>
-          <dl className="flex flex-col gap-2.5">
-            <InsightRow
-              label="Most used provider"
-              value={
-                topProvider.provider
-                  ? `${formatProviderLabel(topProvider.provider)}${
-                      topProvider.percent !== null ? ` · ${topProvider.percent}%` : ""
-                    }`
-                  : "—"
-              }
-            />
-            <InsightRow
-              label="Most used reasoning"
-              value={
-                stats.insights.topReasoning
-                  ? `${capitalize(stats.insights.topReasoning)}${
-                      stats.insights.topReasoningPercent !== null
-                        ? ` · ${stats.insights.topReasoningPercent}%`
-                        : ""
-                    }`
-                  : "—"
-              }
-            />
-            <InsightRow label="Most active hour" value={peakHourLabel} />
-            <InsightRow label="Most worked project" value={mostWorkedProjectLabel} />
-            <InsightRow
-              label="Skills explored"
-              value={formatNumber(stats.insights.skillsExplored)}
-            />
-            <InsightRow
-              label="Total skills used"
-              value={formatNumber(stats.insights.totalSkillsUsed)}
-            />
-            <InsightRow label="Total threads" value={formatNumber(stats.activity.totalThreads)} />
-          </dl>
-        </section>
+      <div className="grid items-start gap-4 md:grid-cols-2 [&>section]:mt-0!">
+        <SettingsSectionShell title="Activity insights">
+          <SettingsCard>
+            <dl className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+              <InsightRow
+                label="Most used provider"
+                value={
+                  topProvider.provider
+                    ? `${formatProviderLabel(topProvider.provider)}${
+                        topProvider.percent !== null ? ` · ${topProvider.percent}%` : ""
+                      }`
+                    : "—"
+                }
+              />
+              <InsightRow
+                label="Most used reasoning"
+                value={
+                  stats.insights.topReasoning
+                    ? `${capitalize(stats.insights.topReasoning)}${
+                        stats.insights.topReasoningPercent !== null
+                          ? ` · ${stats.insights.topReasoningPercent}%`
+                          : ""
+                      }`
+                    : "—"
+                }
+              />
+              <InsightRow label="Most active hour" value={peakHourLabel} />
+              <InsightRow label="Most worked project" value={mostWorkedProjectLabel} />
+              <InsightRow
+                label="Skills explored"
+                value={formatNumber(stats.insights.skillsExplored)}
+              />
+              <InsightRow
+                label="Total skills used"
+                value={formatNumber(stats.insights.totalSkillsUsed)}
+              />
+              <InsightRow label="Total threads" value={formatNumber(stats.activity.totalThreads)} />
+            </dl>
+          </SettingsCard>
+        </SettingsSectionShell>
 
-        <section className="flex flex-col gap-3">
-          <h3 className="text-sm font-medium">Most used plugins</h3>
-          {stats.skills.length > 0 ? (
-            <ul className="flex flex-col gap-2.5">
-              {stats.skills.slice(0, 6).map((skill) => (
-                <li
-                  key={`${skill.kind}:${skill.name}`}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/60">
-                      <CentralIcon
-                        name={skill.kind === "agent" ? "group-1" : SKILL_ICON_NAME}
-                        className="size-3"
-                      />
+        <SettingsSectionShell title="Most used plugins">
+          <SettingsCard>
+            {stats.skills.length > 0 ? (
+              <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+                {stats.skills.slice(0, 6).map((skill) => (
+                  <li
+                    key={`${skill.kind}:${skill.name}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/60">
+                        <CentralIcon
+                          name={skill.kind === "agent" ? "group-1" : SKILL_ICON_NAME}
+                          className="size-3"
+                        />
+                      </span>
+                      <span className="truncate text-sm">{skill.displayName}</span>
                     </span>
-                    <span className="truncate text-sm">{skill.displayName}</span>
-                  </span>
-                  <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-                    {formatNumber(skill.runCount)} runs
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No skills or agents used yet.</p>
-          )}
-        </section>
+                    <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                      {formatNumber(skill.runCount)} runs
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                No skills or agents used yet.
+              </p>
+            )}
+          </SettingsCard>
+        </SettingsSectionShell>
       </div>
 
       {/* Model usage */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-medium">Model usage</h3>
-        {modelUsage.entries.length > 0 ? (
-          <ul className="grid grid-cols-1 gap-x-12 gap-y-3 sm:grid-cols-2">
-            {modelUsage.entries.slice(0, 6).map((entry) => (
-              <ModelUsageRow
-                key={`${entry.provider}:${entry.model}`}
-                provider={entry.provider}
-                model={entry.model}
-                percent={entry.percent}
-              />
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">No model activity yet.</p>
-        )}
-      </section>
+      <SettingsSectionShell title="Model usage">
+        <SettingsCard>
+          {modelUsage.entries.length > 0 ? (
+            <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+              {modelUsage.entries.slice(0, 6).map((entry) => (
+                <ModelUsageRow
+                  key={`${entry.provider}:${entry.model}`}
+                  provider={entry.provider}
+                  model={entry.model}
+                  percent={entry.percent}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-6 text-sm text-muted-foreground">No model activity yet.</p>
+          )}
+        </SettingsCard>
+      </SettingsSectionShell>
 
       <ShareDialog
         stats={stats}
@@ -307,9 +316,9 @@ function StatTile({ label, value }: { label: string; value: string | null }) {
 
 function InsightRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="shrink-0 text-sm text-muted-foreground">{label}</dt>
-      <dd className="truncate text-sm font-normal tabular-nums" title={value}>
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <dt className="min-w-0 text-xs text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 truncate text-xs font-normal tabular-nums" title={value}>
         {value}
       </dd>
     </div>
@@ -368,7 +377,7 @@ function ModelUsageRow({
   percent: number;
 }) {
   return (
-    <li className="flex flex-col gap-1.5">
+    <li className="flex flex-col gap-1.5 px-4 py-3">
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="flex min-w-0 items-center gap-2">
           {provider !== "unknown" ? (

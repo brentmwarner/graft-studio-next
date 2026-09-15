@@ -15,7 +15,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "pack:linux-x64": "node scripts/pack-linux-x64.ts"
+    "pack:linux-x64": "bun scripts/pack-linux-x64.ts"
   },
   "dependencies": {
     "@graft/desktop-contract": "workspace:*",

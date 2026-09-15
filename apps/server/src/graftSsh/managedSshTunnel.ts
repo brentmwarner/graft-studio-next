@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { spawnProcess } from "@synara/shared/processRuntime";
+import { signalOwnedChildProcess } from "../platform/processTreeController";
 import { createServer } from "node:net";
 import {
   GRAFT_DESKTOP_ENDPOINTS,
@@ -12,9 +13,11 @@ import { SshRemoteError } from "./sshRemoteTypes";
 export type SshTunnelState = "connecting" | "connected" | "reconnecting" | "closed" | "failed";
 
 export interface TunnelProcess {
-  stderr: NodeJS.ReadableStream;
+  stderr: NodeJS.ReadableStream | null;
+  readonly pid?: number | undefined;
   exitCode: number | null;
   killed: boolean;
+  on(event: "error", listener: (error: Error) => void): this;
   once(event: "error", listener: (error: Error) => void): this;
   once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
   kill(signal?: NodeJS.Signals): boolean;
@@ -51,9 +54,8 @@ async function reserveLoopbackPort(): Promise<number> {
 }
 
 function spawnOpenSsh(executable: string, arguments_: readonly string[]): TunnelProcess {
-  return spawn(executable, [...arguments_], {
+  return spawnProcess(executable, arguments_, {
     stdio: ["ignore", "ignore", "pipe"],
-    windowsHide: true,
   });
 }
 
@@ -81,6 +83,8 @@ export class ManagedSshTunnel {
   private readonly reconnectDelaysMs: readonly number[];
   private child: TunnelProcess | null = null;
   private closing = false;
+  private closePromise: Promise<void> | null = null;
+  private readonly exitedProcesses = new WeakSet<TunnelProcess>();
   private currentState: SshTunnelState = "closed";
   private stderr = "";
   private reconnectPromise: Promise<void> | null = null;
@@ -120,22 +124,32 @@ export class ManagedSshTunnel {
   }
 
   async close(): Promise<void> {
-    if (this.closing) return;
+    if (this.closePromise) return this.closePromise;
     this.closing = true;
     const child = this.child;
-    this.child = null;
-    if (child && child.exitCode === null && !child.killed) child.kill("SIGTERM");
-    await this.reconnectPromise?.catch(() => undefined);
-    this.setState("closed");
+    this.closePromise = (async () => {
+      if (child) await this.stopProcess(child);
+      if (this.child === child) this.child = null;
+      await this.reconnectPromise?.catch(() => undefined);
+      this.setState("closed");
+    })().catch((error: unknown) => {
+      this.closePromise = null;
+      throw error;
+    });
+    return this.closePromise;
   }
 
   private async openProcess(): Promise<void> {
+    if (this.closing)
+      throw new SshRemoteError("connection_closed", "SSH connection is closed.", false);
     this.stderr = "";
     const child = this.spawnProcess(this.options.sshExecutable ?? "ssh", [
       "-N",
       "-T",
       "-o",
       "BatchMode=yes",
+      "-o",
+      "ConnectTimeout=10",
       "-o",
       "RequestTTY=no",
       "-o",
@@ -150,24 +164,31 @@ export class ManagedSshTunnel {
       this.options.target,
     ]);
     this.child = child;
-    child.stderr.on("data", (chunk) => {
+    child.stderr?.on("data", (chunk) => {
       this.stderr = `${this.stderr}${String(chunk)}`.slice(-16_384);
     });
     const exited = new Promise<never>((_resolveExit, rejectExit) => {
-      child.once("error", (error) => rejectExit(error));
+      child.on("error", (error) => {
+        // A failed spawn has no process to reap. A running child's error (for
+        // example, a failed kill) does not prove that it has exited.
+        if (child.pid === undefined) this.exitedProcesses.add(child);
+        rejectExit(error);
+      });
       child.once("exit", () => {
+        this.exitedProcesses.add(child);
         rejectExit(classifySshFailure(this.stderr));
         if (this.child === child) this.handleUnexpectedExit();
       });
     });
-    const ready = this.waitUntilReady();
+    const readiness = new AbortController();
+    const ready = this.waitUntilReady(readiness.signal);
     try {
       await Promise.race([ready, exited]);
       if (this.child !== child) throw new Error("SSH tunnel process changed while opening");
       this.setState("connected");
     } catch (error) {
       if (this.child === child) this.child = null;
-      if (child.exitCode === null && !child.killed) child.kill("SIGTERM");
+      await this.stopProcess(child);
       if (error instanceof SshRemoteError) throw error;
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") {
@@ -178,12 +199,46 @@ export class ManagedSshTunnel {
         );
       }
       throw new SshRemoteError("tunnel_failed", "The SSH tunnel could not be established", true);
+    } finally {
+      readiness.abort();
     }
   }
 
-  private async waitUntilReady(): Promise<void> {
+  private async stopProcess(child: TunnelProcess): Promise<void> {
+    if (this.exitedProcesses.has(child) || child.exitCode !== null) return;
+    await new Promise<void>((resolve, reject) => {
+      const forceKill = setTimeout(() => signalOwnedChildProcess(child, "SIGKILL"), 1_000);
+      const deadline = setTimeout(() => {
+        clearTimeout(forceKill);
+        reject(
+          new SshRemoteError(
+            "connection_closed",
+            "The SSH process did not exit after disconnecting.",
+            true,
+          ),
+        );
+      }, 5_000);
+      child.once("exit", () => {
+        clearTimeout(forceKill);
+        clearTimeout(deadline);
+        resolve();
+      });
+      child.once("error", () => {
+        if (child.pid === undefined) {
+          clearTimeout(forceKill);
+          clearTimeout(deadline);
+          resolve();
+        }
+      });
+      signalOwnedChildProcess(child, "SIGTERM");
+    });
+  }
+
+  private async waitUntilReady(signal: AbortSignal): Promise<void> {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
+      if (signal.aborted || this.closing)
+        throw new SshRemoteError("connection_closed", "SSH connection is closed.", false);
       const health = await this.healthProbe(this.localPort);
       if (health?.environmentId === this.options.expectedEnvironmentId) return;
       await delay(100);

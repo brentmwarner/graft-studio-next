@@ -39,6 +39,8 @@ export class SshRemoteConnectionManager {
   private readonly activeConnections = new Map<string, SshRemoteConnection>();
   private readonly connecting = new Map<string, Promise<SshRemoteConnection>>();
   private readonly closing = new Map<string, Promise<void>>();
+  private readonly attempts = new Map<string, AbortController>();
+  private disposed = false;
 
   constructor(private readonly options: SshRemoteConnectionManagerOptions) {
     this.installer = new SshHostInstaller({
@@ -73,14 +75,6 @@ export class SshRemoteConnectionManager {
   }
 
   async deleteMachine(id: string): Promise<boolean> {
-    const activeConnection = this.activeConnections.get(id);
-    if (activeConnection) {
-      try {
-        await this.revokeSession(activeConnection.routes.httpBaseUrl, activeConnection.bearer);
-      } catch {
-        // Remote revoke is best-effort so an unreachable host can still be removed.
-      }
-    }
     await this.disconnect(id);
     const deleted = this.options.machineStore.delete(id);
     if (!deleted) return false;
@@ -91,31 +85,47 @@ export class SshRemoteConnectionManager {
   }
 
   async connect(machineId: string): Promise<SshRemoteConnection> {
+    if (this.disposed)
+      throw new SshRemoteError("connection_closed", "SSH connections are closed.", false);
     const inFlight = this.connecting.get(machineId);
     if (inFlight) return inFlight;
     const existing = this.activeConnections.get(machineId);
     if (existing && !this.closing.has(machineId)) return existing;
 
-    const pending = this.establishConnection(machineId).finally(() => {
+    const controller = new AbortController();
+    this.attempts.set(machineId, controller);
+    const pending = this.establishConnection(machineId, controller.signal).finally(() => {
       if (this.connecting.get(machineId) === pending) {
         this.connecting.delete(machineId);
+        this.attempts.delete(machineId);
       }
     });
     this.connecting.set(machineId, pending);
     return pending;
   }
 
-  private async establishConnection(machineId: string): Promise<SshRemoteConnection> {
-    await this.disconnect(machineId);
+  private async establishConnection(
+    machineId: string,
+    signal: AbortSignal,
+  ): Promise<SshRemoteConnection> {
+    const checkCancelled = () => {
+      if (signal.aborted)
+        throw new SshRemoteError("connection_closed", "SSH connection was cancelled.", false);
+    };
+    await this.closing.get(machineId);
+    checkCancelled();
     const originalMachine = this.options.machineStore.get(machineId);
     if (!originalMachine) throw new Error("SSH machine does not exist");
     const resolvedTarget = await resolveSshTarget(originalMachine.sshTarget, {
+      signal,
       ...(this.options.sshExecutable === undefined
         ? {}
         : { sshExecutable: this.options.sshExecutable }),
       ...(this.options.commandRunner === undefined ? {} : { runner: this.options.commandRunner }),
     });
-    const bootstrap = await this.installer.bootstrap(resolvedTarget.target);
+    checkCancelled();
+    const bootstrap = await this.installer.bootstrap(resolvedTarget.target, signal);
+    checkCancelled();
     const createTunnel = this.options.createTunnel ?? ((options) => new ManagedSshTunnel(options));
     const tunnel = createTunnel({
       target: resolvedTarget.target,
@@ -125,13 +135,19 @@ export class SshRemoteConnectionManager {
         ? {}
         : { sshExecutable: this.options.sshExecutable }),
     });
+    const cancelTunnel = () => {
+      void tunnel.close().catch(() => undefined);
+    };
+    signal.addEventListener("abort", cancelTunnel, { once: true });
     try {
+      checkCancelled();
       const localPort = await tunnel.start();
+      checkCancelled();
       const httpBaseUrl = `http://127.0.0.1:${localPort}`;
       const health = GraftDesktopHealthSchema.parse(
         await (
           await fetch(`${httpBaseUrl}${GRAFT_DESKTOP_ENDPOINTS.health}`, {
-            signal: AbortSignal.timeout(2_000),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(2_000)]),
           })
         ).json(),
       );
@@ -145,7 +161,12 @@ export class SshRemoteConnectionManager {
       const priorBearer = originalMachine.secretAccountKey
         ? this.options.secretStore.get(originalMachine.secretAccountKey)
         : null;
-      const enrollment = await this.enroll(httpBaseUrl, bootstrap.enrollmentToken);
+      checkCancelled();
+      const enrollment = await this.enroll(httpBaseUrl, bootstrap.enrollmentToken, signal);
+      if (signal.aborted) {
+        await this.revokeSession(httpBaseUrl, enrollment.bearer);
+        checkCancelled();
+      }
       const secretAccountKey = `desktop-host:${machineId}:${enrollment.session.sessionId}`;
       try {
         this.options.secretStore.set(secretAccountKey, enrollment.bearer);
@@ -168,6 +189,7 @@ export class SshRemoteConnectionManager {
       }
       let machine: SavedSshMachine;
       try {
+        checkCancelled();
         machine = this.options.machineStore.recordConnection({
           machineId,
           resolvedTarget,
@@ -190,11 +212,11 @@ export class SshRemoteConnectionManager {
         httpBaseUrl,
         wsUrl: `ws://127.0.0.1:${localPort}${GRAFT_DESKTOP_ENDPOINTS.socket}`,
       };
-      let closed = false;
+      let closePromise: Promise<void> | null = null;
       let connection!: SshRemoteConnection;
       const unsubscribeTunnel = tunnel.onState((state) => {
         if (state === "failed" || state === "closed") {
-          void connection.close();
+          void connection.close().catch(() => undefined);
         }
       });
       connection = {
@@ -216,16 +238,22 @@ export class SshRemoteConnectionManager {
         routes,
         close: async () => {
           unsubscribeTunnel();
-          if (closed) return this.closing.get(machineId);
-          closed = true;
-          const closing = tunnel.close().finally(() => {
-            if (this.activeConnections.get(machineId) === connection) {
-              this.activeConnections.delete(machineId);
-            }
-            if (this.closing.get(machineId) === closing) {
-              this.closing.delete(machineId);
-            }
-          });
+          if (closePromise) return closePromise;
+          const closing = tunnel
+            .close()
+            .then(() => {
+              if (this.activeConnections.get(machineId) === connection) {
+                this.activeConnections.delete(machineId);
+              }
+              if (this.closing.get(machineId) === closing) {
+                this.closing.delete(machineId);
+              }
+            })
+            .catch((error: unknown) => {
+              closePromise = null;
+              throw error;
+            });
+          closePromise = closing;
           this.closing.set(machineId, closing);
           await closing;
         },
@@ -234,15 +262,30 @@ export class SshRemoteConnectionManager {
       return connection;
     } catch (error) {
       await tunnel.close();
+      checkCancelled();
       throw error;
+    } finally {
+      signal.removeEventListener("abort", cancelTunnel);
     }
   }
 
   async disconnect(machineId: string): Promise<void> {
-    await this.activeConnections.get(machineId)?.close();
+    this.attempts.get(machineId)?.abort();
+    await this.connecting.get(machineId)?.catch(() => undefined);
+    const connection = this.activeConnections.get(machineId);
+    if (!connection) return;
+    try {
+      await this.revokeSession(connection.routes.httpBaseUrl, connection.bearer);
+    } catch {
+      // Remote revoke is best-effort so an unreachable host can still disconnect.
+    }
+    await connection.close();
   }
 
   async closeAll(): Promise<void> {
+    this.disposed = true;
+    for (const controller of this.attempts.values()) controller.abort();
+    await Promise.allSettled(this.connecting.values());
     await Promise.allSettled(
       [...this.activeConnections.values()].map((connection) => connection.close()),
     );
@@ -252,6 +295,7 @@ export class SshRemoteConnectionManager {
   private async enroll(
     httpBaseUrl: string,
     enrollmentToken: string,
+    signal: AbortSignal,
   ): Promise<GraftDesktopEnrollmentResponse> {
     let response: Response;
     try {
@@ -266,7 +310,7 @@ export class SshRemoteConnectionManager {
           clientVersion: this.options.clientVersion,
           capabilities: GRAFT_DESKTOP_CAPABILITIES,
         }),
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
       });
     } catch {
       throw new SshRemoteError(

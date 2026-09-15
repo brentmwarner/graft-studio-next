@@ -7,7 +7,15 @@
 import { type GitHubProjectProvisionProgressEvent, type SpaceId } from "@synara/contracts";
 import { parseGitHubRepositoryInput } from "@synara/shared/githubRepository";
 import { normalizeProjectDirectoryName } from "@synara/shared/projectDirectoryName";
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { isElectron } from "../env";
 import { useWindowFolderDrop } from "../hooks/useWindowFolderDrop";
@@ -19,6 +27,7 @@ import { joinProjectPath } from "../lib/projectPaths";
 import type { Space } from "../types";
 import { useVoidSpace } from "../voidSpaceStore";
 import { cn } from "~/lib/utils";
+import type { GraftSshMachineSummary } from "~/graftConnections";
 
 import { FolderClosed } from "./FolderClosed";
 import {
@@ -43,6 +52,7 @@ import { ComposerPickerSelectPopup } from "./chat/ComposerPickerMenuPopup";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group";
 import { Select, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { CentralIcon } from "~/lib/central-icons";
+import { SourceFolderDialog } from "./SourceFolderDialog";
 
 interface CreateLocalProjectSubmitValue {
   readonly source: "local";
@@ -72,6 +82,9 @@ export interface CreateProjectSubmitOptions {
 
 export function CreateProjectDialog(props: {
   open: boolean;
+  computerPicker?: ReactNode;
+  remoteMachine?: GraftSshMachineSummary;
+  folderAction?: ReactNode;
   githubProvisioningAvailable: boolean;
   spaces: ReadonlyArray<Space>;
   activeSpaceId: SpaceId | null;
@@ -101,6 +114,7 @@ export function CreateProjectDialog(props: {
    */
   const [createdSpace, setCreatedSpace] = useState<Space | null>(null);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
+  const [folderBrowserOpen, setFolderBrowserOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const openedRef = useRef(false);
@@ -135,6 +149,7 @@ export function CreateProjectDialog(props: {
     setSpaceEditorOpen(false);
     setCreatedSpace(null);
     setIsPickingFolder(false);
+    setFolderBrowserOpen(false);
     setSubmitting(false);
     setFormError(null);
     // Deferred a frame: the dialog moves focus itself on open, so focusing the
@@ -197,6 +212,10 @@ export function CreateProjectDialog(props: {
 
   const handleBrowse = async () => {
     if (isPickingFolder || submitting) return;
+    if (source === "local" && (props.remoteMachine || !isElectron)) {
+      setFolderBrowserOpen(true);
+      return;
+    }
     const api = readNativeApi();
     if (!api) {
       setFormError("The app server is unavailable.");
@@ -219,7 +238,7 @@ export function CreateProjectDialog(props: {
   // While the dialog is open it is the only interactive surface, so a folder dropped
   // anywhere in the window counts (see useWindowFolderDrop).
   const isDropTarget = useWindowFolderDrop({
-    enabled: props.open && isElectron && source === "local",
+    enabled: props.open && isElectron && source === "local" && !props.remoteMachine,
     onFolder: applyPickedFolder,
     onError: setFormError,
   });
@@ -229,7 +248,7 @@ export function CreateProjectDialog(props: {
     // The confirm button stays enabled (and white) like the reference dialog;
     // an empty submit explains what is missing instead of being unclickable.
     if (source === "local" && trimmedPath.length === 0) {
-      setFormError("Type a folder path, or drop a folder above.");
+      setFormError("Choose a source folder or enter a folder path.");
       return;
     }
     if (source === "github" && !parsedRepository) {
@@ -308,6 +327,7 @@ export function CreateProjectDialog(props: {
   };
 
   const handleOpenChange = (open: boolean) => {
+    if (props.remoteMachine && submitting) return;
     if (!open) submitAbortRef.current?.abort();
     props.onOpenChange(open);
   };
@@ -347,26 +367,33 @@ export function CreateProjectDialog(props: {
           <DialogTitle>Create project</DialogTitle>
         </DialogHeader>
         <DialogPanel className="space-y-4 px-5">
-          <ProjectSourceSegmentedPicker
-            className="mt-4"
-            value={source}
-            disabled={submitting}
-            githubAvailable={props.githubProvisioningAvailable}
-            onValueChange={(nextSource) => {
-              setSource(nextSource);
-              setFormError(null);
-              setProvisionProgress(null);
-              requestAnimationFrame(() =>
-                document
-                  .getElementById(nextSource === "local" ? pathInputId : repositoryInputId)
-                  ?.focus(),
-              );
-            }}
-          />
+          {!props.remoteMachine ? (
+            <ProjectSourceSegmentedPicker
+              className="mt-4"
+              value={source}
+              disabled={submitting}
+              githubAvailable={props.githubProvisioningAvailable}
+              onValueChange={(nextSource) => {
+                setSource(nextSource);
+                setFormError(null);
+                setProvisionProgress(null);
+                requestAnimationFrame(() =>
+                  document
+                    .getElementById(nextSource === "local" ? pathInputId : repositoryInputId)
+                    ?.focus(),
+                );
+              }}
+            />
+          ) : null}
 
           {source === "local" ? (
             <>
-              <InputGroup className={PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME}>
+              <InputGroup
+                className={cn(
+                  PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME,
+                  props.remoteMachine && "mt-4",
+                )}
+              >
                 <InputGroupAddon className="w-10 self-stretch border-e border-foreground/12 ps-0">
                   <FolderClosed className="size-4 text-muted-foreground/70" aria-hidden="true" />
                 </InputGroupAddon>
@@ -388,45 +415,68 @@ export function CreateProjectDialog(props: {
                 />
               </InputGroup>
 
-              {isElectron ? (
-                <div className="space-y-2">
-                  <span
-                    id={sourceFolderLabelId}
-                    className={cn(
-                      "block",
-                      dialogFieldLabelClassName,
-                      "text-[length:var(--app-font-size-ui,12px)] text-foreground",
+              <fieldset disabled={isPickingFolder || submitting} className="space-y-2">
+                <legend id={sourceFolderLabelId} className="mb-2 text-[13px] text-foreground">
+                  Source folders
+                </legend>
+                <div
+                  className={cn(
+                    "flex min-h-[104px] flex-col items-center justify-center gap-3 rounded-xl border border-border px-4 py-5",
+                    isDropTarget && "border-ring bg-muted",
+                  )}
+                >
+                  <div className="flex max-w-full items-center justify-center gap-1 text-[13px]">
+                    {props.computerPicker ?? (
+                      <>
+                        <span className="shrink-0 text-muted-foreground">Add a folder on</span>
+                        <span className="truncate">
+                          {props.remoteMachine?.label ?? "this computer"}
+                        </span>
+                      </>
                     )}
-                  >
-                    Source folder
-                  </span>
-                  <button
-                    type="button"
-                    aria-labelledby={sourceFolderLabelId}
-                    disabled={isPickingFolder || submitting}
-                    className={cn(
-                      "flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-xl border border-foreground/12 px-3.5 text-start text-[length:var(--app-font-size-ui,12px)] text-[var(--color-text-foreground)] transition-colors outline-none hover:bg-foreground/4 focus-visible:border-foreground/30 disabled:opacity-50",
-                      isDropTarget &&
-                        "border-[color:var(--color-border-focus)] bg-foreground/6 text-[var(--color-text-foreground)]",
-                    )}
-                    onClick={() => void handleBrowse()}
-                  >
-                    <CentralIcon name="folder-add-left" className="size-4.5" aria-hidden="true" />
-                    {isPickingFolder ? (
-                      "Opening the folder picker…"
-                    ) : pickedFolderName ? (
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate">{pickedFolderName}</span>
-                        <span className="truncate text-[length:var(--app-font-size-ui-xs,10px)] text-muted-foreground/70">
+                  </div>
+                  {pickedFolderName ? (
+                    <div className="flex w-full min-w-0 items-center gap-2 rounded-lg bg-muted/60 px-3 py-2">
+                      <FolderClosed className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 text-[13px]">
+                        <span className="block truncate">{pickedFolderName}</span>
+                        <span
+                          className="block truncate text-xs text-muted-foreground"
+                          title={pickedPath ?? undefined}
+                        >
                           {pickedPath}
                         </span>
                       </span>
-                    ) : (
-                      "Drop a folder here, or browse"
-                    )}
-                  </button>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Remove source folder"
+                        onClick={() => {
+                          setPath("");
+                          setPickedPath(null);
+                        }}
+                      >
+                        <CentralIcon name="cross-small" className="size-3.5" />
+                      </Button>
+                    </div>
+                  ) : null}
+                  {props.folderAction ?? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      shape="capsule"
+                      size="sm"
+                      aria-label={pickedFolderName ? "Change source folder" : "Add source folder"}
+                      disabled={props.remoteMachine ? !props.remoteMachine.connected : false}
+                      onClick={() => void handleBrowse()}
+                    >
+                      <CentralIcon name="folder-add-left" className="size-4" aria-hidden="true" />
+                      {isPickingFolder ? "Opening…" : pickedFolderName ? "Change" : "Add"}
+                    </Button>
+                  )}
                 </div>
-              ) : null}
+              </fieldset>
             </>
           ) : (
             <CreateGitHubProjectFields
@@ -465,67 +515,69 @@ export function CreateProjectDialog(props: {
             />
           )}
 
-          <div className="space-y-2">
-            <span
-              id={spaceLabelId}
-              className={cn(
-                "block",
-                dialogFieldLabelClassName,
-                "text-[length:var(--app-font-size-ui,12px)] text-foreground",
-              )}
-            >
-              Space
-            </span>
-            <div className="flex items-center gap-2">
-              <Select
-                value={selectedSpaceKey}
-                onValueChange={(next) => {
-                  if (typeof next === "string") setSelectedSpaceKey(next);
-                }}
+          {!props.remoteMachine ? (
+            <div className="space-y-2">
+              <span
+                id={spaceLabelId}
+                className={cn(
+                  "block",
+                  dialogFieldLabelClassName,
+                  "text-[length:var(--app-font-size-ui,12px)] text-foreground",
+                )}
               >
-                <SelectTrigger
-                  aria-labelledby={spaceLabelId}
-                  className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "min-w-0 flex-1")}
+                Space
+              </span>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={selectedSpaceKey}
+                  onValueChange={(next) => {
+                    if (typeof next === "string") setSelectedSpaceKey(next);
+                  }}
                 >
-                  <SelectValue>
-                    <span className="flex items-center gap-2">
-                      <SpaceIcon
-                        icon={selectedSpace?.icon ?? voidSpace.icon}
-                        className="size-3.5"
-                      />
-                      {selectedSpace?.name ?? voidSpace.name}
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <ComposerPickerSelectPopup align="start">
-                  <SelectItem value={VOID_SPACE_KEY}>
-                    <span className="flex items-center gap-2">
-                      <SpaceIcon icon={voidSpace.icon} className="size-3.5" />
-                      {voidSpace.name}
-                    </span>
-                  </SelectItem>
-                  {spaces.map((space) => (
-                    <SelectItem key={space.id} value={space.id}>
+                  <SelectTrigger
+                    aria-labelledby={spaceLabelId}
+                    className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "min-w-0 flex-1")}
+                  >
+                    <SelectValue>
                       <span className="flex items-center gap-2">
-                        <SpaceIcon icon={space.icon} className="size-3.5" />
-                        {space.name}
+                        <SpaceIcon
+                          icon={selectedSpace?.icon ?? voidSpace.icon}
+                          className="size-3.5"
+                        />
+                        {selectedSpace?.name ?? voidSpace.name}
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <ComposerPickerSelectPopup align="start">
+                    <SelectItem value={VOID_SPACE_KEY}>
+                      <span className="flex items-center gap-2">
+                        <SpaceIcon icon={voidSpace.icon} className="size-3.5" />
+                        {voidSpace.name}
                       </span>
                     </SelectItem>
-                  ))}
-                </ComposerPickerSelectPopup>
-              </Select>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="New space"
-                disabled={submitting}
-                className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "w-9 shrink-0 sm:h-9")}
-                onClick={() => setSpaceEditorOpen(true)}
-              >
-                <CentralIcon name="plus-medium" className="size-4" aria-hidden="true" />
-              </Button>
+                    {spaces.map((space) => (
+                      <SelectItem key={space.id} value={space.id}>
+                        <span className="flex items-center gap-2">
+                          <SpaceIcon icon={space.icon} className="size-3.5" />
+                          {space.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </ComposerPickerSelectPopup>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="New space"
+                  disabled={submitting}
+                  className={cn(PROJECT_DIALOG_FIELD_CONTROL_CLASS_NAME, "w-9 shrink-0 sm:h-9")}
+                  onClick={() => setSpaceEditorOpen(true)}
+                >
+                  <CentralIcon name="plus-medium" className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {formError ? (
             <div id={errorId} role="alert" className="space-y-1">
@@ -555,7 +607,7 @@ export function CreateProjectDialog(props: {
             variant="prominent"
             className="px-4 text-[length:var(--app-font-size-ui-lg,13px)] transition-opacity hover:scale-100 sm:text-[length:var(--app-font-size-ui-lg,13px)]"
             onClick={() => void submit()}
-            disabled={submitting}
+            disabled={submitting || (props.remoteMachine ? !props.remoteMachine.connected : false)}
           >
             {submitting
               ? source === "github"
@@ -566,6 +618,14 @@ export function CreateProjectDialog(props: {
                 : "Create project"}
           </Button>
         </DialogFooter>
+        {folderBrowserOpen ? (
+          <SourceFolderDialog
+            {...(props.remoteMachine ? { machine: props.remoteMachine } : {})}
+            open
+            onOpenChange={setFolderBrowserOpen}
+            onSelect={applyPickedFolder}
+          />
+        ) : null}
         <SpaceEditorDialog
           open={spaceEditorOpen}
           mode="create"

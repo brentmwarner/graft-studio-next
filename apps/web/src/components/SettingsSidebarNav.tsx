@@ -135,6 +135,7 @@ export function SettingsSidebarNav(props: {
 
       <div className="mb-3 px-1">
         <SearchInput
+          className="border-0 bg-muted has-focus-visible:ring-1 has-focus-visible:ring-ring dark:bg-foreground/4"
           value={query}
           spellCheck={false}
           autoCorrect="off"

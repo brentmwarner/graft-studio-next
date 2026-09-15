@@ -213,8 +213,9 @@ export function ModelsSettingsPanel({
     <div
       key={row.key}
       className={cn(
-        "group grid grid-cols-[minmax(5rem,6rem)_minmax(0,1fr)_auto] items-center gap-3 border-t border-[color:var(--color-border)] px-4 py-2",
-        removeFirstBorder && "first:border-t-0",
+        "group grid grid-cols-[minmax(5rem,6rem)_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2",
+        SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME,
+        removeFirstBorder && "first:before:hidden",
       )}
     >
       <span className="truncate text-xs text-muted-foreground">{row.providerTitle}</span>
