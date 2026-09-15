@@ -19,9 +19,9 @@ import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ComposerAttachMenu } from "./ComposerAttachMenu";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
+import { COMPOSER_ATTACHMENTS_SUPPORTED, type ComposerAttachment } from "./composerAttachments";
 import { displayName } from "./displayName";
 import { useComposerAttachments } from "./useComposerAttachments";
-import type { ComposerAttachment } from "./composerAttachments";
 
 type TrailingMode = "idle" | "send" | "stop" | "stop-and-send";
 
@@ -141,7 +141,7 @@ export function Composer({
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const attach = useComposerAttachments();
   const hasDraft = Boolean(draft.trim());
-  const hasAttachments = attach.attachments.length > 0;
+  const hasAttachments = COMPOSER_ATTACHMENTS_SUPPORTED && attach.attachments.length > 0;
 
   let trailingMode: TrailingMode = "idle";
   if (activeRunId) {
@@ -240,17 +240,18 @@ export function Composer({
         ) : null}
       </View>
 
-      {attach.error ? (
-        <Text style={[styles.attachError, { color: palette.danger }]}>{attach.error}</Text>
-      ) : null}
-      {hasAttachments ? (
-        <AttachmentStrip attachments={attach.attachments} onRemove={attach.remove} />
-      ) : null}
-
       <View style={styles.composerRow}>
-        <FloatingSurface style={styles.addButton}>
-          <ComposerAttachMenu attach={attach} />
-        </FloatingSurface>
+        <ComposerConfigMenu
+          config={menuConfig}
+          initialPage="options"
+          trigger={(open) => (
+            <PressScale accessibilityLabel="Composer options" onPress={open}>
+              <FloatingSurface style={styles.addButton}>
+                <Ionicons color={palette.foreground} name="add" size={28} />
+              </FloatingSurface>
+            </PressScale>
+          )}
+        />
 
         <FloatingSurface
           style={[
@@ -415,10 +416,10 @@ function IosComposer({
           },
         ]}
       >
-        {attach.error ? (
+        {COMPOSER_ATTACHMENTS_SUPPORTED && attach.error ? (
           <Text style={[iosStyles.attachError, { color: palette.danger }]}>{attach.error}</Text>
         ) : null}
-        {hasAttachments ? (
+        {COMPOSER_ATTACHMENTS_SUPPORTED && hasAttachments ? (
           <AttachmentStrip attachments={attach.attachments} onRemove={attach.remove} />
         ) : null}
         <TextInput
@@ -437,7 +438,7 @@ function IosComposer({
         />
         {expanded ? (
           <View style={iosStyles.controls}>
-            <ComposerAttachMenu attach={attach} compact />
+            {COMPOSER_ATTACHMENTS_SUPPORTED ? <ComposerAttachMenu attach={attach} compact /> : null}
             {permissions}
             <View style={iosStyles.grow} />
             {modelTrigger}
@@ -530,7 +531,6 @@ const iosStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  attachError: { fontSize: 12, paddingHorizontal: 4 },
   dock: { gap: 7 },
   chipRow: {
     alignItems: "center",

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { ditherWaveCanvas, ditherWaveSurface, ditherWaveTime } from "./ditherWave";
+import {
+  ditherWaveCanvas,
+  ditherWaveInputKey,
+  ditherWaveSurface,
+  ditherWaveTime,
+  shouldContinueDitherWaveLoop,
+} from "./ditherWave";
 
 describe("ditherWave", () => {
   it("uses the native 60 Hz UnicornStudio time units", () => {
@@ -13,5 +19,27 @@ describe("ditherWave", () => {
     expect(ditherWaveSurface(false)).toBeCloseTo(252 / 255);
     expect(ditherWaveCanvas(true)).toBeCloseTo(23 / 255);
     expect(ditherWaveCanvas(false)).toBe(1);
+  });
+
+  it("stops the continuous wave loop when Reduce Motion is on", () => {
+    expect(shouldContinueDitherWaveLoop(false)).toBe(true);
+    expect(shouldContinueDitherWaveLoop(true)).toBe(false);
+    expect(
+      ditherWaveInputKey({
+        dark: true,
+        hasGlyphs: false,
+        height: 800,
+        reduceMotion: true,
+        width: 400,
+      }),
+    ).not.toEqual(
+      ditherWaveInputKey({
+        dark: false,
+        hasGlyphs: true,
+        height: 800,
+        reduceMotion: true,
+        width: 400,
+      }),
+    );
   });
 });

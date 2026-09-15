@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 import {
   attachmentNameFromUri,
   canAddAttachments,
+  imageDataUri,
   remainingAttachmentSlots,
   type ComposerAttachment,
 } from "./composerAttachments";
@@ -103,7 +104,7 @@ export function useComposerAttachments(): ComposerAttachmentState {
       setError("Nothing to paste.");
       return;
     }
-    append([nextAttachment(image.data, "image/jpeg", "Pasted photo")]);
+    append([nextAttachment(imageDataUri(image.data), "image/jpeg", "Pasted photo")]);
   }, [append, attachments.length]);
 
   const remove = useCallback((id: string) => {

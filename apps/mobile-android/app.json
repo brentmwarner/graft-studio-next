@@ -14,6 +14,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Graft to scan a pairing QR code or take a photo to attach.",
         "NSPhotoLibraryUsageDescription": "Allow Graft to attach photos from your library.",
+        "NSLocalNetworkUsageDescription": "Connect directly to Graft Studio running on your Mac over your local network.",
         "CADisableMinimumFrameDurationOnPhone": true
       }
     },

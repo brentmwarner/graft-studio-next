@@ -4,6 +4,20 @@ export function ditherWaveTime(elapsedSeconds: number, reduceMotion: boolean): n
   return reduceMotion ? 0 : elapsedSeconds * 60 * 0.11;
 }
 
+export function shouldContinueDitherWaveLoop(reduceMotion: boolean): boolean {
+  return !reduceMotion;
+}
+
+export function ditherWaveInputKey(input: {
+  readonly dark: boolean;
+  readonly reduceMotion: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly hasGlyphs: boolean;
+}): string {
+  return `${input.dark ? 1 : 0}|${input.reduceMotion ? 1 : 0}|${input.width}x${input.height}|${input.hasGlyphs ? 1 : 0}`;
+}
+
 export function ditherWaveSurface(dark: boolean): number {
   return dark ? 14 / 255 : 252 / 255;
 }

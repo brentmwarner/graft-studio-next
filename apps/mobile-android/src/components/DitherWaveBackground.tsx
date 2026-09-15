@@ -6,8 +6,10 @@ import { AccessibilityInfo, StyleSheet, View, useColorScheme } from "react-nativ
 import {
   DITHER_WAVE_FRAGMENT,
   DITHER_WAVE_VERTEX,
+  ditherWaveInputKey,
   ditherWaveSurface,
   ditherWaveTime,
+  shouldContinueDitherWaveLoop,
 } from "../chrome/ditherWave";
 import { useGraftPalette } from "../theme/tokens";
 
@@ -47,7 +49,7 @@ async function loadGlyphTexture(gl: ExpoWebGLRenderingContext): Promise<WebGLTex
 function startRenderer(
   gl: ExpoWebGLRenderingContext,
   read: () => { dark: boolean; reduceMotion: boolean; active: boolean },
-): () => void {
+): { dispose: () => void; kick: () => void } {
   const vertex = compile(gl, gl.VERTEX_SHADER, DITHER_WAVE_VERTEX);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, DITHER_WAVE_FRAGMENT);
   const program = gl.createProgram();
@@ -77,13 +79,12 @@ function startRenderer(
   let elapsed = 0;
   let previous: number | undefined;
   let cancelled = false;
-
-  void loadGlyphTexture(gl).then((texture) => {
-    if (!cancelled) glyphs = texture;
-  });
+  let lastKey = "";
+  let looping = false;
 
   const draw = (now: number) => {
     if (cancelled) return;
+    looping = false;
     const { dark, reduceMotion, active } = read();
     if (active && !reduceMotion) {
       if (previous !== undefined) elapsed += (now - previous) / 1000;
@@ -92,33 +93,63 @@ function startRenderer(
       previous = undefined;
     }
 
-    const surface = ditherWaveSurface(dark);
-    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    gl.clearColor(surface, surface, surface, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.useProgram(program);
-    gl.uniform2f(uResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    gl.uniform1f(uTime, ditherWaveTime(elapsed, reduceMotion));
-    gl.uniform1f(uDark, dark ? 1 : 0);
-    gl.uniform1f(uHasGlyphs, glyphs ? 1 : 0);
-    if (glyphs) {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, glyphs);
-      gl.uniform1i(uGlyphs, 0);
+    const key = ditherWaveInputKey({
+      dark,
+      hasGlyphs: Boolean(glyphs),
+      height: gl.drawingBufferHeight,
+      reduceMotion,
+      width: gl.drawingBufferWidth,
+    });
+    if (!reduceMotion || key !== lastKey) {
+      lastKey = key;
+      const surface = ditherWaveSurface(dark);
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      gl.clearColor(surface, surface, surface, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.uniform2f(uResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      gl.uniform1f(uTime, ditherWaveTime(elapsed, reduceMotion));
+      gl.uniform1f(uDark, dark ? 1 : 0);
+      gl.uniform1f(uHasGlyphs, glyphs ? 1 : 0);
+      if (glyphs) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, glyphs);
+        gl.uniform1i(uGlyphs, 0);
+      }
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.endFrameEXP();
     }
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.endFrameEXP();
+
+    if (shouldContinueDitherWaveLoop(reduceMotion)) {
+      looping = true;
+      frame = requestAnimationFrame(draw);
+    }
+  };
+
+  const kick = () => {
+    if (cancelled || looping) return;
+    looping = true;
     frame = requestAnimationFrame(draw);
   };
 
-  frame = requestAnimationFrame(draw);
-  return () => {
-    cancelled = true;
-    cancelAnimationFrame(frame);
-    gl.deleteProgram(program);
-    gl.deleteShader(vertex);
-    gl.deleteShader(fragment);
-    if (glyphs) gl.deleteTexture(glyphs);
+  void loadGlyphTexture(gl).then((texture) => {
+    if (cancelled) return;
+    glyphs = texture;
+    kick();
+  });
+
+  kick();
+  return {
+    dispose: () => {
+      cancelled = true;
+      looping = false;
+      cancelAnimationFrame(frame);
+      gl.deleteProgram(program);
+      gl.deleteShader(vertex);
+      gl.deleteShader(fragment);
+      if (glyphs) gl.deleteTexture(glyphs);
+    },
+    kick,
   };
 }
 
@@ -130,9 +161,13 @@ export function DitherWaveBackground() {
   const [failed, setFailed] = useState(false);
   const dark = scheme === "dark";
   const params = useRef({ dark, reduceMotion, active: true });
-  const dispose = useRef<(() => void) | undefined>(undefined);
+  const renderer = useRef<{ dispose: () => void; kick: () => void } | undefined>(undefined);
 
   params.current = { dark, reduceMotion, active: true };
+
+  useEffect(() => {
+    renderer.current?.kick();
+  }, [dark, reduceMotion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,7 +183,7 @@ export function DitherWaveBackground() {
 
   useEffect(
     () => () => {
-      dispose.current?.();
+      renderer.current?.dispose();
     },
     [],
   );
@@ -171,8 +206,8 @@ export function DitherWaveBackground() {
       msaaSamples={0}
       onContextCreate={(gl) => {
         try {
-          dispose.current?.();
-          dispose.current = startRenderer(gl, () => params.current);
+          renderer.current?.dispose();
+          renderer.current = startRenderer(gl, () => params.current);
         } catch {
           setFailed(true);
         }
