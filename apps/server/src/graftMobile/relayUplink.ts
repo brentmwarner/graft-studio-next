@@ -115,7 +115,7 @@ export function createRelayUplink(options: {
   function schedulePing(peer: WebSocket) {
     clearTimeout(pingTimer);
     pingTimer = setTimeout(() => {
-      if (stopped || socket !== peer) return;
+      if (stopped || socket !== peer || peer.readyState !== WebSocket.OPEN) return;
       pongTimer = setTimeout(
         () => peer.terminate(),
         options.heartbeatTimeoutMs ?? HEARTBEAT_TIMEOUT_MS,
@@ -147,6 +147,14 @@ export function createRelayUplink(options: {
       reply(503, '{"error":"Host busy"}');
       return;
     }
+    let decodedBody: Buffer | undefined;
+    if (frame.bodyBase64 && !["GET", "HEAD"].includes(frame.method)) {
+      decodedBody = Buffer.from(frame.bodyBase64, "base64");
+      if (decodedBody.byteLength > MAX_BUFFER_BYTES) {
+        reply(413, '{"error":"Payload too large"}');
+        return;
+      }
+    }
     const controller = new AbortController();
     requests.add(controller);
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -155,9 +163,7 @@ export function createRelayUplink(options: {
       const response = await fetch(url, {
         method: frame.method,
         headers: relayForwardHeaders(frame.headers),
-        ...(frame.bodyBase64 && !["GET", "HEAD"].includes(frame.method)
-          ? { body: Buffer.from(frame.bodyBase64, "base64") }
-          : {}),
+        ...(decodedBody && !["GET", "HEAD"].includes(frame.method) ? { body: decodedBody } : {}),
         signal: controller.signal,
         redirect: "manual",
       });
@@ -282,9 +288,10 @@ export function createRelayUplink(options: {
       case "ws-frame": {
         const local = streams.get(frame.streamId);
         if (local?.readyState === WebSocket.OPEN) {
-          if (local.bufferedAmount > MAX_BUFFER_BYTES) local.terminate();
-          else
-            local.send(Buffer.from(frame.dataBase64, "base64"), { binary: frame.binary === true });
+          const payload = Buffer.from(frame.dataBase64, "base64");
+          if (local.bufferedAmount > MAX_BUFFER_BYTES || payload.byteLength > MAX_BUFFER_BYTES) {
+            local.terminate();
+          } else local.send(payload, { binary: frame.binary === true });
         }
         return;
       }

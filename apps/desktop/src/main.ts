@@ -3601,6 +3601,15 @@ function backendEnv(): NodeJS.ProcessEnv {
     SYNARA_AUTH_TOKEN: backendAuthToken,
     SYNARA_DESKTOP_SHUTDOWN_TOKEN: DESKTOP_BACKEND_SHUTDOWN_TOKEN,
   };
+  if (process.env.GRAFT_CONTROL_PLANE_URL) {
+    env.GRAFT_CONTROL_PLANE_URL = process.env.GRAFT_CONTROL_PLANE_URL;
+  }
+  if (process.env.GRAFT_RELAY_CREDENTIAL_FILE) {
+    env.GRAFT_RELAY_CREDENTIAL_FILE = process.env.GRAFT_RELAY_CREDENTIAL_FILE;
+  }
+  if (process.env.GRAFT_RELAY_CREDENTIAL) {
+    env.GRAFT_RELAY_CREDENTIAL = process.env.GRAFT_RELAY_CREDENTIAL;
+  }
   // Pass the existing relay credential only to the child backend. Never write a
   // decrypted copy to disk or send it through renderer IPC.
   if (!env.GRAFT_RELAY_CREDENTIAL && !env.GRAFT_RELAY_CREDENTIAL_FILE) {
@@ -3608,7 +3617,9 @@ function backendEnv(): NodeJS.ProcessEnv {
       appData: app.getPath("appData"),
       safeStorage,
       platform: process.platform,
-      ...(env.GRAFT_LEGACY_USER_DATA ? { legacyUserData: env.GRAFT_LEGACY_USER_DATA } : {}),
+      ...(process.env.GRAFT_LEGACY_USER_DATA
+        ? { legacyUserData: process.env.GRAFT_LEGACY_USER_DATA }
+        : {}),
     });
     if (relayCredential) env.GRAFT_LEGACY_RELAY_CREDENTIAL = relayCredential;
   }

@@ -141,3 +141,15 @@ it("keeps the pairing link usable when QR encoding fails", async () => {
     .toBeVisible();
   await expect.element(mounted.getByTestId("connections-pairing-url")).toBeVisible();
 });
+
+it("invokes Connect Graft account from the relay status row", async () => {
+  const onConnectRelay = vi.fn();
+  const mounted = await render(
+    <ConnectionsPanel {...handlers} status={status} onConnectRelay={onConnectRelay} />,
+  );
+
+  const connect = mounted.getByRole("button", { name: "Connect Graft account" });
+  await expect.element(connect).toBeEnabled();
+  await connect.click();
+  expect(onConnectRelay).toHaveBeenCalledOnce();
+});

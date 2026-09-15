@@ -1,13 +1,14 @@
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
-import open from "open";
 
 import {
   GraftRelayEnvironmentRegistrationSchema,
   type GraftRelayEnvironmentRegistration,
 } from "@graft/mobile-contract/relay";
+import { Effect } from "effect";
 
+import { writeFileStringAtomically } from "../atomicWrite";
+import { formatHostForUrl, isWildcardHost } from "../startupAccess";
 import { GraftAccountLoginService } from "./graftAccountLoginService";
 import { createRelayUplink, type RelayStatus } from "./relayUplink";
 import { relayNetworkEndpoint } from "./networkEndpoints";
@@ -18,6 +19,7 @@ let credentialError: string | null = null;
 let status: RelayStatus = { state: "disabled", lastError: null };
 let enabled = false;
 let runtimePort = 0;
+let runtimeBindHost: string | undefined;
 let runtimeStateDir = "";
 let controlPlaneUrl = "https://api.graftapp.io";
 let epoch = 0;
@@ -47,15 +49,23 @@ export function parseMobileRelayCredential(serialized: string): GraftRelayEnviro
   return value;
 }
 
+function localRelayHttpBaseUrl(port: number, bindHost: string | undefined): string {
+  const host =
+    bindHost === undefined || isWildcardHost(bindHost) ? "127.0.0.1" : formatHostForUrl(bindHost);
+  return `http://${host}:${port}`;
+}
+
 export function initializeMobileRelay(
   localPort: number,
   stateDir: string,
   environment = process.env,
+  bindHost?: string,
 ): void {
   stopMobileRelay();
   enabled = false;
   credential = null;
   runtimePort = localPort;
+  runtimeBindHost = bindHost;
   runtimeStateDir = stateDir;
   controlPlaneUrl = environment.GRAFT_CONTROL_PLANE_URL ?? "https://api.graftapp.io";
   const serialized = environment.GRAFT_RELAY_CREDENTIAL;
@@ -84,7 +94,7 @@ export function initializeMobileRelay(
     credential = parseMobileRelayCredential(saved);
     uplink = createRelayUplink({
       credential,
-      localHttpBaseUrl: `http://127.0.0.1:${localPort}`,
+      localHttpBaseUrl: localRelayHttpBaseUrl(localPort, bindHost),
       onStatus: (next) => {
         status = next;
       },
@@ -113,6 +123,7 @@ export function stopMobileRelay(): void {
   void login?.dispose();
   login = null;
   enabled = false;
+  runtimeBindHost = undefined;
   uplink?.stop();
   uplink = null;
   credential = null;
@@ -147,7 +158,10 @@ export async function waitForMobileRelayPairing(): Promise<void> {
 }
 
 /** Reuse Graft's existing PKCE browser sign-in; only persist the scoped uplink credential. */
-export async function connectMobileRelayAccount(label: string): Promise<void> {
+export async function connectMobileRelayAccount(
+  label: string,
+  openExternal: (url: string) => void | Promise<void>,
+): Promise<void> {
   if (!enabled || !runtimePort)
     throw new Error("Enable remote connections before connecting your Graft account.");
   const generation = ++epoch;
@@ -157,9 +171,7 @@ export async function connectMobileRelayAccount(label: string): Promise<void> {
   try {
     login = new GraftAccountLoginService({
       controlPlaneBaseUrl: controlPlaneUrl,
-      openExternal: async (url) => {
-        await open(url);
-      },
+      openExternal,
       persistToken: async (token) => {
         const response = await fetch(new URL("/relay/v1/environments", controlPlaneUrl), {
           method: "POST",
@@ -174,21 +186,19 @@ export async function connectMobileRelayAccount(label: string): Promise<void> {
         if (!response.ok) throw new Error("Graft relay registration failed.");
         const next = parseMobileRelayCredential(JSON.stringify(await response.json()));
         if (generation !== epoch || !enabled) throw new Error("Graft relay sign-in was cancelled.");
-        mkdirSync(runtimeStateDir, { recursive: true, mode: 0o700 });
-        const file = join(runtimeStateDir, "mobile-relay.json");
-        const temporary = `${file}.${randomUUID()}.tmp`;
-        try {
-          writeFileSync(temporary, JSON.stringify(next), { mode: 0o600, flag: "wx" });
-          renameSync(temporary, file);
-        } finally {
-          rmSync(temporary, { force: true });
-        }
+        await Effect.runPromise(
+          writeFileStringAtomically({
+            filePath: join(runtimeStateDir, "mobile-relay.json"),
+            contents: JSON.stringify(next),
+            mode: 0o600,
+          }),
+        );
         uplink?.stop();
         credential = next;
         credentialError = null;
         uplink = createRelayUplink({
           credential: next,
-          localHttpBaseUrl: `http://127.0.0.1:${runtimePort}`,
+          localHttpBaseUrl: localRelayHttpBaseUrl(runtimePort, runtimeBindHost),
           onStatus: (nextStatus) => {
             status = nextStatus;
           },

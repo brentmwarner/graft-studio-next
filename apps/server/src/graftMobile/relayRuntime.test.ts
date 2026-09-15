@@ -18,14 +18,17 @@ import {
 
 const mocks = vi.hoisted(() => ({
   uplinks: [] as Array<{
-    options: { onStatus: (status: RelayStatus) => void };
+    options: { onStatus: (status: RelayStatus) => void; localHttpBaseUrl: string };
     start: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   }>,
   login: null as GraftAccountLoginServiceDependencies | null,
 }));
 vi.mock("./relayUplink", () => ({
-  createRelayUplink: (options: { onStatus: (status: RelayStatus) => void }) => {
+  createRelayUplink: (options: {
+    onStatus: (status: RelayStatus) => void;
+    localHttpBaseUrl: string;
+  }) => {
     const client = {
       options,
       start: vi.fn(() => options.onStatus({ state: "connecting", lastError: null })),
@@ -115,7 +118,7 @@ describe("mobile relay lifecycle", () => {
   it("stores only the scoped relay credential and restores it after restart", async () => {
     initializeMobileRelay(5000, directory, {});
     setMobileRelayEnabled(true);
-    await connectMobileRelayAccount("My computer");
+    await connectMobileRelayAccount("My computer", vi.fn());
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(credential), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await mocks.login!.persistToken("private-account-token");
@@ -131,10 +134,24 @@ describe("mobile relay lifecycle", () => {
     expect(getMobileRelayEndpoint()?.httpBaseUrl).toBe(credential.httpBaseUrl);
   });
 
+  it("opens the packaged sign-in URL through the injected platform opener", async () => {
+    const openExternal = vi.fn();
+    initializeMobileRelay(5000, directory, {});
+    setMobileRelayEnabled(true);
+    await connectMobileRelayAccount("My computer", openExternal);
+    expect(mocks.login!.openExternal).toBe(openExternal);
+  });
+
+  it("proxies the uplink through the bound IPv6 loopback instead of 127.0.0.1", () => {
+    writeFileSync(join(directory, "mobile-relay.json"), JSON.stringify(credential));
+    initializeMobileRelay(5000, directory, {}, "::1");
+    expect(mocks.uplinks[0]!.options.localHttpBaseUrl).toBe("http://[::1]:5000");
+  });
+
   it("does not resurrect or save a login cancelled while registration is in flight", async () => {
     initializeMobileRelay(5000, directory, {});
     setMobileRelayEnabled(true);
-    await connectMobileRelayAccount("My computer");
+    await connectMobileRelayAccount("My computer", vi.fn());
     let finish!: (response: Response) => void;
     vi.stubGlobal(
       "fetch",

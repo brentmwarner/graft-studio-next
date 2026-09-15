@@ -218,7 +218,7 @@ export const createEffectServer = Effect.fn(function* (
   );
   setBoundListenPort(listeningPort);
   setOccupancyListenPort(listeningPort);
-  initializeMobileRelay(listeningPort, config.stateDir);
+  initializeMobileRelay(listeningPort, config.stateDir, process.env, config.host);
   if (nodeServer && shouldStartMobileLanGateway(config)) {
     const loopbackServer = nodeServer;
     attachMobileLanGatewayMainServer(loopbackServer);

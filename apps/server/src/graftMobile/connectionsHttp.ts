@@ -5,6 +5,7 @@ import { AuthSessionId } from "@synara/contracts";
 import { ServerAuth } from "../auth/Services/ServerAuth";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
+import { Open } from "../open";
 import {
   authenticateDesktopOwner,
   graftOwnerCorsHeaders,
@@ -122,8 +123,12 @@ const connectionsHttpRouteLayer = HttpRouter.add(
     }
 
     if (request.method === "POST" && url.pathname === "/api/graft/connections/relay/connect") {
+      const opener = yield* Open;
       const error = yield* Effect.tryPromise({
-        try: () => connectMobileRelayAccount(descriptor.label),
+        try: () =>
+          connectMobileRelayAccount(descriptor.label, (target) =>
+            Effect.runPromise(opener.openBrowser(target)),
+          ),
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }).pipe(Effect.match({ onSuccess: () => null, onFailure: (cause) => cause.message }));
       return error ? respond({ error }, 400) : respond({ ok: true });
