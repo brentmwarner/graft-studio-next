@@ -1,6 +1,12 @@
 import { ProjectionPendingInteractionRepositoryLive } from "./persistence/Layers/ProjectionPendingInteractions";
 import http from "node:http";
 
+import {
+  initializeMobileRelay,
+  setMobileRelayEnabled,
+  stopMobileRelay,
+} from "./graftMobile/relayRuntime";
+
 import type { ServerSettingsError } from "@synara/contracts";
 import { Effect, Exit, FileSystem, Layer, Path, Schema, Scope, ServiceMap } from "effect";
 import { HttpRouter } from "effect/unstable/http";
@@ -212,6 +218,7 @@ export const createEffectServer = Effect.fn(function* (
   );
   setBoundListenPort(listeningPort);
   setOccupancyListenPort(listeningPort);
+  initializeMobileRelay(listeningPort, config.stateDir);
   if (nodeServer && shouldStartMobileLanGateway(config)) {
     const loopbackServer = nodeServer;
     attachMobileLanGatewayMainServer(loopbackServer);
@@ -237,8 +244,12 @@ export const createEffectServer = Effect.fn(function* (
       );
     }
   }
+  setMobileRelayEnabled(
+    loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir)).enabled,
+  );
   yield* Effect.addFinalizer(() =>
     Effect.promise(async () => {
+      stopMobileRelay();
       await stopMobileLanGateway();
       detachMobileLanGatewayMainServer();
       await closeSshConnectionManager();

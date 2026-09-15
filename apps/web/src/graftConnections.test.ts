@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMobilePairingLink,
+  connectGraftRelay,
   getConnectionsStatus,
   listSshMachines,
   saveSshMachine,
@@ -20,6 +21,17 @@ describe("graftConnections", () => {
       location: { origin: "http://localhost:8891" },
     });
   }
+
+  it("starts relay sign-in through the authenticated owner connection", async () => {
+    stubDesktopBridge();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(connectGraftRelay()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:4111/api/graft/connections/relay/connect?token=desktop-secret",
+      expect.objectContaining({ method: "POST", credentials: "include" }),
+    );
+  });
 
   it("creates pairing links against the desktop websocket origin", async () => {
     stubDesktopBridge();

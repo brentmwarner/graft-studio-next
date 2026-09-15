@@ -73,6 +73,7 @@ import {
 } from "@synara/shared/migrationRecovery";
 import { ensureStaticSnapshot, findAsarArchivePath } from "@synara/shared/staticSnapshot";
 import { isBackendReadinessAborted, waitForHttpReady } from "./backendReadiness";
+import { readLegacyGraftRelayCredential } from "./graftRelayCredential";
 import { resolveBackendNodeArgs } from "./backendNodeOptions";
 import {
   retainLiveBackendAfterShutdownFailure,
@@ -3600,6 +3601,17 @@ function backendEnv(): NodeJS.ProcessEnv {
     SYNARA_AUTH_TOKEN: backendAuthToken,
     SYNARA_DESKTOP_SHUTDOWN_TOKEN: DESKTOP_BACKEND_SHUTDOWN_TOKEN,
   };
+  // Pass the existing relay credential only to the child backend. Never write a
+  // decrypted copy to disk or send it through renderer IPC.
+  if (!env.GRAFT_RELAY_CREDENTIAL && !env.GRAFT_RELAY_CREDENTIAL_FILE) {
+    const relayCredential = readLegacyGraftRelayCredential({
+      appData: app.getPath("appData"),
+      safeStorage,
+      platform: process.platform,
+      ...(env.GRAFT_LEGACY_USER_DATA ? { legacyUserData: env.GRAFT_LEGACY_USER_DATA } : {}),
+    });
+    if (relayCredential) env.GRAFT_LEGACY_RELAY_CREDENTIAL = relayCredential;
+  }
   // The backend runs the same login-shell probe at startup and does not begin listening
   // until it returns, so an unmarked child serializes a second ~1s hydration behind ours.
   // Written explicitly in both directions: an inherited marker must never suppress a

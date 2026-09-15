@@ -116,10 +116,12 @@ export function sortEndpointsByPreference(
 }
 
 export function resolveAdvertisedMobilePairingBase(input: {
+  readonly relay?: DiscoveredNetworkEndpoint | null;
   readonly publicUrl?: URL | undefined;
   readonly preferred: DiscoveredNetworkEndpoint | null;
   readonly requestHttpBaseUrl: string | null;
 }): { readonly httpBaseUrl: string; readonly endpointKind: GraftRemoteEndpointKind } | null {
+  if (input.relay) return { httpBaseUrl: input.relay.httpBaseUrl, endpointKind: input.relay.kind };
   if (input.publicUrl) {
     const httpBaseUrl = input.publicUrl.origin;
     return { httpBaseUrl, endpointKind: pairingEndpointKind(httpBaseUrl) };

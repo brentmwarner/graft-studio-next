@@ -7,6 +7,7 @@ import {
   discoverNetworkEndpoints,
   preferredPairingEndpoint,
   resolveAdvertisedMobilePairingBase,
+  relayNetworkEndpoint,
   type NetworkInterfaceMap,
 } from "./networkEndpoints";
 
@@ -150,6 +151,27 @@ describe("network endpoint discovery", () => {
     ).toEqual({
       httpBaseUrl: "https://graft.example.test",
       endpointKind: "https",
+    });
+  });
+});
+
+describe("cellular pairing", () => {
+  it("keeps the relay environment prefix ahead of Wi-Fi and public origins", () => {
+    const relay = relayNetworkEndpoint({
+      httpBaseUrl: "https://relay.graft.example/e/computer-1",
+      wsBaseUrl: "wss://relay.graft.example/e/computer-1",
+    });
+    const lan = discoverNetworkEndpoints(47831, { wlan0: [entry("192.168.1.20")] })[0]!;
+    const input = { relay, preferred: lan, requestHttpBaseUrl: "http://127.0.0.1:47831" };
+    expect(resolveAdvertisedMobilePairingBase(input)).toEqual({
+      httpBaseUrl: relay.httpBaseUrl,
+      endpointKind: "relay",
+    });
+    expect(
+      resolveAdvertisedMobilePairingBase({ ...input, publicUrl: new URL("https://host.example") }),
+    ).toEqual({
+      httpBaseUrl: relay.httpBaseUrl,
+      endpointKind: "relay",
     });
   });
 });

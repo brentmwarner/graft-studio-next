@@ -97,6 +97,10 @@ export function setConnectionsEnabled(enabled: boolean): Promise<GraftConnection
   });
 }
 
+export function connectGraftRelay(): Promise<{ ok: true }> {
+  return requestJson("/api/graft/connections/relay/connect", { method: "POST" });
+}
+
 export function revokeConnectionsDevice(deviceId: string): Promise<GraftConnectionsStatus> {
   return requestJson<GraftConnectionsStatus>("/api/graft/connections/revoke-device", {
     method: "POST",

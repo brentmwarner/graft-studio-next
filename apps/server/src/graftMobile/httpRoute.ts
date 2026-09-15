@@ -50,6 +50,7 @@ import {
   resolveAdvertisedMobilePairingBase,
 } from "./networkEndpoints";
 import { rememberIssuedPairing } from "./issuedPairing";
+import { getMobileRelayEndpoint, waitForMobileRelayPairing } from "./relayRuntime";
 import {
   MOBILE_WS_INBOUND_CAPACITY,
   MOBILE_WS_OUTBOUND_CAPACITY,
@@ -152,7 +153,8 @@ function networkAccessEnabled(config: {
   return (
     config.publicUrl !== undefined ||
     !isLoopbackHost(config.host) ||
-    getMobileLanGatewayPort() !== null
+    getMobileLanGatewayPort() !== null ||
+    getMobileRelayEndpoint() !== null
   );
 }
 
@@ -164,13 +166,6 @@ function advertisedMobilePairingBase(
     readonly publicUrl?: URL | undefined;
   },
 ): { readonly httpBaseUrl: string; readonly endpointKind: GraftRemoteEndpointKind } | null {
-  if (config.publicUrl) {
-    return resolveAdvertisedMobilePairingBase({
-      publicUrl: config.publicUrl,
-      preferred: null,
-      requestHttpBaseUrl: null,
-    });
-  }
   const advertisedPort = getMobileLanGatewayPort() ?? getBoundListenPort(config.port);
   const preferred = preferredPairingEndpoint(
     discoverNetworkEndpoints(advertisedPort, undefined, {
@@ -178,9 +173,23 @@ function advertisedMobilePairingBase(
     }),
   );
   return resolveAdvertisedMobilePairingBase({
+    relay: getMobileRelayEndpoint(),
+    publicUrl: config.publicUrl,
     preferred,
     requestHttpBaseUrl: requestHttpBaseUrl(request, config),
   });
+}
+
+function prepareMobilePairingBase(...args: Parameters<typeof advertisedMobilePairingBase>) {
+  return Effect.tryPromise({
+    try: async () => {
+      await waitForMobileRelayPairing();
+      const advertised = advertisedMobilePairingBase(...args);
+      if (!advertised) throw new Error("Could not resolve the mobile gateway address.");
+      return { advertised, error: null };
+    },
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  }).pipe(Effect.catch((error) => Effect.succeed({ advertised: null, error: error.message })));
 }
 
 const readJson = (request: HttpServerRequest.HttpServerRequest) => {
@@ -243,6 +252,10 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
           400,
         );
       }
+      const { advertised, error } = yield* prepareMobilePairingBase(request, config);
+      if (!advertised) {
+        return pairErrorResponse(remoteError("host_offline", error!, { retryable: true }), 503);
+      }
       const exchange = yield* serverAuth
         .exchangeBootstrapCredentialForBearerSession(parsed.data.token, {
           ...deriveAuthClientMetadata({
@@ -270,13 +283,6 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
         url,
       });
       const descriptor = yield* environment.getDescriptor;
-      const advertised = advertisedMobilePairingBase(request, config);
-      if (!advertised) {
-        return pairErrorResponse(
-          remoteError("internal", "Could not resolve the mobile gateway address."),
-          500,
-        );
-      }
       const deviceId = parsed.data.client.deviceId ?? randomUUID();
       return HttpServerResponse.jsonUnsafe({
         ok: true,
@@ -334,11 +340,11 @@ const graftMobileHttpRouteLayer = HttpRouter.add(
           corsHeaders,
         );
       }
-      const advertised = advertisedMobilePairingBase(request, config);
+      const { advertised, error } = yield* prepareMobilePairingBase(request, config);
       if (!advertised) {
         return errorResponse(
-          remoteError("internal", "Could not resolve the mobile gateway address."),
-          500,
+          remoteError("host_offline", error!, { retryable: true }),
+          503,
           corsHeaders,
         );
       }

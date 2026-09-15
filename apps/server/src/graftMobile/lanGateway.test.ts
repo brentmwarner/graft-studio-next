@@ -1,4 +1,6 @@
 import http from "node:http";
+import { connect } from "node:net";
+import { once } from "node:events";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -47,6 +49,17 @@ describe("mobile LAN gateway", () => {
     } finally {
       await new Promise<void>((resolve) => main.close(() => resolve()));
     }
+  });
+
+  it("closes live mobile sockets when disabled instead of waiting indefinitely", async () => {
+    const main = http.createServer();
+    const port = await startMobileLanGateway(main);
+    const socket = connect(port, "127.0.0.1");
+    await once(socket, "connect");
+    const closed = once(socket, "close");
+    await stopMobileLanGateway();
+    await closed;
+    expect(socket.destroyed).toBe(true);
   });
 
   it("recognizes mobile gateway paths and excludes owner pairing issuance", () => {

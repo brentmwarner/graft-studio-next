@@ -140,3 +140,37 @@ The desktop always binds its private backend to loopback. Do not set global
 `SYNARA_HOST`, `SYNARA_HOME`, or remote-access overrides for Graft: those also
 affect the installed Synara app. Synara databases and browser profiles must not
 be adopted implicitly. Graft's updater channel is `graft`.
+
+## Cellular access
+
+The migrated host uses the existing Graft managed relay. In Settings → Connections,
+turn on remote connections and choose **Connect Graft account** if the relay is not
+connected. Sign-in opens on the host computer and uses the legacy Graft PKCE flow.
+Once the relay says Connected, create a new pairing code and pair the phone.
+
+Phones previously paired to a LAN or Tailnet URL need to pair once using the relay
+code. Their old saved local address cannot become internet-reachable by retrying
+it. Both iOS and Android continue to use the unchanged Graft mobile protocol.
+
+The host opens an outbound WSS connection; inbound router ports are unnecessary.
+Relay pairing keeps the full `/e/<environmentId>` URL in both the QR code and the
+returned mobile session. During a relay outage, pairing waits briefly and reports
+the outage instead of silently switching a configured relay back to LAN.
+
+The desktop attempts a read-only import of the existing encrypted `relay-uplink`
+entry from the legacy `@graft/desktop` profile. If the OS key cannot decrypt it,
+connect the Graft account again. `GRAFT_LEGACY_USER_DATA` can select a legacy
+preview profile. The old profile is never modified.
+
+New sign-ins store only the scoped relay credential in `mobile-relay.json` under
+the host state directory (atomic write, mode 0600). The account JWT is used for
+registration and is not persisted. Disabling remote connections stops the uplink
+and cancels pending sign-in. A rejected relay credential requires signing in again.
+For a headless host, `GRAFT_RELAY_CREDENTIAL_FILE` can supply a provisioned relay
+registration JSON file; protect that file as a secret. `GRAFT_CONTROL_PLANE_URL`
+selects the Graft account/registration service and defaults to `https://api.graftapp.io`.
+
+The relay remains a trusted TLS terminator as in legacy Graft; this migration does
+not add end-to-end encryption. Host execution remains local. Mobile operating
+systems may suspend a background app; returning to it reconnects and resynchronizes
+through the existing mobile snapshot protocol.
