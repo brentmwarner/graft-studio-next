@@ -626,10 +626,7 @@ function PairingQrStep({
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
             data-testid="connections-copy-pairing-link"
           >
-            <CentralIcon
-              name={linkCopied ? "circle-check" : "clipboard"}
-              className="size-[13px]"
-            />
+            <CentralIcon name={linkCopied ? "circle-check" : "clipboard"} className="size-[13px]" />
             {linkCopied ? "Copied" : "Copy pairing link"}
           </button>
         </div>

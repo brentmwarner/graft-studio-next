@@ -128,8 +128,8 @@ export function SafariAccessOnboarding({ children }: { children?: ReactNode }) {
               />
               <DialogTitle className="mt-1">Bring your Safari logins along?</DialogTitle>
               <DialogDescription className="text-balance leading-relaxed">
-                Graft's browser can pick up sites you're already signed into in Safari, so you
-                don't have to log in twice. It's optional, and nothing is copied until you ask.
+                Graft's browser can pick up sites you're already signed into in Safari, so you don't
+                have to log in twice. It's optional, and nothing is copied until you ask.
               </DialogDescription>
             </DialogHeader>
 
