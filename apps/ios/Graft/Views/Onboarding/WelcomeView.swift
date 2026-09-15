@@ -1,117 +1,31 @@
 import SwiftUI
 
-/// First-run welcome for unpaired users, in the ported design language: the
-/// animated ribbon-beam background (Metal, see OnboardingRibbonShader.metal)
-/// behind a black-glass Graft mark and the pairing pill. Motion follows the
-/// design system (DS curves, no springs): the ribbon reveals top-to-bottom,
-/// content rises in on a short stagger, and everything respects Reduce Motion.
+/// First-run welcome: official Graft mark and pairing pill over the desktop
+/// new-chat dither-dot wave. Motion respects Reduce Motion.
 struct WelcomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
-    @State private var clock = RevealClock()
     @State private var showPairing = false
 
     var body: some View {
-        ZStack {
-            DS.Color.bg.ignoresSafeArea()
-
-            if reduceMotion {
-                content(0.99e9)        // at rest — no wipe, no beats
-            } else {
-                TimelineView(.animation) { timeline in
-                    content(tick(timeline.date))
-                }
-            }
-        }
+        WelcomeStage(
+            freezeIntro: reduceMotion,
+            dark: colorScheme == .dark,
+            isSignedIn: app.auth.isSignedIn,
+            isSigningIn: app.auth.isSigningIn,
+            email: app.auth.email,
+            displayName: app.auth.displayName,
+            footnote: footnote,
+            footnoteStyle: footnoteStyle,
+            onContinue: { Task { await app.auth.signIn() } },
+            onPair: { showPairing = true },
+            onSignOut: { app.auth.signOut() }
+        )
+        .background(DS.Color.bg.ignoresSafeArea())
         .sheet(isPresented: $showPairing) {
             PairingView(isPresented: $showPairing)
-        }
-    }
-
-    /// The whole screen as a pure function of the frame-paced clock `s`, so the
-    /// entrance beats can never out-run the on-screen ribbon reveal.
-    @ViewBuilder private func content(_ s: TimeInterval) -> some View {
-        ZStack {
-            OnboardingRibbonBackground(
-                seconds: reduceMotion ? 8 : s,
-                reveal: reduceMotion ? 1 : revealCurve(s),
-                dark: colorScheme == .dark
-            )
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
-
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-
-                GraftGlassMark()
-                    .frame(width: 108, height: 108)
-                    .accessibilityHidden(true)
-                    .modifier(Beat(s: s, delay: 0.52, rise: 0, scaleFrom: 0.93, blurFrom: 2.5))
-
-                Text("Graft", comment: "App brand name on the welcome screen")
-                    .font(.system(size: 32, weight: .semibold))
-                    .tracking(-0.6)
-                    .foregroundStyle(DS.Color.fg)
-                    .padding(.top, DS.Space.s3)
-                    .modifier(Beat(s: s, delay: 0.68, rise: 12))
-
-                Text(
-                    "Control your Graft Studio from anywhere.",
-                    comment: "Welcome value proposition under the brand mark"
-                )
-                .font(.system(size: 16))
-                .foregroundStyle(DS.Color.fgSubtle)
-                .multilineTextAlignment(.center)
-                .padding(.top, DS.Space.s1)
-                .padding(.horizontal, DS.Space.s4)
-                .modifier(Beat(s: s, delay: 0.78, rise: 12))
-
-                Spacer(minLength: 0)
-
-                // Account first, pairing second: the pill swaps role once a
-                // Graft account is signed in.
-                if app.auth.isSignedIn {
-                    AccountChip(
-                        email: app.auth.email,
-                        displayName: app.auth.displayName
-                    ) {
-                        app.auth.signOut()
-                    }
-                    .padding(.bottom, DS.Space.s2)
-                    .modifier(Beat(s: s, delay: 0.86, rise: 14))
-
-                    GlassActionPill(
-                        title: "Pair with Graft Studio",
-                        icon: "link"
-                    ) {
-                        showPairing = true
-                    }
-                    .modifier(Beat(s: s, delay: 0.92, rise: 16))
-                } else {
-                    GlassActionPill(
-                        title: "Continue with Graft",
-                        icon: "person.crop.circle",
-                        isBusy: app.auth.isSigningIn
-                    ) {
-                        Task { await app.auth.signIn() }
-                    }
-                    .modifier(Beat(s: s, delay: 0.92, rise: 16))
-                }
-
-                Text(footnote)
-                    .font(DS.Font.footnote)
-                    .foregroundStyle(footnoteStyle)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, DS.Space.s2)
-                    .modifier(Beat(s: s, delay: 1.14, rise: 10))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, DS.Space.s3 + 6)         // 30 — matches the studio
-            .padding(.bottom, DS.Space.s5)                 // 40
-            // Cross-fade the pill's sign-in → pairing role swap.
-            .animation(.smooth(duration: 0.3), value: app.auth.isSignedIn)
         }
     }
 
@@ -129,70 +43,130 @@ struct WelcomeView: View {
         if app.auth.lastError != nil { return DS.Color.danger }
         return colorScheme == .dark ? DS.Color.fgMuted : DS.Color.fgSubtle
     }
-
-    /// Frame-paced clock: each delta is capped (≤1/30 s) so a stalled first
-    /// frame — Metal pipeline compile, or late composition — can't
-    /// fast-forward the intro past the viewer.
-    private func tick(_ now: Date) -> TimeInterval {
-        if let last = clock.last { clock.t += min(now.timeIntervalSince(last), 1.0 / 30.0) }
-        clock.last = now
-        return clock.t
-    }
-
-    /// Strong ease-out (cubic) over the 1.1s reveal window.
-    private func revealCurve(_ s: TimeInterval) -> Float {
-        let p = min(max(s / 1.1, 0), 1)
-        return Float(1 - pow(1 - p, 3))
-    }
 }
 
-// MARK: - Ribbon background
+// MARK: - Stage
 
-/// Hosts the `onboardingRibbon` Metal color effect over the active theme
-/// ground. Stateless — the parent's frame-paced clock supplies `seconds`
-/// (continuous flow motion) and `reveal` (the 0→1 top-to-bottom first-run wipe).
-private struct OnboardingRibbonBackground: View {
-    var seconds: TimeInterval
-    var reveal: Float
+/// Layout root. The wave is a `.background` so it cannot propose a wider
+/// size to the CTA column. The intro stops invalidating content after two seconds;
+/// the background owns its independent render loop.
+private struct WelcomeStage: View {
+    var freezeIntro: Bool
     var dark: Bool
+    var isSignedIn: Bool
+    var isSigningIn: Bool
+    var email: String?
+    var displayName: String?
+    var footnote: String
+    var footnoteStyle: Color
+    var onContinue: () -> Void
+    var onPair: () -> Void
+    var onSignOut: () -> Void
+
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var introStart = Date()
+    @State private var introFinished = false
 
     var body: some View {
-        Rectangle()
-            .fill(dark ? .black : .white)
-            .visualEffect { content, proxy in
-                content.colorEffect(
-                    ShaderLibrary.onboardingRibbon(
-                        .float2(proxy.size),
-                        .float(Float(seconds)),
-                        .float(reveal),
-                        .float(dark ? 1 : 0)
-                    )
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0,
+                                paused: freezeIntro || introFinished || scenePhase != .active)) { timeline in
+            let seconds = freezeIntro || introFinished ? 2 : max(0, timeline.date.timeIntervalSince(introStart))
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                WelcomeHero(seconds: seconds)
+                Spacer(minLength: 0)
+                WelcomeActions(
+                    seconds: seconds,
+                    isSignedIn: isSignedIn,
+                    isSigningIn: isSigningIn,
+                    email: email,
+                    displayName: displayName,
+                    footnote: footnote,
+                    footnoteStyle: footnoteStyle,
+                    onContinue: onContinue,
+                    onPair: onPair,
+                    onSignOut: onSignOut
                 )
             }
+        }
+        .padding(.horizontal, DS.Space.s3 + 6)
+        .padding(.bottom, DS.Space.s5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            DitherWaveBackground(dark: dark)
+                .ignoresSafeArea()
+        }
+        .animation(freezeIntro ? nil : .smooth(duration: 0.3), value: isSignedIn)
+        .task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            introFinished = true
+        }
     }
 }
 
-/// Mutable render clock for the intro — a reference type so advancing it inside
-/// the TimelineView body doesn't invalidate the surrounding view.
-private final class RevealClock {
-    var last: Date?
-    var t: TimeInterval = 0
+// MARK: - Hero
+
+private struct WelcomeHero: View {
+    var seconds: TimeInterval
+
+    var body: some View {
+        VStack(spacing: 0) {
+            GraftMark(size: 72)
+
+            Text("Graft", comment: "App brand name on the welcome screen")
+                .font(.system(size: 32, weight: .semibold))
+                .tracking(-0.6)
+                .foregroundStyle(DS.Color.fg)
+                .padding(.top, DS.Space.s3)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.horizontal, DS.Space.s5)
+        .padding(.vertical, DS.Space.s6)
+        .modifier(Beat(s: seconds, delay: 0.52, rise: 0, scaleFrom: 0.93, blurFrom: 2.5))
+    }
 }
 
-// MARK: - Black-glass Graft mark
+// MARK: - Actions
 
-/// The Graft branch glyph floating on a deep black-glass disc — the same
-/// two-pass physical glass surface as the pairing pill, so mark and pill read
-/// as one material. Always black glass, matching the app icon in both themes.
-private struct GraftGlassMark: View {
+private struct WelcomeActions: View {
+    var seconds: TimeInterval
+    var isSignedIn: Bool
+    var isSigningIn: Bool
+    var email: String?
+    var displayName: String?
+    var footnote: String
+    var footnoteStyle: Color
+    var onContinue: () -> Void
+    var onPair: () -> Void
+    var onSignOut: () -> Void
+
     var body: some View {
-        ZStack {
-            GlassSurface(dark: true, in: .circle)
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 44, weight: .medium))
-                .foregroundStyle(.white)
+        VStack(spacing: 0) {
+            if isSignedIn {
+                AccountChip(email: email, displayName: displayName, onSignOut: onSignOut)
+                    .padding(.bottom, DS.Space.s2)
+                    .modifier(Beat(s: seconds, delay: 0.86, rise: 14))
+
+                GlassActionPill(title: "Pair with Studio", icon: "link", action: onPair)
+                    .modifier(Beat(s: seconds, delay: 0.92, rise: 16))
+            } else {
+                GlassActionPill(
+                    title: "Continue with Graft",
+                    icon: "person.crop.circle",
+                    isBusy: isSigningIn,
+                    action: onContinue
+                )
+                .modifier(Beat(s: seconds, delay: 0.92, rise: 16))
+            }
+
+            Text(footnote)
+                .font(DS.Font.footnote)
+                .foregroundStyle(footnoteStyle)
+                .multilineTextAlignment(.center)
+                .padding(.top, DS.Space.s2)
+                .modifier(Beat(s: seconds, delay: 1.14, rise: 10))
         }
-        .allowsHitTesting(false)
     }
 }
 
@@ -243,9 +217,8 @@ private struct AccountChip: View {
 
 // MARK: - Action pill
 
-/// Full-width black-glass action pill — the Hermes provider-pill anatomy:
-/// icon pinned left, label centered. Serves both the sign-in and pairing
-/// steps so the welcome screen swaps role without swapping material.
+/// Inset black-glass action pill. Width comes from the padded column
+/// (30pt studio inset) — this view must not be asked to fill the screen.
 private struct GlassActionPill: View {
     let title: String
     let icon: String
@@ -268,7 +241,7 @@ private struct GlassActionPill: View {
                         .font(.system(size: 17, weight: .medium))
                     Spacer(minLength: 0)
                 }
-                .padding(.leading, DS.Space.s3 - 2)         // 22
+                .padding(.leading, DS.Space.s3 - 2)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 56)
@@ -283,16 +256,6 @@ private struct GlassActionPill: View {
     }
 }
 
-// MARK: - Glass surface (Metal)
-
-/// Deep, see-through "black glass" in two composited passes (shaders in
-/// OnboardingRibbonShader.metal):
-///
-///   • a **transmission** pass multiplied onto the backdrop (`.multiply`) so
-///     the body stays genuinely black while the ribbon still reads through it;
-///   • a **reflection** pass added on top (`.plusLighter`) for the sheen,
-///     specular rim, and a whisper of edge dispersion.
-///
 // MARK: - Entrance beat
 
 /// One foreground element's entrance, as a pure function of the intro clock
@@ -305,12 +268,12 @@ private struct Beat: ViewModifier {
     let delay: Double
     var dur: Double = 0.5
     var rise: CGFloat = 12
-    var scaleFrom: CGFloat = 1        // 1 = no scale; < 1 grows in
-    var blurFrom: CGFloat = 0         // 0 = no blur; > 0 focuses in
+    var scaleFrom: CGFloat = 1
+    var blurFrom: CGFloat = 0
 
     func body(content: Content) -> some View {
         let x = min(max((s - delay) / dur, 0), 1)
-        let e = CGFloat(1 - pow(1 - x, 3))           // easeOutCubic
+        let e = CGFloat(1 - pow(1 - x, 3))
         return content
             .opacity(Double(e))
             .blur(radius: blurFrom * (1 - e))
