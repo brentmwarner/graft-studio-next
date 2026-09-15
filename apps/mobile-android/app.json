@@ -45,6 +45,12 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "493cee18-fb3c-4e70-8c69-9d9fa903e962"
+      }
+    },
+    "owner": "brentmwarner"
   }
 }
