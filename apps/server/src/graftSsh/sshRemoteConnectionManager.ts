@@ -5,6 +5,7 @@ import {
   GraftDesktopEnrollmentResponseSchema,
   GraftDesktopHealthSchema,
   type GraftDesktopEnrollmentResponse,
+  type GraftDesktopHealth,
 } from "@graft/desktop-contract";
 
 import { ManagedSshTunnel } from "./managedSshTunnel";
@@ -37,6 +38,7 @@ export interface SshRemoteConnectionManagerOptions {
 export class SshRemoteConnectionManager {
   private readonly installer: SshHostInstaller;
   private readonly activeConnections = new Map<string, SshRemoteConnection>();
+  private readonly pendingTunnels = new Map<string, ManagedSshTunnel>();
   private readonly connecting = new Map<string, Promise<SshRemoteConnection>>();
   private readonly closing = new Map<string, Promise<void>>();
   private readonly attempts = new Map<string, AbortController>();
@@ -113,6 +115,7 @@ export class SshRemoteConnectionManager {
         throw new SshRemoteError("connection_closed", "SSH connection was cancelled.", false);
     };
     await this.closing.get(machineId);
+    await this.closePendingTunnel(machineId);
     checkCancelled();
     const originalMachine = this.options.machineStore.get(machineId);
     if (!originalMachine) throw new Error("SSH machine does not exist");
@@ -135,6 +138,7 @@ export class SshRemoteConnectionManager {
         ? {}
         : { sshExecutable: this.options.sshExecutable }),
     });
+    this.pendingTunnels.set(machineId, tunnel);
     const cancelTunnel = () => {
       void tunnel.close().catch(() => undefined);
     };
@@ -144,13 +148,7 @@ export class SshRemoteConnectionManager {
       const localPort = await tunnel.start();
       checkCancelled();
       const httpBaseUrl = `http://127.0.0.1:${localPort}`;
-      const health = GraftDesktopHealthSchema.parse(
-        await (
-          await fetch(`${httpBaseUrl}${GRAFT_DESKTOP_ENDPOINTS.health}`, {
-            signal: AbortSignal.any([signal, AbortSignal.timeout(2_000)]),
-          })
-        ).json(),
-      );
+      const health = await this.readHealth(httpBaseUrl, signal);
       if (health.environmentId !== bootstrap.environmentId) {
         throw new SshRemoteError(
           "tunnel_failed",
@@ -259,9 +257,10 @@ export class SshRemoteConnectionManager {
         },
       };
       this.activeConnections.set(machineId, connection);
+      this.pendingTunnels.delete(machineId);
       return connection;
     } catch (error) {
-      await tunnel.close();
+      await this.closePendingTunnel(machineId);
       checkCancelled();
       throw error;
     } finally {
@@ -273,7 +272,7 @@ export class SshRemoteConnectionManager {
     this.attempts.get(machineId)?.abort();
     await this.connecting.get(machineId)?.catch(() => undefined);
     const connection = this.activeConnections.get(machineId);
-    if (!connection) return;
+    if (!connection) return this.closePendingTunnel(machineId);
     try {
       await this.revokeSession(connection.routes.httpBaseUrl, connection.bearer);
     } catch {
@@ -286,10 +285,35 @@ export class SshRemoteConnectionManager {
     this.disposed = true;
     for (const controller of this.attempts.values()) controller.abort();
     await Promise.allSettled(this.connecting.values());
-    await Promise.allSettled(
-      [...this.activeConnections.values()].map((connection) => connection.close()),
-    );
-    this.activeConnections.clear();
+    const results = await Promise.allSettled([
+      ...[...this.activeConnections.values()].map((connection) => connection.close()),
+      ...[...this.pendingTunnels.keys()].map((machineId) => this.closePendingTunnel(machineId)),
+    ]);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
+  }
+
+  private async closePendingTunnel(machineId: string): Promise<void> {
+    const tunnel = this.pendingTunnels.get(machineId);
+    if (!tunnel) return;
+    await tunnel.close();
+    if (this.pendingTunnels.get(machineId) === tunnel) this.pendingTunnels.delete(machineId);
+  }
+
+  private async readHealth(httpBaseUrl: string, signal: AbortSignal): Promise<GraftDesktopHealth> {
+    try {
+      const response = await fetch(`${httpBaseUrl}${GRAFT_DESKTOP_ENDPOINTS.health}`, {
+        signal: AbortSignal.any([signal, AbortSignal.timeout(2_000)]),
+      });
+      if (!response.ok) throw new Error("Host health request failed");
+      return GraftDesktopHealthSchema.parse(await response.json());
+    } catch {
+      throw new SshRemoteError(
+        "tunnel_failed",
+        "The remote host stopped responding through the SSH tunnel. Reconnect and try again.",
+        true,
+      );
+    }
   }
 
   private async enroll(

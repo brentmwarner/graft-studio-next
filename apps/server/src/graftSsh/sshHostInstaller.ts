@@ -198,56 +198,76 @@ node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(!(
     const archiveSha256 = createHash("sha256")
       .update(readFileSync(this.options.hostArchivePath))
       .digest("hex");
-    const copied = await this.runner(
-      this.options.scpExecutable ?? "scp",
-      [
-        "-q",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=10",
-        "--",
-        this.options.hostArchivePath,
-        `${target}:${remoteArchive}`,
-      ],
-      { timeoutMs: 120_000, ...(signal ? { signal } : {}) },
-    );
-    if (copied.exitCode !== 0) {
-      const sshError = classifySshFailure(copied.stderr);
-      throw new SshRemoteError(
-        sshError.code === "bootstrap_unavailable" ? "install_failed" : sshError.code,
-        sshError.code === "bootstrap_unavailable"
-          ? "graft-host could not be copied to the SSH machine"
-          : sshError.message,
-        sshError.retryable,
+    try {
+      const copied = await this.runner(
+        this.options.scpExecutable ?? "scp",
+        [
+          "-q",
+          "-o",
+          "BatchMode=yes",
+          "-o",
+          "ConnectTimeout=10",
+          "--",
+          this.options.hostArchivePath,
+          `${target}:${remoteArchive}`,
+        ],
+        { timeoutMs: 120_000, ...(signal ? { signal } : {}) },
       );
-    }
-    const installed = await this.runner(
-      this.options.sshExecutable ?? "ssh",
-      [
-        "-T",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=10",
-        "--",
-        target,
-        `sh -s -- ${this.options.hostVersion} ${remoteArchive} ${nonce} ${archiveSha256}`,
-      ],
-      {
-        timeoutMs: 120_000,
-        input: Buffer.from(GRAFT_HOST_INSTALL_SCRIPT, "utf8"),
-        ...(signal ? { signal } : {}),
-      },
-    );
-    if (installed.exitCode !== 0) {
-      const failure = classifySshFailure(installed.stderr);
-      if (failure.code !== "bootstrap_unavailable") throw failure;
-      throw new SshRemoteError(
-        "install_failed",
-        "The remote host service could not be installed. Check available disk space and write access to ~/.local on the remote machine.",
-        true,
+      if (copied.exitCode !== 0) {
+        const sshError = classifySshFailure(copied.stderr);
+        throw new SshRemoteError(
+          sshError.code === "bootstrap_unavailable" ? "install_failed" : sshError.code,
+          sshError.code === "bootstrap_unavailable"
+            ? "graft-host could not be copied to the SSH machine"
+            : sshError.message,
+          sshError.retryable,
+        );
+      }
+      const installed = await this.runner(
+        this.options.sshExecutable ?? "ssh",
+        [
+          "-T",
+          "-o",
+          "BatchMode=yes",
+          "-o",
+          "ConnectTimeout=10",
+          "--",
+          target,
+          `sh -s -- ${this.options.hostVersion} ${remoteArchive} ${nonce} ${archiveSha256}`,
+        ],
+        {
+          timeoutMs: 120_000,
+          input: Buffer.from(GRAFT_HOST_INSTALL_SCRIPT, "utf8"),
+          ...(signal ? { signal } : {}),
+        },
       );
+      if (installed.exitCode !== 0) {
+        const failure = classifySshFailure(installed.stderr);
+        if (failure.code !== "bootstrap_unavailable") throw failure;
+        throw new SshRemoteError(
+          "install_failed",
+          "The remote host service could not be installed. Check available disk space and write access to ~/.local on the remote machine.",
+          true,
+        );
+      }
+    } catch (error) {
+      // SCP may have left a partial archive, or cancellation may have prevented
+      // the install script from starting its cleanup trap.
+      await this.runner(
+        this.options.sshExecutable ?? "ssh",
+        [
+          "-T",
+          "-o",
+          "BatchMode=yes",
+          "-o",
+          "ConnectTimeout=5",
+          "--",
+          target,
+          `rm -f -- ${remoteArchive}`,
+        ],
+        { timeoutMs: 5_000, signal: AbortSignal.timeout(5_000) },
+      ).catch(() => undefined);
+      throw error;
     }
   }
 

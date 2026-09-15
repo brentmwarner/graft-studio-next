@@ -100,3 +100,35 @@ it("stops readiness polling after the SSH executable fails to start", async () =
   expect(healthProbe).toHaveBeenCalledOnce();
   await tunnel.close();
 });
+
+it("retains a running child after startup cleanup fails", async () => {
+  vi.useFakeTimers();
+  const child = new Child();
+  child.pid = 123;
+  child.kill.mockReturnValue(false);
+  const spawnProcess = vi.fn(() => child);
+  const tunnel = new ManagedSshTunnel({
+    ...options,
+    localPort: 4001,
+    spawnProcess,
+    healthProbe: async () => null,
+  });
+  const starting = expect(tunnel.start()).rejects.toMatchObject({ code: "connection_closed" });
+  child.emit("error", Object.assign(new Error("Kill failed"), { code: "EPERM" }));
+  await vi.advanceTimersByTimeAsync(5_000);
+  await starting;
+
+  const restarting = expect(tunnel.start()).rejects.toMatchObject({ code: "connection_closed" });
+  await vi.advanceTimersByTimeAsync(5_000);
+  await restarting;
+  expect(spawnProcess).toHaveBeenCalledOnce();
+
+  const closing = expect(tunnel.close()).rejects.toMatchObject({ code: "connection_closed" });
+  await vi.advanceTimersByTimeAsync(5_000);
+  await closing;
+  expect(tunnel.state).not.toBe("closed");
+  const retry = tunnel.close();
+  child.emit("exit", 0, "SIGKILL");
+  await retry;
+  expect(tunnel.state).toBe("closed");
+});

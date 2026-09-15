@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GRAFT_DESKTOP_PROTOCOL_VERSION,
   GRAFT_HOST_SERVER_ENTRY,
@@ -16,6 +16,7 @@ import {
   isSupportedGraftHostNodeVersion,
 } from "./sshHostInstaller";
 import type { SshCommandResult, SshCommandRunner } from "./sshTarget";
+import { SshRemoteError } from "./sshRemoteTypes";
 
 const roots: string[] = [];
 
@@ -57,6 +58,53 @@ describe("graft-host Node engine check", () => {
 });
 
 describe("graft-host SSH installer", () => {
+  it.each(["copy", "install"] as const)(
+    "cleans up the copied archive when cancellation interrupts %s, preserving the original error",
+    async (phase) => {
+      const root = mkdtempSync(join(tmpdir(), "graft-host-cancel-"));
+      roots.push(root);
+      const hostArchivePath = join(root, "host.tar.gz");
+      writeFileSync(hostArchivePath, "archive");
+      const controller = new AbortController();
+      const cancelled = new SshRemoteError("connection_closed", "Cancelled", false);
+      let remoteArchive = "";
+      const cleanup = vi.fn<SshCommandRunner>(async (_executable, args, options) => {
+        expect(args.at(-1)).toBe(`rm -f -- ${remoteArchive}`);
+        expect(options?.timeoutMs).toBe(5_000);
+        expect(options?.signal).toBeDefined();
+        expect(options?.signal).not.toBe(controller.signal);
+        expect(options?.signal?.aborted).toBe(false);
+        throw new Error("Cleanup could not reach the host");
+      });
+      const runner: SshCommandRunner = async (executable, args, options) => {
+        const command = args.at(-1) ?? "";
+        if (command.includes("graft-host bootstrap")) {
+          return { exitCode: 127, stdout: "", stderr: "" };
+        }
+        if (command.includes("GRAFT_HOST_UNSUPPORTED_PLATFORM")) return ok();
+        if (executable === "scp") {
+          remoteArchive = command.slice(command.indexOf(":") + 1);
+          controller.abort();
+          if (phase === "copy") throw cancelled;
+          return ok();
+        }
+        if (command.startsWith("sh -s --")) {
+          expect(options?.signal?.aborted).toBe(true);
+          throw cancelled;
+        }
+        return cleanup(executable, args, options);
+      };
+      const installer = new SshHostInstaller({
+        hostArchivePath,
+        hostVersion: GRAFT_HOST_VERSION,
+        runner,
+      });
+      await expect(installer.bootstrap("test@machine", controller.signal)).rejects.toBe(cancelled);
+      expect(remoteArchive).toMatch(/^\/tmp\/graft-host-[a-f0-9]+\.tar\.gz$/u);
+      expect(cleanup).toHaveBeenCalledOnce();
+    },
+  );
+
   it("reinstalls a same-version host that is missing graft-server.mjs", async () => {
     const root = mkdtempSync(join(tmpdir(), "graft-host-archive-"));
     roots.push(root);
