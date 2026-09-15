@@ -492,10 +492,33 @@ describe("live status phrases", () => {
 });
 
 it("keeps attachment-only messages and folds their optimistic upload echo", () => {
-  const attachment = { id: "local-file", type: "file" as const, name: "notes.txt", mimeType: "text/plain", sizeBytes: 10 };
-  const optimistic: GraftTimelineEvent = { id: "local", cursor: 0, kind: "user.message", threadId: "thread-1", createdAt: 1, text: "", attachments: [attachment] };
-  const authoritative = { ...optimistic, id: "host", cursor: 2, attachments: [{ ...attachment, id: "host-file" }] };
+  const attachment = {
+    id: "local-file",
+    type: "file" as const,
+    name: "notes.txt",
+    mimeType: "text/plain",
+    sizeBytes: 10,
+  };
+  const optimistic: GraftTimelineEvent = {
+    id: "local",
+    cursor: 0,
+    kind: "user.message",
+    threadId: "thread-1",
+    createdAt: 1,
+    text: "",
+    attachments: [attachment],
+  };
+  const authoritative = {
+    ...optimistic,
+    id: "host",
+    cursor: 2,
+    attachments: [{ ...attachment, id: "host-file" }],
+  };
   const items = buildTranscriptItems([authoritative], [optimistic], 0);
   expect(items).toHaveLength(1);
-  expect(items[0]).toMatchObject({ kind: "user", text: "", attachments: [expect.objectContaining({ name: "notes.txt" })] });
+  expect(items[0]).toMatchObject({
+    kind: "user",
+    text: "",
+    attachments: [expect.objectContaining({ name: "notes.txt" })],
+  });
 });

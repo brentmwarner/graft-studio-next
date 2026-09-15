@@ -23,7 +23,8 @@ const VOICE_ERRORS: Record<ExpoSpeechRecognitionErrorCode, string> = {
   network: "Speech recognition could not connect. Check your connection and try again.",
   "no-speech": "No speech was detected. Tap the microphone and try again.",
   "not-allowed": "Allow microphone access for Graft in Android Settings to use dictation.",
-  "service-not-allowed": "Enable a speech recognition service in Android Settings to use dictation.",
+  "service-not-allowed":
+    "Enable a speech recognition service in Android Settings to use dictation.",
   busy: "The speech recognizer is busy. Please try again.",
   client: "Speech recognition stopped unexpectedly. Please try again.",
   "speech-timeout": "No speech was detected. Tap the microphone and try again.",

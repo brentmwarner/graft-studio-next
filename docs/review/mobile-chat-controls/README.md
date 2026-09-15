@@ -5,8 +5,8 @@ The idle, expanded, model-menu, and keyboard-dismissed captures show the final
 integration onto main. The previous composer, dictation, and attachment captures
 come from earlier device verification in the same change set.
 
-| Previous composer | Unified idle composer | Expanded composer |
-| --- | --- | --- |
+| Previous composer                                           | Unified idle composer              | Expanded composer                                     |
+| ----------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------- |
 | ![Previous separate plus button and model pill](before.png) | ![Unified idle composer](idle.png) | ![Expanded composer above the keyboard](expanded.png) |
 
 ## Interaction states

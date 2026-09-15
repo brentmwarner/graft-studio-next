@@ -78,7 +78,12 @@ function ComposerTrailingControls({
   );
 
   if (mode === "send") {
-    return <View style={styles.trailingControls}>{microphone}{sendButton}</View>;
+    return (
+      <View style={styles.trailingControls}>
+        {microphone}
+        {sendButton}
+      </View>
+    );
   }
 
   const stopButton = (
@@ -215,7 +220,10 @@ export function Composer({
   const approvalLabel = (
     <Text
       numberOfLines={1}
-      style={[styles.toolbarText, { color: approvalIsElevated ? palette.warning : palette.foreground }]}
+      style={[
+        styles.toolbarText,
+        { color: approvalIsElevated ? palette.warning : palette.foreground },
+      ]}
     >
       {currentApprovalLabel}
     </Text>
@@ -224,12 +232,18 @@ export function Composer({
   return (
     <View style={styles.dock}>
       {attachmentError ? (
-        <Text accessibilityLiveRegion="polite" style={[styles.voiceError, { color: palette.danger }]}>
+        <Text
+          accessibilityLiveRegion="polite"
+          style={[styles.voiceError, { color: palette.danger }]}
+        >
           {attachmentError}
         </Text>
       ) : null}
       {voice.error ? (
-        <Text accessibilityLiveRegion="polite" style={[styles.voiceError, { color: palette.danger }]}>
+        <Text
+          accessibilityLiveRegion="polite"
+          style={[styles.voiceError, { color: palette.danger }]}
+        >
           {voice.error}
         </Text>
       ) : null}
@@ -250,26 +264,48 @@ export function Composer({
           <FloatingSurface style={[StyleSheet.absoluteFill, styles.composerSurface]} />
           {expanded && attachments.length > 0 ? (
             <View style={styles.attachments}>
-              <ComposerAttachments attachments={attachments} disabled={isSending} onRemove={onRemoveAttachment} />
+              <ComposerAttachments
+                attachments={attachments}
+                disabled={isSending}
+                onRemove={onRemoveAttachment}
+              />
             </View>
           ) : null}
           {expanded && extras && (extras.interactionMode !== "default" || extras.fastMode) ? (
             <View style={styles.modeRow}>
               {extras.interactionMode !== "default" ? (
-                <ComposerConfigMenu config={menuConfig} initialPage="mode" trigger={(open) => (
-                  <PressScale accessibilityLabel="Conversation mode" onPress={open} style={styles.modeButton}>
-                    <Text style={[styles.toolbarText, { color: palette.foregroundMuted }]}>
-                      {displayName(extras.interactionMode)} mode
-                    </Text>
-                  </PressScale>
-                )} />
+                <ComposerConfigMenu
+                  config={menuConfig}
+                  initialPage="mode"
+                  trigger={(open) => (
+                    <PressScale
+                      accessibilityLabel="Conversation mode"
+                      onPress={open}
+                      style={styles.modeButton}
+                    >
+                      <Text style={[styles.toolbarText, { color: palette.foregroundMuted }]}>
+                        {displayName(extras.interactionMode)} mode
+                      </Text>
+                    </PressScale>
+                  )}
+                />
               ) : null}
               {extras.fastMode ? (
-                <ComposerConfigMenu config={menuConfig} initialPage="speed" trigger={(open) => (
-                  <PressScale accessibilityLabel="Response speed" onPress={open} style={styles.modeButton}>
-                    <Text style={[styles.toolbarText, { color: palette.foregroundMuted }]}>Fast</Text>
-                  </PressScale>
-                )} />
+                <ComposerConfigMenu
+                  config={menuConfig}
+                  initialPage="speed"
+                  trigger={(open) => (
+                    <PressScale
+                      accessibilityLabel="Response speed"
+                      onPress={open}
+                      style={styles.modeButton}
+                    >
+                      <Text style={[styles.toolbarText, { color: palette.foregroundMuted }]}>
+                        Fast
+                      </Text>
+                    </PressScale>
+                  )}
+                />
               ) : null}
             </View>
           ) : null}
@@ -325,12 +361,18 @@ export function Composer({
                         config={menuConfig}
                         initialPage="permissions"
                         trigger={(open) => (
-                          <PressScale accessibilityLabel="Permissions" onPress={open} style={styles.toolbarButton}>
+                          <PressScale
+                            accessibilityLabel="Permissions"
+                            onPress={open}
+                            style={styles.toolbarButton}
+                          >
                             {approvalLabel}
                           </PressScale>
                         )}
                       />
-                    ) : <View style={styles.toolbarButton}>{approvalLabel}</View>}
+                    ) : (
+                      <View style={styles.toolbarButton}>{approvalLabel}</View>
+                    )}
                   </View>
                 ) : null}
                 <View style={styles.model}>
@@ -339,11 +381,27 @@ export function Composer({
                       config={menuConfig}
                       initialPage="intelligence"
                       trigger={(open) => (
-                        <PressScale accessibilityLabel="Model and reasoning effort" onPress={open} style={styles.toolbarButton}>
-                          <Text numberOfLines={1} style={[styles.toolbarText, styles.modelText, { color: palette.foreground }]}>
-                            {currentModel?.label ?? currentModelName?.replace("[1m]", "") ?? "Model"}
+                        <PressScale
+                          accessibilityLabel="Model and reasoning effort"
+                          onPress={open}
+                          style={styles.toolbarButton}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.toolbarText,
+                              styles.modelText,
+                              { color: palette.foreground },
+                            ]}
+                          >
+                            {currentModel?.label ??
+                              currentModelName?.replace("[1m]", "") ??
+                              "Model"}
                             {resolvedEffort ? (
-                              <Text style={{ color: palette.foregroundMuted }}> {displayName(resolvedEffort)}</Text>
+                              <Text style={{ color: palette.foregroundMuted }}>
+                                {" "}
+                                {displayName(resolvedEffort)}
+                              </Text>
                             ) : null}
                           </Text>
                         </PressScale>
@@ -399,7 +457,13 @@ const styles = StyleSheet.create({
   model: { flex: 1, minWidth: 0, marginLeft: 8 },
   modelText: { textAlign: "right" },
   iconButton: { alignItems: "center", height: 32, justifyContent: "center", width: 32 },
-  recordingRow: { flexDirection: "row", alignItems: "center", height: 46, paddingLeft: 16, paddingRight: 5 },
+  recordingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 46,
+    paddingLeft: 16,
+    paddingRight: 5,
+  },
   voiceError: { fontSize: 12, paddingHorizontal: 12 },
   trailingControls: { alignItems: "center", flexDirection: "row", gap: 5 },
   sendButton: {

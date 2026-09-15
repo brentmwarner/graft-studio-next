@@ -32,7 +32,10 @@ import {
   GatewaySocketError,
   type GatewayConnectionState,
 } from "../api/gatewaySocket";
-import { sendWithAttachments, type ComposerSendOptions } from "../screens/thread/composerAttachmentSend";
+import {
+  sendWithAttachments,
+  type ComposerSendOptions,
+} from "../screens/thread/composerAttachmentSend";
 import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
 import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
@@ -559,7 +562,12 @@ export function useGraftSession() {
   );
 
   const sendMessage = useCallback(
-    async (threadId: string, rawText: string, effort?: string, options: ComposerSendOptions = {}) => {
+    async (
+      threadId: string,
+      rawText: string,
+      effort?: string,
+      options: ComposerSendOptions = {},
+    ) => {
       const text = rawText.trim();
       const attachments = options.attachments ?? [];
       if (!text && attachments.length === 0) return false;
@@ -589,36 +597,53 @@ export function useGraftSession() {
             if (sessionRef.current?.sessionId !== session.sessionId) {
               throw new GatewaySocketError("The paired session changed. Please send again.");
             }
-            return gateway.uploadAttachment(session, threadId, attachment, new File(attachment.uri));
+            return gateway.uploadAttachment(
+              session,
+              threadId,
+              attachment,
+              new File(attachment.uri),
+            );
           },
           (id) => gateway.cancelAttachment(session, id),
           (uploaded) => {
             if (sessionRef.current?.sessionId !== session.sessionId) {
               throw new GatewaySocketError("The paired session changed. Please send again.");
             }
-            return runSocketCommand(socketRef.current, {
-              type: "turn.start",
-              threadId,
-              text,
-              ...(effort ? { effort } : {}),
-              ...(uploaded.length ? { attachments: uploaded } : {}),
-              ...(options.interactionMode ? { interactionMode: options.interactionMode } : {}),
-              ...(options.fastMode !== undefined ? { fastMode: options.fastMode } : {}),
-            }, "turn.start.result");
+            return runSocketCommand(
+              socketRef.current,
+              {
+                type: "turn.start",
+                threadId,
+                text,
+                ...(effort ? { effort } : {}),
+                ...(uploaded.length ? { attachments: uploaded } : {}),
+                ...(options.interactionMode ? { interactionMode: options.interactionMode } : {}),
+                ...(options.fastMode !== undefined ? { fastMode: options.fastMode } : {}),
+              },
+              "turn.start.result",
+            );
           },
         );
-        updatePaired(setState, (current) => current.session.sessionId === session.sessionId ? {
-          ...current,
-          snapshot: withRun(current.snapshot, result.run),
-        } : current);
+        updatePaired(setState, (current) =>
+          current.session.sessionId === session.sessionId
+            ? {
+                ...current,
+                snapshot: withRun(current.snapshot, result.run),
+              }
+            : current,
+        );
         scheduleSnapshot();
         return true;
       } catch (error) {
-        updatePaired(setState, (current) => current.session.sessionId === session.sessionId ? {
-          ...current,
-          liveEvents: current.liveEvents.filter((event) => event.id !== optimisticId),
-          error: messageFor(error),
-        } : current);
+        updatePaired(setState, (current) =>
+          current.session.sessionId === session.sessionId
+            ? {
+                ...current,
+                liveEvents: current.liveEvents.filter((event) => event.id !== optimisticId),
+                error: messageFor(error),
+              }
+            : current,
+        );
         return false;
       } finally {
         setPendingSendThreadId((current) => (current === threadId ? undefined : current));

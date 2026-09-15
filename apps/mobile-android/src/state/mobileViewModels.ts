@@ -318,7 +318,10 @@ export function buildTranscriptItems(
         const text = event.text?.trim() ?? "";
         if (!text && !event.attachments?.length) break;
         // Local and host IDs differ after upload; metadata identifies the echo.
-        const normalized = JSON.stringify([normalizedText(text), event.attachments?.map(({ name, sizeBytes, type }) => [name, sizeBytes, type]) ?? []]);
+        const normalized = JSON.stringify([
+          normalizedText(text),
+          event.attachments?.map(({ name, sizeBytes, type }) => [name, sizeBytes, type]) ?? [],
+        ]);
         const optimistic = optimisticIds.has(event.id);
         // Only `sendMessage` creates cursor-zero events. Pair one such event
         // with one authoritative event, regardless of which arrived
@@ -479,7 +482,10 @@ function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolea
   switch (left.kind) {
     case "user": {
       const other = right as typeof left;
-      return left.text === other.text && JSON.stringify(left.attachments) === JSON.stringify(other.attachments);
+      return (
+        left.text === other.text &&
+        JSON.stringify(left.attachments) === JSON.stringify(other.attachments)
+      );
     }
     case "assistant": {
       const other = right as typeof left;

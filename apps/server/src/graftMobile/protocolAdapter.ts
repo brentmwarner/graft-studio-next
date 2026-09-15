@@ -418,10 +418,13 @@ export function toMobileTranscript(
       ...(message.turnId ? { runId: message.turnId } : {}),
       createdAt: timestamp(message.createdAt),
       text: message.text,
-      ...(message.attachments?.length ? {
-        attachments: message.attachments.filter((attachment) =>
-          attachment.type === "image" || attachment.type === "file"),
-      } : {}),
+      ...(message.attachments?.length
+        ? {
+            attachments: message.attachments.filter(
+              (attachment) => attachment.type === "image" || attachment.type === "file",
+            ),
+          }
+        : {}),
     };
   });
   const activityEvents = thread.activities.map((activity) =>
@@ -631,7 +634,10 @@ export function mobileFastMode(selection: ModelSelection): boolean {
   return options !== undefined && "fastMode" in options && options.fastMode === true;
 }
 
-export function withMobileFastMode(selection: ModelSelection, fastMode: boolean | undefined): ModelSelection {
+export function withMobileFastMode(
+  selection: ModelSelection,
+  fastMode: boolean | undefined,
+): ModelSelection {
   if (fastMode === undefined) return selection;
   switch (selection.provider) {
     case "codex":

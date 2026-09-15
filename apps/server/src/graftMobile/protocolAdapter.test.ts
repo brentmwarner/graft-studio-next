@@ -315,14 +315,34 @@ describe("Graft mobile protocol adapter", () => {
 
 it("projects user attachment metadata in snapshots and live events", () => {
   const source = thread();
-  const attachment = { id: "upload-1", type: "image" as const, name: "photo.png", mimeType: "image/png", sizeBytes: 42 };
+  const attachment = {
+    id: "upload-1",
+    type: "image" as const,
+    name: "photo.png",
+    mimeType: "image/png",
+    sizeBytes: 42,
+  };
   const user = { ...source.messages[0]!, text: "", attachments: [attachment] };
-  expect(toMobileTranscript({ ...source, messages: [user] }, 12).events[0]).toMatchObject({ text: "", attachments: [attachment] });
+  expect(toMobileTranscript({ ...source, messages: [user] }, 12).events[0]).toMatchObject({
+    text: "",
+    attachments: [attachment],
+  });
   const event: OrchestrationEvent = {
-    sequence: 12, eventId: EventId.makeUnsafe("event-file"), aggregateKind: "thread", aggregateId: source.id,
-    occurredAt: now, commandId: null, causationEventId: null, correlationId: null, metadata: {},
+    sequence: 12,
+    eventId: EventId.makeUnsafe("event-file"),
+    aggregateKind: "thread",
+    aggregateId: source.id,
+    occurredAt: now,
+    commandId: null,
+    causationEventId: null,
+    correlationId: null,
+    metadata: {},
     type: "thread.message-sent",
     payload: { ...user, messageId: user.id, threadId: source.id },
   };
-  expect(toMobileLiveEvent(makeGraftMobileLiveEventState(), event)).toMatchObject({ kind: "user.message", text: "", attachments: [attachment] });
+  expect(toMobileLiveEvent(makeGraftMobileLiveEventState(), event)).toMatchObject({
+    kind: "user.message",
+    text: "",
+    attachments: [attachment],
+  });
 });

@@ -77,7 +77,12 @@ interface ThreadScreenProps {
     question: Pick<GraftQuestionRequest, "id">,
     answer: { readonly optionId?: string; readonly text?: string },
   ) => Promise<boolean>;
-  readonly onSend: (threadId: string, text: string, effort?: string, options?: ComposerSendOptions) => Promise<boolean>;
+  readonly onSend: (
+    threadId: string,
+    text: string,
+    effort?: string,
+    options?: ComposerSendOptions,
+  ) => Promise<boolean>;
   readonly onSetApproval: (threadId: string, policy: string) => Promise<boolean>;
   readonly onSetModel: (threadId: string, model: GraftModelOption) => Promise<boolean>;
   readonly pendingSend?: boolean;
@@ -147,13 +152,25 @@ export function ThreadScreen({
   const [selectedMode, setSelectedMode] = useState<GraftInteractionMode>();
   const [selectedFastMode, setSelectedFastMode] = useState<boolean>();
   const interactionMode = selectedMode ?? model.currentThread.interactionMode ?? "default";
-  const fastMode = Boolean(model.currentModel?.supportsFastMode && (selectedFastMode ?? model.currentThread.fastMode));
+  const fastMode = Boolean(
+    model.currentModel?.supportsFastMode && (selectedFastMode ?? model.currentThread.fastMode),
+  );
   const composerFeatures = snapshot?.environment.composerFeatures;
   const isConnected = connectionState === "connected";
   // Dictation is local to the phone; a permission Activity can temporarily
   // disconnect the gateway without invalidating the microphone request.
-  const voice = useVoiceInput(thread.id, !isSending && !attachments.isPicking && !model.activeRunId, setDraft);
-  const canSend = Boolean((draft.trim() || attachments.attachments.length) && isConnected && !isSending && !attachments.isPicking && !voice.isActive);
+  const voice = useVoiceInput(
+    thread.id,
+    !isSending && !attachments.isPicking && !model.activeRunId,
+    setDraft,
+  );
+  const canSend = Boolean(
+    (draft.trim() || attachments.attachments.length) &&
+    isConnected &&
+    !isSending &&
+    !attachments.isPicking &&
+    !voice.isActive,
+  );
   const pendingApproval = model.approval;
   const pendingQuestion = model.question;
   const liveStatus = transcriptLiveStatus({
@@ -176,7 +193,14 @@ export function ThreadScreen({
 
   async function send(message = draft, fromDictation = false) {
     const text = message.trim();
-    if ((!text && !attachments.attachments.length) || !isConnected || sendInFlight.current || attachments.isPicking || (voice.isActive && !fromDictation)) return;
+    if (
+      (!text && !attachments.attachments.length) ||
+      !isConnected ||
+      sendInFlight.current ||
+      attachments.isPicking ||
+      (voice.isActive && !fromDictation)
+    )
+      return;
     sendInFlight.current = true;
     const sendingAttachments = attachments.attachments;
     const releaseAttachments = attachments.retainForSend();
@@ -274,10 +298,7 @@ export function ThreadScreen({
         }
       />
 
-      <EdgeFade
-        edge="top"
-        style={[styles.topFade, { height: headerBottom + 38 }]}
-      />
+      <EdgeFade edge="top" style={[styles.topFade, { height: headerBottom + 38 }]} />
       {/* Preserve the PR14 row's 8 dp centering space around its 44 dp controls. */}
       <View style={[styles.topBar, { top: headerTop - 8 }]}>
         <CircleIconButton
@@ -438,7 +459,9 @@ export function ThreadScreen({
               interactionMode,
               fastMode,
               busy: isSending || attachments.isPicking || voice.isActive,
-              onAttach: (source) => { void attachments.pick(source); },
+              onAttach: (source) => {
+                void attachments.pick(source);
+              },
               onSelectMode: setSelectedMode,
               onSelectFastMode: setSelectedFastMode,
             },
@@ -451,7 +474,8 @@ export function ThreadScreen({
             enabled: isConnected,
             onSelectApproval: (policy) => onSetApproval(thread.id, policy),
             onSelectModel: (selected) => {
-              if (model.lockedProviderId && selected.providerId !== model.lockedProviderId) return false;
+              if (model.lockedProviderId && selected.providerId !== model.lockedProviderId)
+                return false;
               return onSetModel(thread.id, selected);
             },
             onSelectEffort: model.setSelectedEffort,

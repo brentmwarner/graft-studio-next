@@ -1,5 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { GraftModelOption, GraftEnvironmentSummary, GraftInteractionMode, GraftThreadSummary } from "@graft/mobile-contract";
+import type {
+  GraftModelOption,
+  GraftEnvironmentSummary,
+  GraftInteractionMode,
+  GraftThreadSummary,
+} from "@graft/mobile-contract";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -45,7 +50,9 @@ interface NewChatScreenProps {
   readonly initialProjectId?: string;
   readonly isConnected: boolean;
   readonly onBack: () => void;
-  readonly onCreate: (request: NewChatCreateRequest) => Promise<{ readonly sent: boolean; readonly thread?: GraftThreadSummary }>;
+  readonly onCreate: (
+    request: NewChatCreateRequest,
+  ) => Promise<{ readonly sent: boolean; readonly thread?: GraftThreadSummary }>;
   readonly onLoadModels: () => Promise<void>;
   readonly projects: readonly InboxProjectGroup[];
 }
@@ -117,7 +124,14 @@ export function NewChatScreen({
   );
   const canUseWorktree = selectedProject?.kind === "repo";
   const fastMode = Boolean(currentModel?.supportsFastMode && selectedFastMode);
-  const canSend = Boolean((draft.trim() || attachments.attachments.length) && selectedProject && isConnected && !isCreating && !attachments.isPicking && !voice.isActive);
+  const canSend = Boolean(
+    (draft.trim() || attachments.attachments.length) &&
+    selectedProject &&
+    isConnected &&
+    !isCreating &&
+    !attachments.isPicking &&
+    !voice.isActive,
+  );
 
   useEffect(() => {
     void onLoadModels();
@@ -134,11 +148,25 @@ export function NewChatScreen({
 
   async function send(message = draft, fromDictation = false) {
     const text = message.trim();
-    if ((!text && !attachments.attachments.length) || !selectedProject || !isConnected || sendInFlight.current || attachments.isPicking || (voice.isActive && !fromDictation)) return;
+    if (
+      (!text && !attachments.attachments.length) ||
+      !selectedProject ||
+      !isConnected ||
+      sendInFlight.current ||
+      attachments.isPicking ||
+      (voice.isActive && !fromDictation)
+    )
+      return;
     sendInFlight.current = true;
     setIsCreating(true);
     const releaseAttachments = attachments.retainForSend();
-    const key = JSON.stringify([selectedProject.id, mode, currentModel?.providerId, currentModel?.id, currentApproval]);
+    const key = JSON.stringify([
+      selectedProject.id,
+      mode,
+      currentModel?.providerId,
+      currentModel?.id,
+      currentApproval,
+    ]);
     try {
       const result = await onCreate({
         projectId: selectedProject.id,
@@ -147,7 +175,9 @@ export function NewChatScreen({
         model: currentModel,
         effort: resolvedEffort,
         approvalPolicy: currentApproval,
-        ...(createdThread.current?.key === key ? { existingThread: createdThread.current.thread } : {}),
+        ...(createdThread.current?.key === key
+          ? { existingThread: createdThread.current.thread }
+          : {}),
         composer: {
           attachments: attachments.attachments,
           ...(composerFeatures?.interactionModes ? { interactionMode } : {}),
@@ -271,10 +301,14 @@ export function NewChatScreen({
             },
           ]}
         >
-          {error ? <Text style={{ color: palette.danger, fontSize: 12, padding: 8 }}>{error}</Text> : null}
+          {error ? (
+            <Text style={{ color: palette.danger, fontSize: 12, padding: 8 }}>{error}</Text>
+          ) : null}
           <Composer
             voice={voice}
-            onSendDictation={() => { void sendDictation(); }}
+            onSendDictation={() => {
+              void sendDictation();
+            }}
             attachments={attachments.attachments}
             attachmentError={attachments.error}
             onRemoveAttachment={(id) => attachments.remove([id])}
@@ -301,7 +335,9 @@ export function NewChatScreen({
                 interactionMode,
                 fastMode,
                 busy: isCreating || attachments.isPicking || voice.isActive,
-                onAttach: (source) => { void attachments.pick(source); },
+                onAttach: (source) => {
+                  void attachments.pick(source);
+                },
                 onSelectMode: setInteractionMode,
                 onSelectFastMode: setSelectedFastMode,
               },

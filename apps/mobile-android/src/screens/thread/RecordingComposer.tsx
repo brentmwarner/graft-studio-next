@@ -36,7 +36,8 @@ function RecordingWaveform() {
               {
                 backgroundColor: palette.foreground,
                 height: Math.max(2, Math.min(1, level * 1.15) * 22),
-                opacity: (0.2 + (0.8 * index) / (SAMPLE_COUNT - 1)) *
+                opacity:
+                  (0.2 + (0.8 * index) / (SAMPLE_COUNT - 1)) *
                   (index > 42 ? (SAMPLE_COUNT - index) / 6 : 1),
               },
             ]}
@@ -96,8 +97,20 @@ const styles = StyleSheet.create({
   waveform: { flex: 1, height: 22, flexDirection: "row", alignItems: "center" },
   sample: { flex: 1, alignItems: "center" },
   bar: { width: 2, borderRadius: 1 },
-  stopButton: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  stopButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   stopGlyph: { width: 12, height: 12, borderRadius: 2 },
-  sendButton: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  sendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   status: { flex: 1, fontSize: 14 },
 });

@@ -45,7 +45,11 @@ import {
   makeGraftMobileGatewayState,
 } from "./gateway";
 import { getMobileLanGatewayPort, mobileLanGatewayAdvertisesIpv6 } from "./lanGateway";
-import { makeGraftMobileLiveEventState, seedGraftMobileLiveEventState, toMobileLiveEvent } from "./liveEvents";
+import {
+  makeGraftMobileLiveEventState,
+  seedGraftMobileLiveEventState,
+  toMobileLiveEvent,
+} from "./liveEvents";
 import {
   discoverNetworkEndpoints,
   preferredPairingEndpoint,

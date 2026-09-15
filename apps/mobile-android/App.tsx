@@ -138,11 +138,13 @@ function GraftApp() {
                 isConnected={paired.connectionState === "connected"}
                 onBack={backToHome}
                 onCreate={async (request) => {
-                  const thread = request.existingThread ?? await session.createThread(request.projectId, {
-                    approvalPolicy: request.approvalPolicy,
-                    mode: request.mode,
-                    model: request.model,
-                  });
+                  const thread =
+                    request.existingThread ??
+                    (await session.createThread(request.projectId, {
+                      approvalPolicy: request.approvalPolicy,
+                      mode: request.mode,
+                      model: request.model,
+                    }));
                   if (!thread) return { sent: false };
                   const configuredThread = request.approvalPolicy
                     ? {
@@ -151,12 +153,22 @@ function GraftApp() {
                       }
                     : thread;
                   await session.openThread(thread.id);
-                  const sent = await session.sendMessage(thread.id, request.text, request.effort, request.composer);
-                  if (sent) setRoute((current) => current.name === "new-chat" ? {
-                    name: "thread",
-                    thread: configuredThread,
-                    initialEffort: request.effort,
-                  } : current);
+                  const sent = await session.sendMessage(
+                    thread.id,
+                    request.text,
+                    request.effort,
+                    request.composer,
+                  );
+                  if (sent)
+                    setRoute((current) =>
+                      current.name === "new-chat"
+                        ? {
+                            name: "thread",
+                            thread: configuredThread,
+                            initialEffort: request.effort,
+                          }
+                        : current,
+                    );
                   return { sent, thread: configuredThread };
                 }}
                 onLoadModels={session.loadModels}

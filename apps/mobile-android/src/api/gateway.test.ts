@@ -121,10 +121,20 @@ describe("account usage endpoint", () => {
 });
 
 it("uploads binary data using the paired session and preserves attachment metadata", async () => {
-  const attachment = { id: "host-file", type: "file" as const, name: "notes & plan.txt", mimeType: "text/plain", sizeBytes: 5 };
+  const attachment = {
+    id: "host-file",
+    type: "file" as const,
+    name: "notes & plan.txt",
+    mimeType: "text/plain",
+    sizeBytes: 5,
+  };
   const body = new Blob(["hello"]);
-  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json(attachment, { status: 201 }));
-  expect(await createGatewayClient(fetcher).uploadAttachment(session, "thread/a b", attachment, body)).toEqual(attachment);
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) =>
+    Response.json(attachment, { status: 201 }),
+  );
+  expect(
+    await createGatewayClient(fetcher).uploadAttachment(session, "thread/a b", attachment, body),
+  ).toEqual(attachment);
   const [url, init] = fetcher.mock.calls[0]!;
   expect(new URL(url).pathname).toBe("/api/attachments/upload");
   expect(new URL(url).searchParams.get("threadId")).toBe("thread/a b");
@@ -135,24 +145,40 @@ it("uploads binary data using the paired session and preserves attachment metada
 });
 
 it("authenticates cancellation and reports host attachment errors", async () => {
-  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json({ cancelled: true }));
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) =>
+    Response.json({ cancelled: true }),
+  );
   await createGatewayClient(fetcher).cancelAttachment(session, "host-file");
   expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
-    method: "POST", body: JSON.stringify({ attachmentId: "host-file" }),
+    method: "POST",
+    body: JSON.stringify({ attachmentId: "host-file" }),
     headers: { authorization: `Bearer ${session.bearerToken}` },
   });
-  await expect(createGatewayClient(async () => Response.json({ error: "Upload quota exceeded." }, { status: 413 })).cancelAttachment(session, "host-file")).rejects.toThrow("Upload quota exceeded.");
+  await expect(
+    createGatewayClient(async () =>
+      Response.json({ error: "Upload quota exceeded." }, { status: 413 }),
+    ).cancelAttachment(session, "host-file"),
+  ).rejects.toThrow("Upload quota exceeded.");
 });
-
 
 it("uploads extensionless native files without reading their nullable MIME property", async () => {
   const bytes = new TextEncoder().encode("cached document").buffer;
   const file = {
     arrayBuffer: async () => bytes,
-    get type(): string { throw new Error("Native File MIME must not override metadata"); },
+    get type(): string {
+      throw new Error("Native File MIME must not override metadata");
+    },
   } as Blob;
-  const attachment = { id: "cached-file", type: "file" as const, name: "document", mimeType: "application/octet-stream", sizeBytes: bytes.byteLength };
+  const attachment = {
+    id: "cached-file",
+    type: "file" as const,
+    name: "document",
+    mimeType: "application/octet-stream",
+    sizeBytes: bytes.byteLength,
+  };
   const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => Response.json(attachment));
-  await expect(createGatewayClient(fetcher).uploadAttachment(session, "thread-1", attachment, file)).resolves.toEqual(attachment);
+  await expect(
+    createGatewayClient(fetcher).uploadAttachment(session, "thread-1", attachment, file),
+  ).resolves.toEqual(attachment);
   expect(fetcher.mock.calls[0]?.[1]?.body).toBe(bytes);
 });

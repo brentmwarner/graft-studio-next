@@ -61,13 +61,24 @@ export const TranscriptRow = memo(function TranscriptRow({
           <View style={[styles.userBubble, { backgroundColor: palette.bubble }]}>
             {item.attachments?.map((attachment) => (
               <View key={attachment.id} style={styles.attachment}>
-                <Ionicons name={attachment.type === "image" ? "image-outline" : "document-outline"} size={18} color={palette.foregroundMuted} />
-                <Text numberOfLines={2} style={[styles.attachmentName, { color: palette.foreground }]}>{attachment.name}</Text>
+                <Ionicons
+                  name={attachment.type === "image" ? "image-outline" : "document-outline"}
+                  size={18}
+                  color={palette.foregroundMuted}
+                />
+                <Text
+                  numberOfLines={2}
+                  style={[styles.attachmentName, { color: palette.foreground }]}
+                >
+                  {attachment.name}
+                </Text>
               </View>
             ))}
-            {item.text ? <Text selectable style={[styles.userText, { color: palette.foreground }]}>
-              {item.text}
-            </Text> : null}
+            {item.text ? (
+              <Text selectable style={[styles.userText, { color: palette.foreground }]}>
+                {item.text}
+              </Text>
+            ) : null}
           </View>
         </View>
       );

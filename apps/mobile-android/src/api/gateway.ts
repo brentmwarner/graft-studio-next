@@ -42,7 +42,12 @@ export interface PairingClientInfo {
 }
 
 export interface GatewayClient {
-  uploadAttachment(session: GraftSessionCredential, threadId: string, attachment: GraftAttachment, body: Blob): Promise<GraftAttachment>;
+  uploadAttachment(
+    session: GraftSessionCredential,
+    threadId: string,
+    attachment: GraftAttachment,
+    body: Blob,
+  ): Promise<GraftAttachment>;
   cancelAttachment(session: GraftSessionCredential, attachmentId: string): Promise<void>;
   usage(session: GraftSessionCredential, threadId: string): Promise<GraftThreadUsage>;
   health(baseUrl: string): Promise<GraftRemoteHealth>;
@@ -92,7 +97,12 @@ function errorFromResponse(response: Response, body: unknown): GatewayError {
   );
 }
 
-async function request(fetcher: GatewayFetch, url: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+async function request(
+  fetcher: GatewayFetch,
+  url: string,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -114,29 +124,50 @@ export function createGatewayClient(fetcher: GatewayFetch = expoFetch): GatewayC
   return {
     async uploadAttachment(session, threadId, attachment, body) {
       const url = new URL(endpoint(session.httpBaseUrl, "/api/attachments/upload"));
-      for (const [key, value] of Object.entries({ threadId, type: attachment.type, name: attachment.name, mimeType: attachment.mimeType })) {
+      for (const [key, value] of Object.entries({
+        threadId,
+        type: attachment.type,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+      })) {
         url.searchParams.set(key, value);
       }
-      const response = await request(fetcher, url.toString(), {
-        method: "POST",
-        headers: { authorization: `Bearer ${session.bearerToken}`, "content-type": attachment.mimeType },
-        // SDK 57's Blob normalization replaces Content-Type with File.type,
-        // which can be null for cached documents without a file extension.
-        body: await body.arrayBuffer(),
-      }, 120_000);
+      const response = await request(
+        fetcher,
+        url.toString(),
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${session.bearerToken}`,
+            "content-type": attachment.mimeType,
+          },
+          // SDK 57's Blob normalization replaces Content-Type with File.type,
+          // which can be null for cached documents without a file extension.
+          body: await body.arrayBuffer(),
+        },
+        120_000,
+      );
       const json = await responseJson(response);
       if (!response.ok) throw errorFromResponse(response, json);
       const parsed = GraftAttachmentSchema.safeParse(json);
-      if (!parsed.success) throw new GatewayError("The host returned an invalid attachment.", "invalid_response");
+      if (!parsed.success)
+        throw new GatewayError("The host returned an invalid attachment.", "invalid_response");
       return parsed.data;
     },
 
     async cancelAttachment(session, attachmentId) {
-      const response = await request(fetcher, endpoint(session.httpBaseUrl, "/api/attachments/cancel"), {
-        method: "POST",
-        headers: { authorization: `Bearer ${session.bearerToken}`, "content-type": "application/json" },
-        body: JSON.stringify({ attachmentId }),
-      });
+      const response = await request(
+        fetcher,
+        endpoint(session.httpBaseUrl, "/api/attachments/cancel"),
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${session.bearerToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ attachmentId }),
+        },
+      );
       if (!response.ok) throw errorFromResponse(response, await responseJson(response));
     },
 

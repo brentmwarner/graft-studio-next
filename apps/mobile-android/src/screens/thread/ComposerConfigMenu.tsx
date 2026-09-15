@@ -1,11 +1,21 @@
-import type { GraftApprovalPolicyOption, GraftModelOption, GraftInteractionMode } from "@graft/mobile-contract";
+import type {
+  GraftApprovalPolicyOption,
+  GraftModelOption,
+  GraftInteractionMode,
+} from "@graft/mobile-contract";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { AnchoredMenu, MenuCaption, MenuItem } from "../../components/AnchoredMenu";
 import type { AttachmentSource } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
 
-export type ComposerMenuPage = "options" | "intelligence" | "models" | "permissions" | "mode" | "speed";
+export type ComposerMenuPage =
+  | "options"
+  | "intelligence"
+  | "models"
+  | "permissions"
+  | "mode"
+  | "speed";
 export interface ComposerMenuConfig {
   readonly extras?: {
     readonly attachmentsEnabled: boolean;
@@ -88,11 +98,13 @@ export function ComposerConfigMenu({
       case "options":
         return (
           <>
-            {([
-              ["files", "Add files", "document-outline"],
-              ["photos", "Photos", "images-outline"],
-              ["camera", "Camera", "camera-outline"],
-            ] as const).map(([source, label, icon]) => (
+            {(
+              [
+                ["files", "Add files", "document-outline"],
+                ["photos", "Photos", "images-outline"],
+                ["camera", "Camera", "camera-outline"],
+              ] as const
+            ).map(([source, label, icon]) => (
               <MenuItem
                 key={source}
                 label={label}
@@ -135,9 +147,13 @@ export function ComposerConfigMenu({
               <MenuItem
                 key={mode}
                 label={displayName(mode)}
-                detail={mode === "plan"
-                  ? "Plan the work before making changes"
-                  : mode === "debug" ? "Investigate and fix a problem" : "Work on the task"}
+                detail={
+                  mode === "plan"
+                    ? "Plan the work before making changes"
+                    : mode === "debug"
+                      ? "Investigate and fix a problem"
+                      : "Work on the task"
+                }
                 selected={config.extras?.interactionMode === mode}
                 enabled={Boolean(config.extras?.modesEnabled && !config.extras.busy)}
                 onPress={() => {

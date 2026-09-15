@@ -43,7 +43,10 @@ async function assertNoSynaraContractImports(root, label) {
       /["']@synara\/shared\/disclosureMotion["']/gu,
       '""',
     );
-    if (protocolImports.includes("@synara/contracts") || protocolImports.includes("@synara/shared")) {
+    if (
+      protocolImports.includes("@synara/contracts") ||
+      protocolImports.includes("@synara/shared")
+    ) {
       violations.push(path.slice(repositoryRoot.length + 1));
     }
   }

@@ -22,7 +22,7 @@ afterEach(() => {
 
 function expoAndroidCleartext(config: {
   expo?: {
-    android?: { usesCleartextTraffic?: boolean };
+    android?: ConfigContext["config"]["android"] & { usesCleartextTraffic?: boolean };
     plugins?: unknown[];
   };
 }): boolean | undefined {
@@ -58,13 +58,16 @@ describe("debug-only Android cleartext", () => {
     expect(config.expo?.plugins).toContain("./plugins/withDebugCleartextTraffic.js");
   });
 
-  it.each(["production", "development", undefined])("keeps the main manifest policy for %s", (profile) => {
-    vi.stubEnv("EAS_BUILD_PROFILE", profile);
-    const config = configureApp({
-      config: { name: "Graft", slug: "graft-mobile-android" },
-    } as ConfigContext);
-    expect(expoAndroidCleartext({ expo: config })).toBeUndefined();
-  });
+  it.each(["production", "development", undefined])(
+    "keeps the main manifest policy for %s",
+    (profile) => {
+      vi.stubEnv("EAS_BUILD_PROFILE", profile);
+      const config = configureApp({
+        config: { name: "Graft", slug: "graft-mobile-android" },
+      } as ConfigContext);
+      expect(expoAndroidCleartext({ expo: config })).toBeUndefined();
+    },
+  );
 
   it("allows local HTTP hosts only in the standalone preview profile", () => {
     vi.stubEnv("EAS_BUILD_PROFILE", "preview");

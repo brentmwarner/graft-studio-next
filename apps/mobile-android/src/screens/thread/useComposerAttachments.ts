@@ -66,7 +66,10 @@ export function useComposerAttachments(threadId: string) {
       let assets: readonly { uri: string; name: string; mimeType?: string }[];
       switch (source) {
         case "files": {
-          const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+          const result = await DocumentPicker.getDocumentAsync({
+            multiple: true,
+            copyToCacheDirectory: true,
+          });
           if (result.canceled) return;
           assets = result.assets;
           break;
@@ -77,13 +80,14 @@ export function useComposerAttachments(threadId: string) {
             throw new Error("Allow camera access in Android settings to take a photo.");
           }
           const options: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.9 };
-          const result = source === "camera"
-            ? await ImagePicker.launchCameraAsync(options)
-            : await ImagePicker.launchImageLibraryAsync({
-                ...options,
-                allowsMultipleSelection: true,
-                selectionLimit: GRAFT_MOBILE_MAX_ATTACHMENTS - selected.current.length,
-              });
+          const result =
+            source === "camera"
+              ? await ImagePicker.launchCameraAsync(options)
+              : await ImagePicker.launchImageLibraryAsync({
+                  ...options,
+                  allowsMultipleSelection: true,
+                  selectionLimit: GRAFT_MOBILE_MAX_ATTACHMENTS - selected.current.length,
+                });
           if (result.canceled) return;
           assets = result.assets.map((asset) => ({
             uri: asset.uri,
@@ -137,7 +141,11 @@ export function useComposerAttachments(threadId: string) {
     for (const attachment of retained) leased.current.add(attachment.id);
     return () => {
       for (const attachment of retained) leased.current.delete(attachment.id);
-      release(retained.filter((attachment) => !selected.current.some((item) => item.id === attachment.id)));
+      release(
+        retained.filter(
+          (attachment) => !selected.current.some((item) => item.id === attachment.id),
+        ),
+      );
     };
   }
 

@@ -114,14 +114,32 @@ describe("composer quick menus", () => {
 });
 
 it("opens each native picker from plus and keeps model settings in their own menu", async () => {
-  config = { ...config, extras: {
-    attachmentsEnabled: true, modesEnabled: true, fastModeEnabled: true,
-    interactionMode: "default", fastMode: false, busy: false,
-    onAttach: vi.fn(), onSelectMode: vi.fn(), onSelectFastMode: vi.fn(),
-  } };
+  config = {
+    ...config,
+    extras: {
+      attachmentsEnabled: true,
+      modesEnabled: true,
+      fastModeEnabled: true,
+      interactionMode: "default",
+      fastMode: false,
+      busy: false,
+      onAttach: vi.fn(),
+      onSelectMode: vi.fn(),
+      onSelectFastMode: vi.fn(),
+    },
+  };
   await mount("options");
-  expect(items().map((node) => node.props.label)).toEqual(["Add files", "Photos", "Camera", "Mode"]);
-  for (const [label, source] of [["Add files", "files"], ["Photos", "photos"], ["Camera", "camera"]]) {
+  expect(items().map((node) => node.props.label)).toEqual([
+    "Add files",
+    "Photos",
+    "Camera",
+    "Mode",
+  ]);
+  for (const [label, source] of [
+    ["Add files", "files"],
+    ["Photos", "photos"],
+    ["Camera", "camera"],
+  ]) {
     await act(() => item(label!).props.onPress());
     expect(config.extras!.onAttach).toHaveBeenLastCalledWith(source);
   }
@@ -129,11 +147,21 @@ it("opens each native picker from plus and keeps model settings in their own men
 });
 
 it("selects Plan and Fast from the plus menu", async () => {
-  config = { ...config, currentModel: { ...model, supportsFastMode: true }, extras: {
-    attachmentsEnabled: true, modesEnabled: true, fastModeEnabled: true,
-    interactionMode: "default", fastMode: false, busy: false,
-    onAttach: vi.fn(), onSelectMode: vi.fn(), onSelectFastMode: vi.fn(),
-  } };
+  config = {
+    ...config,
+    currentModel: { ...model, supportsFastMode: true },
+    extras: {
+      attachmentsEnabled: true,
+      modesEnabled: true,
+      fastModeEnabled: true,
+      interactionMode: "default",
+      fastMode: false,
+      busy: false,
+      onAttach: vi.fn(),
+      onSelectMode: vi.fn(),
+      onSelectFastMode: vi.fn(),
+    },
+  };
   await mount("options");
   await act(() => item("Mode").props.onPress());
   expect(item("Default").props.selected).toBe(true);

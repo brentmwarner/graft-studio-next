@@ -31,7 +31,10 @@ import { Data, Effect, Option } from "effect";
 import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
-import { OrchestrationEngineService, type OrchestrationDispatchContext } from "../orchestration/Services/OrchestrationEngine";
+import {
+  OrchestrationEngineService,
+  type OrchestrationDispatchContext,
+} from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
 import { ProviderDiscoveryService } from "../provider/Services/ProviderDiscoveryService";
 import { listProviderUsage } from "../providerUsage";
@@ -567,24 +570,28 @@ export const executeMobileCommand = Effect.fn(function* (
     case "turn.start": {
       const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
       if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
-      const result = yield* engine.dispatch({
-        type: "thread.turn.start",
-        commandId,
-        threadId: ThreadId.makeUnsafe(command.threadId),
-        message: {
-          messageId: MessageId.makeUnsafe(randomUUID()),
-          role: "user",
-          text: command.text,
-          attachments: command.attachments ?? [],
+      const result = yield* engine.dispatch(
+        {
+          type: "thread.turn.start",
+          commandId,
+          threadId: ThreadId.makeUnsafe(command.threadId),
+          message: {
+            messageId: MessageId.makeUnsafe(randomUUID()),
+            role: "user",
+            text: command.text,
+            attachments: command.attachments ?? [],
+          },
+          modelSelection: withMobileFastMode(
+            withMobileEffort(current.value.modelSelection, command.effort),
+            command.fastMode,
+          ),
+          runtimeMode: current.value.runtimeMode,
+          interactionMode: command.interactionMode ?? current.value.interactionMode,
+          assistantDeliveryMode: "streaming",
+          createdAt,
         },
-        modelSelection: withMobileFastMode(
-          withMobileEffort(current.value.modelSelection, command.effort), command.fastMode,
-        ),
-        runtimeMode: current.value.runtimeMode,
-        interactionMode: command.interactionMode ?? current.value.interactionMode,
-        assistantDeliveryMode: "streaming",
-        createdAt,
-      }, context);
+        context,
+      );
       const projectedRun = yield* waitForActiveRun(command.threadId, result.sequence);
       const run: GraftRunSummary = projectedRun ?? {
         id: commandIdRaw,

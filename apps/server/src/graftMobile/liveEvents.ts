@@ -80,9 +80,13 @@ export function toMobileLiveEvent(
       kind: payload.role === "user" ? "user.message" : "status",
       ...(payload.turnId ? { runId: payload.turnId } : {}),
       text: payload.text,
-      ...(payload.attachments?.length ? {
-        attachments: payload.attachments.filter((attachment) => attachment.type === "image" || attachment.type === "file"),
-      } : {}),
+      ...(payload.attachments?.length
+        ? {
+            attachments: payload.attachments.filter(
+              (attachment) => attachment.type === "image" || attachment.type === "file",
+            ),
+          }
+        : {}),
     };
   }
 
