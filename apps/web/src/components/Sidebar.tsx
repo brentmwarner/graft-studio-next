@@ -416,10 +416,11 @@ import {
 } from "../lib/projectCreation";
 import { useSpacesUiStore } from "../spacesUiStore";
 import {
-  CreateProjectDialog,
   type CreateProjectSubmitOptions,
   type CreateProjectSubmitValue,
 } from "./CreateProjectDialog";
+import { ConnectedCreateProjectDialog } from "./ConnectedCreateProjectDialog";
+import { SshProjectsSidebar } from "./SshProjectsSidebar";
 import { SpaceEditorDialog } from "./SpaceEditorDialog";
 import { useSpacesController } from "./useSpacesController";
 import { SpaceEmptyState } from "./SpaceEmptyState";
@@ -6320,6 +6321,7 @@ export default function Sidebar() {
                       }}
                     />
                   )}
+                  <SshProjectsSidebar />
                 </SidebarGroup>
               )}
             </div>
@@ -6525,7 +6527,7 @@ export default function Sidebar() {
         </SidebarMenu>
       </SidebarFooter>
 
-      <CreateProjectDialog
+      <ConnectedCreateProjectDialog
         open={createProjectDialogOpen}
         githubProvisioningAvailable={githubProvisioningAvailable}
         spaces={spaces}

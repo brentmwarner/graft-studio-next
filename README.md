@@ -89,7 +89,7 @@ Managed worktrees provide a boundary for parallel changes. Handoffs preserve pro
 
 Automations support recurring agent runs and keep their outcomes attached to projects and threads. External MCP integrations provide scoped, user-approved access for other local clients.
 
-See [External MCP integrations](./docs/external-mcp.md) for setup, pairing, project access, and permission boundaries.
+See [External MCP integrations](./docs/external-mcp.md) for setup, pairing, project access, and permission boundaries. See [Connections](./docs/connections.md) for SSH setup, paired devices, and troubleshooting.
 
 ### 7. Appearance and workspace preferences
 

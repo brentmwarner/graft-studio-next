@@ -1,4 +1,13 @@
-import { Effect } from "effect";
+import {
+  FilesystemBrowseInput,
+  FilesystemBrowseResult,
+  SSH_HOST_DIRECTORY_PATH,
+  SSH_HOST_PROJECTS_PATH,
+  SshProjectAddInput,
+  SshProjectAddResult,
+  SshProjectList,
+} from "@synara/contracts";
+import { Effect, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 
 import { AuthError, ServerAuth } from "../auth/Services/ServerAuth";
@@ -10,6 +19,7 @@ import {
 } from "../graftOwnerHttp";
 import { SshRemoteError } from "./sshRemoteTypes";
 import { closeSshConnectionManager, sshConnectionManager } from "./sshRuntime";
+import { sshProjectRequest } from "./sshProjectRequest";
 
 function jsonResponse(value: unknown, status = 200, headers: Record<string, string> = {}) {
   return HttpServerResponse.jsonUnsafe(value, { status, headers });
@@ -30,6 +40,10 @@ function sshErrorResponse(error: unknown, headers: Record<string, string> = {}) 
   );
 }
 
+function sshRequest<A>(operation: () => Promise<A>) {
+  return Effect.tryPromise({ try: operation, catch: (error) => error });
+}
+
 async function readJson(request: HttpServerRequest.HttpServerRequest): Promise<unknown> {
   try {
     return await Effect.runPromise(request.json);
@@ -39,7 +53,10 @@ async function readJson(request: HttpServerRequest.HttpServerRequest): Promise<u
 }
 
 function machineIdFromPath(pathname: string): string | null {
-  const match = /^\/api\/graft\/ssh\/machines\/([^/]+)(?:\/(connect|disconnect))?$/u.exec(pathname);
+  const match =
+    /^\/api\/graft\/ssh\/machines\/([^/]+)(?:\/(connect|disconnect|projects|directory))?$/u.exec(
+      pathname,
+    );
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
@@ -94,8 +111,41 @@ const sshHttpRouteLayer = HttpRouter.add(
     const machineId = machineIdFromPath(url.pathname);
     if (!machineId) return respond({ error: "Not found" }, 404);
 
+    if (
+      request.method === "GET" &&
+      url.pathname === `/api/graft/ssh/machines/${machineId}/directory`
+    ) {
+      const input = yield* Schema.decodeUnknownEffect(FilesystemBrowseInput)({
+        partialPath: url.searchParams.get("path") || "~/",
+      });
+      const result = yield* sshRequest(() =>
+        sshProjectRequest(
+          manager.activeConnection(machineId),
+          `${SSH_HOST_DIRECTORY_PATH}?path=${encodeURIComponent(input.partialPath)}`,
+        ),
+      );
+      return respond(yield* Schema.decodeUnknownEffect(FilesystemBrowseResult)(result));
+    }
+    if (url.pathname === `/api/graft/ssh/machines/${machineId}/projects`) {
+      if (request.method === "GET") {
+        const result = yield* sshRequest(() =>
+          sshProjectRequest(manager.activeConnection(machineId), SSH_HOST_PROJECTS_PATH),
+        );
+        return respond(yield* Schema.decodeUnknownEffect(SshProjectList)(result));
+      }
+      if (request.method === "POST") {
+        const input = yield* Schema.decodeUnknownEffect(SshProjectAddInput)(
+          yield* Effect.promise(() => readJson(request)),
+        );
+        const result = yield* sshRequest(() =>
+          sshProjectRequest(manager.activeConnection(machineId), SSH_HOST_PROJECTS_PATH, input),
+        );
+        return respond(yield* Schema.decodeUnknownEffect(SshProjectAddResult)(result));
+      }
+    }
+
     if (request.method === "DELETE" && url.pathname === `/api/graft/ssh/machines/${machineId}`) {
-      const deleted = yield* Effect.promise(() => manager.deleteMachine(machineId));
+      const deleted = yield* sshRequest(() => manager.deleteMachine(machineId));
       return respond({ deleted });
     }
 
@@ -103,23 +153,19 @@ const sshHttpRouteLayer = HttpRouter.add(
       request.method === "POST" &&
       url.pathname === `/api/graft/ssh/machines/${machineId}/connect`
     ) {
-      try {
-        const connection = yield* Effect.promise(() => manager.connect(machineId));
-        return respond({
-          machine: manager.machineSummary(connection.machine),
-          localPort: connection.localPort,
-          routes: connection.routes,
-        });
-      } catch (error) {
-        return fail(error);
-      }
+      const connection = yield* sshRequest(() => manager.connect(machineId));
+      return respond({
+        machine: manager.machineSummary(connection.machine),
+        localPort: connection.localPort,
+        routes: connection.routes,
+      });
     }
 
     if (
       request.method === "POST" &&
       url.pathname === `/api/graft/ssh/machines/${machineId}/disconnect`
     ) {
-      yield* Effect.promise(() => manager.disconnect(machineId));
+      yield* sshRequest(() => manager.disconnect(machineId));
       const machine = manager.listMachines().find((entry) => entry.id === machineId);
       return respond({
         machine: machine ? manager.machineSummary(machine) : null,

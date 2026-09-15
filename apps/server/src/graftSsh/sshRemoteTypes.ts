@@ -57,6 +57,7 @@ export type SshRemoteErrorCode =
   | "tunnel_failed"
   | "enrollment_failed"
   | "secret_store_unavailable"
+  | "project_request_failed"
   | "connection_closed";
 
 export class SshRemoteError extends Error {

@@ -1,4 +1,14 @@
 import { resolveWsHttpUrl } from "./lib/wsHttpUrl";
+import type {
+  FilesystemBrowseResult,
+  SshProjectAddInput,
+  SshProjectAddResult,
+  SshProjectList,
+} from "@synara/contracts";
+
+export const SSH_MACHINES_QUERY_KEY = ["graft", "ssh-machines"] as const;
+export const sshProjectsQueryKey = (machineId: string) =>
+  ["graft", "ssh-projects", machineId] as const;
 
 export interface GraftSshMachineSummary {
   id: string;
@@ -134,5 +144,28 @@ export function disconnectSshMachine(
 ): Promise<{ machine: GraftSshMachineSummary | null }> {
   return requestJson(`/api/graft/ssh/machines/${encodeURIComponent(id)}/disconnect`, {
     method: "POST",
+  });
+}
+
+export function listSshProjects(machineId: string): Promise<SshProjectList> {
+  return requestJson(`/api/graft/ssh/machines/${encodeURIComponent(machineId)}/projects`);
+}
+
+export function browseSshDirectory(
+  machineId: string,
+  path: string,
+): Promise<FilesystemBrowseResult> {
+  return requestJson(
+    `/api/graft/ssh/machines/${encodeURIComponent(machineId)}/directory?path=${encodeURIComponent(path)}`,
+  );
+}
+
+export function addSshProject(
+  machineId: string,
+  input: SshProjectAddInput,
+): Promise<SshProjectAddResult> {
+  return requestJson(`/api/graft/ssh/machines/${encodeURIComponent(machineId)}/projects`, {
+    method: "POST",
+    body: input,
   });
 }

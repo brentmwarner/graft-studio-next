@@ -57,7 +57,7 @@ afterEach(() => {
 });
 
 describe("SshRemoteConnectionManager", () => {
-  it("resolves, bootstraps, tunnels, enrolls, and stores the bearer only in secret storage", async () => {
+  it.each([false, true])("connects and removes (retry: %s)", async (retryDisconnect) => {
     const environmentId = "host-fedora-workstation-01";
     const bearer = "desktop-bearer-value-0000000000000000001";
     const enrollmentToken = "enrollment-token-value-000000000000000001";
@@ -149,6 +149,7 @@ describe("SshRemoteConnectionManager", () => {
     paths.push(storePath);
     const machineStore = new SshMachineStore(storePath);
     const secretStore = new MemorySecretStore();
+    let tunnel!: ManagedSshTunnel;
     const manager = new SshRemoteConnectionManager({
       machineStore,
       secretStore,
@@ -158,12 +159,14 @@ describe("SshRemoteConnectionManager", () => {
       clientLabel: "Brent's Mac",
       clientVersion: "0.2.0",
       commandRunner,
-      createTunnel: (options) =>
-        new ManagedSshTunnel({
+      createTunnel: (options) => {
+        tunnel = new ManagedSshTunnel({
           ...options,
           localPort: address.port,
           spawnProcess: () => new FakeTunnelProcess(),
-        }),
+        });
+        return tunnel;
+      },
     });
     const saved = manager.saveMachine({
       label: "Fedora",
@@ -182,6 +185,12 @@ describe("SshRemoteConnectionManager", () => {
     expect([...secretStore.values.values()]).toEqual([bearer]);
     expect(manager.listMachines()[0]).not.toHaveProperty("bearer");
     expect(manager.listMachines()[0]).not.toHaveProperty("httpBaseUrl");
+    if (retryDisconnect) {
+      vi.spyOn(tunnel, "close").mockRejectedValueOnce(new Error("SSH process did not exit"));
+      await expect(manager.disconnect(saved.id)).rejects.toThrow("SSH process did not exit");
+      expect(manager.listMachineSummaries()[0]?.connected).toBe(true);
+      await expect(manager.connect(saved.id)).rejects.toThrow("SSH process did not exit");
+    }
     await expect(manager.deleteMachine(saved.id)).resolves.toBe(true);
     expect(revocationCount).toBe(1);
     expect(secretStore.values.size).toBe(0);
@@ -537,4 +546,40 @@ describe("SshRemoteConnectionManager", () => {
     });
     expect(manager.listMachineSummaries()[0]?.connected).toBe(false);
   });
+});
+
+describe("SSH connection cancellation", () => {
+  it.each(["disconnect", "closeAll", "deleteMachine"] as const)(
+    "does not publish a late connection after %s",
+    async (operation) => {
+      const path = join(tmpdir(), `graft-ssh-cancel-${randomUUID()}.json`);
+      paths.push(path);
+      const target = Promise.withResolvers<{ stdout: string; stderr: string; exitCode: number }>();
+      const runner = vi.fn<SshCommandRunner>(() => target.promise);
+      const createTunnel = vi.fn();
+      const manager = new SshRemoteConnectionManager({
+        machineStore: new SshMachineStore(path),
+        secretStore: new MemorySecretStore(),
+        hostArchivePath: "/unused",
+        hostVersion: "0.2.1",
+        clientId: "test",
+        clientLabel: "test",
+        clientVersion: "0.2.1",
+        commandRunner: runner,
+        createTunnel,
+      });
+      const machine = manager.saveMachine({ label: "Test", sshTarget: "test@machine" });
+      const connecting = manager.connect(machine.id);
+      const rejected = expect(connecting).rejects.toMatchObject({ code: "connection_closed" });
+      await vi.waitFor(() => expect(runner).toHaveBeenCalledOnce());
+      const closing =
+        operation === "closeAll" ? manager.closeAll() : manager[operation](machine.id);
+      target.resolve({ exitCode: 0, stdout: "hostname machine\nuser test\nport 22\n", stderr: "" });
+      await closing;
+      await rejected;
+      expect(runner).toHaveBeenCalledOnce();
+      expect(createTunnel).not.toHaveBeenCalled();
+      expect(manager.activeConnection(machine.id)).toBeNull();
+    },
+  );
 });

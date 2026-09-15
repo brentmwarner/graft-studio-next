@@ -88,6 +88,7 @@ it("opens the quiet pairing dialog and starts pairing from Get started", async (
     <ConnectionsPanel {...handlers} status={status} onCreatePairing={onCreatePairing} />,
   );
 
+  await mounted.getByRole("button", { name: "Connection details" }).click();
   await expect.element(mounted.getByTestId("connections-endpoint-lan")).toBeVisible();
   await mounted.getByTestId("connections-add-device").click();
   await expect

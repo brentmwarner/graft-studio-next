@@ -66,7 +66,7 @@ chmod 755 bin/graft-server.mjs
 rm -rf "$target"
 mv "$stage" "$target"
 ln -s "versions/$version" "$current_temp"
-mv -Tf "$current_temp" "$data_root/current"
+node -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' "$current_temp" "$data_root/current"
 ln -sfn "$data_root/current/bin/graft-host.mjs" "$HOME/.local/bin/graft-host"
 `;
 
@@ -88,25 +88,25 @@ export class SshHostInstaller {
     this.runner = options.runner ?? runSshCommand;
   }
 
-  async bootstrap(target: string): Promise<GraftDesktopBootstrapResponse> {
-    let result = await this.runSsh(target, BOOTSTRAP_COMMAND);
+  async bootstrap(target: string, signal?: AbortSignal): Promise<GraftDesktopBootstrapResponse> {
+    let result = await this.runSsh(target, BOOTSTRAP_COMMAND, signal);
     let installedCurrentVersion = false;
     if (
       result.exitCode === 127 ||
       /graft-host.*not found/iu.test(result.stderr) ||
       result.stderr.includes("GRAFT_HOST_UPGRADE_BLOCKED")
     ) {
-      await this.install(target);
+      await this.install(target, signal);
       installedCurrentVersion = true;
-      result = await this.runSsh(target, BOOTSTRAP_COMMAND);
+      result = await this.runSsh(target, BOOTSTRAP_COMMAND, signal);
     }
     if (result.exitCode !== 0) throw this.classifyBootstrapFailure(result.stderr);
     let bootstrap = this.parseBootstrap(result.stdout);
     if (bootstrap.daemonVersion !== this.options.hostVersion) {
       if (!installedCurrentVersion) {
-        await this.install(target);
+        await this.install(target, signal);
         installedCurrentVersion = true;
-        result = await this.runSsh(target, BOOTSTRAP_COMMAND);
+        result = await this.runSsh(target, BOOTSTRAP_COMMAND, signal);
         if (result.exitCode !== 0) {
           throw this.classifyBootstrapFailure(result.stderr);
         }
@@ -123,7 +123,7 @@ export class SshHostInstaller {
         );
       }
     }
-    const serverEntry = await this.runSsh(target, SERVER_ENTRY_PROBE);
+    const serverEntry = await this.runSsh(target, SERVER_ENTRY_PROBE, signal);
     if (serverEntry.exitCode !== 0) {
       if (installedCurrentVersion) {
         throw new SshRemoteError(
@@ -132,11 +132,11 @@ export class SshHostInstaller {
           false,
         );
       }
-      await this.install(target);
-      result = await this.runSsh(target, BOOTSTRAP_COMMAND);
+      await this.install(target, signal);
+      result = await this.runSsh(target, BOOTSTRAP_COMMAND, signal);
       if (result.exitCode !== 0) throw this.classifyBootstrapFailure(result.stderr);
       bootstrap = this.parseBootstrap(result.stdout);
-      const repaired = await this.runSsh(target, SERVER_ENTRY_PROBE);
+      const repaired = await this.runSsh(target, SERVER_ENTRY_PROBE, signal);
       if (repaired.exitCode !== 0) {
         throw new SshRemoteError(
           "install_failed",
@@ -154,7 +154,9 @@ export class SshHostInstaller {
 
   private parseBootstrap(stdout: string): GraftDesktopBootstrapResponse {
     try {
-      return GraftDesktopBootstrapResponseSchema.parse(JSON.parse(stdout));
+      return GraftDesktopBootstrapResponseSchema.parse(
+        JSON.parse(stdout.trim().split(/\r?\n/u).at(-1) ?? ""),
+      );
     } catch {
       throw new SshRemoteError(
         "incompatible_host",
@@ -164,29 +166,49 @@ export class SshHostInstaller {
     }
   }
 
-  private async install(target: string): Promise<void> {
+  private async install(target: string, signal?: AbortSignal): Promise<void> {
     if (!existsSync(this.options.hostArchivePath)) {
       throw new SshRemoteError(
         "install_failed",
-        "The bundled graft-host package is missing",
+        "The remote host package is missing from this installation. Reinstall Synara, or run bun run --cwd apps/host pack:linux-x64 when developing from source.",
         false,
       );
     }
+    const prerequisites = await this.runSsh(
+      target,
+      `
+if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
+  echo GRAFT_HOST_UNSUPPORTED_PLATFORM >&2
+  exit 69
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "graft-host requires Node.js" >&2
+  exit 69
+fi
+node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(!((major===22&&minor>=19)||(major===23&&minor>=11)||(major===24&&minor>=10)||major>24)) { console.error("graft-host requires Node.js"); process.exit(69); } require("node:sqlite"); if (!process.report.getReport().header.glibcVersionRuntime) { console.error("GRAFT_HOST_UNSUPPORTED_PLATFORM"); process.exit(69); }'
+`,
+      signal,
+    );
+    if (prerequisites.exitCode !== 0) throw classifySshFailure(prerequisites.stderr);
     const nonce = randomUUID().replaceAll("-", "");
     const remoteArchive = `/tmp/graft-host-${nonce}.tar.gz`;
     const archiveSha256 = createHash("sha256")
       .update(readFileSync(this.options.hostArchivePath))
       .digest("hex");
-    const copied = await this.runner(this.options.scpExecutable ?? "scp", [
-      "-q",
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      "ConnectTimeout=10",
-      "--",
-      this.options.hostArchivePath,
-      `${target}:${remoteArchive}`,
-    ]);
+    const copied = await this.runner(
+      this.options.scpExecutable ?? "scp",
+      [
+        "-q",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "--",
+        this.options.hostArchivePath,
+        `${target}:${remoteArchive}`,
+      ],
+      { timeoutMs: 120_000, ...(signal ? { signal } : {}) },
+    );
     if (copied.exitCode !== 0) {
       const sshError = classifySshFailure(copied.stderr);
       throw new SshRemoteError(
@@ -209,22 +231,37 @@ export class SshHostInstaller {
         target,
         `sh -s -- ${this.options.hostVersion} ${remoteArchive} ${nonce} ${archiveSha256}`,
       ],
-      { timeoutMs: 120_000, input: Buffer.from(GRAFT_HOST_INSTALL_SCRIPT, "utf8") },
+      {
+        timeoutMs: 120_000,
+        input: Buffer.from(GRAFT_HOST_INSTALL_SCRIPT, "utf8"),
+        ...(signal ? { signal } : {}),
+      },
     );
     if (installed.exitCode !== 0) {
+      const failure = classifySshFailure(installed.stderr);
+      if (failure.code !== "bootstrap_unavailable") throw failure;
       throw new SshRemoteError(
         "install_failed",
-        "graft-host could not be installed on the SSH machine",
+        "The remote host service could not be installed. Check available disk space and write access to ~/.local on the remote machine.",
         true,
       );
     }
   }
 
-  private runSsh(target: string, command: string) {
+  private runSsh(target: string, command: string, signal?: AbortSignal) {
     return this.runner(
       this.options.sshExecutable ?? "ssh",
-      ["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", target, command],
-      { timeoutMs: 30_000 },
+      [
+        "-T",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "--",
+        target,
+        `sh -c '${command.replaceAll("'", "'\\''")}'`,
+      ],
+      { timeoutMs: 30_000, ...(signal ? { signal } : {}) },
     );
   }
 }

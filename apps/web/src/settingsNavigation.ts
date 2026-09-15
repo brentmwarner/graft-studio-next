@@ -135,7 +135,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     id: "connections",
     group: "integrations",
     label: "Connections",
-    description: "Pair Graft iOS or Android, and occupy a Linux machine over SSH.",
+    description: "Connect to your computers and manage paired devices.",
     icon: "phone",
     eyebrow: "Phones and SSH hosts",
   },

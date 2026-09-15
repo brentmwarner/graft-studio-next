@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { runProcess } from "../processRunner";
 
 import { SshRemoteError, type ResolvedSshTarget, type SshRemoteErrorCode } from "./sshRemoteTypes";
 
@@ -14,7 +14,7 @@ export interface SshCommandResult {
 export type SshCommandRunner = (
   executable: string,
   arguments_: readonly string[],
-  options?: { timeoutMs?: number; input?: Buffer },
+  options?: { timeoutMs?: number; input?: Buffer; signal?: AbortSignal },
 ) => Promise<SshCommandResult>;
 
 export function parseSshTarget(rawTarget: string): string {
@@ -36,56 +36,40 @@ export function parseSshTarget(rawTarget: string): string {
 }
 
 export const runSshCommand: SshCommandRunner = async (executable, arguments_, options = {}) => {
-  return new Promise((resolveResult, rejectResult) => {
-    const child = spawn(executable, [...arguments_], {
-      stdio: [options.input ? "pipe" : "ignore", "pipe", "pipe"],
-      windowsHide: true,
+  try {
+    const result = await runProcess(executable, arguments_, {
+      timeoutMs: options.timeoutMs ?? 30_000,
+      maxBufferBytes: MAX_OUTPUT_BYTES,
+      allowNonZeroExit: true,
+      ...(options.input ? { stdin: options.input.toString("utf8") } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
     });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    let outputBytes = 0;
-    let settled = false;
-    const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-    }, options.timeoutMs ?? 30_000);
-    const fail = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") {
-        rejectResult(
-          new SshRemoteError("ssh_unavailable", "The system OpenSSH client is unavailable", false),
-        );
-      } else {
-        rejectResult(error);
-      }
-    };
-    const capture = (target: Buffer[], chunk: Buffer | string) => {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      outputBytes += buffer.length;
-      if (outputBytes > MAX_OUTPUT_BYTES) {
-        child.kill("SIGTERM");
-        fail(new Error("OpenSSH output exceeded the safe limit"));
-        return;
-      }
-      target.push(buffer);
-    };
-    child.stdout?.on("data", (chunk: Buffer | string) => capture(stdout, chunk));
-    child.stderr?.on("data", (chunk: Buffer | string) => capture(stderr, chunk));
-    child.once("error", fail);
-    child.once("exit", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      resolveResult({
-        stdout: Buffer.concat(stdout).toString("utf8"),
-        stderr: Buffer.concat(stderr).toString("utf8"),
-        exitCode: code ?? 255,
-      });
-    });
-    if (options.input) child.stdin?.end(options.input);
-  });
+    if (result.timedOut) {
+      throw new SshRemoteError(
+        "network_unreachable",
+        "The SSH operation timed out. Check that the machine is awake, reachable, and connected to your network or VPN.",
+        true,
+      );
+    }
+    return { stdout: result.stdout, stderr: result.stderr, exitCode: result.code ?? 255 };
+  } catch (error) {
+    if (error instanceof SshRemoteError) throw error;
+    if (options.signal?.aborted) {
+      throw new SshRemoteError("connection_closed", "SSH connection was cancelled.", false);
+    }
+    if (error instanceof Error && /command not found|ENOENT/iu.test(error.message)) {
+      throw new SshRemoteError(
+        "ssh_unavailable",
+        "OpenSSH is unavailable on this computer. Install the OpenSSH client and try again.",
+        false,
+      );
+    }
+    throw new SshRemoteError(
+      "bootstrap_unavailable",
+      "The SSH command could not finish. Check your SSH configuration and try again.",
+      true,
+    );
+  }
 };
 
 function parseSshConfig(stdout: string): Map<string, string> {
@@ -109,16 +93,19 @@ export function classifySshFailure(stderr: string): SshRemoteError {
     normalized.includes("remote host identification has changed")
   ) {
     code = "host_key_verification_failed";
-    message = "SSH could not verify this machine's host key";
+    message =
+      "SSH could not verify this machine's identity. Connect to the same host in Terminal to review its host key, then try again.";
   } else if (normalized.includes("tailnet policy does not permit")) {
     code = "ssh_access_denied";
-    message = "The Tailscale SSH policy does not permit access to this account";
+    message =
+      "Tailscale does not permit SSH access to this account. Check the remote username and your tailnet SSH access policy.";
   } else if (
     normalized.includes("permission denied") ||
     normalized.includes("authentication failed")
   ) {
     code = "authentication_required";
-    message = "SSH authentication was rejected or requires interaction";
+    message =
+      "SSH authentication failed. Check the remote username and load your SSH key into the agent. Password prompts are not supported; verify that the same user@host works in Terminal.";
   } else if (
     normalized.includes("could not resolve hostname") ||
     normalized.includes("name or service not known") ||
@@ -128,11 +115,21 @@ export function classifySshFailure(stderr: string): SshRemoteError {
     normalized.includes("connection refused")
   ) {
     code = "network_unreachable";
-    message = "The SSH machine could not be reached";
+    message =
+      "The machine could not be reached over SSH. Check its address, make sure it is awake, and connect both computers to the same network or VPN.";
     retryable = true;
+  } else if (/node.*(?:not found|no such file)|requires Node\.js/iu.test(stderr)) {
+    code = "install_failed";
+    message =
+      "The remote machine needs Node.js 22.19+, 24.10+, or a newer supported release, available to SSH commands.";
+  } else if (normalized.includes("unsupported") && /platform|linux|glibc/iu.test(stderr)) {
+    code = "incompatible_host";
+    message =
+      "This remote host requires Linux x64 with glibc. This machine's operating system or architecture is not supported.";
   } else {
     code = "bootstrap_unavailable";
-    message = "The SSH machine did not start graft-host";
+    message =
+      "SSH connected, but the remote host service could not start. Check Node.js on the remote machine and run graft-host diagnostics --json there.";
     retryable = true;
   }
   return new SshRemoteError(code, message, retryable);
@@ -143,11 +140,14 @@ export async function resolveSshTarget(
   options: {
     sshExecutable?: string;
     runner?: SshCommandRunner;
+    signal?: AbortSignal;
   } = {},
 ): Promise<ResolvedSshTarget> {
   const target = parseSshTarget(rawTarget);
   const runner = options.runner ?? runSshCommand;
-  const result = await runner(options.sshExecutable ?? "ssh", ["-G", "--", target]);
+  const result = await runner(options.sshExecutable ?? "ssh", ["-G", "--", target], {
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
   if (result.exitCode !== 0) throw classifySshFailure(result.stderr);
   const values = parseSshConfig(result.stdout);
   const hostname = values.get("hostname");
