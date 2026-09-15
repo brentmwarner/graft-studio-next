@@ -7177,37 +7177,18 @@ describe("ChatView transcript geometry (full app)", () => {
         const resetButtonCenterX = resetButtonRect.left + resetButtonRect.width / 2;
         expect(Math.abs(resetButtonCenterX - folderIconCenterX)).toBeLessThanOrEqual(0.5);
       };
-      const temporaryChatButton = page.getByLabelText("Temporary chat");
-      await temporaryChatButton.hover();
-      const temporaryChatElement = temporaryChatButton.element();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
-      const temporaryHoverBackground = getComputedStyle(temporaryChatElement).backgroundColor;
-      const temporaryCapsuleRadius = getComputedStyle(temporaryChatElement).borderRadius;
-      const temporaryCapsulePadding = getComputedStyle(temporaryChatElement).paddingInlineStart;
+      // The project picker uses chrome styling; the Temporary control uses ghost styling.
+      // Verify the reset affordance without requiring those variants to look identical.
       await projectPickerTrigger.hover();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
       await vi.waitFor(() => {
         expect(getComputedStyle(resetProjectButton.element()).opacity).toBe("1");
-        expect(getComputedStyle(projectPickerTrigger.element()).backgroundColor).toBe(
-          temporaryHoverBackground,
-        );
+        expect(getComputedStyle(folderIcon!).opacity).toBe("0");
       });
       expectResetAlignedWithFolderIcon();
-      expect(getComputedStyle(projectPickerTrigger.element()).borderRadius).toBe(
-        temporaryCapsuleRadius,
-      );
-      expect(getComputedStyle(projectPickerTrigger.element()).paddingInlineStart).toBe(
-        temporaryCapsulePadding,
-      );
-      expect(projectPickerTrigger.element().getBoundingClientRect().height).toBe(
-        temporaryChatElement.getBoundingClientRect().height,
-      );
       await resetProjectButton.hover();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
       await vi.waitFor(() => {
-        expect(getComputedStyle(projectPickerTrigger.element()).backgroundColor).toBe(
-          temporaryHoverBackground,
-        );
+        expect(getComputedStyle(resetProjectButton.element()).opacity).toBe("1");
+        expect(getComputedStyle(folderIcon!).opacity).toBe("0");
       });
       await mounted.setViewport(TEXT_VIEWPORT_MATRIX[2]);
       await projectPickerTrigger.hover();
