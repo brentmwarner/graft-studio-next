@@ -13,6 +13,7 @@ import {
   type GraftSshMachineSummary,
 } from "~/graftConnections";
 import { CentralIcon } from "~/lib/central-icons";
+import { SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME } from "~/settingsPanelStyles";
 import { cn } from "~/lib/utils";
 import { SettingsCard } from "./SettingsPanelPrimitives";
 import { SshProjectDialog } from "../SshProjectDialog";
@@ -222,9 +223,9 @@ export function SshConnectionsPanel({ active }: { active: boolean }) {
           </Button>
         </div>
       ) : null}
-      <SettingsCard className="bg-transparent">
+      <SettingsCard>
         {machines.length > 0 ? (
-          <ul className="divide-y divide-border">
+          <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
             {machines.map((machine) => (
               <SshComputerRow key={machine.id} machine={machine} />
             ))}

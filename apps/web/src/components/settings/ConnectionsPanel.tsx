@@ -22,6 +22,7 @@ import { SettingsCard, SettingsSectionShell } from "./SettingsPanelPrimitives";
 import {
   SETTINGS_CARD_ROW_CLASS_NAME,
   SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME,
+  SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME,
   SETTINGS_CARD_ROW_TITLE_CLASS_NAME,
   SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME,
 } from "~/settingsPanelStyles";
@@ -169,7 +170,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
         </div>
 
         {status.devices.length === 0 ? (
-          <SettingsCard className="bg-transparent">
+          <SettingsCard>
             <div className="flex items-center gap-3.5 px-4 py-5">
               <CentralIcon name="devices" className="size-6 shrink-0 text-muted-foreground" />
               <div>
@@ -181,7 +182,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
             </div>
           </SettingsCard>
         ) : (
-          <SettingsCard className="bg-transparent">
+          <SettingsCard>
             <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
               {status.devices.map((device) => (
                 <li
@@ -241,7 +242,7 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
 
       <SettingsSectionShell title="Connection options">
         <div className="space-y-3">
-          <SettingsCard className="bg-transparent">
+          <SettingsCard>
             <div className={cn(SETTINGS_CARD_ROW_CLASS_NAME, "flex items-center justify-between")}>
               <div>
                 <span className={SETTINGS_CARD_ROW_TITLE_CLASS_NAME}>
@@ -310,100 +311,102 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
             </div>
           </SettingsCard>
 
-          <Collapsible className="pt-1">
-            <CollapsibleTrigger className="group flex w-full items-center justify-between rounded-lg px-2 py-2 text-xs text-muted-foreground hover:text-foreground">
-              Connection details
-              <CentralIcon
-                name="chevron-down-small"
-                className="size-3.5 group-data-panel-open:rotate-180"
-              />
-            </CollapsibleTrigger>
-            <CollapsiblePanel>
-              <SettingsCard className="mt-2 bg-transparent">
-                {!status.enabled ? (
-                  <p
-                    className={cn(
-                      SETTINGS_CARD_ROW_CLASS_NAME,
-                      "text-[12px] text-muted-foreground",
-                    )}
-                    data-testid="connections-endpoint"
-                  >
-                    Gateway off — enable connections to detect addresses.
-                  </p>
-                ) : (
-                  <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
-                    {status.endpoints.map((endpoint) => (
-                      <li
-                        key={`${endpoint.kind}:${endpoint.address}`}
-                        className={cn(
-                          SETTINGS_CARD_ROW_CLASS_NAME,
-                          "flex items-center justify-between gap-3",
-                        )}
-                        data-testid={`connections-endpoint-${endpoint.kind}`}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-[12px] font-medium text-foreground">
-                            {endpointLabel(endpoint.kind)}
-                          </p>
-                          <code className="block truncate text-[11px] text-muted-foreground">
-                            {endpoint.httpBaseUrl}
-                          </code>
-                          <p className="text-[10px] text-muted-foreground">
-                            {endpoint.kind === "relay"
-                              ? "Works from any network"
-                              : `Interface: ${endpoint.interfaceName}`}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => onCopyEndpoint(endpoint.httpBaseUrl)}
-                          aria-label={`Copy ${endpointLabel(endpoint.kind)} address`}
+          <SettingsCard divided={false}>
+            <Collapsible>
+              <CollapsibleTrigger className="group flex w-full items-center justify-between px-4 py-3 text-xs text-muted-foreground hover:text-foreground">
+                Connection details
+                <CentralIcon
+                  name="chevron-down-small"
+                  className="size-3.5 group-data-panel-open:rotate-180"
+                />
+              </CollapsibleTrigger>
+              <CollapsiblePanel className={SETTINGS_CARD_ROW_DIVIDER_CLASS_NAME}>
+                <div className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+                  {!status.enabled ? (
+                    <p
+                      className={cn(
+                        SETTINGS_CARD_ROW_CLASS_NAME,
+                        "text-[12px] text-muted-foreground",
+                      )}
+                      data-testid="connections-endpoint"
+                    >
+                      Gateway off — enable connections to detect addresses.
+                    </p>
+                  ) : (
+                    <ul className={SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME}>
+                      {status.endpoints.map((endpoint) => (
+                        <li
+                          key={`${endpoint.kind}:${endpoint.address}`}
+                          className={cn(
+                            SETTINGS_CARD_ROW_CLASS_NAME,
+                            "flex items-center justify-between gap-3",
+                          )}
+                          data-testid={`connections-endpoint-${endpoint.kind}`}
                         >
-                          Copy
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {status.enabled && !hasRemoteEndpoint ? (
-                  <p
-                    className="px-3 py-2 text-[11px] text-muted-foreground"
-                    data-testid="connections-local-only"
-                  >
-                    Local only — no relay, private LAN, or Tailnet address was detected.
+                          <div className="min-w-0">
+                            <p className="text-[12px] font-medium text-foreground">
+                              {endpointLabel(endpoint.kind)}
+                            </p>
+                            <code className="block truncate text-[11px] text-muted-foreground">
+                              {endpoint.httpBaseUrl}
+                            </code>
+                            <p className="text-[10px] text-muted-foreground">
+                              {endpoint.kind === "relay"
+                                ? "Works from any network"
+                                : `Interface: ${endpoint.interfaceName}`}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => onCopyEndpoint(endpoint.httpBaseUrl)}
+                            aria-label={`Copy ${endpointLabel(endpoint.kind)} address`}
+                          >
+                            Copy
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {status.enabled && !hasRemoteEndpoint ? (
+                    <p
+                      className="px-4 py-3 text-[11px] text-muted-foreground"
+                      data-testid="connections-local-only"
+                    >
+                      Local only — no relay, private LAN, or Tailnet address was detected.
+                    </p>
+                  ) : null}
+                  <p className="px-4 py-3 text-[11px] text-muted-foreground">
+                    Environment: {status.environmentLabel || "Studio"}
                   </p>
-                ) : null}
-                <p className="px-3 py-2 text-[11px] text-muted-foreground">
-                  Environment: {status.environmentLabel || "Studio"}
-                </p>
-              </SettingsCard>
-              <div className="mt-2 flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={onCopyDiagnostics}
-                  data-testid="connections-copy-diagnostics"
-                >
-                  Copy diagnostics
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={onRefresh}
-                  data-testid="connections-refresh"
-                >
-                  Refresh
-                </Button>
-              </div>
-            </CollapsiblePanel>
-          </Collapsible>
+                </div>
+                <div className="flex items-center gap-2 px-4 pb-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={onCopyDiagnostics}
+                    data-testid="connections-copy-diagnostics"
+                  >
+                    Copy diagnostics
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={onRefresh}
+                    data-testid="connections-refresh"
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </CollapsiblePanel>
+            </Collapsible>
+          </SettingsCard>
 
           {error ? (
             <p

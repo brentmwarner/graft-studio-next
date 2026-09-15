@@ -37,6 +37,7 @@ export function SettingsCard({
   const divided = dividedProp ?? true;
   return (
     <div
+      data-slot="settings-card"
       className={cn(
         SETTINGS_CARD_CLASS_NAME,
         divided && SETTINGS_STACKED_ROWS_DIVIDER_CLASS_NAME,
@@ -87,7 +88,7 @@ export function SettingsSection({ title, children }: { title: string; children: 
 }
 
 /**
- * Dashed placeholder block for "nothing here yet" / "nothing matched" / status copy.
+ * Outlined placeholder block for "nothing here yet" / "nothing matched" / status copy.
  * `layout` picks the two shapes in use: a one-line left-aligned status strip, or a
  * taller centered empty block. `tone` switches to the destructive treatment for
  * failures (worktree load errors).
@@ -107,6 +108,7 @@ export function SettingsEmptyState({
   const tone = toneProp ?? "muted";
   return (
     <div
+      data-slot="settings-empty-state"
       className={cn(
         SETTINGS_EMPTY_STATE_CLASS_NAME,
         "px-4 text-sm",
@@ -149,7 +151,7 @@ export function SettingsSelectPopup({
  * the search anchor (titles are data, not stable setting names) and supports a
  * right-click handler plus top-alignment for rows whose body can grow tall.
  *
- * Separators come from the parent card's `divide-y` (see {@link SettingsCard} /
+ * Inset separators come from the parent card (see {@link SettingsCard} /
  * {@link SettingsSection}); the row never draws its own border.
  */
 export function SettingsListRow({

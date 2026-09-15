@@ -179,7 +179,7 @@ export function ThemePackEditor({
           </Select>
         </div>
       </div>
-      <div className="border-b border-[color:var(--color-border)] px-4 pb-3 text-[11px] text-[var(--color-text-foreground-secondary)]">
+      <div className="mx-4 border-b border-[color:var(--color-border)] pb-3 text-[11px] text-[var(--color-text-foreground-secondary)]">
         {contextLabel}
       </div>
 

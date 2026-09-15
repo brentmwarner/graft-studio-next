@@ -151,10 +151,13 @@ export function KeyboardShortcutsSettingsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-muted/45 px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+      <SettingsCard
+        divided={false}
+        className="px-4 py-3 text-[12px] leading-relaxed text-muted-foreground"
+      >
         Capture up to two modifiers and one key. Changes are saved directly to{" "}
         <code>keybindings.json</code>.
-      </div>
+      </SettingsCard>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-[13px] font-medium text-foreground">Keybindings</h3>
@@ -167,7 +170,7 @@ export function KeyboardShortcutsSettingsPanel() {
         </Button>
       </div>
       {isAdding ? (
-        <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+        <SettingsCard divided={false} className="space-y-2 p-4">
           <div className="grid gap-2 sm:grid-cols-3">
             <label className="space-y-1 text-[11px] text-muted-foreground">
               <span className="block">Command</span>
@@ -222,7 +225,7 @@ export function KeyboardShortcutsSettingsPanel() {
               </Button>
             </div>
           </div>
-        </div>
+        </SettingsCard>
       ) : null}
       <div className="relative w-full">
         <Input
@@ -251,7 +254,7 @@ export function KeyboardShortcutsSettingsPanel() {
 
       {filteredSections.length > 0 ? (
         <SettingsCard>
-          <div className="flex items-center justify-between gap-4 px-3 py-2 text-[11px] font-medium text-muted-foreground">
+          <div className="flex items-center justify-between gap-4 px-4 py-2 text-[11px] font-medium text-muted-foreground">
             <span>Command</span>
             <span>Keybinding</span>
           </div>
