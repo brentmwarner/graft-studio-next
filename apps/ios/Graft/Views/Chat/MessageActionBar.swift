@@ -9,6 +9,7 @@ struct MessageActionBar: View {
     let item: TranscriptItem
 
     @State private var showSelectText = false
+    @State private var showSources = false
 
     /// This row is the one currently being spoken (fetching or playing).
     /// When `speakingItemID` is nil (e.g. auto-speak without an explicit ID),
@@ -30,6 +31,13 @@ struct MessageActionBar: View {
             CopyButton(text: item.text, size: 15)
 
             Menu {
+                if !item.linkPreviews.isEmpty {
+                    Button {
+                        showSources = true
+                    } label: {
+                        Label("Sources", systemImage: "link")
+                    }
+                }
                 // Read-aloud needs a synthesizer; the item hides (rather than
                 // dead-taps) until the host offers one.
                 if app.tts != nil {
@@ -70,6 +78,11 @@ struct MessageActionBar: View {
         .padding(.top, 2)
         .sheet(isPresented: $showSelectText) {
             SelectableTextSheet(text: item.text)
+        }
+        .sheet(isPresented: $showSources) {
+            SourcesSheet(previews: item.linkPreviews)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 

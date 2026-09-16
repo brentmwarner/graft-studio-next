@@ -13,11 +13,14 @@ final class ChatModel: Identifiable {
     var title: String
 
     weak var app: AppModel?
+    let fileLinks: WorkspaceFileLinks
 
     private(set) var items: [TranscriptItem] = []
     private(set) var isStreaming = false
     private(set) var isLoadingHistory = false
     private(set) var statusText: String?
+    private(set) var taskProgressState = TaskProgressState()
+    var taskProgress: TaskProgress? { taskProgressState.visible }
 
     var pendingApproval: ApprovalRequest?
     var pendingClarify: ClarifyRequest?
@@ -50,6 +53,20 @@ final class ChatModel: Identifiable {
 
     var isTurnActive: Bool { isStreaming }
 
+    /// The desktop keeps one progress indicator for the whole active turn.
+    /// Text, reasoning, and tools can interleave without unmounting it.
+    var liveStatusText: String? {
+        guard isStreaming else { return nil }
+        if let app, app.gateway.state != .connected { return "Reconnecting…" }
+        if needsInteraction { return "Waiting for you" }
+        return LiveStatusPhrase.current(from: items, fallback: statusText)
+    }
+
+    var canChangeProvider: Bool {
+        hasLoadedTranscript && cacheHydratedCursor == nil && sendTick == 0 && !isStreaming
+            && !items.contains { $0.kind == .user || $0.kind == .assistant || $0.kind == .tool }
+    }
+
     /// Latest run id seen for this thread — the target for `turn.cancel`.
     private var activeRunId: String?
     /// The assistant row currently absorbing `assistant.delta` /
@@ -58,6 +75,8 @@ final class ChatModel: Identifiable {
     private var currentAssistant: TranscriptItem?
     private var assistantItems: [String: TranscriptItem] = [:]
     private var completedMessageIDs: Set<String> = []
+    private var completedRunIDs: Set<String> = []
+    private var awaitingTurnAcknowledgement = false
     /// Live tool rows keyed by their originating part id, so a completion
     /// frame updates the row in place.
     private var toolItems: [String: TranscriptItem] = [:]
@@ -79,6 +98,7 @@ final class ChatModel: Identifiable {
         self.threadId = threadId
         self.title = title
         self.app = app
+        fileLinks = WorkspaceFileLinks(threadId: threadId, app: app)
         startHistoryLoadingIndicator()
         Task { await refreshDiff(diffId: threadId) }
     }
@@ -107,12 +127,16 @@ final class ChatModel: Identifiable {
     /// Fold an authoritative environment snapshot into this thread's state.
     /// Called by `AppModel` on every snapshot refresh.
     func applySnapshot(_ snapshot: EnvironmentSnapshot) {
+        let replacingCache = cacheHydratedCursor == transcriptCursor
+        guard replacingCache || snapshot.cursor >= transcriptCursor else { return }
         applyPendingInteractions(snapshot)
-        if snapshot.cursor >= transcriptCursor { applyRunState(snapshot) }
 
         guard let transcript = snapshot.selectedTranscript,
               transcript.threadId == threadId
-        else { return }
+        else {
+            applyRunState(snapshot)
+            return
+        }
         hasLoadedTranscript = true
         cancelHistoryLoadingIndicator()
 
@@ -126,7 +150,9 @@ final class ChatModel: Identifiable {
                 currentAssistant = nil
                 toolItems = [:]
                 applyReconciledItems(Self.itemize(transcript.events))
+                taskProgressState = .replay(transcript.events)
                 rebindStreamingTail()
+                applyRunState(snapshot)
                 deferAttachRecentWindow()
                 return
             }
@@ -141,7 +167,9 @@ final class ChatModel: Identifiable {
         currentAssistant = nil
         toolItems = [:]
         applyReconciledItems(Self.itemize(transcript.events))
+        taskProgressState = .replay(transcript.events)
         rebindStreamingTail()
+        applyRunState(snapshot)
         deferAttachRecentWindow()
     }
 
@@ -154,6 +182,7 @@ final class ChatModel: Identifiable {
         transcriptCursor = transcript.cursor
         cacheHydratedCursor = transcript.cursor
         applyReconciledItems(Self.itemize(transcript.events))
+        taskProgressState = .replay(transcript.events)
         rebindStreamingTail()
         deferAttachRecentWindow()
     }
@@ -179,28 +208,25 @@ final class ChatModel: Identifiable {
     private func applyRunState(_ snapshot: EnvironmentSnapshot) {
         let active = snapshot.activeRuns.first {
             $0.threadId == threadId && Self.isActiveRunStatus($0.status)
+                && !completedRunIDs.contains($0.id)
         }
         if let active {
             activeRunId = active.id
             isStreaming = true
-        } else {
-            // Keep an optimistic just-sent turn streaming until the host
-            // acknowledges it one way or the other.
-            if isStreaming, currentAssistant == nil, activeRunId == nil {
-                // No run ever materialized; trust the snapshot.
-                isStreaming = snapshot.activeRuns.contains { $0.threadId == threadId }
-            } else if activeRunId != nil {
-                finishTurn()
+            for item in items where item.runID != nil && item.runID != active.id {
+                settle(item)
             }
+        } else if !awaitingTurnAcknowledgement {
+            finishTurn()
         }
     }
 
     private static func isActiveRunStatus(_ status: String) -> Bool {
         switch status {
-        case "completed", "failed", "cancelled", "canceled", "error", "done":
-            return false
-        default:
+        case "queued", "running", "waiting", "starting":
             return true
+        default:
+            return false
         }
     }
 
@@ -212,9 +238,8 @@ final class ChatModel: Identifiable {
         for item in items where item.kind == .assistant {
             if let source = item.sourceID { assistantItems[source] = item }
         }
-        completedMessageIDs = Set(items.filter { $0.kind == .assistant && !$0.isStreaming && !$0.text.isEmpty }.compactMap(\.sourceID))
-        guard let tail = items.last(where: { $0.kind == .assistant && $0.isStreaming }) else { return }
-        currentAssistant = tail
+        completedMessageIDs.formUnion(items.filter(\.isMessageComplete).compactMap(\.sourceID))
+        currentAssistant = items.last(where: { $0.kind == .assistant && $0.isStreaming })
     }
 
     // MARK: Live event folding
@@ -226,10 +251,14 @@ final class ChatModel: Identifiable {
             guard event.cursor > transcriptCursor else { return }
             transcriptCursor = event.cursor
         }
-        if let runId = event.runId, !runId.isEmpty {
-            activeRunId = runId
+        if let runId = event.runId, completedRunIDs.contains(runId),
+           ["assistant.delta", "thinking.delta", "tool.start", "tool.update", "status"].contains(event.kind) {
+            return
         }
 
+        if ["user.message", "plan.update", "todo.update"].contains(event.kind) {
+            taskProgressState.fold(event)
+        }
         switch event.kind {
         case "user.message":
             foldUserMessage(event)
@@ -266,6 +295,11 @@ final class ChatModel: Identifiable {
             }
         case "run.status":
             foldRunStatus(event)
+        case "status":
+            if isStreaming, event.runId == nil || event.runId == activeRunId,
+               let text = event.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                statusText = text
+            }
         case "diff.updated":
             let diffId = event.diffId ?? event.threadId ?? threadId
             Task { await refreshDiff(diffId: diffId) }
@@ -283,7 +317,7 @@ final class ChatModel: Identifiable {
         guard let summary = await app.fetchDiff(diffId: id) else { return }
         upsertDiffPresentation(from: summary)
         if openedDiff?.id == summary.id {
-            openedDiff = summary
+            openedDiff = summary.files.isEmpty ? nil : summary
         }
     }
 
@@ -291,7 +325,7 @@ final class ChatModel: Identifiable {
         guard let app else { return }
         guard let summary = await app.fetchDiff(diffId: id) else { return }
         upsertDiffPresentation(from: summary)
-        openedDiff = summary
+        openedDiff = summary.files.isEmpty ? nil : summary
     }
 
     func dismissOpenedDiff() {
@@ -299,6 +333,10 @@ final class ChatModel: Identifiable {
     }
 
     private func upsertDiffPresentation(from summary: DiffSummary) {
+        guard !summary.files.isEmpty else {
+            pendingDiffs.removeAll { $0.id == summary.id }
+            return
+        }
         let presentation = ComposerDiffPresentation(
             id: summary.id,
             title: summary.title,
@@ -328,19 +366,26 @@ final class ChatModel: Identifiable {
         let attachments = event.attachments ?? []
         guard !text.isEmpty || !attachments.isEmpty else { return }
         let source = Self.sourceID(for: event)
-        if items.contains(where: { $0.sourceID == source }) { return }
+        if let existing = items.first(where: { $0.sourceID == source }) {
+            existing.mergeSkills(event.skills)
+            return
+        }
         // Only a local optimistic row may match by text.
         if let lastUser = items.last(where: { $0.kind == .user }), lastUser.sourceID == nil,
            lastUser.normalizedMergeText == TranscriptItem.normalizeForMerge(text),
            lastUser.attachments == attachments {
             lastUser.sourceID = source
+            lastUser.mergeSkills(event.skills)
+            lastUser.createdAt = event.createdAt
             return
         }
         settleCurrentAssistant()
-        let item = TranscriptItem.user(text, attachments: attachments)
+        let item = TranscriptItem.user(text, attachments: attachments, skills: event.skills ?? [])
         item.sourceID = source
+        item.runID = event.runId
+        item.createdAt = event.createdAt
         items.append(item)
-        isStreaming = true
+        startWorking(event)
     }
 
     private func foldAssistantDelta(_ event: TimelineEvent) {
@@ -349,7 +394,7 @@ final class ChatModel: Identifiable {
         let item = ensureCurrentAssistant(for: event)
         item.text = text
         item.isStreaming = true
-        isStreaming = true
+        startWorking(event)
         statusText = nil
     }
 
@@ -359,6 +404,8 @@ final class ChatModel: Identifiable {
         let item = ensureCurrentAssistant(for: event)
         if !text.isEmpty { item.text = text }
         item.isStreaming = false
+        item.isMessageComplete = true
+        item.completedAt = event.completedAt ?? event.createdAt
         completedMessageIDs.insert(Self.sourceID(for: event))
         finishReasoningClock(item)
         Self.attachRichContent(to: item)
@@ -367,42 +414,50 @@ final class ChatModel: Identifiable {
     }
 
     private func foldThinkingDelta(_ event: TimelineEvent) {
-        guard let text = event.text, !text.isEmpty else { return }
+        guard !completedMessageIDs.contains(Self.sourceID(for: event)),
+              let text = event.text, !text.isEmpty else { return }
         let item = ensureCurrentAssistant(for: event)
+        item.isStreaming = true
         if item.reasoningStartedAt == nil { item.reasoningStartedAt = Date() }
         item.reasoning = text
-        isStreaming = true
+        startWorking(event)
     }
 
     private func foldToolStart(_ event: TimelineEvent) {
-        settleCurrentAssistant()
         let name = event.toolName ?? "tool"
         let context = Self.toolContext(event)
-        if let existing = toolItems[event.id] {
-            existing.toolName = name
-            existing.toolContext = context
+        if let existing = toolItems[event.toolIdentity] {
+            if let name = event.toolName { existing.toolName = name }
+            if !context.isEmpty { existing.toolContext = context }
             return
         }
-        let item = TranscriptItem.tool(id: event.id, name: name, context: context)
-        toolItems[event.id] = item
+        settleCurrentAssistant()
+        let item = TranscriptItem.tool(id: event.toolIdentity, name: name, context: context)
+        item.runID = event.runId
+        item.createdAt = event.createdAt
+        toolItems[event.toolIdentity] = item
         items.append(item)
         statusText = Self.toolStatusLine(name: name)
-        isStreaming = true
+        startWorking(event)
     }
 
     private func foldToolEnd(_ event: TimelineEvent) {
-        let existing = toolItems[event.id]
+        let existing = toolItems[event.toolIdentity]
         let name = event.toolName ?? existing?.toolName ?? "tool"
         if let existing {
             existing.toolStatus = .done
+            existing.completedAt = event.createdAt
             if existing.toolResultText.isEmpty, let text = event.text, text != existing.toolContext {
                 existing.toolResultText = String(text.prefix(4000))
             }
         } else {
             let item = TranscriptItem.tool(
-                id: event.id, name: name, context: Self.toolContext(event), status: .done
+                id: event.toolIdentity, name: name, context: Self.toolContext(event), status: .done
             )
-            toolItems[event.id] = item
+            item.runID = event.runId
+            item.createdAt = event.createdAt
+            item.completedAt = event.createdAt
+            toolItems[event.toolIdentity] = item
             items.append(item)
         }
         if statusText == Self.toolStatusLine(name: name) {
@@ -412,19 +467,35 @@ final class ChatModel: Identifiable {
 
     private func foldRunStatus(_ event: TimelineEvent) {
         guard let status = event.runStatus else { return }
+        if let runID = event.runId, completedRunIDs.contains(runID) { return }
         if Self.isActiveRunStatus(status) {
-            isStreaming = true
+            startWorking(event)
         } else {
+            if let runID = event.runId {
+                completedRunIDs.insert(runID)
+                if let activeRunId, activeRunId != runID {
+                    for item in items where item.runID == runID { settle(item) }
+                    return
+                }
+            }
             if status == "failed" || status == "error" {
                 appendErrorItem("The run failed.")
             }
-            finishTurn()
+            finishTurn(failed: status == "failed" || status == "error")
         }
     }
 
     private func foldError(_ event: TimelineEvent) {
         let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if let runID = event.runId, let activeRunId, runID != activeRunId {
+            completedRunIDs.insert(runID)
+            for item in items where item.runID == runID { settle(item, failed: true) }
+            return
+        }
         appendErrorItem(text.isEmpty ? "Something went wrong." : text)
+        if event.runId == nil || activeRunId == nil || event.runId == activeRunId {
+            finishTurn(failed: true)
+        }
     }
 
     private func appendErrorItem(_ text: String) {
@@ -436,10 +507,18 @@ final class ChatModel: Identifiable {
 
     private func ensureCurrentAssistant(for event: TimelineEvent) -> TranscriptItem {
         let source = Self.sourceID(for: event)
-        if let existing = assistantItems[source] { return existing }
+        if let existing = assistantItems[source] {
+            if event.kind != "assistant.message", currentAssistant !== existing {
+                settleCurrentAssistant()
+                currentAssistant = existing
+            }
+            return existing
+        }
         settleCurrentAssistant()
         let item = TranscriptItem.assistant("", streaming: true)
         item.sourceID = source
+        item.runID = event.runId
+        item.createdAt = event.createdAt
         assistantItems[source] = item
         currentAssistant = item
         items.append(item)
@@ -466,8 +545,27 @@ final class ChatModel: Identifiable {
         item.reasoningStartedAt = nil
     }
 
-    private func finishTurn() {
+    private func startWorking(_ event: TimelineEvent) {
+        if let runID = event.runId { activeRunId = runID }
+        isStreaming = true
+    }
+
+    private func settle(_ item: TranscriptItem, failed: Bool = false) {
+        item.isStreaming = false
+        finishReasoningClock(item)
+        if item.kind == .assistant {
+            item.isMessageComplete = true
+            if let source = item.sourceID { completedMessageIDs.insert(source) }
+        } else if item.kind == .tool, item.toolStatus == .running {
+            item.toolStatus = failed ? .failed : .done
+        }
+    }
+
+    private func finishTurn(failed: Bool = false) {
+        for item in items { settle(item, failed: failed) }
         settleCurrentAssistant()
+        if let activeRunId { completedRunIDs.insert(activeRunId) }
+        awaitingTurnAcknowledgement = false
         isStreaming = false
         statusText = nil
         activeRunId = nil
@@ -492,18 +590,24 @@ final class ChatModel: Identifiable {
     /// Submit a turn. Optimistically appends the user bubble; the host's echo
     /// event is deduplicated in `foldUserMessage`.
     @discardableResult
-    func send(_ rawText: String) async -> Bool {
+    func send(_ rawText: String, skill: ComposerCommand? = nil) async -> Bool {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let app else { return false }
+        guard !text.isEmpty, !isStreaming, let app else { return false }
         lastError = nil
         settleCurrentAssistant()
-        items.append(.user(text))
+        let selected = ComposerSkillText.leadingSkill(in: text, selected: skill)
+        items.append(.user(text, skills: selected.map {
+            [MessageSkill(name: $0.name, displayName: $0.displayName)]
+        } ?? []))
         attachments = []
         sendTick += 1
+        taskProgressState.beginTurn(id: "local:\(sendTick)")
+        awaitingTurnAcknowledgement = true
         isStreaming = true
         let sent = await app.startTurn(threadId: threadId, text: text)
+        awaitingTurnAcknowledgement = false
         if !sent {
-            isStreaming = false
+            finishTurn(failed: true)
             lastError = app.gatewayError?.localizedDescription ?? "Message failed to send."
             appendErrorItem(lastError ?? "Message failed to send.")
         }
@@ -581,6 +685,8 @@ final class ChatModel: Identifiable {
         var current: TranscriptItem?
         var toolRows: [String: TranscriptItem] = [:]
         var messageRows: [String: TranscriptItem] = [:]
+        var completedRuns: Set<String> = []
+        var userIDs: Set<String> = []
 
         func settle(_ item: TranscriptItem?) {
             guard let item else { return }
@@ -588,16 +694,23 @@ final class ChatModel: Identifiable {
         }
 
         for event in events {
+            let runCompleted = event.runId.map { completedRuns.contains($0) } ?? false
+            if runCompleted, ["assistant.delta", "thinking.delta", "tool.start", "tool.update"].contains(event.kind) {
+                continue
+            }
             switch event.kind {
             case "user.message":
+                guard userIDs.insert(sourceID(for: event)).inserted else { continue }
                 settle(current)
                 current = nil
                 let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let attachments = event.attachments ?? []
                 if !text.isEmpty || !attachments.isEmpty {
                     let images = ChatImageExtractor.sources(inText: text)
-                    let item = TranscriptItem.user(text, attachments: attachments)
+                    let item = TranscriptItem.user(text, attachments: attachments, skills: event.skills ?? [])
                     item.sourceID = sourceID(for: event)
+                    item.runID = event.runId
+                    item.createdAt = event.createdAt
                     if !images.isEmpty { item.images = images.map(ChatImage.init) }
                     result.append(item)
                 }
@@ -607,11 +720,18 @@ final class ChatModel: Identifiable {
                 guard !text.isEmpty || messageRows[source] != nil else { break }
                 let item: TranscriptItem
                 if let existing = messageRows[source] {
+                    if existing.isMessageComplete && event.kind != "assistant.message" { continue }
                     item = existing
+                    if event.kind != "assistant.message", current !== item {
+                        settle(current)
+                        current = item
+                    }
                 } else {
                     settle(current)
                     item = TranscriptItem.assistant("", streaming: true)
                     item.sourceID = source
+                    item.runID = event.runId
+                    item.createdAt = event.createdAt
                     messageRows[source] = item
                     result.append(item)
                     current = item
@@ -619,26 +739,44 @@ final class ChatModel: Identifiable {
                 if event.kind == "thinking.delta" { item.reasoning = text }
                 else if !text.isEmpty { item.text = text }
                 item.isStreaming = event.kind != "assistant.message"
+                item.isMessageComplete = event.kind == "assistant.message"
+                if item.isMessageComplete { item.completedAt = event.completedAt ?? event.createdAt }
                 if event.kind == "assistant.message", current === item { current = nil }
             case "tool.start", "tool.update", "tool.end":
-                settle(current)
-                current = nil
                 let name = event.toolName ?? "tool"
                 let context = Self.toolContext(event)
                 let status: ToolRunStatus = event.kind == "tool.end" ? .done : .running
-                if let existing = toolRows[event.id] {
-                    existing.toolStatus = status
+                if let existing = toolRows[event.toolIdentity] {
+                    if existing.toolStatus == .running { existing.toolStatus = status }
+                    if status == .done { existing.completedAt = event.createdAt }
                     if existing.toolContext.isEmpty { existing.toolContext = context }
                 } else {
-                    let item = TranscriptItem.tool(id: event.id, name: name, context: context, status: status)
-                    toolRows[event.id] = item
+                    settle(current)
+                    current = nil
+                    let item = TranscriptItem.tool(id: event.toolIdentity, name: name, context: context, status: status)
+                    item.runID = event.runId
+                    item.createdAt = event.createdAt
+                    if status == .done { item.completedAt = event.createdAt }
+                    toolRows[event.toolIdentity] = item
                     result.append(item)
                 }
-            case "error":
-                settle(current)
-                current = nil
-                let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty { result.append(.error(text)) }
+            case "run.status", "error":
+                guard event.kind == "error" || event.runStatus.map({ !isActiveRunStatus($0) }) == true else { continue }
+                if let runID = event.runId { completedRuns.insert(runID) }
+                for item in result where event.runId == nil || item.runID == nil || item.runID == event.runId {
+                    settle(item)
+                    item.isMessageComplete = item.kind == .assistant
+                    if item.kind == .tool, item.toolStatus == .running {
+                        item.toolStatus = event.kind == "error" || event.runStatus == "failed" ? .failed : .done
+                    }
+                    if current === item { current = nil }
+                }
+                if event.kind == "error" {
+                    let text = (event.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty, result.last?.kind != .error || result.last?.text != text {
+                        result.append(.error(text))
+                    }
+                }
             default:
                 break
             }
@@ -661,13 +799,23 @@ final class ChatModel: Identifiable {
         var merged: [TranscriptItem] = []
         merged.reserveCapacity(fresh.count)
         for incoming in fresh {
-            if let reused = survivors[incoming.mergeKey]?.first {
-                survivors[incoming.mergeKey]?.removeFirst()
+            // Match an optimistic user bubble once, then bind it to its host ID.
+            let optimistic = incoming.kind == .user ? items.last(where: { item in
+                item.kind == .user && item.sourceID == nil && item.normalizedMergeText == incoming.normalizedMergeText
+                    && !merged.contains(where: { $0 === item })
+            }) : nil
+            if let reused = survivors[incoming.mergeKey]?.first ?? optimistic {
+                survivors[reused.mergeKey]?.removeFirst()
                 reused.absorb(incoming)
                 merged.append(reused)
             } else {
                 merged.append(incoming)
             }
+        }
+        if awaitingTurnAcknowledgement {
+            merged.append(contentsOf: items.filter { item in
+                item.kind == .user && item.sourceID == nil && !merged.contains(where: { $0 === item })
+            })
         }
         items = merged
 

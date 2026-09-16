@@ -16,6 +16,7 @@ final class AppModel {
     let gateway: GatewayClient
     let speaker = SpeakerModel()
     let settings = ChatSettings()
+    let models = ModelSettingsStore()
     let auth = AuthStore()
 
     /// Current environment snapshot received after the WebSocket handshake.
@@ -38,6 +39,8 @@ final class AppModel {
     private(set) var gatewayError: GraftError?
 
     private var snapshotRefreshTask: Task<Void, Never>?
+    private var snapshotRequestGeneration = 0
+    private var commandTimeouts: [String: Task<Void, Never>] = [:]
     private var commandWaiters: [String: CheckedContinuation<HostResponseEnvelope, Error>] = [:]
 
     var isPaired: Bool { connection.isPaired }
@@ -91,11 +94,15 @@ final class AppModel {
         // `disconnect()` tears down without broadcasting, so fail waiters here.
         failPendingCommands()
         snapshotRefreshTask?.cancel()
+        snapshotRequestGeneration += 1
         snapshotRefreshTask = nil
         snapshot = nil
         activeChat = nil
         selectedThreadId = nil
         gatewayError = nil
+        models.reset()
+        threadEfforts = [:]
+        threadFastModes = [:]
     }
 
     func openThread(_ threadId: String, title: String = "") async {
@@ -134,19 +141,24 @@ final class AppModel {
 
     func startTurn(threadId: String, text: String) async -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+        guard !trimmed.isEmpty, models.pendingSelections[threadId] == nil else { return false }
         do {
-            try await gateway.send(
+            let response = try await sendCommand(
                 ClientCommandEnvelope(
                     command: .turnStart(
                         TurnStartCommand(
                             threadId: threadId,
                             text: trimmed,
-                            effort: resolvedEffort(forThread: threadId)
+                            effort: resolvedEffort(forThread: threadId),
+                            fastMode: resolvedFastMode(forThread: threadId)
                         )
                     )
                 )
             )
+            guard response.receipt?.status != "rejected" else {
+                gatewayError = .unreachable("Studio could not start this turn.")
+                return false
+            }
             scheduleSnapshotRefresh()
             return true
         } catch let error as GraftError {
@@ -181,18 +193,19 @@ final class AppModel {
         }
     }
 
-    /// Models the host can run turns with — fetched once per connection and
-    /// reused by every thread's model switcher.
-    private(set) var availableModels: [ModelOption] = []
+    var availableModels: [ModelOption] { models.availableModels }
 
-    func loadModelsIfNeeded() async {
-        guard availableModels.isEmpty else { return }
-        let envelope = ClientCommandEnvelope(command: .modelsList(ModelsListCommand()))
-        do {
-            let response = try await sendCommand(envelope)
-            availableModels = response.result?.models ?? []
-        } catch {
-            // Non-fatal: the switcher just shows the thread's current model.
+    func loadModelsIfNeeded(force: Bool = false) async {
+        await models.load(force: force) { [self] in
+            let response = try await sendCommand(
+                ClientCommandEnvelope(command: .modelsList(ModelsListCommand())),
+                timeout: .seconds(12)
+            )
+            try response.receipt?.checkAccepted()
+            guard let catalog = response.result?.models else {
+                throw GraftError.decoding("Studio did not return its models.")
+            }
+            return catalog
         }
     }
 
@@ -200,8 +213,10 @@ final class AppModel {
     /// to the host until a turn starts — mirroring the desktop, where effort
     /// rides on each turn/start instead of living in the thread record.
     private(set) var threadEfforts: [String: String] = [:]
+    private(set) var threadFastModes: [String: Bool] = [:]
 
     func setThreadEffort(threadId: String, effort: String) {
+        guard currentModel(forThread: threadId)?.reasoningEfforts?.contains(effort) == true else { return }
         threadEfforts[threadId] = effort
     }
 
@@ -224,7 +239,7 @@ final class AppModel {
         if let threadModelName = thread.modelName {
             if let match = availableModels.first(where: {
                 $0.id == threadModelName && $0.providerId == thread.providerId
-            }) {
+            }) ?? availableModels.first(where: { thread.providerId == nil && $0.id == threadModelName }) {
                 return match
             }
             return ModelOption(
@@ -238,7 +253,9 @@ final class AppModel {
                 defaultApprovalPolicy: nil
             )
         }
-        let providerModels = availableModels.filter { $0.providerId == thread.providerId }
+        let providerModels = availableModels.filter {
+            thread.providerId == nil || $0.providerId == thread.providerId
+        }
         return providerModels.first { $0.isDefault == true } ?? providerModels.first
     }
 
@@ -247,47 +264,80 @@ final class AppModel {
         id.replacingOccurrences(of: "[1m]", with: "")
     }
 
-    /// Effort to send with the thread's next turn: the user's pick when still
-    /// valid for the current model, "high" when offered, else the model's
-    /// first effort. Nil when the model has no effort choice.
+    /// Prefer a valid local choice, then Studio's confirmed choice and the
+    /// model's advertised default. Unsupported choices never cross providers.
     func resolvedEffort(forThread threadId: String) -> String? {
-        guard let efforts = currentModel(forThread: threadId)?.reasoningEfforts,
-              !efforts.isEmpty
-        else { return nil }
-        if let picked = threadEfforts[threadId], efforts.contains(picked) {
-            return picked
+        guard let model = currentModel(forThread: threadId),
+              let efforts = model.reasoningEfforts, !efforts.isEmpty else { return nil }
+        let thread = snapshot?.threads.first { $0.id == threadId }
+        for candidate in [threadEfforts[threadId], thread?.effort, model.defaultReasoningEffort] {
+            if let candidate, efforts.contains(candidate) { return candidate }
         }
         return efforts.contains("high") ? "high" : efforts.first
     }
 
-    /// Point the thread at a different model for subsequent turns.
+    func resolvedFastMode(forThread threadId: String) -> Bool? {
+        guard currentModel(forThread: threadId)?.supportsFastMode == true else { return nil }
+        return threadFastModes[threadId]
+            ?? snapshot?.threads.first { $0.id == threadId }?.fastMode
+            ?? false
+    }
+
+    func setThreadFastMode(threadId: String, enabled: Bool) {
+        guard currentModel(forThread: threadId)?.supportsFastMode == true else { return }
+        threadFastModes[threadId] = enabled
+    }
+
+    /// Point the thread at a different model for subsequent turns. The
+    /// confirmed thread updates the control before the next snapshot arrives.
     func setThreadModel(threadId: String, model: ModelOption) async -> Bool {
         if let providerId = lockedProviderId(forThread: threadId), model.providerId != providerId {
             return false
         }
-        let envelope = ClientCommandEnvelope(
-            command: .threadSetModel(
-                ThreadSetModelCommand(
-                    threadId: threadId,
-                    modelId: model.id,
-                    providerId: model.providerId
-                )
+        let oldProvider = currentModel(forThread: threadId)?.providerId
+        let confirmed = await models.select(
+            model, threadId: threadId, currentProviderId: oldProvider,
+            canChangeProvider: canChangeProvider(forThread: threadId)
+        ) { [self] in
+            let response = try await sendCommand(
+                ClientCommandEnvelope(command: .threadSetModel(ThreadSetModelCommand(
+                    threadId: threadId, modelId: model.id, providerId: model.providerId
+                ))),
+                timeout: .seconds(20)
             )
-        )
-        do {
-            let response = try await sendCommand(envelope)
-            if response.receipt?.status == "rejected" {
-                return false
+            try response.receipt?.checkAccepted()
+            guard let thread = response.result?.thread else {
+                throw GraftError.decoding("Studio did not confirm the model change.")
             }
-            scheduleSnapshotRefresh()
-            return true
-        } catch let error as GraftError {
-            gatewayError = error
-            return false
-        } catch {
-            gatewayError = .unreachable(error.localizedDescription)
+            return thread
+        }
+        guard let confirmed else {
+            // A timeout can leave the command's outcome unknown. Reconcile
+            // with Studio; do not automatically repeat a model mutation.
+            scheduleSnapshotRefresh(immediately: true)
             return false
         }
+        if confirmed.providerId != oldProvider {
+            threadEfforts[threadId] = nil
+            threadFastModes[threadId] = nil
+        }
+        snapshotRequestGeneration += 1
+        if let previous = snapshot {
+            snapshot = EnvironmentSnapshot(
+                environment: previous.environment, projects: previous.projects,
+                threads: previous.threads.map { $0.id == threadId ? confirmed : $0 },
+                activeRuns: previous.activeRuns, pendingApprovals: previous.pendingApprovals,
+                pendingQuestions: previous.pendingQuestions,
+                selectedTranscript: previous.selectedTranscript, cursor: previous.cursor
+            )
+        }
+        scheduleSnapshotRefresh()
+        return true
+    }
+
+    func canChangeProvider(forThread threadId: String) -> Bool {
+        guard let chat = activeChat, chat.threadId == threadId else { return false }
+        return lockedProviderId(forThread: threadId) == nil && chat.canChangeProvider
     }
 
     /// The thread's current approval policy as the host reports it.
@@ -392,22 +442,83 @@ final class AppModel {
         }
     }
 
+    func fetchComposerCommands(threadId: String) async throws -> [ComposerCommand] {
+        let response = try await sendCommand(ClientCommandEnvelope(
+            command: .composerCommands(ComposerCommandsCommand(threadId: threadId))
+        ))
+        guard let commands = response.result?.commands else {
+            throw GraftError.unreachable("Studio could not load commands. Reopen the / menu to retry.")
+        }
+        return commands
+    }
+
+    func fetchSkillPreview(threadId: String, name: String) async throws -> ComposerSkillPreview {
+        let response = try await sendCommand(ClientCommandEnvelope(
+            command: .composerSkillRead(ComposerSkillReadCommand(threadId: threadId, name: name))
+        ))
+        guard let skill = response.result?.skill else {
+            throw GraftError.unreachable("Studio could not load this skill. Try again.")
+        }
+        return skill
+    }
+
+    func resolveFiles(threadId: String, references: [String]) async throws -> [WorkspaceFileReference] {
+        let response = try await sendCommand(ClientCommandEnvelope(
+            command: .filesResolve(FilesResolveCommand(threadId: threadId, references: references))
+        ))
+        guard let references = response.result?.references else {
+            throw GraftError.unreachable("Studio could not resolve file references.")
+        }
+        return references
+    }
+
+    func readFile(threadId: String, path: String) async throws -> WorkspaceFile {
+        let response = try await sendCommand(ClientCommandEnvelope(
+            command: .fileRead(FileReadCommand(threadId: threadId, path: path))
+        ))
+        guard let file = response.result?.file else {
+            throw GraftError.unreachable("Studio could not open this workspace file.")
+        }
+        return file
+    }
+
     private func sendCommand(
-        _ envelope: ClientCommandEnvelope
+        _ envelope: ClientCommandEnvelope,
+        timeout: Duration? = nil
     ) async throws -> HostResponseEnvelope {
-        try await withCheckedThrowingContinuation { continuation in
-            commandWaiters[envelope.commandId] = continuation
-            Task { [weak self] in
-                do {
-                    try await self?.gateway.send(envelope)
-                } catch {
-                    guard let waiter = self?.commandWaiters.removeValue(
-                        forKey: envelope.commandId
-                    ) else { return }
-                    waiter.resume(throwing: error)
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                commandWaiters[envelope.commandId] = continuation
+                if let timeout {
+                    commandTimeouts[envelope.commandId] = Task { [weak self] in
+                        do { try await Task.sleep(for: timeout) } catch { return }
+                        self?.completeCommand(envelope.commandId, result: .failure(
+                            GraftError.timeout("Studio did not respond. Check the connection and retry.")
+                        ))
+                    }
+                }
+                Task { [weak self] in
+                    do {
+                        try await self?.gateway.send(envelope)
+                    } catch {
+                        self?.completeCommand(envelope.commandId, result: .failure(error))
+                    }
                 }
             }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.completeCommand(envelope.commandId, result: .failure(CancellationError()))
+            }
         }
+    }
+
+    private func completeCommand(
+        _ id: String,
+        result: Result<HostResponseEnvelope, Error>
+    ) {
+        commandTimeouts.removeValue(forKey: id)?.cancel()
+        commandWaiters.removeValue(forKey: id)?.resume(with: result)
     }
 
     // MARK: Gateway wiring
@@ -478,6 +589,8 @@ final class AppModel {
         guard !commandWaiters.isEmpty else { return }
         let waiters = commandWaiters
         commandWaiters.removeAll()
+        commandTimeouts.values.forEach { $0.cancel() }
+        commandTimeouts.removeAll()
         for waiter in waiters.values {
             waiter.resume(throwing: GraftError.socketClosed)
         }
@@ -488,9 +601,7 @@ final class AppModel {
             scheduleSnapshotRefresh()
             return
         }
-        if let waiter = commandWaiters.removeValue(forKey: response.commandId) {
-            waiter.resume(returning: response)
-        }
+        completeCommand(response.commandId, result: .success(response))
         // Keep the local replica fresh after mutations (turns, approvals, etc.).
         scheduleSnapshotRefresh()
     }
@@ -560,8 +671,12 @@ final class AppModel {
             gatewayError = .notPaired
             return
         }
+        snapshotRequestGeneration += 1
+        let generation = snapshotRequestGeneration
+        let threadID = selectedThreadId
         do {
-            let refreshed = try await client.snapshot(threadId: selectedThreadId)
+            let refreshed = try await client.snapshot(threadId: threadID)
+            guard generation == snapshotRequestGeneration, threadID == selectedThreadId else { return }
             snapshot = refreshed
             activeChat?.applySnapshot(refreshed)
             gatewayError = nil
@@ -570,11 +685,13 @@ final class AppModel {
                 "Refreshed environment snapshot at cursor \(refreshed.cursor)"
             )
         } catch let error as GraftError {
+            guard generation == snapshotRequestGeneration else { return }
             gatewayError = error
             AppLog.networking.warning(
                 "Snapshot refresh failed: \(error.localizedDescription)"
             )
         } catch {
+            guard generation == snapshotRequestGeneration else { return }
             gatewayError = .unreachable(error.localizedDescription)
             AppLog.networking.warning(
                 "Snapshot refresh failed: \(error.localizedDescription)"

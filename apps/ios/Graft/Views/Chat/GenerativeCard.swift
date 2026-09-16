@@ -179,10 +179,6 @@ struct GenerativeCardView: View {
         .padding(DS.Space.s2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.Radius.lg)
-                .strokeBorder(DS.Color.border, lineWidth: 1)
-        )
         .contentShape(.rect(cornerRadius: DS.Radius.lg))
         .onTapGesture {
             if let raw = spec.url, let url = URL(string: raw) { openURL(url) }
@@ -408,10 +404,6 @@ private struct SubCardView: View {
             .padding(10)
             .frame(width: 246, alignment: .leading)
             .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .strokeBorder(DS.Color.border, lineWidth: 1)
-            )
         }
         .buttonStyle(PressableButtonStyle())
         .disabled(card.url == nil)
@@ -491,10 +483,6 @@ struct CardPlaceholderView: View {
         .padding(DS.Space.s2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.Radius.lg)
-                .strokeBorder(DS.Color.border, lineWidth: 1)
-        )
     }
 
     private func placeholderBar(width: CGFloat) -> some View {
@@ -518,9 +506,5 @@ struct CardFailureView: View {
         .padding(.horizontal, DS.Space.s2)
         .padding(.vertical, 10)
         .background(DS.Color.bgSubtle, in: .rect(cornerRadius: DS.Radius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.Radius.md)
-                .strokeBorder(DS.Color.border, lineWidth: 1)
-        )
     }
 }

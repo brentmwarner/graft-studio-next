@@ -10,7 +10,7 @@ struct ComposerDiffBubbleStrip: View {
         // the pills must sit directly in the chrome row, exactly like
         // ScrollToBottomButton does.
         HStack(spacing: 8) {
-            ForEach(diffs) { diff in
+            ForEach(diffs.filter { $0.fileCount > 0 }) { diff in
                 ComposerDiffBubble(
                     title: diff.title,
                     fileCount: diff.fileCount,
@@ -31,21 +31,27 @@ struct ComposerDiffBubble: View {
     let onOpen: () -> Void
 
     var body: some View {
-        // Numbers only — the counts are the whole story; labels and icons in
-        // this chip read as chrome next to the composer.
-        Button(action: onOpen) {
+        Button {
+            open()
+        } label: {
             HStack(spacing: 6) {
-                DiffCountLabel(value: additions, prefix: "+", color: .green)
-                DiffCountLabel(value: deletions, prefix: "−", color: .red)
+                if additions > 0 || deletions > 0 {
+                    DiffCountLabel(value: additions, prefix: "+", color: .green)
+                    DiffCountLabel(value: deletions, prefix: "−", color: .red)
+                } else {
+                    Text(fileCount == 1 ? "1 file" : "\(fileCount) files")
+                }
             }
             .font(.footnote)
             .padding(.horizontal, 14)
-            .frame(minHeight: 36)
+            .frame(minHeight: 44)
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
         .composerGlassSurface(shape: .capsule, interactive: true)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { open() }
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(
             Text(
@@ -53,6 +59,12 @@ struct ComposerDiffBubble: View {
                 comment: "Accessibility hint for opening a code diff"
             )
         )
+    }
+
+    private func open() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        KeyboardDismissal.dismiss()
+        onOpen()
     }
 
     private var accessibilityLabel: Text {

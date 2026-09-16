@@ -9,6 +9,12 @@ import XCTest
 /// any protocol change to catch model drift early.
 final class ProtocolFixtureTests: XCTestCase {
 
+    func testUserSkillEventPreservesPresentationMetadata() throws {
+        let envelope = try decodeFixture("host-event-user-skill.json", as: HostEventEnvelope.self)
+        XCTAssertEqual(envelope.event.kind, "user.message")
+        XCTAssertEqual(envelope.event.skills, [MessageSkill(name: "swiftui-specialist", displayName: "SwiftUI Specialist")])
+    }
+
     // MARK: Pairing
 
     func testDecodePairingPayload() throws {

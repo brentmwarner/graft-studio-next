@@ -178,6 +178,10 @@ enum CommandPayload: Codable, Sendable {
     case threadSetModel(ThreadSetModelCommand)
     case threadSetApproval(ThreadSetApprovalCommand)
     case modelsList(ModelsListCommand)
+    case composerCommands(ComposerCommandsCommand)
+    case composerSkillRead(ComposerSkillReadCommand)
+    case filesResolve(FilesResolveCommand)
+    case fileRead(FileReadCommand)
 
     private enum CodingKeys: String, CodingKey { case type }
 
@@ -205,6 +209,14 @@ enum CommandPayload: Codable, Sendable {
             self = .threadSetApproval(try ThreadSetApprovalCommand(from: decoder))
         case "models.list":
             self = .modelsList(try ModelsListCommand(from: decoder))
+        case "composer.commands":
+            self = .composerCommands(try ComposerCommandsCommand(from: decoder))
+        case "composer.skill.read":
+            self = .composerSkillRead(try ComposerSkillReadCommand(from: decoder))
+        case "files.resolve":
+            self = .filesResolve(try FilesResolveCommand(from: decoder))
+        case "file.read":
+            self = .fileRead(try FileReadCommand(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,
@@ -226,8 +238,35 @@ enum CommandPayload: Codable, Sendable {
         case .threadSetModel(let cmd): try cmd.encode(to: encoder)
         case .threadSetApproval(let cmd): try cmd.encode(to: encoder)
         case .modelsList(let cmd): try cmd.encode(to: encoder)
+        case .composerCommands(let cmd): try cmd.encode(to: encoder)
+        case .composerSkillRead(let cmd): try cmd.encode(to: encoder)
+        case .filesResolve(let cmd): try cmd.encode(to: encoder)
+        case .fileRead(let cmd): try cmd.encode(to: encoder)
         }
     }
+}
+
+struct FilesResolveCommand: Codable, Sendable {
+    var type = "files.resolve"
+    let threadId: String
+    let references: [String]
+}
+
+struct FileReadCommand: Codable, Sendable {
+    var type = "file.read"
+    let threadId: String
+    let path: String
+}
+
+struct WorkspaceFileReference: Codable, Sendable, Equatable {
+    let reference: String
+    let path: String?
+}
+
+struct WorkspaceFile: Codable, Sendable, Equatable {
+    let path: String
+    let contents: String
+    let truncated: Bool
 }
 
 struct ThreadSetModelCommand: Codable, Sendable {
@@ -264,6 +303,37 @@ struct ModelsListCommand: Codable, Sendable {
     }
 }
 
+struct ComposerCommandsCommand: Codable, Sendable {
+    var type = "composer.commands"
+    let threadId: String
+}
+
+struct ComposerCommand: Codable, Sendable, Equatable, Identifiable {
+    var id: String { name }
+    let name: String
+    let description: String
+    let kind: String
+    var displayName: String? = nil
+
+    var skillLabel: String {
+        displayName ?? name.components(separatedBy: CharacterSet(charactersIn: "-_"))
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+}
+
+struct ComposerSkillReadCommand: Codable, Sendable {
+    var type = "composer.skill.read"
+    let threadId: String
+    let name: String
+}
+
+struct ComposerSkillPreview: Codable, Sendable {
+    let name: String
+    let description: String
+    let contents: String
+    let truncated: Bool
+}
+
 struct ThreadCreateCommand: Codable, Sendable {
     let type: String
     let projectId: String
@@ -298,11 +368,14 @@ struct TurnStartCommand: Codable, Sendable {
     /// Reasoning effort for this turn; the host default applies when nil.
     let effort: String?
 
-    init(threadId: String, text: String, effort: String? = nil) {
+    let fastMode: Bool?
+
+    init(threadId: String, text: String, effort: String? = nil, fastMode: Bool? = nil) {
         type = "turn.start"
         self.threadId = threadId
         self.text = text
         self.effort = effort
+        self.fastMode = fastMode
     }
 }
 
@@ -420,6 +493,15 @@ struct TimelineAttachment: Codable, Sendable, Equatable, Identifiable {
     let sizeBytes: Int
 }
 
+struct MessageSkill: Codable, Sendable, Equatable {
+    let name: String
+    var displayName: String? = nil
+
+    var command: ComposerCommand {
+        ComposerCommand(name: name, description: "", kind: "skill", displayName: displayName)
+    }
+}
+
 struct TimelineEvent: Codable, Sendable, Equatable, Identifiable {
     let id: String
     let cursor: Int
@@ -435,7 +517,16 @@ struct TimelineEvent: Codable, Sendable, Equatable, Identifiable {
     let questionId: String?
     let diffId: String?
     let runStatus: String?
-    let attachments: [TimelineAttachment]?
+    var attachments: [TimelineAttachment]? = nil
+    var data: TimelineTaskData? = nil
+    var completedAt: Int? = nil
+    var toolId: String? = nil
+    var skills: [MessageSkill]? = nil
+
+    var toolIdentity: String {
+        guard let toolId else { return id }
+        return "\(runId ?? ""):\(toolId)"
+    }
 }
 
 // MARK: - Command Receipt
@@ -445,6 +536,18 @@ struct CommandReceipt: Codable, Sendable {
     let status: String
     let runId: String?
     let cursor: Int?
+    var errorCode: String? = nil
+    var message: String? = nil
+
+    func checkAccepted() throws {
+        guard status != "rejected" else {
+            throw GraftError.hostError(
+                code: errorCode ?? "command_rejected",
+                message: message ?? "Studio could not apply this change.",
+                retryable: false
+            )
+        }
+    }
 }
 
 // MARK: - Command Result
@@ -455,6 +558,10 @@ struct CommandResult: Codable, Sendable {
     let diff: DiffSummary?
     let thread: ThreadInfo?
     let models: [ModelOption]?
+    var commands: [ComposerCommand]? = nil
+    var skill: ComposerSkillPreview? = nil
+    var references: [WorkspaceFileReference]? = nil
+    var file: WorkspaceFile? = nil
 }
 
 struct RunInfo: Codable, Sendable {
@@ -527,6 +634,8 @@ struct ThreadInfo: Codable, Sendable, Equatable, Identifiable {
     let pr: ThreadPrInfo?
     /// Latest context-window occupancy resolved by the host.
     let contextUsage: ContextUsageInfo?
+    var effort: String? = nil
+    var fastMode: Bool? = nil
 
     init(
         id: String,
@@ -642,10 +751,13 @@ struct ModelOption: Codable, Sendable, Equatable, Identifiable, Hashable {
     let providerLabel: String?
     let isDefault: Bool?
     /// Selectable reasoning efforts in display order; nil when the model has
-    /// no effort choice (Google/Cursor bake the effort into the model id).
+    /// no separate effort choice.
     let reasoningEfforts: [String]?
     let approvalPolicyOptions: [ApprovalPolicyOption]?
     let defaultApprovalPolicy: String?
+
+    var defaultReasoningEffort: String? = nil
+    var supportsFastMode: Bool? = nil
 
     var selectionID: String {
         "\(providerId):\(id)"

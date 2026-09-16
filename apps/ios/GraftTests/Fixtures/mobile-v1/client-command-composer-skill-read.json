@@ -1,0 +1,9 @@
+{
+  "envelope": "command",
+  "commandId": "55555555-5555-4555-8555-555555555555",
+  "command": {
+    "type": "composer.skill.read",
+    "threadId": "t1",
+    "name": "swiftui-specialist"
+  }
+}

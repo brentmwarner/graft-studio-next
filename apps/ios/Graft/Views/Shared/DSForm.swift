@@ -8,7 +8,7 @@ import SwiftUI
 
 // MARK: - Containers
 
-/// Hairline-bordered elevated surface hosting a vertical run of rows separated
+/// Neutral filled surface hosting a vertical run of rows separated
 /// by `DSRowDivider`. Rows pad themselves, so the card carries no inset — the
 /// DS replacement for a grouped `Form` cell block.
 struct DSCard<Content: View>: View {
@@ -16,11 +16,7 @@ struct DSCard<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) { content }
-            .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .strokeBorder(DS.Color.border, lineWidth: 1)
-            )
+            .background(DS.Color.bgSubtle, in: .rect(cornerRadius: DS.Radius.lg))
             .clipShape(.rect(cornerRadius: DS.Radius.lg))
     }
 }
@@ -100,15 +96,11 @@ struct DSControlRow<Content: View>: View {
 // MARK: - Field surface
 
 extension View {
-    /// Elevated, hairline-bordered surface for a standalone input that sits on
+    /// Neutral filled surface for a standalone input that sits on
     /// its own (a multi-line `TextEditor`, a search field) rather than as a row
     /// inside a `DSCard`.
     func dsInputBox(radius: CGFloat = DS.Radius.md) -> some View {
         self
-            .background(DS.Color.bgElevated, in: .rect(cornerRadius: radius))
-            .overlay(
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(DS.Color.border, lineWidth: 1)
-            )
+            .background(DS.Color.bgSubtle, in: .rect(cornerRadius: radius))
     }
 }

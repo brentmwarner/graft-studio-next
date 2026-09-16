@@ -54,6 +54,7 @@ enum DS {
         // never in chrome, nav, or CTAs.
         static let success = adaptive(light: 0x1F7A4D, dark: 0x5EE6A3)
         static let info = adaptive(light: 0x1A56DB, dark: 0x7FB4FF)
+        static let link = adaptive(light: 0x2F789C, dark: 0x78B7D5)
         static let warning = adaptive(light: 0xB45309, dark: 0xE0C46C)
         static let danger = adaptive(light: 0xB42318, dark: 0xE37070)
     }
@@ -157,17 +158,11 @@ private extension UIColor {
 // MARK: - Card surface
 
 extension View {
-    /// Hermes card anatomy: elevated surface, 20px radius, 1px hairline border,
-    /// **no shadow at rest**. On dark, the translucent white border supplies the
-    /// lift instead of a drop shadow.
+    /// Neutral cards separate through their fill and spacing.
     func dsCard(padding: CGFloat = 20, radius: CGFloat = DS.Radius.lg) -> some View {
         self
             .padding(padding)
-            .background(DS.Color.bgElevated, in: .rect(cornerRadius: radius))
-            .overlay(
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(DS.Color.border, lineWidth: 1)
-            )
+            .background(DS.Color.bgSubtle, in: .rect(cornerRadius: radius))
     }
 
     /// Small soft pill — meta and status chips across hub pages (run state,

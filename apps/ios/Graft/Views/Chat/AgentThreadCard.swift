@@ -226,7 +226,7 @@ private struct ReceiptRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background {
-                Capsule().strokeBorder(DS.Color.border, lineWidth: 1)
+                Capsule().fill(DS.Color.bgSubtle)
             }
             .contentShape(.capsule)
         }
@@ -329,14 +329,8 @@ private struct AgentReturnCard: View {
             }
         }
         .padding(13)
-        .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.lg))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.lg)
-                .strokeBorder(
-                    run.status == .failed ? DS.Color.danger.opacity(0.35) : DS.Color.border,
-                    lineWidth: 1
-                )
-        }
+        .background(DS.Color.bgSubtle, in: .rect(cornerRadius: DS.Radius.lg))
+
         .contentShape(.rect(cornerRadius: DS.Radius.lg))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(run.persona.name) return. \(run.summary)")

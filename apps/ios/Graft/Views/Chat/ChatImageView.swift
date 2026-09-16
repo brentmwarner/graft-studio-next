@@ -55,10 +55,6 @@ struct ChatImageView: View {
         } else {
             content
                 .clipShape(.rect(cornerRadius: radius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(DS.Color.fg.opacity(0.06), lineWidth: 1)
-                )
                 .contentShape(.rect(cornerRadius: radius))
         }
     }

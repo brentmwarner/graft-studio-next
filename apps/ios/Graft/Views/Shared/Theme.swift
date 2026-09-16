@@ -87,64 +87,32 @@ struct ShimmerText: View {
     let text: String
     var font: Font = .subheadline.weight(.medium)
 
-    @State private var phase: CGFloat = 0
-    @State private var textWidth: CGFloat = 120
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Soft moving band, swept across the text by `phase`. White where the
-    /// shimmer is strongest, fading to clear at the edges.
-    private var band: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.22), location: 0.24),
-                .init(color: .white.opacity(0.68), location: 0.5),
-                .init(color: .white.opacity(0.22), location: 0.76),
-                .init(color: .clear, location: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-        .frame(width: max(58, textWidth * 0.56))
-        .offset(x: phase)
-    }
-
     var body: some View {
-        ZStack {
-            // Full-strength text with the moving band *knocked out* of it.
-            // A translucent dim glyph laid over an already-opaque one is
-            // invisible, so instead we subtract the band (destinationOut) and
-            // refill it dim below — the sweep then reads as a genuine notch.
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
             Text(text)
                 .font(font)
-                .foregroundStyle(reduceMotion ? .secondary : .primary)
+                .foregroundStyle(.secondary)
                 .overlay {
                     if !reduceMotion {
-                        band.blendMode(.destinationOut)
+                        GeometryReader { geometry in
+                            let width = max(geometry.size.width, 1)
+                            let bandWidth = max(48, width * 0.65)
+                            let progress = timeline.date.timeIntervalSinceReferenceDate
+                                .truncatingRemainder(dividingBy: 2) / 2
+                            LinearGradient(colors: [.clear, DS.Color.fg, .clear],
+                                           startPoint: .leading, endPoint: .trailing)
+                                .frame(width: bandWidth)
+                                .offset(x: (width + bandWidth) * progress - bandWidth)
+                        }
+                        .mask { Text(text).font(font) }
+                        .allowsHitTesting(false)
                     }
                 }
-                .compositingGroup()
-            // Dim text revealed only inside the band — the shimmer itself.
-            if !reduceMotion {
-                Text(text)
-                    .font(font)
-                    .foregroundStyle(.secondary)
-                    .mask { band }
-            }
         }
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
-            textWidth = width
-        }
-        .task(id: "\(reduceMotion)-\(text)") {
-            guard !reduceMotion else {
-                phase = 0
-                return
-            }
-            phase = -textWidth
-            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
-                phase = textWidth
-            }
-        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
     }
 }
 
