@@ -11,6 +11,9 @@ import { AuthError, ServerAuth, type AuthRequest } from "../auth/Services/Server
 import { SessionCredentialService } from "../auth/Services/SessionCredentialService";
 import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
+import { GitCore } from "../git/Services/GitCore";
+import { WorkspaceEntries } from "../workspace/Services/WorkspaceEntries";
+import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
@@ -71,6 +74,9 @@ it("authenticates thread usage, selects its provider, and returns only public me
             Layer.mergeAll(
               NodeServices.layer,
               Layer.succeed(ServerConfig, {} as never),
+              Layer.succeed(GitCore, {} as never),
+              Layer.succeed(WorkspaceEntries, {} as never),
+              Layer.succeed(WorkspaceFileSystem, {} as never),
               // Declared by the shared WebSocket route; this test sends only HTTP requests.
               Layer.succeed(SessionCredentialService, {} as never),
               Layer.succeed(ServerEnvironment, {} as never),

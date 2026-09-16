@@ -53,13 +53,22 @@ describe("mobile LAN gateway", () => {
 
   it("closes live mobile sockets when disabled instead of waiting indefinitely", async () => {
     const main = http.createServer();
+    const requestReceived = once(main, "request");
     const port = await startMobileLanGateway(main);
     const socket = connect(port, "127.0.0.1");
+    const errors: NodeJS.ErrnoException[] = [];
+    socket.on("error", (error) => errors.push(error));
     await once(socket, "connect");
-    const closed = once(socket, "close");
+    socket.write("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    // A client-side connect can fire before the server registers the socket.
+    // Receiving a forwarded request proves this is an accepted live connection.
+    await requestReceived;
+    const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
     await stopMobileLanGateway();
     await closed;
     expect(socket.destroyed).toBe(true);
+    // Destroying an active TCP connection may close cleanly or reset the peer.
+    expect(errors.every((error) => error.code === "ECONNRESET")).toBe(true);
   });
 
   it("recognizes mobile gateway paths and excludes owner pairing issuance", () => {

@@ -576,6 +576,10 @@ export const CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS = `<collaboration_mode># 
 
 You are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.
 
+When the user asks to create or show a tracked task list, checklist, or work-progress list in the app, use the update_plan tool. Its structured steps populate the app's task UI; prose bullets and markdown files do not. Keep steps pending until work starts and update their status as work progresses. Creating a list alone does not authorize executing its tasks. Only create a task-list file when the user asks for a file.
+
+The mobile /tasks command means: create a tracked list for the text following the command, or for the current conversation if no text follows it. Use update_plan and keep the steps pending; do not execute the work just to demonstrate the list.
+
 Your active mode changes only when new developer instructions with a different \`<collaboration_mode>...</collaboration_mode>\` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.
 
 ## request_user_input availability
@@ -730,7 +734,9 @@ function spawnCodexAppServer(input: {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
 }): ChildProcessWithoutNullStreams {
-  return spawnProcess(input.binaryPath, ["app-server"], {
+  // Recent Codex versions make update_plan opt-in. Studio consumes its
+  // structured events for the task UI on desktop and both mobile clients.
+  return spawnProcess(input.binaryPath, ["app-server", "-c", "tools.update_plan.enabled=true"], {
     requireExecutable: true,
     cwd: input.cwd,
     env: input.env,

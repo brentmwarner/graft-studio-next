@@ -4,6 +4,9 @@ import { expect, it, vi } from "vitest";
 
 import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
+import { GitCore } from "../git/Services/GitCore";
+import { WorkspaceEntries } from "../workspace/Services/WorkspaceEntries";
+import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { attachmentPrincipalForSession } from "../managedAttachmentPrincipal";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
@@ -39,6 +42,9 @@ it("dispatches mobile attachments with the authenticated session and real intera
     // These command branches do not use the remaining gateway services.
     Layer.succeed(CheckpointDiffQuery, {} as never),
     Layer.succeed(ServerConfig, {} as never),
+    Layer.succeed(GitCore, {} as never),
+    Layer.succeed(WorkspaceEntries, {} as never),
+    Layer.succeed(WorkspaceFileSystem, {} as never),
     Layer.succeed(ServerEnvironment, {} as never),
     Layer.succeed(ProviderDiscoveryService, {} as never),
     Layer.succeed(ServerSettingsService, {} as never),

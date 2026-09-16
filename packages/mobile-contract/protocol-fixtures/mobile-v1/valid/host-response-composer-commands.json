@@ -1,0 +1,28 @@
+{
+  "envelope": "response",
+  "commandId": "55555555-5555-4555-8555-555555555555",
+  "receipt": {
+    "commandId": "55555555-5555-4555-8555-555555555555",
+    "status": "accepted"
+  },
+  "result": {
+    "type": "composer.commands.result",
+    "commands": [
+      {
+        "name": "model",
+        "description": "Choose a model",
+        "kind": "model"
+      },
+      {
+        "name": "tasks",
+        "description": "Create a tracked task list",
+        "kind": "tasks"
+      },
+      {
+        "name": "swiftui-specialist",
+        "description": "Native SwiftUI",
+        "kind": "skill"
+      }
+    ]
+  }
+}
