@@ -65,9 +65,28 @@ event range.
 
 Enabled Graft providers and their live-discovered models are returned by
 `models.list`; the built-in catalog is used as a fallback when a provider CLI
-cannot be queried. A model appearing in the picker does not install or sign in
-to its provider CLI—the corresponding provider must still be installed and
-authenticated on the host.
+cannot be queried. Droid uses its built-in catalog for this request, so opening
+or reconnecting a mobile composer does not launch Factory authorization. A
+model appearing in the picker does not install or sign in to its provider CLI.
+
+### Mobile conversation lifecycle
+
+iOS keys cumulative assistant frames by message ID, including legacy
+`:delta:N` and `:complete` suffixes. A completed message cannot be reopened by
+a delayed delta. Authoritative snapshots settle reasoning and running tools
+when their turn has ended, including completion while the phone was offline.
+The gateway seeds cumulative text from the saved message after reconnecting.
+
+The transcript keeps one shimmering progress indicator through an active turn.
+On completion, earlier commentary and tools fold above the final answer.
+Incoming text is coalesced every 32 milliseconds without an additional typing
+delay, and final text is displayed immediately.
+
+Mobile chats keep their provider after the first user message. Models and
+supported effort levels remain selectable within that provider. The gateway
+also rejects provider changes for existing turns or imported message history.
+See [mobile transcript presentation](ios-transcript-design.md) for task progress,
+skills, file references, and composer controls.
 
 ## Running a mobile-capable development host
 
