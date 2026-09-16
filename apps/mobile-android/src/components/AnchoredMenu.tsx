@@ -135,14 +135,23 @@ export function AnchoredMenu({
   trigger,
   children,
   onOpenChange,
+  openRequest,
 }: {
   readonly trigger: (open: () => void) => ReactElement;
   readonly children: (close: () => void) => ReactNode;
   readonly onOpenChange?: (open: boolean) => void;
+  readonly openRequest?: number;
 }) {
   const id = useId();
   const anchorRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
+  const consumedOpenRequest = useRef(openRequest);
+  useEffect(() => {
+    if (openRequest === undefined || consumedOpenRequest.current === openRequest) return;
+    consumedOpenRequest.current = openRequest;
+    setOpen(true);
+    onOpenChange?.(true);
+  }, [openRequest, onOpenChange]);
   const close = useCallback(() => {
     setOpen(false);
     onOpenChange?.(false);

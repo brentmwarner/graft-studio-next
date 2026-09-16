@@ -10,6 +10,7 @@ import type {
 import { useEffect, useMemo, useState } from "react";
 
 import type { TranscriptItem } from "../../state/mobileViewModels";
+import { deriveTaskProgress, type TaskProgress } from "../../state/taskProgress";
 import { useReconciledTranscript } from "./TranscriptRow";
 import { threadModelChoices } from "./threadModels";
 
@@ -43,6 +44,7 @@ export interface ThreadModel {
   readonly efforts: readonly string[];
   readonly hasDiffChip: boolean;
   readonly items: readonly TranscriptItem[];
+  readonly taskProgress: TaskProgress | undefined;
   readonly latestDiffEvent: GraftTimelineEvent | undefined;
   readonly question: GraftEnvironmentSnapshot["pendingQuestions"][number] | undefined;
   readonly resolvedEffort: string | undefined;
@@ -84,7 +86,26 @@ export function useThreadModel({
     () => [...threadLiveEvents].reverse().find((event) => event.kind === "diff.updated"),
     [threadLiveEvents],
   );
-  const items = useReconciledTranscript(transcript, threadLiveEvents, transcriptCursor);
+  const transcriptItems = useReconciledTranscript(transcript, threadLiveEvents, transcriptCursor);
+  const items = useMemo(
+    () =>
+      transcriptItems.filter(
+        (item) =>
+          item.kind !== "activity" ||
+          (item.data?.type !== "plan" && item.data?.type !== "todo_update"),
+      ),
+    [transcriptItems],
+  );
+  const taskProgress = useMemo(
+    () =>
+      deriveTaskProgress([
+        ...transcript,
+        ...threadLiveEvents.filter(
+          (event) => event.cursor === 0 || event.cursor > transcriptCursor,
+        ),
+      ]),
+    [transcript, threadLiveEvents, transcriptCursor],
+  );
   const activeRun = snapshot?.activeRuns.find(
     (run) => run.threadId === thread.id && RUN_IS_ACTIVE[run.status],
   );
@@ -145,6 +166,7 @@ export function useThreadModel({
     efforts,
     hasDiffChip,
     items,
+    taskProgress,
     latestDiffEvent,
     question,
     resolvedEffort,

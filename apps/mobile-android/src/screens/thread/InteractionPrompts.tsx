@@ -40,13 +40,13 @@ export function ApprovalPrompt({
       <View style={styles.promptButtons}>
         <Pressable
           onPress={() => onResolve("deny")}
-          style={[styles.promptButton, { borderColor: palette.border }]}
+          style={[styles.promptButton, { backgroundColor: palette.subtle }]}
         >
           <Text style={{ color: palette.danger }}>Deny</Text>
         </Pressable>
         <Pressable
           onPress={() => onResolve("allow_once")}
-          style={[styles.promptButton, { borderColor: palette.border }]}
+          style={[styles.promptButton, { backgroundColor: palette.subtle }]}
         >
           <Text style={{ color: palette.foreground }}>Once</Text>
         </Pressable>
@@ -79,7 +79,7 @@ export function QuestionPrompt({
         <Pressable
           key={option.id}
           onPress={() => onResolve({ optionId: option.id })}
-          style={[styles.optionButton, { borderColor: palette.border }]}
+          style={[styles.optionButton, { backgroundColor: palette.subtle }]}
         >
           <Text style={[styles.optionText, { color: palette.foreground }]}>{option.label}</Text>
         </Pressable>
@@ -92,7 +92,7 @@ export function QuestionPrompt({
             placeholderTextColor={palette.foregroundSubtle}
             style={[
               styles.customAnswer,
-              { borderColor: palette.border, color: palette.foreground },
+              { backgroundColor: palette.subtle, color: palette.foreground },
             ]}
             value={answer}
           />
@@ -124,14 +124,12 @@ const styles = StyleSheet.create({
   promptButton: {
     alignItems: "center",
     borderRadius: graftRadius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
     minHeight: 34,
     paddingHorizontal: 13,
   },
   optionButton: {
     borderRadius: graftRadius.small,
-    borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
     minHeight: 40,
     paddingHorizontal: 12,
@@ -140,7 +138,6 @@ const styles = StyleSheet.create({
   customAnswerRow: { alignItems: "center", flexDirection: "row", gap: 8 },
   customAnswer: {
     borderRadius: graftRadius.small,
-    borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
     fontSize: 14,
     height: 40,

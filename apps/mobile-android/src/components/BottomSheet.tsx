@@ -124,7 +124,6 @@ export function BottomSheet({
             styles.sheet,
             {
               backgroundColor: palette.elevated,
-              borderColor: palette.border,
               maxHeight: `${Math.round(maxHeightRatio * 100)}%`,
               paddingBottom: Math.max(insets.bottom, 14),
             },
@@ -164,7 +163,6 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: graftRadius.sheet,
     borderTopRightRadius: graftRadius.sheet,
-    borderWidth: StyleSheet.hairlineWidth,
     minHeight: 250,
     overflow: "hidden",
   },

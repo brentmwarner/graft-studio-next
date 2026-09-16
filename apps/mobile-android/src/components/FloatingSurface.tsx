@@ -17,7 +17,6 @@ export function FloatingSurface({ children, style }: FloatingSurfaceProps) {
         styles.surface,
         {
           backgroundColor: palette.floatingSurface,
-          borderColor: palette.border,
         },
         style,
       ]}
@@ -30,7 +29,6 @@ export function FloatingSurface({ children, style }: FloatingSurfaceProps) {
 const styles = StyleSheet.create({
   surface: {
     borderRadius: graftRadius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
     boxShadow: "0 7px 22px rgba(0, 0, 0, 0.10)",
   },
 });

@@ -1,6 +1,6 @@
 import { Fragment, memo, useMemo } from "react";
 import type { ReactNode } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { graftRadius, useGraftPalette } from "../theme/tokens";
 import { markdownBlocks } from "./markdownBlocks";
@@ -51,7 +51,8 @@ function tableAt(lines: readonly string[], startIndex: number): MarkdownTable | 
 }
 
 function inlineNodes(text: string, accent: string, codeBackground: string): readonly ReactNode[] {
-  const expression = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+  const expression =
+    /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s<>`]*[^\s<>`.,!?;:)\]])/g;
   const nodes: ReactNode[] = [];
   let cursor = 0;
   let key = 0;
@@ -77,11 +78,11 @@ function inlineNodes(text: string, accent: string, codeBackground: string): read
         <Text
           key={key++}
           onPress={() => {
-            if (link?.[2]) void Linking.openURL(link[2]);
+            void Linking.openURL(link?.[2] ?? token).catch(() => undefined);
           }}
-          style={{ color: accent, textDecorationLine: "underline" }}
+          style={{ color: accent }}
         >
-          {link?.[1] ?? token}
+          {link ? inlineNodes(link[1] ?? token, accent, codeBackground) : token}
         </Text>,
       );
     }
@@ -129,44 +130,16 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                 const table = tableAt(lines, lineIndex);
                 if (table) {
                   rendered.push(
-                    <View
-                      key={`table-${lineIndex}`}
-                      style={[styles.table, { borderColor: palette.border }]}
-                    >
-                      <View style={[styles.tableRow, { backgroundColor: palette.subtle }]}>
-                        {table.headers.map((cell, cellIndex) => (
-                          <Text
-                            key={`header-${cellIndex}`}
-                            selectable
-                            style={[
-                              styles.tableCell,
-                              styles.tableHeader,
-                              {
-                                borderLeftColor: palette.border,
-                                color: palette.foreground,
-                              },
-                              cellIndex === 0 ? styles.firstTableCell : null,
-                            ]}
-                          >
-                            {inlineNodes(cell, palette.info, palette.code)}
-                          </Text>
-                        ))}
-                      </View>
-                      {table.rows.map((row, rowIndex) => (
-                        <View
-                          key={`row-${rowIndex}`}
-                          style={[
-                            styles.tableRow,
-                            styles.tableBodyRow,
-                            { borderTopColor: palette.border },
-                          ]}
-                        >
-                          {row.map((cell, cellIndex) => (
+                    <ScrollView key={`table-${lineIndex}`} horizontal>
+                      <View style={styles.table}>
+                        <View style={[styles.tableRow, { backgroundColor: palette.subtle }]}>
+                          {table.headers.map((cell, cellIndex) => (
                             <Text
-                              key={`cell-${cellIndex}`}
+                              key={`header-${cellIndex}`}
                               selectable
                               style={[
                                 styles.tableCell,
+                                styles.tableHeader,
                                 {
                                   borderLeftColor: palette.border,
                                   color: palette.foreground,
@@ -174,20 +147,47 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                                 cellIndex === 0 ? styles.firstTableCell : null,
                               ]}
                             >
-                              {inlineNodes(cell, palette.info, palette.code)}
+                              {inlineNodes(cell, palette.link, palette.code)}
                             </Text>
                           ))}
                         </View>
-                      ))}
-                    </View>,
+                        {table.rows.map((row, rowIndex) => (
+                          <View
+                            key={`row-${rowIndex}`}
+                            style={[
+                              styles.tableRow,
+                              styles.tableBodyRow,
+                              { borderTopColor: palette.border },
+                            ]}
+                          >
+                            {row.map((cell, cellIndex) => (
+                              <Text
+                                key={`cell-${cellIndex}`}
+                                selectable
+                                style={[
+                                  styles.tableCell,
+                                  {
+                                    borderLeftColor: palette.border,
+                                    color: palette.foreground,
+                                  },
+                                  cellIndex === 0 ? styles.firstTableCell : null,
+                                ]}
+                              >
+                                {inlineNodes(cell, palette.link, palette.code)}
+                              </Text>
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>,
                   );
                   lineIndex = table.endIndex;
                   continue;
                 }
 
                 const heading = /^(#{1,3})\s+(.+)$/.exec(line);
-                const bullet = /^\s*[-*]\s+(.+)$/.exec(line);
-                const ordered = /^\s*(\d+)\.\s+(.+)$/.exec(line);
+                const bullet = /^(\s*)[-*+]\s+(.+)$/.exec(line);
+                const ordered = /^(\s*)(\d+)[.)]\s+(.+)$/.exec(line);
                 const quote = /^>\s?(.*)$/.exec(line);
                 if (!line.trim()) {
                   rendered.push(<View key={lineIndex} style={styles.paragraphBreak} />);
@@ -208,22 +208,44 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                         },
                       ]}
                     >
-                      {inlineNodes(heading[2] ?? "", palette.info, palette.code)}
+                      {inlineNodes(heading[2] ?? "", palette.link, palette.code)}
                     </Text>,
                   );
                   continue;
                 }
                 if (bullet || ordered) {
+                  const content = bullet?.[2] ?? ordered?.[3] ?? "";
+                  const task = bullet ? /^\[([ xX])\]\s+(.*)$/.exec(content) : null;
+                  const indent = (bullet?.[1] ?? ordered?.[1] ?? "").length;
+                  const itemKey = lineIndex;
+                  let itemText = task?.[2] ?? content;
+                  while (lineIndex + 1 < lines.length) {
+                    const next = lines[lineIndex + 1] ?? "";
+                    if (
+                      !next.trim() ||
+                      !/^\s+\S/.test(next) ||
+                      /^\s*(?:[-*+] |\d+[.)] )/.test(next)
+                    )
+                      break;
+                    itemText += ` ${next.trim()}`;
+                    lineIndex += 1;
+                  }
                   rendered.push(
-                    <View key={lineIndex} style={styles.listRow}>
+                    <View
+                      key={itemKey}
+                      style={[
+                        styles.listRow,
+                        { marginLeft: Math.min(Math.floor(indent / 2), 4) * 18 },
+                      ]}
+                    >
                       <Text style={[styles.listMarker, { color: palette.foregroundMuted }]}>
-                        {ordered ? `${ordered[1]}.` : "•"}
+                        {ordered ? `${ordered[2]}.` : task ? (task[1] === " " ? "☐" : "☑") : "•"}
                       </Text>
                       <Text
                         selectable
                         style={[styles.text, styles.listText, { color: palette.foreground }]}
                       >
-                        {inlineNodes(bullet?.[1] ?? ordered?.[2] ?? "", palette.info, palette.code)}
+                        {inlineNodes(itemText, palette.link, palette.code)}
                       </Text>
                     </View>,
                   );
@@ -236,19 +258,36 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                       style={[styles.quote, { borderLeftColor: palette.border }]}
                     >
                       <Text selectable style={[styles.text, { color: palette.foregroundMuted }]}>
-                        {inlineNodes(quote[1] ?? "", palette.info, palette.code)}
+                        {inlineNodes(quote[1] ?? "", palette.link, palette.code)}
                       </Text>
                     </View>,
                   );
                   continue;
                 }
+                const paragraphKey = lineIndex;
+                let paragraph = line.trimEnd();
+                let previousLine = line;
+                while (lineIndex + 1 < lines.length) {
+                  const next = lines[lineIndex + 1] ?? "";
+                  if (
+                    !next.trim() ||
+                    /^\s*(?:#{1,6} |[-*+] |\d+[.)] |>|---$|\*\*\*$)/.test(next) ||
+                    tableAt(lines, lineIndex + 1)
+                  )
+                    break;
+                  const hardBreak = /(?: {2}|\\)$/.test(previousLine);
+                  if (previousLine.endsWith("\\")) paragraph = paragraph.slice(0, -1);
+                  paragraph += `${hardBreak ? "\n" : " "}${next.trim()}`;
+                  previousLine = next;
+                  lineIndex += 1;
+                }
                 rendered.push(
                   <Text
-                    key={lineIndex}
+                    key={paragraphKey}
                     selectable
                     style={[styles.text, { color: palette.foreground }]}
                   >
-                    {inlineNodes(line, palette.info, palette.code)}
+                    {inlineNodes(paragraph, palette.link, palette.code)}
                   </Text>,
                 );
               }
@@ -263,7 +302,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
 
 const styles = StyleSheet.create({
   root: { gap: 3, width: "100%" },
-  text: { fontSize: 16, lineHeight: 23 },
+  text: { fontSize: 17, lineHeight: 25 },
   bold: { fontWeight: "700" },
   heading: {
     fontWeight: "700",
@@ -271,17 +310,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     marginTop: 8,
   },
-  paragraphBreak: { height: 9 },
+  paragraphBreak: { height: 16 },
   listRow: {
     alignItems: "flex-start",
     flexDirection: "row",
-    paddingVertical: 1,
+    paddingVertical: 2,
   },
   listMarker: {
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 25,
     marginRight: 8,
-    minWidth: 14,
+    minWidth: 22,
     textAlign: "right",
   },
   listText: { flex: 1 },
@@ -297,7 +336,6 @@ const styles = StyleSheet.create({
   quote: { borderLeftWidth: 2, marginVertical: 3, paddingLeft: 11 },
   table: {
     borderRadius: graftRadius.small,
-    borderWidth: StyleSheet.hairlineWidth,
     marginVertical: 8,
     overflow: "hidden",
   },
@@ -305,9 +343,9 @@ const styles = StyleSheet.create({
   tableBodyRow: { borderTopWidth: StyleSheet.hairlineWidth },
   tableCell: {
     borderLeftWidth: StyleSheet.hairlineWidth,
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
+    width: 176,
+    fontSize: 15,
+    lineHeight: 21,
     paddingHorizontal: 8,
     paddingVertical: 9,
   },

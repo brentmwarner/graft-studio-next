@@ -34,6 +34,23 @@ function event(
 }
 
 describe("mobile view models", () => {
+  it("settles one tool across distinct event IDs and ignores late progress", () => {
+    const events = [
+      { ...event(1, "tool.start"), toolId: "call-1", toolName: "Read" },
+      { ...event(2, "tool.end"), toolId: "call-1" },
+      { ...event(3, "tool.update"), toolId: "call-1" },
+      { ...event(4, "tool.start"), toolId: "call-1", runId: "run-2" },
+    ];
+    const items = buildTranscriptItems([], events);
+    const tools = items.flatMap((item) =>
+      item.kind === "toolGroup" ? item.tools : item.kind === "tool" ? [item] : [],
+    );
+    expect(tools).toHaveLength(2);
+    expect(tools[0]).toMatchObject({ kind: "tool", name: "Read", running: false });
+    expect(tools[1]).toMatchObject({ kind: "tool", running: true });
+    expect(buildTranscriptItems(events, [])).toEqual(items);
+  });
+
   it("groups and alphabetizes threads under the same projects as iOS", () => {
     const snapshot = {
       projects: [{ id: "project-1", name: "Graft", kind: "repo" }],

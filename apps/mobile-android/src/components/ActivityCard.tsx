@@ -28,7 +28,7 @@ function CardShell({ icon, title, meta, body, onPress }: CardShellProps) {
   const interactive = Boolean(body) || Boolean(onPress);
 
   return (
-    <View style={[styles.card, { backgroundColor: palette.subtle, borderColor: palette.border }]}>
+    <View style={[styles.card, { backgroundColor: palette.subtle }]}>
       <Pressable
         accessibilityRole={interactive ? "button" : undefined}
         disabled={!interactive}
@@ -400,7 +400,6 @@ const styles = StyleSheet.create({
   bodyText: { fontSize: 13, lineHeight: 19 },
   card: {
     borderRadius: graftRadius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
     marginVertical: 3,
     overflow: "hidden",
   },

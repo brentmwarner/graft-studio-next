@@ -371,22 +371,23 @@ export function buildTranscriptItems(
       case "tool.start":
       case "tool.update":
       case "tool.end": {
-        const existing = toolItems.get(event.id);
+        const toolId = event.toolId ? `${event.runId ?? ""}:${event.toolId}` : event.id;
+        const existing = toolItems.get(toolId);
         if (existing) {
           existing.name = event.toolName ?? existing.name;
           existing.detail = event.text ?? existing.detail;
-          existing.running = event.kind !== "tool.end";
+          existing.running = existing.running && event.kind !== "tool.end";
         } else {
           settleAssistant();
           const item: TranscriptToolItem = {
-            id: claimId(usedIds, `tool:${event.id}`),
+            id: claimId(usedIds, `tool:${toolId}`),
             kind: "tool",
-            toolId: event.id,
+            toolId,
             name: event.toolName ?? "Working",
             detail: event.text ?? "",
             running: event.kind !== "tool.end",
           };
-          toolItems.set(event.id, item);
+          toolItems.set(toolId, item);
           items.push(item);
         }
         break;

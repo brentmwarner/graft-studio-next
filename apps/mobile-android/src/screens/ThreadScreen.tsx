@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type {
   GraftApprovalDecision,
+  GraftComposerCommand,
   GraftDiffSummary,
   GraftInteractionMode,
   GraftEnvironmentSnapshot,
@@ -14,12 +15,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
   StyleSheet,
   Text,
   View,
+  Vibration,
   type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +36,7 @@ import { FloatingSurface } from "../components/FloatingSurface";
 import { LiveStatusLine } from "../components/LiveStatusLine";
 import { PressScale } from "../components/PressScale";
 import { transcriptLiveStatus } from "../state/liveStatus";
+import { TaskProgressPill } from "../components/TaskProgressPill";
 import { useGraftPalette } from "../theme/tokens";
 import type { ComposerSendOptions } from "./thread/composerAttachmentSend";
 import { useComposerAttachments } from "./thread/useComposerAttachments";
@@ -41,6 +45,7 @@ import { composerBottomPadding } from "./thread/composerBottomSpacing";
 import { ContextProgressRing } from "./thread/ContextProgressRing";
 import { contextUsageAccessibilityLabel } from "./thread/contextUsage";
 import { DiffSheet } from "./thread/DiffSheet";
+import { SlashPalette } from "./thread/SlashPalette";
 import { ApprovalPrompt, QuestionPrompt } from "./thread/InteractionPrompts";
 import { renderTranscriptRow, transcriptRowKey } from "./thread/TranscriptRow";
 import { useThreadModel } from "./thread/useThreadModel";
@@ -67,6 +72,7 @@ interface ThreadScreenProps {
   readonly onCancel: (runId: string) => Promise<boolean>;
   readonly onLoadDiff: (threadId: string, diffId?: string) => Promise<void>;
   readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
+  readonly onLoadComposerCommands: (threadId: string) => Promise<readonly GraftComposerCommand[]>;
   readonly onLoadModels: () => Promise<void>;
   readonly onRefresh: () => Promise<void>;
   readonly onResolveApproval: (
@@ -104,6 +110,7 @@ export function ThreadScreen({
   onCancel,
   onLoadDiff,
   onLoadDiffFile,
+  onLoadComposerCommands,
   onLoadModels,
   onLoadUsage,
   onRefresh,
@@ -123,6 +130,7 @@ export function ThreadScreen({
   const headerBottom = headerTop + THREAD_HEADER_HEIGHT;
   const keyboardVisible = useKeyboardVisibility();
   const [draft, setDraft] = useState("");
+  const [modelMenuRequest, setModelMenuRequest] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const dictationSendPending = useRef(false);
   const sendInFlight = useRef(false);
@@ -201,6 +209,11 @@ export function ThreadScreen({
       (voice.isActive && !fromDictation)
     )
       return;
+    if (text === "/model" && !attachments.attachments.length) {
+      setDraft("");
+      setModelMenuRequest((request) => request + 1);
+      return;
+    }
     sendInFlight.current = true;
     const sendingAttachments = attachments.attachments;
     const releaseAttachments = attachments.retainForSend();
@@ -379,6 +392,9 @@ export function ThreadScreen({
           },
         ]}
       >
+        {model.taskProgress && !((isSending || pendingSend) && model.taskProgress.isComplete) ? (
+          <TaskProgressPill key={model.taskProgress.id} progress={model.taskProgress} />
+        ) : null}
         {pendingApproval ? (
           <ApprovalPrompt
             approval={pendingApproval}
@@ -404,18 +420,27 @@ export function ThreadScreen({
             {model.hasDiffChip ? (
               <PressScale
                 accessibilityLabel={`Changes: ${diffSummary?.files.length ?? 0} files, ${model.diffAdditions} additions, ${model.diffDeletions} deletions`}
-                onPress={() => setShowDiffSheet(true)}
+                onPress={() => {
+                  Vibration.vibrate(10);
+                  Keyboard.dismiss();
+                  void onLoadDiff(thread.id);
+                  setShowDiffSheet(true);
+                }}
               >
                 <FloatingSurface style={styles.diffChip}>
                   <Text style={[styles.diffLabel, { color: palette.foregroundMuted }]}>
                     {diffSummary?.files.length ?? 0} files changed
                   </Text>
-                  <Text style={[styles.diffCount, { color: palette.success }]}>
-                    +{model.diffAdditions}
-                  </Text>
-                  <Text style={[styles.diffCount, { color: palette.danger }]}>
-                    −{model.diffDeletions}
-                  </Text>
+                  {model.diffAdditions > 0 || model.diffDeletions > 0 ? (
+                    <>
+                      <Text style={[styles.diffCount, { color: palette.success }]}>
+                        +{model.diffAdditions}
+                      </Text>
+                      <Text style={[styles.diffCount, { color: palette.danger }]}>
+                        −{model.diffDeletions}
+                      </Text>
+                    </>
+                  ) : null}
                 </FloatingSurface>
               </PressScale>
             ) : null}
@@ -428,6 +453,22 @@ export function ThreadScreen({
               </PressScale>
             ) : null}
           </View>
+        ) : null}
+        {draft.startsWith("/") && !/\s/.test(draft) ? (
+          <SlashPalette
+            query={draft}
+            threadId={thread.id}
+            providerId={model.currentThread.providerId}
+            loadCommands={onLoadComposerCommands}
+            onPick={(command) => {
+              if (command.kind === "model") {
+                setDraft("");
+                setModelMenuRequest((request) => request + 1);
+              } else {
+                setDraft(`/${command.name} `);
+              }
+            }}
+          />
         ) : null}
         <Composer
           attachments={attachments.attachments}
@@ -451,6 +492,7 @@ export function ThreadScreen({
             void onCancel(runId);
           }}
           onDraftChange={setDraft}
+          modelMenuRequest={modelMenuRequest}
           menuConfig={{
             extras: {
               attachmentsEnabled: composerFeatures?.attachments === true,
