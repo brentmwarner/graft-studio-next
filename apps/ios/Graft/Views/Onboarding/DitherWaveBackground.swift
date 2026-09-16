@@ -39,7 +39,7 @@ private struct DitherWaveMetalView: UIViewRepresentable {
         view.colorPixelFormat = .bgra8Unorm
         (view.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         view.preferredFramesPerSecond = 60
-        view.enableSetNeedsDisplay = true
+        view.enableSetNeedsDisplay = false
         view.isOpaque = true
         view.isUserInteractionEnabled = false
         view.delegate = context.coordinator
@@ -53,7 +53,9 @@ private struct DitherWaveMetalView: UIViewRepresentable {
         view.backgroundColor = UIColor(white: surface, alpha: 1)
         context.coordinator?.configure(dark: dark, reduceMotion: reduceMotion, isActive: isActive)
         view.isPaused = reduceMotion || !isActive || context.coordinator == nil
-        view.setNeedsDisplay()
+        if view.isPaused {
+            view.draw()
+        }
     }
 
     static func dismantleUIView(_ view: MTKView, coordinator: DitherWaveRenderer?) {
