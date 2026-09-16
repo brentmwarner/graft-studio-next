@@ -414,7 +414,7 @@ final class MarkdownVisualCheckTests: XCTestCase {
         XCTAssertTrue(capture.beforeTapFocusedComposer)
         XCTAssertTrue(capture.didActivateDiff)
         XCTAssertFalse(capture.afterTapFocusedComposer)
-        XCTAssertTrue(capture.afterTap.hierarchy.contains("Focused diff"))
+        XCTAssertTrue(capture.afterTap.hierarchy.contains("1 file changed"))
         XCTAssertTrue(capture.afterTap.hierarchy.contains("1 file"))
         XCTAssertTrue(capture.afterTap.hierarchy.contains("apps/ios/Graft/Views/Chat/ComposerDiffBubble.swift"))
 
