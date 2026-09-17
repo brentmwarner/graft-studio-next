@@ -1,14 +1,37 @@
 // FILE: graftHome.ts
 // Purpose: Resolves the user-level Graft base directory without Effect, so the backend
 // server and the Electron main process agree on one location during early startup.
-// Exports: expandHomePath, resolveGraftHomeDirectory, isAppHomeDirectoryName,
-//          GRAFT_HOME_ENV_NAME.
+// Exports: expandHomePath, resolveGraftHomeDirectory, resolveUserHomeDirectory,
+//          isAppHomeDirectoryName, GRAFT_HOME_ENV_NAME.
 
 import * as OS from "node:os";
 import * as Path from "node:path";
 
 export const GRAFT_HOME_ENV_NAME = "GRAFT_HOME";
 export const DEFAULT_GRAFT_HOME_DIRECTORY_NAME = ".graft";
+
+type HomeDirectoryOptions = {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly platform?: NodeJS.Platform;
+  readonly homeDirectory?: string;
+  readonly readHomeDirectory?: () => string;
+};
+
+function fallbackHomeDirectory(options: HomeDirectoryOptions): string {
+  return options.homeDirectory ?? (options.readHomeDirectory ?? OS.homedir)();
+}
+
+/** Resolves the user's home from inherited environment values before querying the OS. */
+export function resolveUserHomeDirectory(options: HomeDirectoryOptions = {}): string {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const pathImplementation = platform === "win32" ? Path.win32 : Path.posix;
+  const configured =
+    platform === "win32"
+      ? env.USERPROFILE?.trim() || env.HOME?.trim()
+      : env.HOME?.trim() || env.USERPROFILE?.trim();
+  return configured ? pathImplementation.resolve(configured) : fallbackHomeDirectory(options);
+}
 
 /** Expands a leading `~` against the user's home directory; other inputs pass through. */
 export function expandHomePath(input: string, homeDirectory: string = OS.homedir()): string {
@@ -48,18 +71,21 @@ export function resolveGraftHomeDirectory(
     readonly configuredHome?: string | undefined;
     readonly env?: NodeJS.ProcessEnv;
     readonly homeDirectory?: string;
+    readonly readHomeDirectory?: () => string;
     /** Flavor-specific default (`.graft-canary`), used only when nothing is configured. */
     readonly directoryName?: string;
   } = {},
 ): string {
-  const homeDirectory = options.homeDirectory ?? OS.homedir();
   const explicit = options.configuredHome?.trim();
   const env = options.env ?? process.env;
   const fromEnv = env[GRAFT_HOME_ENV_NAME]?.trim();
   const configured = explicit || fromEnv;
   if (!configured) {
     const directoryName = options.directoryName ?? DEFAULT_GRAFT_HOME_DIRECTORY_NAME;
-    return Path.join(homeDirectory, directoryName);
+    return Path.join(fallbackHomeDirectory(options), directoryName);
   }
-  return Path.resolve(expandHomePath(configured, homeDirectory));
+  if (configured === "~" || configured.startsWith("~/") || configured.startsWith("~\\")) {
+    return Path.resolve(expandHomePath(configured, fallbackHomeDirectory(options)));
+  }
+  return Path.resolve(configured);
 }

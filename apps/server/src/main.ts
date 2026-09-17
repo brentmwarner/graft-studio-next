@@ -6,7 +6,6 @@
  *
  * @module CliConfig
  */
-import OS from "node:os";
 import {
   GRAFT_MOBILE_PROTOCOL_VERSION,
   buildGraftPairingUrl,
@@ -26,6 +25,7 @@ import {
 } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 import { NetService } from "@graft/shared/Net";
+import { resolveUserHomeDirectory } from "@graft/shared/graftHome";
 import {
   MIGRATION_DIVERGENCE_CONSENT_ENV,
   MIGRATION_RUNTIME_SOURCE_DIGEST_ENV,
@@ -280,7 +280,7 @@ const ServerConfigLive = (input: CliInput) =>
       );
       const configuredHome = Option.getOrUndefined(input.graftHome) ?? env.graftHome;
       const baseDir = yield* resolveBaseDir(configuredHome);
-      const userHomeDir = OS.homedir();
+      const userHomeDir = resolveUserHomeDirectory();
       const derivedPaths = yield* deriveServerPaths(baseDir, devUrl);
       yield* Effect.try({
         try: () => preparePrivateServerPaths(derivedPaths),

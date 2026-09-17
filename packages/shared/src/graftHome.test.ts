@@ -9,6 +9,7 @@ import {
   expandHomePath,
   isAppHomeDirectoryName,
   resolveGraftHomeDirectory,
+  resolveUserHomeDirectory,
 } from "./graftHome";
 
 const tempDirs = new Set<string>();
@@ -82,6 +83,18 @@ describe("resolveGraftHomeDirectory", () => {
     ).toBe(Path.resolve("/tmp/custom-graft"));
   });
 
+  it("does not query the OS home for an absolute configured path", () => {
+    expect(
+      resolveGraftHomeDirectory({
+        configuredHome: "/tmp/isolated-graft",
+        env: {},
+        readHomeDirectory: () => {
+          throw new Error("OS home lookup must stay lazy");
+        },
+      }),
+    ).toBe(Path.resolve("/tmp/isolated-graft"));
+  });
+
   it("does not select leftover storage when the Graft root is absent", () => {
     const homeDirectory = makeTempDir();
     FS.mkdirSync(Path.join(homeDirectory, ".synara"));
@@ -100,5 +113,28 @@ describe("resolveGraftHomeDirectory", () => {
         directoryName: ".graft-dev",
       }),
     ).toBe(Path.join(homeDirectory, ".graft-dev"));
+  });
+});
+
+describe("resolveUserHomeDirectory", () => {
+  it("prefers inherited POSIX and Windows home values without querying the OS", () => {
+    const readHomeDirectory = () => {
+      throw new Error("OS home lookup must stay lazy");
+    };
+
+    expect(
+      resolveUserHomeDirectory({
+        env: { HOME: "/users/posix" },
+        platform: "darwin",
+        readHomeDirectory,
+      }),
+    ).toBe(Path.resolve("/users/posix"));
+    expect(
+      resolveUserHomeDirectory({
+        env: { HOME: "C:\\fallback", USERPROFILE: "C:\\Users\\tester" },
+        platform: "win32",
+        readHomeDirectory,
+      }),
+    ).toBe(Path.win32.resolve("C:\\Users\\tester"));
   });
 });
