@@ -1,3 +1,5 @@
+import { LegacyGraftHistoryPanel } from "../components/settings/LegacyGraftHistoryPanel";
+import { GraftAccountSettingsPanel } from "../components/settings/GraftAccountSettingsPanel";
 // FILE: _chat.settings.tsx
 // Purpose: Render the dedicated settings experience with its own section sidebar and grouped panels.
 // Layer: Route screen
@@ -1235,14 +1237,33 @@ function SettingsRouteView() {
         return renderBehaviorPanel();
       case "shortcuts":
         return <KeyboardShortcutsSettingsPanel />;
+      case "account":
+        return (
+          <div className="space-y-8">
+            <GraftAccountSettingsPanel />
+            <LegacyGraftHistoryPanel />
+          </div>
+        );
       case "profile":
         return <ProfileSettingsPanel />;
       case "skills":
         return <SkillsSettingsPanel />;
       case "usage":
         return <ProviderUsageSettingsPanel />;
-      default:
+      case "notifications":
+      case "appsnap":
+      case "worktrees":
+      case "archived":
+      case "models":
+      case "providers":
+      case "integrations":
+      case "connections":
+      case "advanced":
         return null;
+      default: {
+        const exhaustive: never = activeSection;
+        return exhaustive;
+      }
     }
   };
 

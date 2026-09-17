@@ -8,9 +8,12 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 export interface MacDmgNotaryCredentials {
-  readonly appleApiKey: string | undefined;
-  readonly appleApiKeyId: string | undefined;
-  readonly appleApiIssuer: string | undefined;
+  readonly appleApiKey?: string | undefined;
+  readonly appleApiKeyId?: string | undefined;
+  readonly appleApiIssuer?: string | undefined;
+  readonly appleId?: string | undefined;
+  readonly appleAppSpecificPassword?: string | undefined;
+  readonly appleTeamId?: string | undefined;
 }
 
 export interface MacDmgCommand {
@@ -50,9 +53,24 @@ export function buildMacDmgFinalizationCommands(
   dmgPath: string,
   credentials: MacDmgNotaryCredentials,
 ): ReadonlyArray<MacDmgCommand> {
-  const appleApiKey = requireCredential(credentials.appleApiKey, "APPLE_API_KEY");
-  const appleApiKeyId = requireCredential(credentials.appleApiKeyId, "APPLE_API_KEY_ID");
-  const appleApiIssuer = requireCredential(credentials.appleApiIssuer, "APPLE_API_ISSUER");
+  const useAppleId = Boolean(credentials.appleId || credentials.appleAppSpecificPassword);
+  const notaryCredentials = useAppleId
+    ? [
+        "--apple-id",
+        requireCredential(credentials.appleId, "APPLE_ID"),
+        "--password",
+        requireCredential(credentials.appleAppSpecificPassword, "APPLE_APP_SPECIFIC_PASSWORD"),
+        "--team-id",
+        requireCredential(credentials.appleTeamId, "APPLE_TEAM_ID"),
+      ]
+    : [
+        "--key",
+        requireCredential(credentials.appleApiKey, "APPLE_API_KEY"),
+        "--key-id",
+        requireCredential(credentials.appleApiKeyId, "APPLE_API_KEY_ID"),
+        "--issuer",
+        requireCredential(credentials.appleApiIssuer, "APPLE_API_ISSUER"),
+      ];
 
   return [
     {
@@ -61,18 +79,7 @@ export function buildMacDmgFinalizationCommands(
     },
     {
       command: "xcrun",
-      args: [
-        "notarytool",
-        "submit",
-        dmgPath,
-        "--key",
-        appleApiKey,
-        "--key-id",
-        appleApiKeyId,
-        "--issuer",
-        appleApiIssuer,
-        "--wait",
-      ],
+      args: ["notarytool", "submit", dmgPath, ...notaryCredentials, "--wait"],
     },
     {
       command: "xcrun",

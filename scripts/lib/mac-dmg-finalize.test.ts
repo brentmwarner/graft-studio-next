@@ -46,6 +46,31 @@ describe("macOS DMG finalization", () => {
     ]);
   });
 
+  it("reuses the legacy Apple ID notarization credentials", () => {
+    const commands = buildMacDmgFinalizationCommands("/tmp/Graft.dmg", {
+      appleId: "release@example.com",
+      appleAppSpecificPassword: "secret",
+      appleTeamId: "TEAM123",
+    });
+    expect(commands[1]?.args).toEqual([
+      "notarytool",
+      "submit",
+      "/tmp/Graft.dmg",
+      "--apple-id",
+      "release@example.com",
+      "--password",
+      "secret",
+      "--team-id",
+      "TEAM123",
+      "--wait",
+    ]);
+    expect(() =>
+      buildMacDmgFinalizationCommands("/tmp/Graft.dmg", {
+        appleId: "release@example.com",
+      }),
+    ).toThrow("APPLE_APP_SPECIFIC_PASSWORD");
+  });
+
   it("fails closed when Apple notarization credentials are unavailable", () => {
     expect(() =>
       buildMacDmgFinalizationCommands("/tmp/Graft.dmg", {

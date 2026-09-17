@@ -6,6 +6,7 @@ interface MacUpdateFile {
   readonly url: string;
   readonly sha512: string;
   readonly size: number;
+  readonly blockMapSize?: number;
 }
 
 type MacUpdateScalar = string | number | boolean;
@@ -21,6 +22,7 @@ interface MutableMacUpdateFile {
   url?: string;
   sha512?: string;
   size?: number;
+  blockMapSize?: number;
 }
 
 function stripSingleQuotes(value: string): string {
@@ -51,6 +53,7 @@ function parseFileRecord(
     url: currentFile.url,
     sha512: currentFile.sha512,
     size: currentFile.size,
+    ...(currentFile.blockMapSize === undefined ? {} : { blockMapSize: currentFile.blockMapSize }),
   };
 }
 
@@ -109,6 +112,16 @@ export function parseMacUpdateManifest(raw: string, sourcePath: string): MacUpda
         );
       }
       currentFile.size = Number(fileSizeMatch[1]);
+      continue;
+    }
+
+    const blockMapSizeMatch = line.match(/^    blockMapSize:\s*(\d+)$/);
+    if (blockMapSizeMatch?.[1]) {
+      if (currentFile === null)
+        throw new Error(
+          `Invalid update manifest at ${sourcePath}:${lineNumber}: blockMapSize without a file entry.`,
+        );
+      currentFile.blockMapSize = Number(blockMapSizeMatch[1]);
       continue;
     }
 
@@ -249,6 +262,7 @@ export function serializeMacUpdateManifest(manifest: MacUpdateManifest): string 
     lines.push(`  - url: ${file.url}`);
     lines.push(`    sha512: ${file.sha512}`);
     lines.push(`    size: ${file.size}`);
+    if (file.blockMapSize !== undefined) lines.push(`    blockMapSize: ${file.blockMapSize}`);
   }
 
   for (const key of Object.keys(manifest.extras).toSorted()) {

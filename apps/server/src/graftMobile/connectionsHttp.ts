@@ -1,3 +1,5 @@
+import { revokePairedAccountAccess } from "./accountDisconnect";
+import { writeFileStringAtomically } from "../atomicWrite";
 import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { AuthSessionId } from "@graft/contracts";
@@ -28,6 +30,8 @@ import {
 import { discoverNetworkEndpoints } from "./networkEndpoints";
 import {
   connectMobileRelayAccount,
+  connectMobileRelayWithAccount,
+  disconnectMobileRelayAccount,
   getMobileRelayEndpoint,
   getMobileRelayStatus,
   setMobileRelayEnabled,
@@ -120,6 +124,44 @@ const connectionsHttpRouteLayer = HttpRouter.add(
       return respond(
         connectionsStatus(config, descriptor.label, descriptor.environmentId, clients),
       );
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/graft/connections/account/disconnect") {
+      yield* Effect.promise(() => disconnectMobileRelayAccount());
+      if (shouldStartMobileLanGateway(config)) {
+        yield* Effect.promise(() => setMobileLanGatewayEnabled(false));
+        const settingsPath = mobileGatewaySettingsPath(config.stateDir);
+        const previous = loadMobileGatewaySettings(settingsPath);
+        yield* writeFileStringAtomically({
+          filePath: settingsPath,
+          contents: JSON.stringify({ enabled: false, preferredPort: previous.preferredPort }),
+          mode: 0o600,
+        }).pipe(Effect.orDie);
+      }
+      yield* revokePairedAccountAccess(serverAuth, authenticated.sessionId);
+      return respond({ ok: true });
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/graft/connections/relay/connect-account"
+    ) {
+      const body = yield* Effect.promise(() => readJson(request));
+      const accountToken =
+        body && typeof body === "object" && "accountToken" in body ? body.accountToken : null;
+      if (
+        typeof accountToken !== "string" ||
+        accountToken.length === 0 ||
+        accountToken.length > 16 * 1024
+      )
+        return respond({ error: "A verified Graft account session is required." }, 400);
+      const connected = yield* Effect.tryPromise({
+        try: () => connectMobileRelayWithAccount(descriptor.label, accountToken),
+        catch: () => new Error("Could not connect the Graft account relay."),
+      }).pipe(Effect.match({ onSuccess: () => true, onFailure: () => false }));
+      return connected
+        ? respond({ ok: true })
+        : respond({ error: "Could not connect the Graft account relay." }, 400);
     }
 
     if (request.method === "POST" && url.pathname === "/api/graft/connections/relay/connect") {

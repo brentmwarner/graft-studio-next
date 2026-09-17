@@ -81,7 +81,14 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
   });
 
   const relayMutation = useMutation({
-    mutationFn: connectGraftRelay,
+    mutationFn: async () => {
+      const account = window.desktopBridge?.account;
+      if (account?.connectRelay) {
+        await account.connectRelay();
+        return { ok: true } as const;
+      }
+      return connectGraftRelay();
+    },
     onSuccess: () => {
       setError(null);
       void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });

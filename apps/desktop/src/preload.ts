@@ -64,6 +64,19 @@ function parseBrowserAnnotationEvent(payload: unknown): BrowserAnnotationEvent |
 }
 
 contextBridge.exposeInMainWorld("desktopBridge", {
+  account: {
+    connectRelay: () => ipcRenderer.invoke(IPC.account.connectRelay),
+    getState: () => ipcRenderer.invoke(IPC.account.getState),
+    signIn: () => ipcRenderer.invoke(IPC.account.signIn),
+    cancelSignIn: () => ipcRenderer.invoke(IPC.account.cancelSignIn),
+    signOut: () => ipcRenderer.invoke(IPC.account.signOut),
+    refresh: () => ipcRenderer.invoke(IPC.account.refresh),
+    onState: (listener) => {
+      const wrapped: Parameters<typeof ipcRenderer.on>[1] = (_event, state) => listener(state);
+      ipcRenderer.on(IPC.account.state, wrapped);
+      return () => ipcRenderer.removeListener(IPC.account.state, wrapped);
+    },
+  },
   getWsUrl: getDesktopWsUrl,
   // Absolute path for OS-dropped File objects (folders with spaces/parens, etc.).
   getPathForFile: (file: File) => {

@@ -13,6 +13,7 @@
     "@effect/platform-node": "catalog:",
     "@graft/contracts": "workspace:*",
     "@graft/shared": "workspace:*",
+    "@vercel/blob": "2.3.0",
     "effect": "catalog:"
   },
   "devDependencies": {

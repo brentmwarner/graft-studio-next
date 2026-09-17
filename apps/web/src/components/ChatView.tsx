@@ -1,4 +1,5 @@
 import { type LegendListRef } from "@legendapp/list/react";
+import { isLegacyGraftThread, LEGACY_GRAFT_READ_ONLY_MESSAGE } from "@graft/shared/legacyGraft";
 import {
   MessageId,
   OrchestrationThreadActivity,
@@ -4900,429 +4901,425 @@ export default function ChatView({
       />
     ) : null;
 
-  const composerSection =
-    secondaryChromeReady && shouldRenderChatPaneContent ? (
-      <div
-        className={cn(isCenteredEmptyLanding ? "w-full overflow-visible" : "contents")}
-        data-empty-landing-composer-block={isCenteredEmptyLanding ? "true" : undefined}
+  const composerSection = isLegacyGraftThread(activeThreadId) ? (
+    <div
+      role="note"
+      className="mx-5 mb-5 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground"
+    >
+      {LEGACY_GRAFT_READ_ONLY_MESSAGE} The complete archive is in Settings → Account → Previous
+      Graft history.
+    </div>
+  ) : secondaryChromeReady && shouldRenderChatPaneContent ? (
+    <div
+      className={cn(isCenteredEmptyLanding ? "w-full overflow-visible" : "contents")}
+      data-empty-landing-composer-block={isCenteredEmptyLanding ? "true" : undefined}
+    >
+      <form
+        ref={composerFormRef}
+        onSubmit={onSend}
+        className="relative z-10 w-full overflow-visible"
+        data-chat-composer-form="true"
+        data-chat-pane-scope={paneScopeId}
       >
-        <form
-          ref={composerFormRef}
-          onSubmit={onSend}
-          className="relative z-10 w-full overflow-visible"
-          data-chat-composer-form="true"
-          data-chat-pane-scope={paneScopeId}
-        >
-          <ComposerColumnFrame>
-            {/* A bare wrapper keeps the normal-flow panels' -mb-px seam onto the input shell
+        <ComposerColumnFrame>
+          {/* A bare wrapper keeps the normal-flow panels' -mb-px seam onto the input shell
                 via margin collapse. */}
-            <div>
-              {isSidechatExpired ? (
-                <ExpiredSidechatNotice onStartNew={startReplacementSidechat} />
-              ) : null}
-              {showComposerLiveChangesHeader ? (
-                <ComposerLiveChangesHeader
-                  fileCount={activeTurnLiveDiffState.fileCount}
-                  additions={activeTurnLiveDiffState.additions}
-                  deletions={activeTurnLiveDiffState.deletions}
-                  onReview={
-                    activeTurnLiveDiffState.turnId ? onReviewComposerLiveChanges : undefined
-                  }
-                />
-              ) : null}
-              {renderActiveTaskListCard(showComposerLiveChangesHeader)}
-              {workflowRunState ? (
-                <WorkflowRunCard
-                  workflowRun={workflowRunState}
-                  compact={workflowRunCardCompact}
-                  onCompactChange={setWorkflowRunCardCompact}
-                  onOpenThread={onNavigateToThread}
-                  onStop={onStopWorkflowRun}
-                  onPause={onPauseWorkflowRun}
-                  onResume={onResumeWorkflowRun}
-                  onDismiss={onDismissWorkflowRun}
-                  attachedToPrevious={
-                    showComposerLiveChangesHeader || showComposerActiveTaskListCard
-                  }
-                />
-              ) : null}
-              {showComposerSubagentStrip ? (
-                <ComposerSubagentStrip
-                  items={composerSubagentStripItems}
-                  compact={subagentStripCompact}
-                  onCompactChange={setSubagentStripCompact}
-                  onOpenThread={onNavigateToThread}
-                  onBackgroundItem={onBackgroundSubagentStripItem}
-                  onStopItem={onStopSubagentStripItem}
-                  onStopAll={onStopAllSubagentStripItems}
-                  attachedToPrevious={
-                    showComposerLiveChangesHeader ||
-                    showComposerActiveTaskListCard ||
-                    showComposerWorkflowRunCard
-                  }
-                />
-              ) : null}
-              <ComposerQueuedHeader
-                queuedTurns={queuedComposerTurns}
-                onSteer={onSteerQueuedComposerTurn}
-                onRemove={removeQueuedComposerTurn}
-                onEdit={onEditQueuedComposerTurn}
-                cwd={threadWorkspaceCwd ?? undefined}
+          <div>
+            {isSidechatExpired ? (
+              <ExpiredSidechatNotice onStartNew={startReplacementSidechat} />
+            ) : null}
+            {showComposerLiveChangesHeader ? (
+              <ComposerLiveChangesHeader
+                fileCount={activeTurnLiveDiffState.fileCount}
+                additions={activeTurnLiveDiffState.additions}
+                deletions={activeTurnLiveDiffState.deletions}
+                onReview={activeTurnLiveDiffState.turnId ? onReviewComposerLiveChanges : undefined}
+              />
+            ) : null}
+            {renderActiveTaskListCard(showComposerLiveChangesHeader)}
+            {workflowRunState ? (
+              <WorkflowRunCard
+                workflowRun={workflowRunState}
+                compact={workflowRunCardCompact}
+                onCompactChange={setWorkflowRunCardCompact}
+                onOpenThread={onNavigateToThread}
+                onStop={onStopWorkflowRun}
+                onPause={onPauseWorkflowRun}
+                onResume={onResumeWorkflowRun}
+                onDismiss={onDismissWorkflowRun}
+                attachedToPrevious={showComposerLiveChangesHeader || showComposerActiveTaskListCard}
+              />
+            ) : null}
+            {showComposerSubagentStrip ? (
+              <ComposerSubagentStrip
+                items={composerSubagentStripItems}
+                compact={subagentStripCompact}
+                onCompactChange={setSubagentStripCompact}
+                onOpenThread={onNavigateToThread}
+                onBackgroundItem={onBackgroundSubagentStripItem}
+                onStopItem={onStopSubagentStripItem}
+                onStopAll={onStopAllSubagentStripItems}
+                attachedToPrevious={
+                  showComposerLiveChangesHeader ||
+                  showComposerActiveTaskListCard ||
+                  showComposerWorkflowRunCard
+                }
+              />
+            ) : null}
+            <ComposerQueuedHeader
+              queuedTurns={queuedComposerTurns}
+              onSteer={onSteerQueuedComposerTurn}
+              onRemove={removeQueuedComposerTurn}
+              onEdit={onEditQueuedComposerTurn}
+              cwd={threadWorkspaceCwd ?? undefined}
+              attachedToPrevious={
+                showComposerLiveChangesHeader ||
+                showComposerActiveTaskListCard ||
+                showComposerWorkflowRunCard ||
+                showComposerSubagentStrip
+              }
+            />
+            {showComposerGoalHeader && activeThread ? (
+              <ComposerGoalHeader
+                goal={activeThreadGoalText}
+                goalStartedAt={activeThread.goalStartedAt}
+                goalPausedAt={activeThread.goalPausedAt}
+                canPause={isServerThread}
+                onEdit={editThreadGoalInComposer}
+                onSetPaused={async (paused) => {
+                  await setThreadGoalPaused(paused);
+                }}
+                onClear={clearThreadGoal}
                 attachedToPrevious={
                   showComposerLiveChangesHeader ||
                   showComposerActiveTaskListCard ||
                   showComposerWorkflowRunCard ||
-                  showComposerSubagentStrip
+                  showComposerSubagentStrip ||
+                  queuedComposerTurns.length > 0
                 }
               />
-              {showComposerGoalHeader && activeThread ? (
-                <ComposerGoalHeader
-                  goal={activeThreadGoalText}
-                  goalStartedAt={activeThread.goalStartedAt}
-                  goalPausedAt={activeThread.goalPausedAt}
-                  canPause={isServerThread}
-                  onEdit={editThreadGoalInComposer}
-                  onSetPaused={async (paused) => {
-                    await setThreadGoalPaused(paused);
-                  }}
-                  onClear={clearThreadGoal}
-                  attachedToPrevious={
-                    showComposerLiveChangesHeader ||
-                    showComposerActiveTaskListCard ||
-                    showComposerWorkflowRunCard ||
-                    showComposerSubagentStrip ||
-                    queuedComposerTurns.length > 0
-                  }
-                />
-              ) : null}
-              {settledThreadBranchMismatch ? (
-                <div className="pb-2">
-                  <ComposerBranchMismatchBanner {...settledThreadBranchMismatch} />
-                </div>
-              ) : null}
-              {/* Pending approvals and AskUserQuestion prompts both render as a detached
+            ) : null}
+            {settledThreadBranchMismatch ? (
+              <div className="pb-2">
+                <ComposerBranchMismatchBanner {...settledThreadBranchMismatch} />
+              </div>
+            ) : null}
+            {/* Pending approvals and AskUserQuestion prompts both render as a detached
                   card floating just above the composer (padding gives the measured gap),
                   instead of a banner fused into the composer surface. An approval takes
                   precedence and suppresses the question card while one is active. */}
-              {activePendingApproval ? (
-                <div className="pb-2">
-                  <ComposerPendingApprovalPanel
-                    approval={activePendingApproval}
-                    pendingCount={pendingApprovals.length}
-                    isResponding={respondingRequestKeys.includes(
-                      pendingRequestInstanceKey(
-                        activePendingApproval.requestId,
-                        activePendingApproval.lifecycleGeneration,
-                      ),
-                    )}
-                    onRespond={onRespondToApproval}
-                  />
-                </div>
-              ) : pendingUserInputs.length > 0 ? (
-                <div className="pb-2">
-                  <ComposerPendingUserInputPanel
-                    pendingUserInputs={pendingUserInputs}
-                    submissionVersion={userInputSubmissionVersion}
-                    isResponding={activePendingIsResponding}
-                    answers={activePendingDraftAnswers}
-                    questionIndex={activePendingQuestionIndex}
-                    onToggleOption={onToggleActivePendingUserInputOption}
-                    onAdvance={onAdvanceActivePendingUserInput}
-                    onPrevious={onPreviousActivePendingUserInputQuestion}
-                    onCancel={onCancelActivePendingUserInput}
-                  />
-                </div>
-              ) : null}
-              {expiredQuestionDrafts[0] &&
-              pendingUserInputs.length === 0 &&
-              !activePendingApproval ? (
-                <ComposerExpiredUserInputNotice
-                  threadId={threadId}
-                  requestKey={expiredQuestionDrafts[0][0]}
-                  draft={expiredQuestionDrafts[0][1]}
-                  onRestore={(nextPrompt) => {
-                    promptRef.current = nextPrompt;
-                    setComposerCursor(
-                      collapseExpandedComposerCursor(nextPrompt, nextPrompt.length),
-                    );
-                    scheduleComposerFocus();
-                  }}
+            {activePendingApproval ? (
+              <div className="pb-2">
+                <ComposerPendingApprovalPanel
+                  approval={activePendingApproval}
+                  pendingCount={pendingApprovals.length}
+                  isResponding={respondingRequestKeys.includes(
+                    pendingRequestInstanceKey(
+                      activePendingApproval.requestId,
+                      activePendingApproval.lifecycleGeneration,
+                    ),
+                  )}
+                  onRespond={onRespondToApproval}
                 />
-              ) : null}
-              {emptyLandingControls}
-            </div>
+              </div>
+            ) : pendingUserInputs.length > 0 ? (
+              <div className="pb-2">
+                <ComposerPendingUserInputPanel
+                  pendingUserInputs={pendingUserInputs}
+                  submissionVersion={userInputSubmissionVersion}
+                  isResponding={activePendingIsResponding}
+                  answers={activePendingDraftAnswers}
+                  questionIndex={activePendingQuestionIndex}
+                  onToggleOption={onToggleActivePendingUserInputOption}
+                  onAdvance={onAdvanceActivePendingUserInput}
+                  onPrevious={onPreviousActivePendingUserInputQuestion}
+                  onCancel={onCancelActivePendingUserInput}
+                />
+              </div>
+            ) : null}
+            {expiredQuestionDrafts[0] &&
+            pendingUserInputs.length === 0 &&
+            !activePendingApproval ? (
+              <ComposerExpiredUserInputNotice
+                threadId={threadId}
+                requestKey={expiredQuestionDrafts[0][0]}
+                draft={expiredQuestionDrafts[0][1]}
+                onRestore={(nextPrompt) => {
+                  promptRef.current = nextPrompt;
+                  setComposerCursor(collapseExpandedComposerCursor(nextPrompt, nextPrompt.length));
+                  scheduleComposerFocus();
+                }}
+              />
+            ) : null}
+            {emptyLandingControls}
+          </div>
+          <div
+            className={cn(
+              COMPOSER_INPUT_SHELL_CLASS_NAME,
+              composerProviderState.composerFrameClassName,
+              composerOverlayOpen && !isComposerApprovalState && "overflow-visible",
+              isSidechatExpired && "pointer-events-none opacity-60",
+            )}
+            aria-disabled={isSidechatExpired}
+          >
             <div
               className={cn(
-                COMPOSER_INPUT_SHELL_CLASS_NAME,
-                composerProviderState.composerFrameClassName,
+                COMPOSER_INPUT_SURFACE_CLASS_NAME,
+                composerProviderState.composerSurfaceClassName,
                 composerOverlayOpen && !isComposerApprovalState && "overflow-visible",
-                isSidechatExpired && "pointer-events-none opacity-60",
               )}
-              aria-disabled={isSidechatExpired}
             >
+              <ComposerInputBanners
+                roundedTopReset={false}
+                planFollowUp={
+                  !activePendingApproval &&
+                  pendingUserInputs.length === 0 &&
+                  showPlanFollowUpPrompt &&
+                  activeProposedPlan
+                    ? {
+                        id: activeProposedPlan.id,
+                        title: proposedPlanTitle(activeProposedPlan.planMarkdown) ?? null,
+                      }
+                    : null
+                }
+                automationSetup={
+                  !activePendingApproval &&
+                  pendingUserInputs.length === 0 &&
+                  pendingAutomationConversation &&
+                  pendingAutomationConversation.threadId === threadId
+                    ? { onCancel: cancelAutomationConversation }
+                    : null
+                }
+              />
               <div
                 className={cn(
-                  COMPOSER_INPUT_SURFACE_CLASS_NAME,
-                  composerProviderState.composerSurfaceClassName,
+                  COMPOSER_EDITOR_PADDING_CLASS_NAME,
                   composerOverlayOpen && !isComposerApprovalState && "overflow-visible",
                 )}
               >
-                <ComposerInputBanners
-                  roundedTopReset={false}
-                  planFollowUp={
-                    !activePendingApproval &&
-                    pendingUserInputs.length === 0 &&
-                    showPlanFollowUpPrompt &&
-                    activeProposedPlan
+                {composerOverlayOpen && !isComposerApprovalState ? (
+                  <div className={COMPOSER_COMMAND_MENU_FLOATING_WRAPPER_CLASS_NAME}>
+                    {composerExtrasPanelOpen ? (
+                      <ComposerExtrasPanel
+                        panelId={COMPOSER_EXTRAS_PANEL_ID}
+                        interactionMode={interactionMode}
+                        supportsFastMode={composerTraitSelection.caps.supportsFastMode}
+                        fastModeEnabled={composerTraitSelection.fastModeEnabled}
+                        threadId={threadId}
+                        onAddAttachments={addComposerAttachments}
+                        onToggleFastMode={toggleFastMode}
+                        onInteractionModeChange={handleInteractionModeChange}
+                        onInsertGoal={insertGoalSlashCommandInComposer}
+                        onClose={() => {
+                          setIsComposerExtrasPanelOpen(false);
+                          scheduleComposerFocus();
+                        }}
+                      />
+                    ) : isLocalFolderBrowserOpen ? (
+                      <ComposerLocalDirectoryMenu
+                        mentionQuery={mentionTriggerQuery}
+                        rootLabel={localFolderBrowseRootPath ?? "Local folders unavailable"}
+                        homeDir={serverConfigQuery.data?.homeDir ?? null}
+                        onSelectEntry={(absolutePath) =>
+                          handleSelectLocalDirectoryMention(absolutePath)
+                        }
+                        onNavigateFolder={handleNavigateLocalFolder}
+                        handleRef={localDirectoryMenuRef}
+                      />
+                    ) : (
+                      <ComposerCommandMenu
+                        items={composerMenuItems}
+                        resolvedTheme={resolvedTheme}
+                        isLoading={isComposerMenuLoading}
+                        triggerKind={
+                          composerCommandPicker !== null
+                            ? "slash-command"
+                            : effectiveComposerTriggerKind
+                        }
+                        activeItemId={activeComposerMenuItem?.id ?? null}
+                        onHighlightedItemChange={onComposerMenuItemHighlighted}
+                        onSelect={onSelectComposerItem}
+                      />
+                    )}
+                  </div>
+                ) : null}
+                {!isComposerApprovalState &&
+                  pendingUserInputs.length === 0 &&
+                  isPreparingComposerImages && (
+                    <div
+                      className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground"
+                      role="status"
+                    >
+                      <LoaderCircleIcon className="size-3.5 animate-spin" />
+                      Optimizing {pendingComposerImageCount === 1 ? "image" : "images"}…
+                    </div>
+                  )}
+                {!isComposerApprovalState &&
+                  pendingUserInputs.length === 0 &&
+                  (composerAssistantSelections.length > 0 ||
+                    composerBrowserAnnotations.length > 0 ||
+                    composerFileComments.length > 0 ||
+                    composerPastedTexts.length > 0 ||
+                    composerPullRequestContexts.length > 0 ||
+                    composerFiles.length > 0 ||
+                    composerImages.length > 0) && (
+                    <ComposerReferenceAttachments
+                      assistantSelections={composerAssistantSelections}
+                      browserAnnotations={composerBrowserAnnotations}
+                      fileComments={composerFileComments}
+                      pastedTexts={composerPastedTexts}
+                      pullRequestContexts={composerPullRequestContexts}
+                      files={composerFiles}
+                      images={composerImages}
+                      nonPersistedImageIdSet={nonPersistedComposerImageIdSet}
+                      onExpandImage={setExpandedImage}
+                      onRemoveAssistantSelections={clearComposerAssistantSelectionsFromDraft}
+                      onRemoveBrowserAnnotation={removeComposerBrowserAnnotationFromDraft}
+                      onRemoveFileComments={clearComposerFileCommentsFromDraft}
+                      onRemovePastedText={removeComposerPastedTextFromDraft}
+                      onShowPastedTextInField={showComposerPastedTextInField}
+                      onRemovePullRequestContext={removeComposerPullRequestContextFromDraft}
+                      onRemoveFile={removeComposerFile}
+                      onRemoveImage={removeComposerImage}
+                    />
+                  )}
+                <ComposerPromptEditor
+                  ref={composerEditorRef}
+                  value={
+                    isComposerApprovalState
+                      ? ""
+                      : activePendingProgress
+                        ? activePendingProgress.customAnswer
+                        : prompt
+                  }
+                  cursor={composerCursor}
+                  terminalContexts={
+                    !isComposerApprovalState && pendingUserInputs.length === 0
+                      ? composerTerminalContexts
+                      : []
+                  }
+                  mentionReferences={selectedComposerMentions}
+                  onRemoveTerminalContext={removeComposerTerminalContextFromDraft}
+                  onChange={onPromptChange}
+                  onCommandKeyDown={onComposerCommandKey}
+                  onPaste={onComposerPaste}
+                  {...(canCollapsePastedTextToDraft
+                    ? { onCollapsePastedText: addPastedTextToDraft }
+                    : {})}
+                  placeholder={
+                    isComposerApprovalState
+                      ? "Resolve this approval request to continue"
+                      : activePendingProgress
+                        ? activePendingProgress.activeQuestion?.options.length === 0
+                          ? "Type your answer to continue"
+                          : "Type your own answer, or leave this blank to use the selected option"
+                        : showPlanFollowUpPrompt && activeProposedPlan
+                          ? "Add feedback to refine the plan, or leave this blank to implement it"
+                          : activeThread?.parentThreadId
+                            ? "Message this subagent while it works"
+                            : hasLiveTurn
+                              ? "Ask for follow-up changes"
+                              : phase === "disconnected"
+                                ? "Ask for follow-up changes or attach images"
+                                : "Ask anything, @tag files/folders, or use / to show available commands"
+                  }
+                  disabled={isComposerEditorDisabled}
+                />
+              </div>
+              {/* Bottom toolbar — hidden while an approval takes over the composer,
+                    since the approve/decline actions live in the detached approval card
+                    floating above (see ComposerPendingApprovalPanel). */}
+              {activePendingApproval ? null : (
+                <ChatComposerFooter
+                  isComposerFooterCompact={isComposerFooterCompact}
+                  leadingControls={
+                    relocateComposerLeadingControls
+                      ? null
+                      : renderComposerLeadingControls({ iconOnly: false })
+                  }
+                  composerPickerControls={composerPickerControls}
+                  contextMeter={
+                    !isVoiceRecording &&
+                    !isVoiceTranscribing &&
+                    runtimeUsageContextWindow &&
+                    composerFooterControlsPlan.showContextMeter ? (
+                      <ContextWindowMeter
+                        usage={runtimeUsageContextWindow}
+                        {...(activeCumulativeCostUsd != null
+                          ? { cumulativeCostUsd: activeCumulativeCostUsd }
+                          : {})}
+                        {...(contextWindowSelectionStatus.activeLabel !== undefined
+                          ? {
+                              activeWindowLabel: contextWindowSelectionStatus.activeLabel,
+                            }
+                          : {})}
+                        {...(contextWindowSelectionStatus.pendingSelectedLabel !== undefined
+                          ? {
+                              pendingWindowLabel: contextWindowSelectionStatus.pendingSelectedLabel,
+                            }
+                          : {})}
+                      />
+                    ) : null
+                  }
+                  interactionMode={interactionMode}
+                  resetInteractionMode={resetInteractionMode}
+                  sidebarAction={
+                    activeTaskList || sidebarProposedPlan || planSidebarOpen
                       ? {
-                          id: activeProposedPlan.id,
-                          title: proposedPlanTitle(activeProposedPlan.planMarkdown) ?? null,
+                          title: planSidebarToggleTitle,
+                          label: planSidebarToggleLabel,
+                          onClick: togglePlanSidebar,
                         }
                       : null
                   }
-                  automationSetup={
-                    !activePendingApproval &&
-                    pendingUserInputs.length === 0 &&
-                    pendingAutomationConversation &&
-                    pendingAutomationConversation.threadId === threadId
-                      ? { onCancel: cancelAutomationConversation }
+                  voice={{
+                    enabled: showVoiceNotesControl,
+                    recording: isVoiceRecording,
+                    transcribing: isVoiceTranscribing,
+                    durationLabel: voiceRecordingDurationLabel,
+                    waveformLevels: voiceWaveformLevels,
+                    onCancel: cancelComposerVoiceRecording,
+                    onSubmit: submitComposerVoiceRecording,
+                    onToggle: toggleComposerVoiceRecording,
+                  }}
+                  pendingInput={
+                    activePendingProgress
+                      ? {
+                          progress: activePendingProgress,
+                          responding: activePendingIsResponding,
+                          answersComplete: Boolean(activePendingResolvedAnswers),
+                        }
                       : null
                   }
+                  submission={{
+                    phase,
+                    busy: isSendBusy,
+                    connecting: isConnecting,
+                    expired: isSidechatExpired,
+                    preparingImages: isPreparingComposerImages,
+                    preparingWorktree: isPreparingWorktree,
+                    hasContent: composerSendState.hasSendableContent,
+                    hasPendingUserInputs: pendingUserInputs.length > 0,
+                    showPlanFollowUp: showPlanFollowUpPrompt,
+                    hasPrompt: prompt.trim().length > 0,
+                    onInterrupt: onInterruptFromStopControl,
+                    onImplementInNewThread: onImplementPlanInNewThread,
+                  }}
                 />
-                <div
-                  className={cn(
-                    COMPOSER_EDITOR_PADDING_CLASS_NAME,
-                    composerOverlayOpen && !isComposerApprovalState && "overflow-visible",
-                  )}
-                >
-                  {composerOverlayOpen && !isComposerApprovalState ? (
-                    <div className={COMPOSER_COMMAND_MENU_FLOATING_WRAPPER_CLASS_NAME}>
-                      {composerExtrasPanelOpen ? (
-                        <ComposerExtrasPanel
-                          panelId={COMPOSER_EXTRAS_PANEL_ID}
-                          interactionMode={interactionMode}
-                          supportsFastMode={composerTraitSelection.caps.supportsFastMode}
-                          fastModeEnabled={composerTraitSelection.fastModeEnabled}
-                          threadId={threadId}
-                          onAddAttachments={addComposerAttachments}
-                          onToggleFastMode={toggleFastMode}
-                          onInteractionModeChange={handleInteractionModeChange}
-                          onInsertGoal={insertGoalSlashCommandInComposer}
-                          onClose={() => {
-                            setIsComposerExtrasPanelOpen(false);
-                            scheduleComposerFocus();
-                          }}
-                        />
-                      ) : isLocalFolderBrowserOpen ? (
-                        <ComposerLocalDirectoryMenu
-                          mentionQuery={mentionTriggerQuery}
-                          rootLabel={localFolderBrowseRootPath ?? "Local folders unavailable"}
-                          homeDir={serverConfigQuery.data?.homeDir ?? null}
-                          onSelectEntry={(absolutePath) =>
-                            handleSelectLocalDirectoryMention(absolutePath)
-                          }
-                          onNavigateFolder={handleNavigateLocalFolder}
-                          handleRef={localDirectoryMenuRef}
-                        />
-                      ) : (
-                        <ComposerCommandMenu
-                          items={composerMenuItems}
-                          resolvedTheme={resolvedTheme}
-                          isLoading={isComposerMenuLoading}
-                          triggerKind={
-                            composerCommandPicker !== null
-                              ? "slash-command"
-                              : effectiveComposerTriggerKind
-                          }
-                          activeItemId={activeComposerMenuItem?.id ?? null}
-                          onHighlightedItemChange={onComposerMenuItemHighlighted}
-                          onSelect={onSelectComposerItem}
-                        />
-                      )}
-                    </div>
-                  ) : null}
-                  {!isComposerApprovalState &&
-                    pendingUserInputs.length === 0 &&
-                    isPreparingComposerImages && (
-                      <div
-                        className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground"
-                        role="status"
-                      >
-                        <LoaderCircleIcon className="size-3.5 animate-spin" />
-                        Optimizing {pendingComposerImageCount === 1 ? "image" : "images"}…
-                      </div>
-                    )}
-                  {!isComposerApprovalState &&
-                    pendingUserInputs.length === 0 &&
-                    (composerAssistantSelections.length > 0 ||
-                      composerBrowserAnnotations.length > 0 ||
-                      composerFileComments.length > 0 ||
-                      composerPastedTexts.length > 0 ||
-                      composerPullRequestContexts.length > 0 ||
-                      composerFiles.length > 0 ||
-                      composerImages.length > 0) && (
-                      <ComposerReferenceAttachments
-                        assistantSelections={composerAssistantSelections}
-                        browserAnnotations={composerBrowserAnnotations}
-                        fileComments={composerFileComments}
-                        pastedTexts={composerPastedTexts}
-                        pullRequestContexts={composerPullRequestContexts}
-                        files={composerFiles}
-                        images={composerImages}
-                        nonPersistedImageIdSet={nonPersistedComposerImageIdSet}
-                        onExpandImage={setExpandedImage}
-                        onRemoveAssistantSelections={clearComposerAssistantSelectionsFromDraft}
-                        onRemoveBrowserAnnotation={removeComposerBrowserAnnotationFromDraft}
-                        onRemoveFileComments={clearComposerFileCommentsFromDraft}
-                        onRemovePastedText={removeComposerPastedTextFromDraft}
-                        onShowPastedTextInField={showComposerPastedTextInField}
-                        onRemovePullRequestContext={removeComposerPullRequestContextFromDraft}
-                        onRemoveFile={removeComposerFile}
-                        onRemoveImage={removeComposerImage}
-                      />
-                    )}
-                  <ComposerPromptEditor
-                    ref={composerEditorRef}
-                    value={
-                      isComposerApprovalState
-                        ? ""
-                        : activePendingProgress
-                          ? activePendingProgress.customAnswer
-                          : prompt
-                    }
-                    cursor={composerCursor}
-                    terminalContexts={
-                      !isComposerApprovalState && pendingUserInputs.length === 0
-                        ? composerTerminalContexts
-                        : []
-                    }
-                    mentionReferences={selectedComposerMentions}
-                    onRemoveTerminalContext={removeComposerTerminalContextFromDraft}
-                    onChange={onPromptChange}
-                    onCommandKeyDown={onComposerCommandKey}
-                    onPaste={onComposerPaste}
-                    {...(canCollapsePastedTextToDraft
-                      ? { onCollapsePastedText: addPastedTextToDraft }
-                      : {})}
-                    placeholder={
-                      isComposerApprovalState
-                        ? "Resolve this approval request to continue"
-                        : activePendingProgress
-                          ? activePendingProgress.activeQuestion?.options.length === 0
-                            ? "Type your answer to continue"
-                            : "Type your own answer, or leave this blank to use the selected option"
-                          : showPlanFollowUpPrompt && activeProposedPlan
-                            ? "Add feedback to refine the plan, or leave this blank to implement it"
-                            : activeThread?.parentThreadId
-                              ? "Message this subagent while it works"
-                              : hasLiveTurn
-                                ? "Ask for follow-up changes"
-                                : phase === "disconnected"
-                                  ? "Ask for follow-up changes or attach images"
-                                  : "Ask anything, @tag files/folders, or use / to show available commands"
-                    }
-                    disabled={isComposerEditorDisabled}
-                  />
-                </div>
-                {/* Bottom toolbar — hidden while an approval takes over the composer,
-                    since the approve/decline actions live in the detached approval card
-                    floating above (see ComposerPendingApprovalPanel). */}
-                {activePendingApproval ? null : (
-                  <ChatComposerFooter
-                    isComposerFooterCompact={isComposerFooterCompact}
-                    leadingControls={
-                      relocateComposerLeadingControls
-                        ? null
-                        : renderComposerLeadingControls({ iconOnly: false })
-                    }
-                    composerPickerControls={composerPickerControls}
-                    contextMeter={
-                      !isVoiceRecording &&
-                      !isVoiceTranscribing &&
-                      runtimeUsageContextWindow &&
-                      composerFooterControlsPlan.showContextMeter ? (
-                        <ContextWindowMeter
-                          usage={runtimeUsageContextWindow}
-                          {...(activeCumulativeCostUsd != null
-                            ? { cumulativeCostUsd: activeCumulativeCostUsd }
-                            : {})}
-                          {...(contextWindowSelectionStatus.activeLabel !== undefined
-                            ? {
-                                activeWindowLabel: contextWindowSelectionStatus.activeLabel,
-                              }
-                            : {})}
-                          {...(contextWindowSelectionStatus.pendingSelectedLabel !== undefined
-                            ? {
-                                pendingWindowLabel:
-                                  contextWindowSelectionStatus.pendingSelectedLabel,
-                              }
-                            : {})}
-                        />
-                      ) : null
-                    }
-                    interactionMode={interactionMode}
-                    resetInteractionMode={resetInteractionMode}
-                    sidebarAction={
-                      activeTaskList || sidebarProposedPlan || planSidebarOpen
-                        ? {
-                            title: planSidebarToggleTitle,
-                            label: planSidebarToggleLabel,
-                            onClick: togglePlanSidebar,
-                          }
-                        : null
-                    }
-                    voice={{
-                      enabled: showVoiceNotesControl,
-                      recording: isVoiceRecording,
-                      transcribing: isVoiceTranscribing,
-                      durationLabel: voiceRecordingDurationLabel,
-                      waveformLevels: voiceWaveformLevels,
-                      onCancel: cancelComposerVoiceRecording,
-                      onSubmit: submitComposerVoiceRecording,
-                      onToggle: toggleComposerVoiceRecording,
-                    }}
-                    pendingInput={
-                      activePendingProgress
-                        ? {
-                            progress: activePendingProgress,
-                            responding: activePendingIsResponding,
-                            answersComplete: Boolean(activePendingResolvedAnswers),
-                          }
-                        : null
-                    }
-                    submission={{
-                      phase,
-                      busy: isSendBusy,
-                      connecting: isConnecting,
-                      expired: isSidechatExpired,
-                      preparingImages: isPreparingComposerImages,
-                      preparingWorktree: isPreparingWorktree,
-                      hasContent: composerSendState.hasSendableContent,
-                      hasPendingUserInputs: pendingUserInputs.length > 0,
-                      showPlanFollowUp: showPlanFollowUpPrompt,
-                      hasPrompt: prompt.trim().length > 0,
-                      onInterrupt: onInterruptFromStopControl,
-                      onImplementInNewThread: onImplementPlanInNewThread,
-                    }}
-                  />
-                )}
-              </div>
+              )}
             </div>
-          </ComposerColumnFrame>
-        </form>
-      </div>
-    ) : (
+          </div>
+        </ComposerColumnFrame>
+      </form>
+    </div>
+  ) : (
+    <div aria-hidden="true" className="w-full overflow-visible" data-chat-composer-form="deferred">
       <div
-        aria-hidden="true"
-        className="w-full overflow-visible"
-        data-chat-composer-form="deferred"
-      >
-        <div
-          className={cn(COMPOSER_INPUT_SURFACE_CLASS_NAME, COMPOSER_COLUMN_FRAME_CLASS_NAME)}
-          style={{ height: secondaryChromePlaceholderHeight }}
-        />
-      </div>
-    );
+        className={cn(COMPOSER_INPUT_SURFACE_CLASS_NAME, COMPOSER_COLUMN_FRAME_CLASS_NAME)}
+        style={{ height: secondaryChromePlaceholderHeight }}
+      />
+    </div>
+  );
 
   return (
     <div

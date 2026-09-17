@@ -11,13 +11,10 @@ import { fileURLToPath } from "node:url";
 
 import {
   GRAFT_DESKTOP_UPDATE_CHANNEL,
+  GRAFT_DESKTOP_UPDATE_URL,
   GRAFT_PRODUCTION_BUNDLE_ID,
 } from "@graft/shared/desktopIdentity";
 
-import {
-  readReleaseUpdatePolicyConfig,
-  resolveReleaseUpdatePolicy,
-} from "./lib/release-update-policy.ts";
 import {
   RELEASE_LOCKFILE_PATH,
   RELEASE_PATCHES_PATH,
@@ -103,21 +100,17 @@ function verifyCanonicalIdentity(): void {
       "Expected the CLI to expose only the Graft entry point and migration recovery binary.",
     );
   }
-  if (GRAFT_PRODUCTION_BUNDLE_ID !== "com.graft.studio.next") {
+  if (GRAFT_PRODUCTION_BUNDLE_ID !== "com.graft.studio") {
     throw new Error(`Unexpected production bundle ID: ${GRAFT_PRODUCTION_BUNDLE_ID}.`);
   }
-  if (GRAFT_DESKTOP_UPDATE_CHANNEL !== "graft") {
+  if (GRAFT_DESKTOP_UPDATE_CHANNEL !== "latest") {
     throw new Error(`Unexpected desktop update channel: ${GRAFT_DESKTOP_UPDATE_CHANNEL}.`);
   }
 
-  const releasePolicy = readReleaseUpdatePolicyConfig(repoRoot);
-  const resolvedPolicy = resolveReleaseUpdatePolicy("9.9.9", releasePolicy);
   if (
-    resolvedPolicy.lane !== "clean" ||
-    !resolvedPolicy.makeLatest ||
-    resolvedPolicy.mirrorToStableChannel
+    GRAFT_DESKTOP_UPDATE_URL !== "https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases"
   ) {
-    throw new Error("Expected stable clean Graft releases to publish on GitHub Latest.");
+    throw new Error("Production must retain the existing installed Graft update feed.");
   }
 }
 
@@ -128,158 +121,44 @@ function verifyReleaseWorkflowSafety(): void {
   ).replaceAll("\r\n", "\n");
   assertContains(
     workflow,
-    "\npermissions: {}\n",
-    "Expected the release workflow to deny GITHUB_TOKEN permissions by default.",
+    "permissions:\n  contents: read",
+    "Release jobs must default to read-only repository access.",
   );
-  assertNotContains(
+  assertNotContains(workflow, "  push:", "Tag pushes must not promote the production feed.");
+  assertContains(
     workflow,
-    "permissions:\n  contents: write\n  id-token: write",
-    "Release-wide publication permissions must not be inherited by every job.",
+    "default: build",
+    "Manual release operations must default to build-only.",
   );
   assertContains(
     workflow,
-    "  preflight:\n    name: Preflight\n    runs-on: ubuntu-24.04\n    timeout-minutes: 15\n    permissions:\n      contents: read",
-    "Expected preflight to receive read-only repository access.",
+    "repository: brentmwarner/graft-studio-next",
+    "Native builds must use the current product repository.",
   );
   assertContains(
     workflow,
-    "  build:\n    name: Build ${{ matrix.label }}\n    needs: preflight\n    runs-on: ${{ matrix.runner }}\n    timeout-minutes: 30\n    permissions:\n      contents: read",
-    "Expected artifact builds to receive read-only repository access.",
-  );
-  assertContains(
-    workflow,
-    "    permissions:\n      contents: read\n      id-token: write\n    steps:",
-    "Expected only CLI publication to combine repository reads with npm OIDC.",
-  );
-  assertContains(
-    workflow,
-    "  build_server_tarball:\n    name: Build server tarball\n    if: ${{ needs.preflight.outputs.publish_release == 'true' }}\n    needs: [preflight, build]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read",
-    "Expected server tarball builds to receive read-only repository access.",
-  );
-  assertContains(
-    workflow,
-    "  release:\n    name: Publish GitHub Release\n    if: ${{ needs.preflight.outputs.publish_release == 'true' }}\n    needs: [preflight, build, build_server_tarball]\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: write",
-    "Expected only GitHub release publication to receive contents write access.",
-  );
-  assertContains(
-    workflow,
-    "repositories: ${{ github.event.repository.name }}\n          permission-contents: write",
-    "Expected release finalization to mint a repository-scoped contents token.",
-  );
-  assertContains(
-    workflow,
-    "publish_release:\n        description:",
-    "Expected a manual publication opt-in input.",
-  );
-  assertContains(
-    workflow,
-    "default: false\n        type: boolean",
-    "Expected manual release runs to default to build-only mode.",
-  );
-  assertContains(
-    workflow,
-    "publish_release: ${{ steps.release_mode.outputs.publish_release }}",
-    "Expected preflight to expose the resolved publication mode.",
-  );
-  assertContains(
-    workflow,
-    "if: ${{ needs.preflight.outputs.publish_release == 'true' }}",
-    "Expected GitHub publication to require explicit publication mode.",
-  );
-  assertContains(
-    workflow,
-    "needs.preflight.outputs.publish_release == 'true' && vars.GRAFT_PUBLISH_CLI == '1'",
-    "Expected CLI publication to require explicit publication mode.",
-  );
-  assertContains(
-    workflow,
-    "needs.preflight.outputs.publish_release == 'true' && vars.GRAFT_FINALIZE_RELEASE == '1'",
-    "Expected release finalization to require explicit publication mode.",
-  );
-  assertContains(
-    workflow,
-    "GRAFT_PUBLISH_RELEASE: ${{ needs.preflight.outputs.publish_release }}",
-    "Expected artifact signing admission to know whether artifacts will be published.",
-  );
-  assertContains(
-    workflow,
-    "Publishing macOS artifacts requires every signing and notarization secret.",
-    "Expected macOS publication to fail closed when signing is unavailable.",
-  );
-  assertContains(
-    workflow,
-    "Publishing Windows artifacts requires every Azure Trusted Signing secret.",
-    "Expected Windows publication to fail closed when signing is unavailable.",
-  );
-  assertNotContains(
-    workflow,
-    "Windows signing is optional",
-    "Windows publication must not retain the unsigned-installer fallback.",
-  );
-  assertContains(
-    workflow,
-    "node scripts/verify-release-source-provenance.ts",
-    "Expected preflight to bind release source provenance before artifact jobs.",
-  );
-  assertContains(
-    workflow,
-    "source_commit: ${{ steps.source_provenance.outputs.source_commit }}",
-    "Expected the verified source commit to be a preflight output.",
-  );
-  assertContains(
-    workflow,
-    "lockfile_sha256: ${{ steps.source_provenance.outputs.lockfile_sha256 }}",
-    "Expected the verified lockfile digest to be a preflight output.",
-  );
-  assertContains(
-    workflow,
-    '--source-commit "$SOURCE_COMMIT"',
-    "Expected desktop packaging to revalidate the verified source commit.",
-  );
-  assertContains(
-    workflow,
-    '--lockfile-sha256 "$LOCKFILE_SHA256"',
-    "Expected desktop packaging to revalidate the verified lockfile digest.",
-  );
-  assertNotContains(
-    workflow,
-    "Align package versions to release version",
-    "Release jobs must not mutate package versions after source provenance is established.",
-  );
-  assertContains(
-    workflow,
-    "node scripts/write-release-artifact-provenance.ts",
-    "Expected every platform lane to prove collected artifacts before upload.",
-  );
-  assertContains(
-    workflow,
-    'mv release-publish/latest-mac.yml "release-publish/latest-mac-${{ matrix.arch }}.yml"',
-    "Expected the x64 macOS matrix lane to preserve a distinct updater manifest for merging.",
-  );
-  assertContains(
-    workflow,
-    "APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}",
-    "Expected macOS signing admission to pin the post-build Team ID.",
-  );
-  assertContains(
-    workflow,
-    "AZURE_TRUSTED_SIGNING_SUBJECT_DN: ${{ secrets.AZURE_TRUSTED_SIGNING_SUBJECT_DN }}",
-    "Expected Windows signing admission to require the exact certificate subject DN.",
-  );
-  assertContains(
-    workflow,
-    '--expected-windows-subject-dn "$EXPECTED_WINDOWS_SUBJECT_DN"',
-    "Expected Windows artifact provenance to verify the exact certificate subject DN.",
-  );
-  assertContains(
-    workflow,
-    "AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}",
-    "Expected the Windows build to receive the publisher identity that is pinned in the bundle.",
+    "node scripts/graft-release-source.ts",
+    "Builds must verify the exact requested source commit.",
   );
   assertContains(
     workflow,
     "node scripts/verify-packaged-desktop-startup.ts",
-    "Expected every native payload to pass isolated packaged startup before upload.",
+    "Every native build must pass isolated packaged startup.",
+  );
+  assertContains(
+    workflow,
+    "name: graft-upgrade-evidence",
+    "Promotion must consume separate native upgrade evidence.",
+  );
+  assertContains(
+    workflow,
+    "node scripts/publish-graft-release.ts",
+    "Promotion must use the verified immutable Blob publisher.",
+  );
+  assertNotContains(
+    workflow,
+    "GRAFT_ALLOW_UNSIGNED_WINDOWS_RELEASE",
+    "Production must not bypass Windows signature verification.",
   );
 
   const cliScript = readFileSync(resolve(repoRoot, "apps/server/scripts/cli.ts"), "utf8");

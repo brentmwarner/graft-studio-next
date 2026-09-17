@@ -1,201 +1,194 @@
-# Release Checklist
+# Graft desktop production release
 
-This document covers build-only native validation and publishing desktop releases from one tag.
+The current desktop replaces installed legacy Graft through the **existing public
+Blob feed**, while keeping a separate data directory for recoverable migration.
+The workflow builds current `brentmwarner/graft-studio-next` source. Historical
+Synara bridge releases and GitHub channel aliases are not part of this rollout.
 
-## What the workflow does
+## Identity and platform coverage
 
-- Triggers:
-  - Manual dispatch defaults to build-only validation and uploads workflow artifacts without publishing anything.
-  - A pushed tag matching `v*.*.*` publishes after successful builds.
-  - Manual publication requires the explicit `publish_release=true` input.
-- Runs quality gates first: lint, typecheck, test.
-- Builds four artifacts in parallel:
-  - macOS `arm64` DMG
-  - macOS `x64` DMG
-  - Linux `x64` AppImage
-  - Windows `x64` NSIS installer
-- Publishes one versioned GitHub Release with all produced files.
-  - Versions with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
-  - Stable clean-lane releases are GitHub Latest; the 0.4.x compatibility release remains historical.
-- Publishes default `latest*.yml` metadata plus byte-identical `graft*.yml` aliases on every stable release so existing packaged binaries keep working.
-- Keeps the historical 0.4.x compatibility release unchanged; current stable payloads stay on their own GitHub Latest release.
-- Publishes prerelease installers only on their versioned GitHub prerelease; prereleases never replace the stable `graft` update manifests.
-- Publishes the CLI package (`apps/server`, npm package `@graft/cli`) with OIDC trusted publishing.
-- Published macOS artifacts must be signed. Windows publication currently uses
-  an explicit version-scoped unsigned exception; otherwise Azure signing is
-  required. Build-only runs may produce unsigned artifacts when signing secrets
-  are unavailable.
+| Target              | Native build runner | Production artifact                 |
+| ------------------- | ------------------- | ----------------------------------- |
+| macOS Apple Silicon | macos-14            | signed/notarized DMG and update ZIP |
+| macOS Intel         | macos-15-intel      | signed/notarized DMG and update ZIP |
+| Windows x64         | windows-2022        | signed NSIS installer               |
+| Linux x64           | ubuntu-22.04        | AppImage                            |
 
-## Desktop auto-update notes
+These are the required build and upgrade verification targets. A matrix entry is
+not evidence that its build or upgrade has passed. macOS requires **12.3 or
+later**, including the bundled AppSnap helper. Windows requires **10 or later**.
+The AppImage targets the Ubuntu 22.04 native build baseline; a local Arch Linux
+smoke does not establish compatibility across Linux distributions. Windows ARM64, Linux ARM64,
+32-bit systems, and additional Linux distributions require separate native
+validation before being advertised. iOS/Android releases use their own mobile
+pipelines; a desktop update does not publish a new mobile or Wear OS app.
 
-- Runtime updater: `electron-updater` in `apps/desktop/src/main.ts`.
-- Update UX:
-  - Background checks run on startup delay + interval.
-  - New updates are prepared/downloaded in the background after detection; install/restart stays manual.
-  - The desktop UI shows a rocket update button while preparing and switches to an install action once the update is ready.
-- Provider: GitHub Releases (`provider: github`) configured at build time.
-- Repository visibility: public. The authenticated private-repository provider does not honor custom channel filenames.
-- Runtime channel: `graft`. Stable clean-lane releases publish both `latest` and `graft` metadata; the 0.4.x compatibility release remains available for historical migration.
-- Repository slug source:
-  - `GRAFT_DESKTOP_UPDATE_REPOSITORY` (format `owner/repo`), if set.
-  - otherwise `GITHUB_REPOSITORY` from GitHub Actions.
-- Required Graft release assets for updater:
-  - platform installers (`.exe`, `.dmg`, `.AppImage`, plus macOS `.zip` for Squirrel.Mac update payloads)
-  - `graft-mac.yml`, `graft.yml`, and `graft-linux.yml` metadata
-  - every stable release includes both `graft-mac.yml`, `graft.yml`, `graft-linux.yml` and `latest-mac.yml`, `latest.yml`, `latest-linux.yml`
-  - `*.blockmap` files, except the macOS update `.zip.blockmap` removed after zip repack
-- Enforced upgrade path:
-  - Stable clean Graft releases are created with `make_latest=true` and carry both six-manifest filenames in the versioned release.
-  - The historical 0.4.x compatibility release remains available for predecessor migration and is never overwritten by a clean-lane release.
-  - Clean releases do not mirror payloads onto the historical compatibility release, so the 0.4.x line remains immutable.
-  - Clean-release publication fails closed if either the default Latest manifests or the dedicated `graft` aliases are missing.
-- Production desktop builds omit web/server/desktop source maps by default to keep update payloads small. Set `GRAFT_WEB_SOURCEMAP=1`, `GRAFT_SERVER_SOURCEMAP=1`, or `GRAFT_DESKTOP_SOURCEMAP=1` only for a diagnostic release that needs them.
-- macOS metadata note:
-  - The build initially emits `latest-mac.yml` for both Intel and Apple Silicon.
-  - The workflow merges the per-arch macOS metadata, then keeps the merged manifest as `latest-mac.yml` and copies it to `graft-mac.yml` for stable releases.
-  - The desktop build script repacks the macOS update `.zip` with `ditto`, verifies Electron framework symlinks, extracts the zip, validates the extracted app signature, patches the matching `latest-mac*.yml` hash/size, and removes the stale `.zip.blockmap`.
-  - macOS updater downloads intentionally use the full zip payload so Squirrel.Mac installs the exact signed archive validated by release build.
-- Local smoke test:
-  - Run `bun run release:smoke:mac-update -- --skip-build --build-version 0.1.5` on macOS after local desktop/server/web dist files exist.
-  - The smoke builds a mock update artifact, validates manifest hash/size, serves a HEAD-only local endpoint, confirms the manifest and zip are addressable without downloading the zip body, then cleans up its temp output.
-  - Boolean env flags for release scripts accept `true/false`, `1/0`, `yes/no`, and `on/off`; CLI flags are still preferred for repeatable local commands.
+Production retains `com.graft.studio`, product name `Graft`, and the legacy NSIS
+registration `f67e4f48-bfd9-5024-b23c-0d23fd8d8e4a` (electron-builder UUIDv5 of the
+legacy app ID). The new Electron profile remains `graft-studio-next`, so its
+migration must copy and preserve the legacy `@graft/desktop` profile.
 
-## 0) npm OIDC trusted publishing setup (CLI)
+The updater uses channel `latest` at:
 
-The workflow publishes the CLI with `bun publish` from `apps/server` after bumping
-the package version to the release tag version.
+`https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases`
 
-Checklist:
+Its platform pointers remain `latest-mac.yml`, `latest.yml`, and
+`latest-linux.yml`. Old installed apps already request these URLs. Promotion
+therefore reaches the existing audience through its normal updater behavior;
+it does not depend on users installing an intermediate bridge release.
 
-1. Confirm the npm account controls the `@graft` scope and can publish `@graft/cli`.
-2. In npm package settings, configure Trusted Publisher:
-   - Provider: GitHub Actions
-   - Repository: this repo
-   - Workflow file: `.github/workflows/release.yml`
-   - Environment (if used): match your npm trusted publishing config
-3. Ensure npm account and org policies allow trusted publishing for the package.
-4. Create release tag `vX.Y.Z` and push; workflow will:
-   - set `apps/server/package.json` version to `X.Y.Z`
-   - build web + server
-   - run `bun publish --access public`
+Older Macs remain on the legacy app. Both macOS update manifests carry
+`minimumSystemVersion: 21.4.0`, the Darwin kernel version for macOS 12.3, and the
+bundle declares `LSMinimumSystemVersion=12.3`. Windows metadata uses `10.0.0`.
+The publisher rejects missing/mismatched gates. The legacy electron-updater
+6.3.9 reads this field against `os.release()`, so a `12.3` value in the update
+manifest would incorrectly admit incompatible older Macs. See the
+[electron-builder updater field](https://www.electron.build/docs/features/auto-update/),
+[Apple's macOS 12.3 source manifest](https://raw.githubusercontent.com/apple-oss-distributions/distribution-macOS/macos-123/release.json),
+and its [kernel MasterVersion](https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-8020.101.4/config/MasterVersion).
+This rollout cannot promise the replacement to every historical OS version.
 
-## Graft notes
+## Build once, verify, then promote those bytes
 
-- Every stable versioned release must include both the default `latest` updater metadata and the dedicated `graft` aliases alongside its installers.
-- The published release title should read `Graft vX.Y.Z`.
-- By default, the first-party desktop release path does not require CLI publish or post-release version-bump automation.
-- Optional jobs stay disabled unless repository variables enable them:
-  - `GRAFT_PUBLISH_CLI=1`
-  - `GRAFT_FINALIZE_RELEASE=1`
+`.github/workflows/release.yml` is manual only. Its default operation is `build`.
+Tag pushes never change the stable feed. No npm publish, version-bump commit, or
+GitHub release is coupled to this desktop workflow.
 
-## 1) Build-only native CI validation
+1. Commit the desired stable version in `apps/desktop/package.json` and the
+   corresponding workspace changes. Push the release branch through Cursor
+   Origin. The workflow requires the requested version to match that commit.
+2. Dispatch **Graft Production Release**, operation `build`, with the full
+   40-character current-product commit SHA and stable version. Keep
+   `sign_artifacts=true` for releasable artifacts. `false` produces build-only
+   validation artifacts that the production publisher rejects.
+3. The source job runs formatting, lint, typecheck, identity, platform boundary,
+   migration lineage, and repository tests. Four native jobs package, verify
+   signatures, record source/lockfile/artifact digests, and smoke the packaged
+   app using isolated state.
+4. Download and test the exact artifacts against real legacy installs. Validate
+   the old updater's download/install path, account continuity, history and
+   settings preservation, reconnect behavior, and rollback on every target.
+   Keep evidence tied to the exact artifact hash, source commit, and predecessor
+   version. A successful clean-profile startup alone is insufficient.
+5. Have the successful native-upgrade validation run upload artifact
+   `graft-upgrade-evidence`, containing `upgrade-evidence.json` in the schema
+   below. Never manufacture passing receipts for untested platforms.
+6. Dispatch operation `promote`, the same source/version, and the successful
+   `build_run_id` and `evidence_run_id`. Both runs must be in the repository
+   hosting this workflow. The promotion downloads the previously built bytes;
+   it does not rebuild them. Build-run identity, all four signing/provenance
+   records, artifact hashes, updater SHA-512 values, predecessor versions, and
+   upgrade receipts are checked before the live feed changes.
 
-Use this before publication to validate the real native macOS, Linux, and Windows build matrix. Build-only mode does not create a tag, GitHub Release, npm package, updater manifest, or version-bump commit.
+To validate collected release assets locally without any upload:
 
-1. Push the release-candidate branch so GitHub Actions can check it out.
-2. Start the workflow in build-only mode:
-   - `gh workflow run release.yml --ref BRANCH -f version=X.Y.Z -f publish_release=false`
-3. Wait for `.github/workflows/release.yml` to finish.
-4. Confirm preflight and all four native matrix builds pass.
-5. Download the workflow artifacts and sanity-check installation on each OS.
+```bash
+node scripts/publish-graft-release.ts \
+  --assets-dir release-assets \
+  --evidence release-evidence/upgrade-evidence.json
+```
 
-To publish from a manual dispatch instead of a tag push, pass `publish_release=true`. This is intentionally opt-in.
+Only adding `--publish` invokes the Blob writer. The workflow supplies that flag
+only in the explicit `promote` operation.
 
-## 2) Apple signing + notarization setup (macOS)
+## Signing and publisher access
 
-Required secrets used by the workflow:
+The workflow can be installed in the legacy `brentmwarner/graft-studio` repository
+to reuse its existing release secrets. It always checks out an exact SHA from
+the current `graft-studio-next` repository; when hosted in legacy, explicitly
+provide `source_commit`. The local setup action and release scripts come from
+that checked-out SHA. Keep **one authoritative production publisher** active;
+GitHub concurrency groups do not coordinate different repositories. Disable the
+legacy `production` branch's old delete-first Blob uploader before cutover.
 
-- `CSC_LINK`
-- `CSC_KEY_PASSWORD`
-- `APPLE_API_KEY`
-- `APPLE_API_KEY_ID`
-- `APPLE_API_ISSUER`
-- `APPLE_TEAM_ID`
+macOS requires the existing Developer ID certificate and Apple account values:
 
-Checklist:
+- `CSC_LINK`, `CSC_KEY_PASSWORD`
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
 
-1. Apple Developer account access:
-   - Team has rights to create Developer ID certificates.
-2. Create `Developer ID Application` certificate.
-3. Export certificate + private key as `.p12` from Keychain.
-4. Base64-encode the `.p12` and store as `CSC_LINK`.
-5. Store the `.p12` export password as `CSC_KEY_PASSWORD`.
-6. In App Store Connect, create an API key (Team key).
-7. Add API key values:
-   - `APPLE_API_KEY`: contents of the downloaded `.p8`
-   - `APPLE_API_KEY_ID`: Key ID
-   - `APPLE_API_ISSUER`: Issuer ID
-   - `APPLE_TEAM_ID`: Developer Team ID embedded in the signed application
-8. Re-run a tag release and confirm macOS artifacts are signed/notarized.
+The builder also retains its existing Apple API key notarization support for
+local usage, but this workflow uses the legacy Apple-ID credentials. The app and
+DMG are signed, notarized, stapled, and verified. Update ZIPs are finalized with
+`ditto`, extracted, and verified so their hash describes the signed archive.
+The same Developer ID team must match the legacy installation's upgrade trust.
 
-Notes:
+Windows signed publication requires Azure Trusted Signing credentials:
 
-- `APPLE_API_KEY` is stored as raw key text in secrets.
-- The workflow writes it to a temporary `AuthKey_<id>.p8` file at runtime.
-
-## 3) Azure Trusted Signing setup (Windows)
-
-The current Windows release policy publishes x64 installers unsigned under an
-explicit version-scoped exception. Before pushing the release tag, set the
-repository Actions variable `GRAFT_ALLOW_UNSIGNED_WINDOWS_RELEASE` to the exact
-version without the `v` prefix (for example, `0.8.4`). The workflow checks equality
-with the resolved release version before packaging; do not use a permanent broad
-opt-out. Packaging, source provenance, startup smoke, and artifact upload must
-still pass. Missing Azure credentials are expected for this unsigned path.
-
-Without the matching exception, published Windows installers must be signed with
-Azure Trusted Signing, and the workflow fails closed when a required signing
-value is absent. A requested signed release requires all of the following secrets:
-
-- `AZURE_TENANT_ID`
-- `AZURE_CLIENT_ID`
-- `AZURE_CLIENT_SECRET`
-- `AZURE_TRUSTED_SIGNING_ENDPOINT`
-- `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`
+- `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
+- `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`
 - `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`
-- `AZURE_TRUSTED_SIGNING_PUBLISHER_NAME`
-- `AZURE_TRUSTED_SIGNING_SUBJECT_DN`
+- `AZURE_TRUSTED_SIGNING_PUBLISHER_NAME`, `AZURE_TRUSTED_SIGNING_SUBJECT_DN`
 
-Signing checklist:
+The native provenance step checks Authenticode identity and timestamp. The
+runtime publisher identity is compiled into the packaged application. There is
+no unsigned production exception in this workflow. The previous Windows
+release workflow did not establish these credentials; verify actual access
+before expecting a signed Windows build to pass.
 
-1. Create Azure Trusted Signing account and certificate profile.
-2. Record ATS values:
-   - Endpoint
-   - Account name
-   - Certificate profile name
-   - Publisher name
-   - Full certificate subject distinguished name
-3. Create/choose an Entra app registration (service principal).
-4. Grant service principal permissions required by Trusted Signing.
-5. Create a client secret for the service principal.
-6. Add Azure secrets listed above in GitHub Actions secrets.
-7. Re-run a build-only workflow and confirm the Windows installer is signed.
+Promotion requires `BLOB_READ_WRITE_TOKEN` for the existing Graft Blob store.
+Credentials are neither copied into app resources nor placed in source files.
+WorkOS credentials remain in the hosted account service; the desktop preserves
+that service and its account mapping rather than migrating users into a new
+WorkOS environment.
 
-For a signed release, run a build-only workflow and verify the generated
-installer's Authenticode identity matches both the configured publisher name and
-full subject distinguished name.
+## Upgrade evidence format
 
-## 4) Ongoing release checklist
+`upgrade-evidence.json` contains:
 
-1. Ensure `main` is green in CI.
-2. Run the build-only native CI validation for the release-candidate branch and version.
-3. Bump app version as needed.
-4. Run `node scripts/resolve-release-update-policy.ts X.Y.Z` and confirm it reports the expected lane, `make_latest`, and `mirror_to_stable_channel` values before creating the tag.
-5. Create release tag: `vX.Y.Z`.
-6. Push tag.
-7. Verify workflow steps:
-   - preflight passes
-   - all matrix builds pass
-   - release job uploads expected files
-8. For a stable clean-lane release, confirm the new versioned release is GitHub Latest, contains all three default `latest` manifests plus all three `graft` aliases, and left the historical compatibility release unchanged.
-9. Smoke test downloaded artifacts.
+- `schemaVersion: 1`, stable `version`, and full `sourceCommit`.
+- `previousVersions`, an object containing the observed version of each of
+  `latest-mac.yml`, `latest.yml`, and `latest-linux.yml`.
+- `platforms`, exactly one receipt each for `mac-arm64`, `mac-x64`, `win-x64`, and
+  `linux-x64`.
+- Each receipt has `platform`, the versioned update `artifact` filename, its
+  `sha256`, an HTTPS `evidenceUrl` linking the test record, and `checks`.
+- Every receipt's `checks` contains `legacy-update`, `account-continuity`,
+  `history-preserved`, `settings-preserved`, `reconnect`, and `rollback`, each
+  equal to `passed` only after the corresponding verification happened.
 
-## 5) Troubleshooting
+The type and executable validation live in
+`scripts/lib/graft-release-publisher.ts`. Mac receipts reference their update ZIP;
+Windows references its EXE; Linux references `Graft-VERSION-x86_64.AppImage`.
+The receipt artifact/hash must match a verified native build. The build and
+upgrade CI logs remain part of the release record; JSON assertions do not
+substitute for those tests.
 
-- macOS build unsigned when expected signed:
-  - Check all Apple secrets are populated and non-empty.
-- Published Windows build rejected before packaging:
-  - For the unsigned release policy, check that `GRAFT_ALLOW_UNSIGNED_WINDOWS_RELEASE` matches the exact version without `v`.
-  - For a signed release, check all eight Azure ATS, identity, and auth secrets are populated and non-empty.
-- Build fails with signing error:
-  - Re-check certificate/profile names and tenant/client credentials.
+## Publication and recovery
+
+The publisher never deletes old artifacts. New installers, ZIPs, blockmaps,
+provenance, evidence, and a `release.json` index are written under
+`releases/VERSION/` with overwrite disabled. Existing matching immutable bytes
+can be reused on retry; conflicting bytes fail the release. It then downloads
+and hashes every object before touching any stable pointer.
+
+The previous three pointer files are preserved first under
+`releases/VERSION/rollback/`. Only after every new object verifies does it replace
+the stable YAML files, each through a single overwrite operation. It rechecks
+that the live feed has not changed during upload. Mutable pointers use a short
+cache lifetime; immutable objects use a long one. Cached older pointers remain
+valid because their payloads are retained.
+
+Blob does not provide a transaction spanning all three platform pointers. A
+failure during promotion can leave some platforms on the previous release and
+others on the complete, verified new release. Rerunning the **same** promotion
+resumes only when already-updated pointers match the candidate's exact bytes
+and the original rollback snapshots are present. A different live version
+fails rather than overwriting a concurrent release.
+
+To stop further distribution, restore the three preserved pointer snapshots
+through the same single-object overwrite process and confirm public readback.
+Restoring a pointer does **not** downgrade already updated clients. Their
+recovery requires the retained legacy installer and preserved legacy profile,
+or a forward fix with a higher version. Confirm that path in the native upgrade
+verification before promoting the replacement.
+
+## Website download continuity
+
+The canonical download page is `https://www.graftapp.io/install`. It resolves
+Windows and Linux installers from their promoted manifests, and macOS DMGs
+from the same version's immutable release index (legacy manifests list DMGs
+directly). Missing platforms are shown as unavailable rather than linked to an
+unrelated release. Each platform follows its own pointer during partial rollout.
+The marketing deployment must include this resolver before production cutover.
+Its checked-in snapshot is only for deterministic visual tests; the production
+page refreshes the live feed on a short cache interval.

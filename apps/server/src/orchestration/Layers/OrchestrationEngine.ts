@@ -7,6 +7,7 @@ import type {
   ThreadId,
 } from "@graft/contracts";
 import { OrchestrationCommand, ORCHESTRATION_WS_METHODS } from "@graft/contracts";
+import { legacyGraftCommandBlockedReason } from "@graft/shared/legacyGraft";
 import {
   Cause,
   Deferred,
@@ -1314,6 +1315,13 @@ const makeOrchestrationEngine = Effect.gen(function* () {
 
   const dispatch: OrchestrationEngineShape["dispatch"] = (command, context) =>
     Effect.gen(function* () {
+      const legacyBlock = legacyGraftCommandBlockedReason(command);
+      if (legacyBlock) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: legacyBlock,
+        });
+      }
       const result = yield* Deferred.make<{ sequence: number }, OrchestrationDispatchError>();
       const executionState = yield* Ref.make<CommandExecutionState>("queued");
       const envelope: CommandEnvelope = {

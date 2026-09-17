@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+import * as atomicWrite from "../atomicWrite";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +9,8 @@ import type { GraftAccountLoginServiceDependencies } from "./graftAccountLoginSe
 import type { RelayStatus } from "./relayUplink";
 import {
   connectMobileRelayAccount,
+  connectMobileRelayWithAccount,
+  disconnectMobileRelayAccount,
   getMobileRelayEndpoint,
   getMobileRelayStatus,
   initializeMobileRelay,
@@ -68,6 +72,7 @@ afterEach(() => {
   stopMobileRelay();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -134,6 +139,39 @@ describe("mobile relay lifecycle", () => {
     expect(getMobileRelayEndpoint()?.httpBaseUrl).toBe(credential.httpBaseUrl);
   });
 
+  it("registers the current desktop account without another login and stores only the scoped credential", async () => {
+    initializeMobileRelay(5000, directory, {});
+    setMobileRelayEnabled(true);
+    const request = vi.fn(async () => new Response(JSON.stringify(credential)));
+    vi.stubGlobal("fetch", request);
+    await connectMobileRelayWithAccount("My computer", "desktop-account-token");
+    expect(mocks.login).toBeNull();
+    expect(request).toHaveBeenCalledWith(
+      new URL("https://api.graftapp.io/relay/v1/environments"),
+      expect.objectContaining({
+        headers: {
+          authorization: "Bearer desktop-account-token",
+          "content-type": "application/json",
+        },
+      }),
+    );
+    expect(readFileSync(join(directory, "mobile-relay.json"), "utf8")).not.toContain(
+      "desktop-account-token",
+    );
+    expect(mocks.uplinks.at(-1)!.start).toHaveBeenCalledOnce();
+  });
+
+  it("never forwards a production desktop token to an overridden account service", async () => {
+    initializeMobileRelay(5000, directory, { GRAFT_CONTROL_PLANE_URL: "https://another.example" });
+    setMobileRelayEnabled(true);
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+    await expect(connectMobileRelayWithAccount("My computer", "private-token")).rejects.toThrow(
+      "production Graft",
+    );
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("opens the packaged sign-in URL through the injected platform opener", async () => {
     const openExternal = vi.fn();
     initializeMobileRelay(5000, directory, {});
@@ -169,6 +207,49 @@ describe("mobile relay lifecycle", () => {
     expect(() => readFileSync(join(directory, "mobile-relay.json"))).toThrow();
     expect(getMobileRelayStatus().state).toBe("disabled");
     expect(mocks.uplinks).toHaveLength(0);
+  });
+
+  it("undoes a credential commit cancelled while persistence is finishing", async () => {
+    initializeMobileRelay(5000, directory, {});
+    setMobileRelayEnabled(true);
+    await connectMobileRelayAccount("My computer", vi.fn());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(credential))),
+    );
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const original = atomicWrite.writeFileStringAtomically;
+    vi.spyOn(atomicWrite, "writeFileStringAtomically").mockImplementationOnce((input) =>
+      original(input).pipe(Effect.flatMap(() => Effect.promise(() => pending))),
+    );
+    const registration = mocks.login!.persistToken("account-token");
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, "mobile-relay.json"), "utf8")).toContain("computer-1"),
+    );
+    setMobileRelayEnabled(false);
+    finish();
+    await expect(registration).rejects.toThrow("cancelled");
+    expect(() => readFileSync(join(directory, "mobile-relay.json"))).toThrow();
+    expect(mocks.uplinks).toHaveLength(0);
+    expect(getMobileRelayStatus().state).toBe("disabled");
+  });
+
+  it("persists account sign-out so restarting cannot restore the old relay or legacy import", async () => {
+    initializeSaved();
+    setMobileRelayEnabled(true);
+    await disconnectMobileRelayAccount();
+    expect(mocks.uplinks[0]!.stop).toHaveBeenCalled();
+    expect(getMobileRelayEndpoint()).toBeNull();
+    expect(() => readFileSync(join(directory, "mobile-relay.json"))).toThrow();
+    const count = mocks.uplinks.length;
+    initializeMobileRelay(5001, directory, {
+      GRAFT_LEGACY_RELAY_CREDENTIAL: JSON.stringify(credential),
+    });
+    setMobileRelayEnabled(true);
+    expect(mocks.uplinks).toHaveLength(count);
   });
 
   it("prefers the current credential over the legacy import", () => {

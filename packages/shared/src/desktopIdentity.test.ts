@@ -8,6 +8,7 @@ import {
   GRAFT_DESKTOP_ENTRY_URL,
   GRAFT_DESKTOP_ORIGIN,
   GRAFT_DESKTOP_UPDATE_CHANNEL,
+  GRAFT_DESKTOP_UPDATE_URL,
   GRAFT_DEVELOPMENT_BUNDLE_ID,
   GRAFT_PRODUCTION_BUNDLE_ID,
   graftDesktopIdentity,
@@ -26,13 +27,12 @@ describe("desktopIdentity", () => {
     expect(new Set(profiles.map((identity) => identity.bundleId)).size).toBe(3);
     for (const identity of profiles) {
       expect(identity.bundleId).not.toMatch(/^com\.emanueledipietro\.synara/);
-      expect(identity.bundleId).not.toBe("com.graft.studio");
       expect(identity.scheme).not.toMatch(/^synara/);
     }
   });
 
   it("uses the exact canonical production and development bundle IDs", () => {
-    expect(GRAFT_PRODUCTION_BUNDLE_ID).toBe("com.graft.studio.next");
+    expect(GRAFT_PRODUCTION_BUNDLE_ID).toBe("com.graft.studio");
     expect(GRAFT_DEVELOPMENT_BUNDLE_ID).toBe("com.graft.studio.next.dev");
     expect(graftDesktopIdentity("production").bundleId).toBe(GRAFT_PRODUCTION_BUNDLE_ID);
     expect(graftDesktopIdentity("development").bundleId).toBe(GRAFT_DEVELOPMENT_BUNDLE_ID);
@@ -43,8 +43,11 @@ describe("desktopIdentity", () => {
     expect(GRAFT_DESKTOP_ENTRY_URL).toBe("graft://app/index.html");
   });
 
-  it("uses the isolated Graft desktop update channel", () => {
-    expect(GRAFT_DESKTOP_UPDATE_CHANNEL).toBe("graft");
+  it("keeps the installed legacy application's stable updater feed", () => {
+    expect(GRAFT_DESKTOP_UPDATE_CHANNEL).toBe("latest");
+    expect(GRAFT_DESKTOP_UPDATE_URL).toBe(
+      "https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases",
+    );
   });
 
   it("gives Canary a fully separate desktop identity and storage profile", () => {

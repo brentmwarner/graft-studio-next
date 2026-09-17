@@ -9,6 +9,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "tsdown";
+import { isBundledServerDependency } from "../../scripts/lib/bundled-server-dependencies.ts";
 
 const sourcemapEnv = process.env.GRAFT_SERVER_SOURCEMAP?.trim().toLowerCase();
 const buildSourcemap = sourcemapEnv === "1" || sourcemapEnv === "true";
@@ -33,7 +34,7 @@ export default defineConfig({
     __GRAFT_MIGRATION_RUNTIME_SOURCE_DIGEST__: JSON.stringify(migrationRuntimeSourceDigest),
   },
   clean: true,
-  noExternal: (id) => id.startsWith("@graft/") || id.startsWith("@graft/"),
+  noExternal: isBundledServerDependency,
   inlineOnly: false,
   banner: {
     js: "#!/usr/bin/env node\n",

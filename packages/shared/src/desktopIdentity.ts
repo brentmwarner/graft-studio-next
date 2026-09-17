@@ -7,10 +7,14 @@ export const GRAFT_PRODUCT_NAME = "Graft";
 export const GRAFT_DESKTOP_SCHEME = "graft";
 export const GRAFT_DESKTOP_ORIGIN = `${GRAFT_DESKTOP_SCHEME}://app`;
 export const GRAFT_DESKTOP_ENTRY_URL = `${GRAFT_DESKTOP_ORIGIN}/index.html`;
-export const GRAFT_DESKTOP_UPDATE_CHANNEL = "graft";
-export const GRAFT_PRODUCTION_BUNDLE_ID = "com.graft.studio.next";
-export const GRAFT_DEVELOPMENT_BUNDLE_ID = `${GRAFT_PRODUCTION_BUNDLE_ID}.dev`;
-export const GRAFT_CANARY_BUNDLE_ID = `${GRAFT_PRODUCTION_BUNDLE_ID}.canary`;
+// Stable replaces the installed legacy app through its existing updater feed.
+// Storage remains separate so migration can preserve the original database.
+export const GRAFT_DESKTOP_UPDATE_CHANNEL = "latest";
+export const GRAFT_DESKTOP_UPDATE_URL =
+  "https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases";
+export const GRAFT_PRODUCTION_BUNDLE_ID = "com.graft.studio";
+export const GRAFT_DEVELOPMENT_BUNDLE_ID = "com.graft.studio.next.dev";
+export const GRAFT_CANARY_BUNDLE_ID = "com.graft.studio.next.canary";
 export const GRAFT_CANARY_DESKTOP_SCHEME = "graft-canary";
 export const GRAFT_CANARY_DESKTOP_ORIGIN = `${GRAFT_CANARY_DESKTOP_SCHEME}://app`;
 export const GRAFT_CANARY_DESKTOP_ENTRY_URL = `${GRAFT_CANARY_DESKTOP_ORIGIN}/index.html`;

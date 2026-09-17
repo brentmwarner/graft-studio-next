@@ -74,6 +74,11 @@ import {
 import { ensureStaticSnapshot, findAsarArchivePath } from "@graft/shared/staticSnapshot";
 import { isBackendReadinessAborted, waitForHttpReady } from "./backendReadiness";
 import { readLegacyGraftRelayCredential } from "./graftRelayCredential";
+import { GraftAccountService } from "./graftAccountService";
+import { disconnectGraftAccountConnections } from "./graftAccountConnections";
+import { createGraftAccountTokenStore } from "./graftAccountTokenStore";
+import { readLegacyGraftAccountToken } from "./graftLegacyAccount";
+import { registerGraftAccountIpc } from "./graftAccountIpc";
 import { resolveBackendNodeArgs } from "./backendNodeOptions";
 import {
   retainLiveBackendAfterShutdownFailure,
@@ -315,7 +320,7 @@ const shellEnvironmentSync = syncShellEnvironment();
 
 const IPC = DESKTOP_IPC_CHANNELS;
 const MAX_CLIPBOARD_IMAGE_DATA_URL_LENGTH = 16 * 1024 * 1024;
-const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
+const isDevelopment = !app.isPackaged && Boolean(process.env.VITE_DEV_SERVER_URL);
 const desktopFlavor = resolveGraftDesktopFlavor({
   isDevelopment,
   requestedFlavor: process.env.GRAFT_DESKTOP_FLAVOR,
@@ -3383,7 +3388,9 @@ function configureAutoUpdater(): void {
   configuredUpdaterCacheDirName = resolveElectronUpdaterCacheDirName(appUpdateYml, app.getName());
   const githubUpdateSource = resolveGitHubUpdateSource(appUpdateYml);
   const releaseUrl =
-    githubUpdateSource === null ? null : buildGitHubReleasesPageUrl(githubUpdateSource);
+    githubUpdateSource === null
+      ? "https://graftapp.io/install"
+      : buildGitHubReleasesPageUrl(githubUpdateSource);
   const enabled = shouldEnableAutoUpdates();
   setUpdateState({
     ...createInitialDesktopUpdateState(app.getVersion(), desktopRuntimeInfo),
@@ -3406,13 +3413,11 @@ function configureAutoUpdater(): void {
 
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
-  // The dedicated channel keeps the permanent compatibility release on the
-  // default feed while Graft versions advance independently.
+  // Keep the stable manifests consumed by installed legacy Graft clients.
   autoUpdater.channel = GRAFT_DESKTOP_UPDATE_CHANNEL;
   autoUpdater.allowPrerelease = DESKTOP_UPDATE_ALLOW_PRERELEASE;
   autoUpdater.allowDowngrade = false;
-  // Match electron-updater's native GitHub provider path; the packaged
-  // app-update.yml owns the production feed, and generic feeds stay mock-only.
+  // The packaged app-update.yml owns the production generic feed.
   // macOS release builds repack and validate the Squirrel update zip, then omit
   // the stale zip blockmap so ShipIt always installs the exact signed payload.
   autoUpdater.disableDifferentialDownload =
@@ -3600,6 +3605,15 @@ function backendEnv(): NodeJS.ProcessEnv {
     GRAFT_AUTH_TOKEN: backendAuthToken,
     GRAFT_DESKTOP_SHUTDOWN_TOKEN: DESKTOP_BACKEND_SHUTDOWN_TOKEN,
   };
+  if (app.isPackaged) delete env.VITE_DEV_SERVER_URL;
+  // Only Stable discovers the legacy profile automatically. Dev and Canary
+  // can opt into an explicit fixture without ever touching the user's profile.
+  if (desktopFlavor === "production" || process.env.GRAFT_LEGACY_USER_DATA) {
+    env.GRAFT_LEGACY_USER_DATA =
+      process.env.GRAFT_LEGACY_USER_DATA ?? Path.join(app.getPath("appData"), "@graft", "desktop");
+  } else {
+    delete env.GRAFT_LEGACY_USER_DATA;
+  }
   if (process.env.GRAFT_CONTROL_PLANE_URL) {
     env.GRAFT_CONTROL_PLANE_URL = process.env.GRAFT_CONTROL_PLANE_URL;
   }
@@ -4288,6 +4302,7 @@ async function shutdownDesktopRuntime(reason: string): Promise<void> {
       clearUpdateCheckTimeoutTimer();
       clearUpdatePollTimer();
       cancelBackendReadinessWait();
+      await graftAccountService?.dispose();
       appSnapManager?.dispose();
       appSnapManager = null;
       await shutdownBrowserServices({
@@ -4376,7 +4391,65 @@ function requestGracefulAppQuit(reason: string): void {
   );
 }
 
+let graftAccountService: GraftAccountService | null = null;
+let accountConnectionChanges: Promise<void> = Promise.resolve();
+
+function serializeAccountConnectionChange(operation: () => Promise<void>): Promise<void> {
+  const next = accountConnectionChanges.then(operation, operation);
+  accountConnectionChanges = next.catch(() => undefined);
+  return next;
+}
+
+async function disconnectAccountConnections(): Promise<void> {
+  if (!backendHttpUrl) return;
+  await disconnectGraftAccountConnections({
+    baseUrl: backendHttpUrl,
+    ownerToken: backendAuthToken,
+  });
+}
+
+function getGraftAccountService(): GraftAccountService {
+  const legacyProfile =
+    process.env.GRAFT_LEGACY_USER_DATA ??
+    (desktopIdentity.flavor === "production" && !process.env[GRAFT_DESKTOP_SMOKE_USER_DATA_ENV]
+      ? Path.join(app.getPath("appData"), "@graft", "desktop")
+      : undefined);
+  graftAccountService ??= new GraftAccountService({
+    store: createGraftAccountTokenStore(
+      app.getPath("userData"),
+      safeStorage,
+      legacyProfile ? () => readLegacyGraftAccountToken(legacyProfile, safeStorage) : undefined,
+    ),
+    openExternal: (url) => shell.openExternal(url),
+    onSessionInvalidated: () => serializeAccountConnectionChange(disconnectAccountConnections),
+    connectRelay: (token) =>
+      serializeAccountConnectionChange(async () => {
+        const url = new URL("/api/graft/connections/relay/connect-account", backendHttpUrl);
+        url.searchParams.set("token", backendAuthToken);
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountToken: token }),
+          signal: AbortSignal.timeout(20_000),
+          redirect: "error",
+        });
+        if (!response.ok) throw new Error("Could not connect the Graft account relay.");
+      }),
+    onState: (state) => {
+      if (mainWindow && !mainWindow.isDestroyed())
+        mainWindow.webContents.send(IPC.account.state, state);
+    },
+  });
+  return graftAccountService;
+}
+
 function registerIpcHandlers(): void {
+  registerGraftAccountIpc({
+    ipcMain,
+    account: getGraftAccountService(),
+    getWindow: () => mainWindow,
+    entryUrl: isDevelopment ? process.env.VITE_DEV_SERVER_URL! : desktopIdentity.entryUrl,
+  });
   const storageSnapshotPath = resolveGraftStorageSnapshotPath(app.getPath("userData"));
 
   ipcMain.removeAllListeners(IPC.browser.webMcpCompatibilityPolicy);

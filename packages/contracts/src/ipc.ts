@@ -1,3 +1,4 @@
+import type { GraftAccountState } from "./graftAccount";
 import { Schema } from "effect";
 
 import type {
@@ -601,6 +602,15 @@ export type DesktopSafariAccessInfo =
   | { supported: true; appName: string; appPath: string | null };
 
 export interface DesktopBridge {
+  readonly account?: {
+    connectRelay?: () => Promise<void>;
+    getState: () => Promise<GraftAccountState>;
+    signIn: () => Promise<GraftAccountState>;
+    cancelSignIn: () => Promise<GraftAccountState>;
+    signOut: () => Promise<GraftAccountState>;
+    refresh: () => Promise<GraftAccountState>;
+    onState: (listener: (state: GraftAccountState) => void) => () => void;
+  };
   safariAccess?: {
     getInfo: () => Promise<DesktopSafariAccessInfo>;
     openSettings: () => Promise<boolean>;

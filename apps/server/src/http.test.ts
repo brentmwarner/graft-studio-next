@@ -220,6 +220,7 @@ describe("production Effect HTTP routes", () => {
       };
       expect(body).toMatchObject({
         status: "ok",
+        httpListening: true,
         startupReady: false,
         pushBusReady: true,
         projection: { state: "healthy", hasFailure: false },
