@@ -66,11 +66,12 @@ export const makeServerEnvironment = Effect.fn(function* () {
   });
 
   const environmentId = EnvironmentId.makeUnsafe(environmentIdRaw);
+  const environmentHostname = process.env.HOSTNAME ?? process.env.COMPUTERNAME;
   const descriptor: ExecutionEnvironmentDescriptor = {
     environmentId,
     label: resolveServerEnvironmentLabel({
       cwdBaseName: path.basename(serverConfig.cwd),
-      hostname: process.env.HOSTNAME ?? process.env.COMPUTERNAME,
+      ...(environmentHostname ? { hostname: environmentHostname } : {}),
     }),
     platform: {
       os: platformOs(),

@@ -6,3 +6,5 @@ process.stderr.write("[server] bootstrap started\n");
 // This boundary is deliberately dynamic: it lets the startup marker flush before
 // the full server dependency graph evaluates inside the utility process.
 await import("./runtime");
+
+export {};
