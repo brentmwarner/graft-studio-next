@@ -13,6 +13,7 @@ import {
   MAC_INHERITED_ENTITLEMENTS_PATH,
   MICROPHONE_USAGE_DESCRIPTION,
   NODE_PTY_ASAR_UNPACK_GLOBS,
+  SERVER_RUNTIME_ASAR_UNPACK,
   validateDesktopNativeBuildHost,
   WINDOWS_INSTALLER_GUID,
 } from "./lib/desktop-platform-build-config.ts";
@@ -133,7 +134,7 @@ describe("createDesktopPlatformBuildConfig", () => {
     });
   });
 
-  it("keeps node-pty and the graft-host archive unpacked from ASAR", () => {
+  it("keeps native dependencies and the server runtime unpacked from ASAR", () => {
     const config = createDesktopPlatformBuildConfig({
       platform: "linux",
       target: "AppImage",
@@ -141,8 +142,10 @@ describe("createDesktopPlatformBuildConfig", () => {
 
     assert.deepStrictEqual([...NODE_PTY_ASAR_UNPACK_GLOBS], ["node_modules/node-pty/**"]);
     assert.equal(GRAFT_HOST_ARCHIVE_ASAR_UNPACK, "apps/server/dist/graft-host-linux-x64.tar.gz");
+    assert.equal(SERVER_RUNTIME_ASAR_UNPACK, "apps/server/dist/**/*.mjs");
     assert.deepStrictEqual(config.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
     assert.ok(config.asarUnpack?.includes(GRAFT_HOST_ARCHIVE_ASAR_UNPACK));
+    assert.ok(config.asarUnpack?.includes(SERVER_RUNTIME_ASAR_UNPACK));
   });
 
   it("blocks unsupported or non-matching Linux native build hosts", () => {
