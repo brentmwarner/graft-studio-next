@@ -65,6 +65,7 @@ import { resolveGraftHomeDirectory } from "@graft/shared/graftHome";
 import { NetService } from "@graft/shared/Net";
 import { applyShellEnvironmentHydrationMarker } from "@graft/shared/shell";
 import { RotatingFileSink } from "@graft/shared/logging";
+import { spawnProcess } from "@graft/shared/processRuntime";
 import {
   MIGRATION_DIVERGENCE_CONSENT_ENV,
   MIGRATION_RUNTIME_SOURCE_DIGEST_ENV,
@@ -4112,22 +4113,33 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
     return;
   }
 
-  const child = ChildProcess.spawn(process.execPath, [...backendNodeArgs(), backendEntry], {
-    cwd: resolveBackendCwd(),
+  writeDesktopLogHeader("backend spawn preparation started");
+  const backendRuntimeArgs = [...backendNodeArgs(), backendEntry];
+  const backendChildEnv = {
+    ...backendEnv(),
+    ELECTRON_RUN_AS_NODE: "1",
+    GRAFT_SERVER_ENTRY: backendEntry,
+    GRAFT_DESKTOP_PARENT_STDIN: "1",
+  };
+  const backendChildCwd = resolveBackendCwd();
+  writeDesktopLogHeader("backend spawn environment ready");
+  const backendLaunchMode = process.platform === "darwin" ? "macos-shell-handoff" : "direct";
+  writeDesktopLogHeader(`backend spawn requested mode=${backendLaunchMode}`);
+  const child = spawnProcess(process.execPath, backendRuntimeArgs, {
+    platform: process.platform,
+    macosExecutableHandoff: true,
+    requireExecutable: true,
+    cwd: backendChildCwd,
     // In Electron main, process.execPath points to the Electron binary.
     // Run the child in Node mode so this backend process does not become a GUI app instance.
-    env: {
-      ...backendEnv(),
-      ELECTRON_RUN_AS_NODE: "1",
-      GRAFT_SERVER_ENTRY: backendEntry,
-      GRAFT_DESKTOP_PARENT_STDIN: "1",
-    },
+    env: backendChildEnv,
     // Keep output piped in every environment so startup blockers and readiness
     // are observable even when packaged log setup is unavailable. The fourth
     // pipe carries the browser-host capability and must never be inherited.
     // Leave stdin open: EOF lets the backend clean up if this main process dies.
     stdio: ["pipe", "pipe", "pipe", "pipe"],
   });
+  writeDesktopLogHeader(`backend spawn returned mode=${backendLaunchMode}`);
   const capabilityPipe = child.stdio[DESKTOP_BROWSER_HOST_CAPABILITY_FD];
   if (capabilityPipe && "end" in capabilityPipe) {
     capabilityPipe.on("error", (error) => {
