@@ -405,24 +405,57 @@ export function retainMacBackendSampleCallGraph(output: string): string {
   return callGraph.trim().slice(0, MAC_BACKEND_SAMPLE_LENGTH);
 }
 
+export function readLatestPackagedBackendPort(desktopLog: string): number | null {
+  const matches = [...desktopLog.matchAll(/resolved backend endpoint port=(\d+)/gu)];
+  const rawPort = matches.at(-1)?.[1];
+  if (!rawPort) return null;
+  const port = Number(rawPort);
+  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : null;
+}
+
+function readMacProcessSample(pid: number, label: string): string {
+  const result = spawnSync("sample", [String(pid), "3", "1"], {
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    timeout: 10_000,
+  });
+  const output = retainMacBackendSampleCallGraph(
+    result.stdout || result.stderr || result.error?.message || "No sample output.",
+  );
+  return `Packaged macOS ${label} sample (pid=${pid}):\n${output}`;
+}
+
 function readMacBackendSample(logDirectory: string): string {
   try {
     const serverLog = readFileSync(join(logDirectory, "server-child.log"), "utf8");
     const sessions = [...serverLog.matchAll(/APP SESSION START[^\n]*\bpid=(\d+)\b/gu)];
     const pid = sessions.at(-1)?.[1];
     if (!pid) return "Packaged macOS backend sample: backend PID unavailable.";
-
-    const result = spawnSync("sample", [pid, "3", "1"], {
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: 10_000,
-    });
-    const output = retainMacBackendSampleCallGraph(
-      result.stdout || result.stderr || result.error?.message || "No sample output.",
-    );
-    return `Packaged macOS backend sample (pid=${pid}):\n${output}`;
+    return readMacProcessSample(Number(pid), "backend");
   } catch (error) {
     return `Packaged macOS backend sample failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+async function readMacBackendHealth(logDirectory: string): Promise<string> {
+  try {
+    const desktopLog = readFileSync(join(logDirectory, "desktop-main.log"), "utf8");
+    const port = readLatestPackagedBackendPort(desktopLog);
+    if (port === null) return "Packaged macOS backend health: backend port unavailable.";
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3_000);
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health`, {
+        signal: controller.signal,
+      });
+      const body = (await response.text()).slice(0, 4_096);
+      return `Packaged macOS backend health (port=${port}): status=${response.status} body=${body}`;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (error) {
+    return `Packaged macOS backend health failed: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -504,7 +537,11 @@ export async function verifyPackagedDesktopStartup(
       console.error(readPackagedStartupLogTails(logDirectory));
       console.error(`Packaged process output tail:\n${outputTail || "No output captured."}`);
       if (process.platform === "darwin") {
+        console.error(await readMacBackendHealth(logDirectory));
         console.error(readMacBackendSample(logDirectory));
+        if (child?.pid) {
+          console.error(readMacProcessSample(child.pid, "desktop main"));
+        }
       }
     }
     throw error;
