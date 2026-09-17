@@ -9,6 +9,31 @@ import XCTest
 /// any protocol change to catch model drift early.
 final class ProtocolFixtureTests: XCTestCase {
 
+    func testLiveWorkingDiffReadsDoNotRequireMatchingTimestamps() {
+        let summary = DiffSummary(
+            id: "t", threadId: "t", runId: nil, title: "Working changes", files: [], updatedAt: 1
+        )
+        let later = DiffSummary(
+            id: "t", threadId: "t", runId: nil, title: "Working changes", files: [], updatedAt: 2,
+            source: "working-tree"
+        )
+        XCTAssertTrue(summary.acceptsFileResponse(later))
+        XCTAssertFalse(later.acceptsFileResponse(summary))
+        let otherThread = DiffSummary(
+            id: "t", threadId: "other", runId: nil, title: "Working changes", files: [], updatedAt: 2
+        )
+        XCTAssertFalse(summary.acceptsFileResponse(otherThread))
+        let checkpoint = DiffSummary(
+            id: "t", threadId: "t", runId: "r", title: nil, files: [], updatedAt: 1
+        )
+        let newerCheckpoint = DiffSummary(
+            id: "t", threadId: "t", runId: "r", title: nil, files: [], updatedAt: 2
+        )
+        XCTAssertFalse(checkpoint.acceptsFileResponse(later))
+        XCTAssertFalse(checkpoint.acceptsFileResponse(newerCheckpoint))
+        XCTAssertTrue(checkpoint.acceptsFileResponse(checkpoint))
+    }
+
     func testUserSkillEventPreservesPresentationMetadata() throws {
         let envelope = try decodeFixture("host-event-user-skill.json", as: HostEventEnvelope.self)
         XCTAssertEqual(envelope.event.kind, "user.message")

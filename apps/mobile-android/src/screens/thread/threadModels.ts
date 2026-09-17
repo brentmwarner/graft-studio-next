@@ -1,5 +1,33 @@
 import type { GraftModelOption, GraftThreadSummary } from "@graft/mobile-contract";
 
+export function modelSelectionId(model: Pick<GraftModelOption, "providerId" | "id">): string {
+  return JSON.stringify([model.providerId, model.id]);
+}
+
+/** Only advertised efforts may be sent, including defaults from a newer host. */
+export function resolveModelEffort(
+  model: GraftModelOption | undefined,
+  ...choices: readonly (string | undefined)[]
+): string | undefined {
+  const efforts = model?.reasoningEfforts ?? [];
+  return [...choices, model?.defaultReasoningEffort, "high", efforts[0]].find(
+    (choice): choice is string => choice !== undefined && efforts.includes(choice),
+  );
+}
+
+export function groupModelsByProvider(models: readonly GraftModelOption[]) {
+  const groups = new Map<string, { id: string; label: string; models: GraftModelOption[] }>();
+  for (const model of models) {
+    let group = groups.get(model.providerId);
+    if (!group) {
+      group = { id: model.providerId, label: model.providerLabel ?? model.providerId, models: [] };
+      groups.set(model.providerId, group);
+    }
+    group.models.push(model);
+  }
+  return [...groups.values()];
+}
+
 export function threadModelChoices(
   thread: GraftThreadSummary,
   models: readonly GraftModelOption[],

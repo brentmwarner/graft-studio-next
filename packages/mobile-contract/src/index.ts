@@ -547,6 +547,8 @@ export type GraftDiffFileSummary = z.infer<typeof GraftDiffFileSummarySchema>;
 export const GraftDiffSummarySchema = z.object({
   id: z.string().min(1),
   threadId: z.string().min(1),
+  /** Working-tree file previews are live reads; updatedAt is a read time, not a checkpoint. */
+  source: z.enum(["checkpoint", "working-tree"]).optional(),
   runId: z.string().min(1).optional(),
   title: z.string().optional(),
   files: z.array(GraftDiffFileSummarySchema),

@@ -7,12 +7,12 @@ import type {
   GraftThreadSummary,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { TranscriptItem } from "../../state/mobileViewModels";
 import { deriveTaskProgress, type TaskProgress } from "../../state/taskProgress";
 import { useReconciledTranscript } from "./TranscriptRow";
-import { threadModelChoices } from "./threadModels";
+import { modelSelectionId, resolveModelEffort, threadModelChoices } from "./threadModels";
 
 /// Stable empty slice so a thread with no settled transcript doesn't mint a new
 /// array identity on every render and defeat the transcript memo below.
@@ -32,7 +32,6 @@ export interface ThreadModel {
   readonly approval: GraftEnvironmentSnapshot["pendingApprovals"][number] | undefined;
   readonly approvalIsElevated: boolean;
   readonly approvalOptions: readonly GraftApprovalPolicyOption[];
-  readonly canChangeApproval: boolean;
   readonly currentApproval: string | undefined;
   readonly currentApprovalLabel: string;
   readonly currentModel: GraftModelOption | undefined;
@@ -69,7 +68,10 @@ export function useThreadModel({
   readonly snapshot: GraftEnvironmentSnapshot | null;
   readonly thread: GraftThreadSummary;
 }): ThreadModel {
-  const [selectedEffort, setSelectedEffort] = useState(initialEffort);
+  const [effortChoice, setEffortChoice] = useState({
+    modelId: JSON.stringify([thread.providerId, thread.modelName]),
+    effort: initialEffort,
+  });
   const currentThread = snapshot?.threads.find((candidate) => candidate.id === thread.id) ?? thread;
   const selectedTranscript =
     snapshot?.selectedTranscript?.threadId === thread.id ? snapshot.selectedTranscript : undefined;
@@ -126,12 +128,12 @@ export function useThreadModel({
     hasPendingSend || items.length > 0 || Boolean(activeRun),
   );
   const efforts = currentModel?.reasoningEfforts ?? [];
-  const resolvedEffort =
-    selectedEffort && efforts.includes(selectedEffort)
-      ? selectedEffort
-      : efforts.includes("high")
-        ? "high"
-        : efforts[0];
+  const modelId = currentModel ? modelSelectionId(currentModel) : undefined;
+  const selectedEffort = effortChoice.modelId === modelId ? effortChoice.effort : undefined;
+  const resolvedEffort = resolveModelEffort(currentModel, selectedEffort, currentThread.effort);
+  const setSelectedEffort = (effort: string | undefined) => {
+    if (modelId) setEffortChoice({ modelId, effort });
+  };
   const approvalOptions = currentThread.approvalPolicyOptions ?? [];
   const currentApproval = currentThread.approvalPolicy ?? approvalOptions[0]?.value;
   const currentApprovalLabel =
@@ -145,16 +147,11 @@ export function useThreadModel({
     diffSummary?.files.reduce((total, file) => total + (file.deletions ?? 0), 0) ?? 0;
   const hasDiffChip = Boolean(diffSummary && diffSummary.files.length > 0);
 
-  useEffect(() => {
-    setSelectedEffort((current) => (current && efforts.includes(current) ? current : undefined));
-  }, [currentModel?.id, efforts]);
-
   return {
     activeRunId,
     approval,
     approvalIsElevated,
     approvalOptions,
-    canChangeApproval: approvalOptions.length > 1,
     currentApproval,
     currentApprovalLabel,
     currentModel,

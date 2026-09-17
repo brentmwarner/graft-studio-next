@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   sendWithAttachments,
+  attachmentHostError,
   type ComposerAttachment,
   type ComposerSendAttempt,
 } from "./composerAttachmentSend";
@@ -20,6 +21,14 @@ const stored = {
   mimeType: file.mimeType,
   sizeBytes: file.sizeBytes,
 };
+
+it("keeps text sends available but explains blocked attachment sends until host support arrives", () => {
+  expect(attachmentHostError([], undefined)).toBeUndefined();
+  expect(attachmentHostError([file], undefined)).toContain("Your files are ready");
+  expect(
+    attachmentHostError([file], { attachments: true, interactionModes: false, fastMode: false }),
+  ).toBeUndefined();
+});
 
 it("sends host-minted attachment references only after uploads finish", async () => {
   const calls: string[] = [];

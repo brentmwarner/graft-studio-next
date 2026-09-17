@@ -1,7 +1,7 @@
 import type { GraftModelOption, GraftThreadSummary } from "@graft/mobile-contract";
 import { describe, expect, it } from "vitest";
 
-import { threadModelChoices } from "./threadModels";
+import { groupModelsByProvider, resolveModelEffort, threadModelChoices } from "./threadModels";
 
 const models: GraftModelOption[] = [
   { id: "shared-name", providerId: "codex", label: "Codex model", isDefault: true },
@@ -19,6 +19,26 @@ const thread: GraftThreadSummary = {
 };
 
 describe("thread model choices", () => {
+  it("groups providers without conflating shared model IDs", () => {
+    expect(groupModelsByProvider(models).map((group) => [group.id, group.models.length])).toEqual([
+      ["codex", 1],
+      ["claudeAgent", 2],
+    ]);
+  });
+
+  it("resolves explicit, host-confirmed and advertised effort without sending unsupported values", () => {
+    const model = {
+      ...models[0]!,
+      reasoningEfforts: ["low", "medium", "high"],
+      defaultReasoningEffort: "medium",
+    };
+    expect(resolveModelEffort(model, "low", "high")).toBe("low");
+    expect(resolveModelEffort(model, "xhigh", "low")).toBe("low");
+    expect(resolveModelEffort(model, undefined, "unsupported")).toBe("medium");
+    expect(resolveModelEffort({ ...model, defaultReasoningEffort: "unsupported" })).toBe("high");
+    expect(resolveModelEffort({ ...model, reasoningEfforts: [] }, "high")).toBeUndefined();
+    expect(resolveModelEffort(undefined, "high")).toBeUndefined();
+  });
   it("keeps all models from the locked provider selectable", () => {
     const result = threadModelChoices(thread, models);
     expect(result.selectableModels).toEqual(models.slice(1));

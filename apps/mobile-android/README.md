@@ -19,6 +19,7 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Keep established chats on their provider while allowing model changes
 - Dictate a message with native Android speech recognition, then review or send the transcript
 - Show working-tree diff counts and changed files above the composer
+- Load individual file hunks on expansion, with retry for failed reads
 - Follow the iOS visual language with Android-native motion, floating surfaces, and edge fades
 
 ## Development
@@ -45,10 +46,13 @@ waveform, Stop and review, and Send dictation, with Cancel outside the capsule.
 Stopping keeps the text for editing; sending waits for the final transcript;
 cancelling restores the draft from before recording.
 
-The composer follows the iOS layout: one compact surface at rest, expanding on
-focus into a three-line editor with an internal toolbar. Longer drafts grow up to
-a scrolling limit. Plus, permissions, model/effort, microphone, and send stay
-inside the card; an empty composer collapses when the keyboard is dismissed.
+The composer has a persistent settings row for provider/model, supported effort,
+and permissions. These controls stay available before typing and after the
+keyboard closes. The input surface expands on focus into a three-line editor
+with an internal plus menu, microphone, and send controls. Longer drafts grow up
+to a scrolling limit; an empty editor collapses when the keyboard is dismissed.
+Model discovery is shared across composers, with loading, retry, and refresh
+states. Effort choices follow the selected model's advertised capabilities.
 
 ## Verification
 
@@ -58,8 +62,7 @@ bun run android:typecheck
 bun run android:doctor
 ```
 
-Push notifications, account sign-in, and full diff
-review are not implemented yet.
+Push notifications and account sign-in are not implemented yet.
 
 The Graft-based host exposes enabled providers and live-discovered models
 through the same `models.list` command used by the legacy host. Selecting a
@@ -69,9 +72,9 @@ Direct LAN and tailnet endpoints may use HTTP. Debug builds permit it through
 their manifest overlay, and the standalone `preview` profile enables it for
 device testing. Production builds retain the HTTPS-only policy.
 
-### Android preview after merge
+### Android preview
 
-Build the merged commit from `apps/mobile-android` with
+Check out the PR branch (or the merged commit), then build from `apps/mobile-android` with
 `bunx eas-cli@latest build --platform android --profile preview`.
 The profile creates an internal release APK that runs without Metro and uses
 the existing `brentmwarner/graft-mobile-android` EAS project. Sign in with
@@ -86,7 +89,35 @@ controls. Files appear inside the composer above the editor and can be removed b
 attachment-only messages are supported. Limits match desktop: 8 attachments,
 10 MB per image, and 25 MB per file.
 
-Install this host update along with a rebuilt Android app. Older hosts show an
-update message in the menu. Uploads use the desktop binary attachment endpoint
+Local file, photo, and camera picking is available even before the host advertises
+attachment support. Sending selected files requires a compatible, connected host;
+the composer explains when that support is missing and keeps the files for retry.
+Install the host update along with a rebuilt Android app. Uploads use the desktop binary attachment endpoint
 with the paired session's credentials; the mobile turn claims those attachments
 under that same session. Failed sends keep the draft and local files for retry.
+
+### Preview validation for Android mobile parity
+
+The changes are on `codex/android-mobile-parity`. Unit tests cover catalog
+discovery, composer menus, native picker responses, attachment sending, and diff
+response matching. A rebuilt native preview still needs these device checks:
+
+1. Open New chat with an empty editor. Switch providers and models, then select
+   an effort. Verify the first turn uses those choices. Check the settings row
+   with the keyboard open and closed, on a narrow screen and with larger text.
+2. In an existing chat, verify model changes stay on its locked provider and
+   `/model` opens the picker. Disconnect/reconnect and exercise catalog retry.
+3. Use plus → Files, Photos, and Camera in both new and existing chats. Exercise
+   permission denial, cancellation, attachment-only sending, removal, and retry
+   after a failed send. Confirm an older host allows picking but blocks sending
+   files with an explanation.
+4. Open working changes and expand several files. Confirm actual added/deleted
+   lines load; close/reopen and refresh during loading. Include untracked,
+   renamed, deleted, binary, and oversized files where available.
+
+Working-tree file details are live reads, so their timestamps may be newer than
+the summary. Refresh updates the summary and clears cached details. Checkpoint
+responses still require an exact revision match. The optional protocol source
+field distinguishes these cases; PR 25 hosts without it remain supported.
+The equivalent iOS matching fix and a Swift regression test are included, but
+the iOS build and tests must run on macOS.

@@ -858,6 +858,20 @@ struct DiffSummary: Codable, Sendable, Equatable, Identifiable {
     let title: String?
     let files: [DiffFile]
     let updatedAt: Int
+    var source: String? = nil
+
+    private var isWorkingTree: Bool {
+        source == "working-tree"
+            || (source == nil && runId == nil && title == "Working changes")
+    }
+
+    func acceptsFileResponse(_ response: DiffSummary) -> Bool {
+        guard id == response.id, threadId == response.threadId else { return false }
+        if isWorkingTree {
+            return response.isWorkingTree && response.updatedAt >= updatedAt
+        }
+        return !response.isWorkingTree && runId == response.runId && updatedAt == response.updatedAt
+    }
 }
 
 struct DiffFile: Codable, Sendable, Equatable, Identifiable {

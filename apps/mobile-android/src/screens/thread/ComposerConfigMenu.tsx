@@ -6,17 +6,22 @@ import type {
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { AnchoredMenu, MenuCaption, MenuItem } from "../../components/AnchoredMenu";
+import type { ModelCatalogStatus } from "../../state/useModelCatalog";
 import type { AttachmentSource } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
+import { groupModelsByProvider } from "./threadModels";
 
 export type ComposerMenuPage =
   | "options"
   | "intelligence"
+  | "providers"
   | "models"
   | "permissions"
   | "mode"
   | "speed";
 export interface ComposerMenuConfig {
+  readonly catalog?: ModelCatalogStatus;
+  readonly onReloadModels?: () => void;
   readonly extras?: {
     readonly attachmentsEnabled: boolean;
     readonly modesEnabled: boolean;
@@ -64,6 +69,7 @@ export function ComposerConfigMenu({
   readonly openRequest?: number;
 }) {
   const [page, setPage] = useState(initialPage);
+  const [providerId, setProviderId] = useState(config.currentModel?.providerId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const generation = useRef(0);
@@ -111,7 +117,7 @@ export function ComposerConfigMenu({
                 key={source}
                 label={label}
                 icon={icon}
-                enabled={Boolean(config.extras?.attachmentsEnabled && !config.extras.busy)}
+                enabled={Boolean(config.extras && !config.extras.busy)}
                 onPress={() => {
                   close();
                   config.extras?.onAttach(source);
@@ -136,8 +142,10 @@ export function ComposerConfigMenu({
                 onPress={() => setPage("speed")}
               />
             ) : null}
-            {!config.extras?.attachmentsEnabled || !config.extras?.modesEnabled ? (
-              <MenuCaption>Update Graft Studio to use attachments and modes.</MenuCaption>
+            {!config.extras?.attachmentsEnabled ? (
+              <MenuCaption>
+                You can attach files now. Reconnect to an updated Studio to send them.
+              </MenuCaption>
             ) : null}
           </>
         );
@@ -200,27 +208,44 @@ export function ComposerConfigMenu({
             ))}
           </>
         );
+      case "providers":
+        return (
+          <>
+            <MenuCaption>Provider</MenuCaption>
+            {groupModelsByProvider(config.models).map((provider) => (
+              <MenuItem
+                key={provider.id}
+                label={provider.label}
+                disclosure
+                selected={provider.id === config.currentModel?.providerId}
+                enabled={enabled}
+                onPress={() => {
+                  setProviderId(provider.id);
+                  setPage("models");
+                }}
+              />
+            ))}
+          </>
+        );
       case "models":
         return (
           <>
-            <MenuItem
-              label="‹ Model and effort"
-              enabled={!pending}
-              onPress={() => setPage("intelligence")}
-            />
-            {config.models.map((model) => (
-              <MenuItem
-                key={`${model.providerId}:${model.id}`}
-                label={model.label}
-                detail={model.providerLabel ?? displayName(model.providerId)}
-                enabled={enabled}
-                selected={
-                  model.id === config.currentModel?.id &&
-                  model.providerId === config.currentModel.providerId
-                }
-                onPress={() => void select(() => config.onSelectModel(model), close)}
-              />
-            ))}
+            <MenuItem label="‹ Providers" enabled={!pending} onPress={() => setPage("providers")} />
+            {config.models
+              .filter((model) => model.providerId === providerId)
+              .map((model) => (
+                <MenuItem
+                  key={`${model.providerId}:${model.id}`}
+                  label={model.label}
+                  detail={model.providerLabel ?? displayName(model.providerId)}
+                  enabled={enabled}
+                  selected={
+                    model.id === config.currentModel?.id &&
+                    model.providerId === config.currentModel.providerId
+                  }
+                  onPress={() => void select(() => config.onSelectModel(model), close)}
+                />
+              ))}
           </>
         );
       case "intelligence":
@@ -231,7 +256,7 @@ export function ComposerConfigMenu({
               detail={config.currentModel?.label ?? "Choose model"}
               disclosure
               enabled={!pending}
-              onPress={() => setPage("models")}
+              onPress={() => setPage("providers")}
             />
             {config.efforts.length > 0 ? <MenuCaption>Reasoning effort</MenuCaption> : null}
             {[...config.efforts]
@@ -249,6 +274,7 @@ export function ComposerConfigMenu({
                   selected={effort === config.resolvedEffort}
                   enabled={enabled}
                   onPress={() => {
+                    if (!enabled) return;
                     config.onSelectEffort(effort);
                     close();
                   }}
@@ -271,6 +297,7 @@ export function ComposerConfigMenu({
         generation.current += 1;
         if (open) {
           setPage(initialPage);
+          setProviderId(config.currentModel?.providerId);
           setError(undefined);
         }
       }}
@@ -278,6 +305,20 @@ export function ComposerConfigMenu({
       {(close) => (
         <>
           {contents(close)}
+          {page === "providers" || page === "models" || page === "intelligence" ? (
+            <>
+              {config.catalog?.loading ? <MenuCaption>Loading models…</MenuCaption> : null}
+              {config.catalog?.error ? <MenuCaption>{config.catalog.error}</MenuCaption> : null}
+              {config.onReloadModels ? (
+                <MenuItem
+                  label={config.catalog?.error ? "Retry loading models" : "Refresh models"}
+                  icon="refresh-outline"
+                  enabled={config.enabled && !config.catalog?.loading && !pending}
+                  onPress={config.onReloadModels}
+                />
+              ) : null}
+            </>
+          ) : null}
           {!config.enabled ? <MenuCaption>Reconnect to change settings.</MenuCaption> : null}
           {pending ? <MenuCaption>Applying…</MenuCaption> : null}
           {error ? <MenuCaption>{error}</MenuCaption> : null}

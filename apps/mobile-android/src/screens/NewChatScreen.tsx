@@ -23,13 +23,15 @@ import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { PressScale } from "../components/PressScale";
 import type { InboxProjectGroup } from "../state/mobileViewModels";
+import type { ModelCatalogStatus } from "../state/useModelCatalog";
 import { graftRadius, useGraftPalette } from "../theme/tokens";
-import type { ComposerSendOptions } from "./thread/composerAttachmentSend";
+import { attachmentHostError, type ComposerSendOptions } from "./thread/composerAttachmentSend";
 import { useComposerAttachments } from "./thread/useComposerAttachments";
 import { useVoiceInput } from "./thread/useVoiceInput";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
+import { resolveModelEffort } from "./thread/threadModels";
 
 export interface NewChatCreateRequest {
   readonly approvalPolicy?: string;
@@ -53,12 +55,9 @@ interface NewChatScreenProps {
   readonly onCreate: (
     request: NewChatCreateRequest,
   ) => Promise<{ readonly sent: boolean; readonly thread?: GraftThreadSummary }>;
-  readonly onLoadModels: () => Promise<void>;
+  readonly onLoadModels: (force?: boolean) => Promise<void>;
+  readonly modelCatalog: ModelCatalogStatus;
   readonly projects: readonly InboxProjectGroup[];
-}
-
-function preferredEffort(efforts: readonly string[]): string | undefined {
-  return efforts.includes("xhigh") ? "xhigh" : efforts.includes("high") ? "high" : efforts[0];
 }
 
 export function NewChatScreen({
@@ -71,6 +70,7 @@ export function NewChatScreen({
   onBack,
   onCreate,
   onLoadModels,
+  modelCatalog,
   projects,
 }: NewChatScreenProps) {
   const palette = useGraftPalette();
@@ -88,6 +88,7 @@ export function NewChatScreen({
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId ?? projects[0]?.id);
   const [showProjects, setShowProjects] = useState(false);
   const attachments = useComposerAttachments("new-chat");
+  const attachmentBlocked = attachmentHostError(attachments.attachments, composerFeatures);
   const voice = useVoiceInput("new-chat", !isCreating && !attachments.isPicking, setDraft);
   const [interactionMode, setInteractionMode] = useState<GraftInteractionMode>("default");
   const [selectedFastMode, setSelectedFastMode] = useState(false);
@@ -108,8 +109,7 @@ export function NewChatScreen({
     [availableModels, selectedModelId, selectedProviderId],
   );
   const efforts = currentModel?.reasoningEfforts ?? [];
-  const resolvedEffort =
-    selectedEffort && efforts.includes(selectedEffort) ? selectedEffort : preferredEffort(efforts);
+  const resolvedEffort = resolveModelEffort(currentModel, selectedEffort);
   const approvalOptions = currentModel?.approvalPolicyOptions ?? [];
   const currentApproval =
     selectedApproval && approvalOptions.some((option) => option.value === selectedApproval)
@@ -129,16 +129,17 @@ export function NewChatScreen({
     selectedProject &&
     isConnected &&
     !isCreating &&
+    !attachmentBlocked &&
     !attachments.isPicking &&
     !voice.isActive,
   );
 
   useEffect(() => {
-    void onLoadModels();
-  }, [onLoadModels]);
+    if (isConnected) void onLoadModels();
+  }, [isConnected, onLoadModels]);
 
   useEffect(() => {
-    setSelectedEffort(preferredEffort(efforts));
+    setSelectedEffort(undefined);
     setSelectedApproval(currentModel?.defaultApprovalPolicy);
   }, [currentModel?.id, currentModel?.providerId]);
 
@@ -154,6 +155,7 @@ export function NewChatScreen({
       !isConnected ||
       sendInFlight.current ||
       attachments.isPicking ||
+      attachmentBlocked ||
       (voice.isActive && !fromDictation)
     )
       return;
@@ -310,24 +312,24 @@ export function NewChatScreen({
               void sendDictation();
             }}
             attachments={attachments.attachments}
-            attachmentError={attachments.error}
+            attachmentError={attachments.error ?? attachmentBlocked}
             onRemoveAttachment={(id) => attachments.remove([id])}
             activeRunId={undefined}
             approvalIsElevated={approvalIsElevated}
-            availableModels={availableModels}
             canSend={canSend}
             currentApprovalLabel={currentApprovalLabel}
-            currentModel={currentModel}
             currentModelName={currentModel?.id}
             draft={draft}
-            canChangeApproval={approvalOptions.length > 1}
-            hasApprovalOptions={approvalOptions.length > 0}
             hostLabel={hostLabel}
             isConnected={isConnected}
             isSending={isCreating}
             onCancel={() => undefined}
             onDraftChange={setDraft}
             menuConfig={{
+              catalog: modelCatalog,
+              onReloadModels: () => {
+                void onLoadModels(true);
+              },
               extras: {
                 attachmentsEnabled: composerFeatures?.attachments === true,
                 modesEnabled: composerFeatures?.interactionModes === true,
@@ -360,7 +362,6 @@ export function NewChatScreen({
               onSelectEffort: setSelectedEffort,
             }}
             onSend={() => void send()}
-            resolvedEffort={resolvedEffort}
           />
         </View>
       </View>

@@ -98,7 +98,7 @@ struct DiffSheet: View {
             let result = await loadFile(path)
             guard !Task.isCancelled, revision == expectedRevision else { return }
             pending.remove(path); requests.removeValue(forKey: path)
-            guard let result, result.updatedAt == diff.updatedAt, result.runId == diff.runId,
+            guard let result, diff.acceptsFileResponse(result),
                   let file = result.files.first(where: { $0.path == path }), file.detailStatus != "unavailable" else {
                 failed.insert(path)
                 return

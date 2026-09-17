@@ -8,10 +8,17 @@ const mocks = vi.hoisted(() => ({
   pick: vi.fn(),
   files: new Map<string, number>(),
   nextId: 0,
+  photos: vi.fn(),
+  camera: vi.fn(),
+  cameraPermission: vi.fn(),
 }));
 vi.mock("expo-crypto", () => ({ randomUUID: () => `file-${++mocks.nextId}` }));
 vi.mock("expo-document-picker", () => ({ getDocumentAsync: mocks.pick }));
-vi.mock("expo-image-picker", () => ({}));
+vi.mock("expo-image-picker", () => ({
+  launchImageLibraryAsync: mocks.photos,
+  launchCameraAsync: mocks.camera,
+  requestCameraPermissionsAsync: mocks.cameraPermission,
+}));
 vi.mock("expo-file-system", () => ({
   Paths: { cache: "file:///cache" },
   File: class {
@@ -52,6 +59,9 @@ async function mount() {
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   mocks.pick.mockReset();
+  mocks.photos.mockReset();
+  mocks.camera.mockReset();
+  mocks.cameraPermission.mockReset();
   mocks.files.clear();
   mocks.files.set(asset.uri, 20);
   mocks.pick.mockResolvedValue({ canceled: false, assets: [asset] });
@@ -109,4 +119,37 @@ it("preserves the selection on picker cancellation and releases a removed previe
   await act(() => result.remove([selected.id]));
   expect(mocks.files.has(selected.uri)).toBe(false);
   expect(mocks.files.has(asset.uri)).toBe(true);
+});
+
+it("loads photo selections as owned image attachments", async () => {
+  mocks.photos.mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: asset.uri, fileName: "photo.jpg", mimeType: "image/jpeg" }],
+  });
+  await mount();
+  await act(() => result.pick("photos"));
+  expect(mocks.photos).toHaveBeenCalledWith(
+    expect.objectContaining({ allowsMultipleSelection: true, mediaTypes: ["images"] }),
+  );
+  expect(result.attachments[0]).toMatchObject({ type: "image", name: "photo.jpg" });
+  expect(result.error).toBeUndefined();
+  expect(result.isPicking).toBe(false);
+});
+
+it("reports denied camera permission and allows a later retry", async () => {
+  mocks.cameraPermission
+    .mockResolvedValueOnce({ granted: false })
+    .mockResolvedValueOnce({ granted: true });
+  mocks.camera.mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: asset.uri, fileName: "camera.jpg", mimeType: "image/jpeg" }],
+  });
+  await mount();
+  await act(() => result.pick("camera"));
+  expect(result.error).toContain("Allow camera access");
+  expect(mocks.camera).not.toHaveBeenCalled();
+  expect(result.isPicking).toBe(false);
+  await act(() => result.pick("camera"));
+  expect(result.error).toBeUndefined();
+  expect(result.attachments[0]?.name).toBe("camera.jpg");
 });
