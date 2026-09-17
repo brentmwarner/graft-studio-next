@@ -71,6 +71,7 @@ import {
 } from "./startupAccess";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
 import { startThreadRetentionJob } from "./threadRetention";
+import { tracePackagedLayerCompletion, tracePackagedStartup } from "./packagedStartupTrace";
 import {
   discoverServerRuntime,
   pairExternalMcpClient,
@@ -385,13 +386,17 @@ const LayerLive = (input: CliInput) => {
   );
 
   return Layer.empty.pipe(
-    Layer.provideMerge(runtimeServicesLayer),
-    Layer.provideMerge(providerLayer),
-    Layer.provideMerge(providerSessionReaperLayer),
-    Layer.provideMerge(providerRuntimeReconcilerLayer),
-    Layer.provideMerge(SqlitePersistence.layerConfig),
-    Layer.provideMerge(ServerLoggerLive),
-    Layer.provideMerge(ServerConfigLive(input)),
+    Layer.provideMerge(tracePackagedLayerCompletion("runtimeServices", runtimeServicesLayer)),
+    Layer.provideMerge(tracePackagedLayerCompletion("provider", providerLayer)),
+    Layer.provideMerge(
+      tracePackagedLayerCompletion("providerSessionReaper", providerSessionReaperLayer),
+    ),
+    Layer.provideMerge(
+      tracePackagedLayerCompletion("providerRuntimeReconciler", providerRuntimeReconcilerLayer),
+    ),
+    Layer.provideMerge(tracePackagedLayerCompletion("sqlite", SqlitePersistence.layerConfig)),
+    Layer.provideMerge(tracePackagedLayerCompletion("serverLogger", ServerLoggerLive)),
+    Layer.provideMerge(tracePackagedLayerCompletion("serverConfig", ServerConfigLive(input))),
   );
 };
 
@@ -411,13 +416,16 @@ export function makeServerStartupLogData(config: ServerConfigShape): Record<stri
 
 const makeServerProgram = (input: CliInput) =>
   Effect.gen(function* () {
+    tracePackagedStartup("server program started");
     const cliConfig = yield* CliConfig;
     const { start, stopSignal } = yield* Server;
     const openDeps = yield* Open;
     const serverAuth = yield* ServerAuth;
     const serverEnvironment = yield* ServerEnvironment;
     const serverSettings = yield* ServerSettingsService;
+    tracePackagedStartup("server program services acquired");
     yield* cliConfig.fixPath;
+    tracePackagedStartup("server PATH ready");
 
     const config = yield* ServerConfig;
     yield* Effect.sync(() => startServerMemoryDiagnostics({ mode: config.mode }));
@@ -432,6 +440,7 @@ const makeServerProgram = (input: CliInput) =>
     }
 
     yield* start;
+    tracePackagedStartup("server start effect finished");
 
     const advertisedPort = getBoundListenPort(config.port);
     const localUrl = `http://localhost:${advertisedPort}`;
