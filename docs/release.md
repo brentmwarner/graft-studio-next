@@ -194,16 +194,23 @@ WorkOS environment.
 
 `upgrade-evidence.json` contains:
 
-- `schemaVersion: 1`, stable `version`, and full `sourceCommit`.
+- `schemaVersion: 2`, stable `version`, and full `sourceCommit`.
 - `previousVersions`, an object containing the observed version of each of
   `latest-mac.yml`, `latest.yml`, and `latest-linux.yml`.
 - `platforms`, exactly one receipt each for `mac-arm64`, `mac-x64`, `win-x64`, and
   `linux-x64`.
 - Each receipt has `platform`, the versioned update `artifact` filename, its
-  `sha256`, an HTTPS `evidenceUrl` linking the test record, and `checks`.
+  `sha256`, an HTTPS `evidenceUrl` linking the test record, the exact
+  `previousArtifact` (or `null` when no production artifact existed), and
+  `checks`.
 - Every receipt's `checks` contains `legacy-update`, `account-continuity`,
   `history-preserved`, `settings-preserved`, `reconnect`, and `rollback`, each
-  equal to `passed` only after the corresponding verification happened.
+  equal to `passed` only after the corresponding verification happened. The
+  only exception is the exact 0.1.143 to 0.9.0 Intel Mac cutover: because the
+  live 0.1.143 feed never published an Intel artifact, `legacy-update` and
+  `rollback` must be `not-applicable-no-legacy-release`; every other Intel Mac
+  check still has to pass. The validator rejects this status for any other
+  platform, predecessor, version, or check.
 
 The type and executable validation live in
 `scripts/lib/graft-release-publisher.ts`. Mac receipts reference their update ZIP;
