@@ -14,19 +14,23 @@ struct ThreadView: View {
         ZStack {
             DS.Color.bg.ignoresSafeArea()
 
-            if let chat = boundChat {
-                TranscriptView(chat: chat)
-                    .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
-                    .id(chat.id)
-            } else {
-                ProgressView("Loading thread…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                if let chat = boundChat {
+                    TranscriptView(chat: chat)
+                        .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
+                        .id(chat.id)
+                } else {
+                    ProgressView("Loading thread…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
+            .readableChatColumn()
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let chat = boundChat {
                 ThreadComposerDock(chat: chat)
                     .id(chat.id)
+                    .readableChatColumn()
             }
         }
         .navigationTitle(title)
@@ -34,10 +38,12 @@ struct ThreadView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .accessibilityAddTraits(.isHeader)
+                ChatNavigationTitle {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .accessibilityAddTraits(.isHeader)
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

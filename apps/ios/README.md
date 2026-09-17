@@ -54,6 +54,60 @@ open Graft.xcodeproj
 
 Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 
+On iPad (regular horizontal size class), Projects is a **floating Liquid Glass
+panel**, inset 16pt from the safe-area edges with 28pt continuous corners. It
+uses SwiftUI's `.glassEffect(.regular, in:)` on a background shape above the
+full-bleed chat canvas. Leading safe-area padding reserves the panel's width
+without painting a separate sidebar gutter; the glass supplies its own depth without
+an additional shadow. This is a floating panel, not another edge-to-edge
+`NavigationSplitView` material tweak; its geometry stays floating on iPadOS 26
+and 27. The system glass material retains its accessibility adaptations.
+
+The Projects / host-status header is a fixed foreground view above the clipped
+scroll region. It has no navigation title or principal toolbar duplication,
+and the chat stack no longer applies `backgroundExtensionEffect()` to text.
+
+- **Regular windows**: chat always reserves the visible panel's width plus
+  its margins, in portrait and landscape. The navigation stack fills the whole
+  canvas. Leading safe-area padding centers the readable transcript and composer
+  beside Projects; `ChatNavigationTitle` gives the principal title matching
+  leading space because navigation bars center independently of content safe
+  areas. Never add a background fill or spacer column behind the panel.
+  The transcript, composer, and new/empty chat surfaces use the parent
+  pane's proposed width, capped at 720pt, rather than container-relative window
+  sizing. Selecting a thread or New Chat keeps Projects open. Use **Hide
+  Projects** to reclaim the full chat width and
+  **Show Projects** in the chat toolbar to restore the panel. There is no pin
+  toggle or overlay mode; resizing preserves the chosen visibility.
+- **Compact** (iPhone, iPad Slide Over): existing drawer + push stack.
+
+### Simulator verification (portrait and landscape)
+
+Use the **Graft** scheme. Pair first if the welcome screen is showing.
+
+| Destination                   | Orientation | Expect                                                                                                  |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| iPad Pro 13-inch              | Landscape   | Inset rounded glass Projects panel, crisp Projects / Mac header, chat beside it.                        |
+| iPad Pro 13-inch              | Portrait    | Floating panel stays beside chat. Both the screen margin and rounded top/bottom corners remain visible. |
+| iPad Pro 11-inch or iPad mini | Landscape   | Same floating panel and readable chat beside it.                                                        |
+| iPad Pro 11-inch or iPad mini | Portrait    | Panel reserves chat space and stays open after selection. Hide / Show Projects changes visibility.      |
+| iPhone                        | Portrait    | Hamburger drawer and push navigation unchanged.                                                         |
+
+Check Hide / Show Projects, thread selection, New Chat, search,
+Settings, and rotation. Scroll the projects while watching the fixed header:
+rows must stay below it and the title must remain sharp. Opening and closing
+the panel must preserve the active chat and any composer draft. With Reduce
+Motion enabled, panel transitions fade without sliding or resizing animation.
+
+`AdaptiveChromeTests` covers size-class routing, panel margins and width,
+reserved chat space at all iPad widths, hide/show behavior, rendered panel/chat
+separation, a chat background spanning behind the panel, and
+title/transcript/composer centering within the remaining pane.
+It also verifies that a narrower parent proposal wins over a wider navigation
+ancestor, including compact widths, so content cannot overflow the chat pane.
+Visual verification still requires the simulator; policy tests do not prove
+material rendering or header sharpness.
+
 ## Welcome visuals
 
 The welcome screen uses the official vector `GraftMark` and a native two-pass
@@ -105,6 +159,11 @@ xcodebuild -project Graft.xcodeproj -scheme Graft \
 xcodebuild test -project Graft.xcodeproj -scheme Graft \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -quiet
+
+# iPad (floating sidebar)
+xcodebuild -project Graft.xcodeproj -scheme Graft \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4),OS=26.5' \
+  -quiet build
 ```
 
 If only the iOS 27 simulator is available:
@@ -123,7 +182,8 @@ apps/ios/
     GraftApp.swift                     # @main entry point
     App/
       AppDelegate.swift                # APNs registration callbacks
-      RootView.swift                   # Scene root; drives scenePhase hooks
+      RootView.swift                   # Scene root; Welcome vs Home, scenePhase hooks
+      AdaptiveChrome.swift             # Floating sidebar vs compact drawer policy
     Core/
       Keychain.swift                   # Generic-password Keychain wrapper
       AppLog.swift                     # os.Logger categories
@@ -150,7 +210,7 @@ apps/ios/
         QRScannerView.swift             # VisionKit QR scanner bridge
         QRScannerHostController.swift   # Camera presentation and lifecycle
       Home/
-        HomeView.swift                 # Main screen (threads, runs, approvals)
+        HomeView.swift                 # Adaptive home: compact drawer, floating iPad panel
     Resources/
       graft-app-icon.icon              # Icon Composer app icon (iOS home screen)
       Assets.xcassets                  # Raster AppIcon fallback + accent colour

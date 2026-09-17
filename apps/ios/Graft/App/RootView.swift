@@ -1,6 +1,8 @@
 import SwiftUI
 
 /// Top-level view that switches between onboarding and home, and owns deep links.
+/// Adaptive iPad chrome (split sidebar + chat) lives in `HomeView`; this root
+/// still only gates Welcome vs the paired home surface.
 struct RootView: View {
     @Environment(AppModel.self) private var app
 

@@ -2,8 +2,13 @@ import SwiftUI
 
 /// Remote inbox — project hierarchy matching the Graft Mobile product surface
 /// (hierarchical remote projects list), not the Fetch chat home.
+///
+/// Compact horizontal size class keeps the phone drawer under a
+/// `NavigationStack`. Regular width floats an inset Liquid Glass Projects
+/// panel, always reserving chat space beside it while visible.
 struct HomeView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
     @State private var collapsedProjectIds: Set<String> = []
     @State private var showOverflow = false
@@ -13,119 +18,172 @@ struct HomeView: View {
     @State private var newChatContext: NewChatContext?
     @FocusState private var searchFieldFocused: Bool
 
+    private var usesPersistentSidebar: Bool {
+        AdaptiveChrome.usesPersistentSidebar(horizontalSizeClass: horizontalSizeClass)
+    }
+
     var body: some View {
-        let projects = InboxGrouping.projects(
-            from: app.snapshot,
-            searchQuery: searchText
-        )
-        // The drawer sits under the NavigationStack: opening it slides the
-        // whole projects screen — nav bar included — aside to reveal the menu.
+        Group {
+            if usesPersistentSidebar {
+                FloatingSidebarLayout(
+                    hostLabel: hostLabel,
+                    isConnected: app.gateway.state == .connected,
+                    onSettings: { showSettings = true },
+                    onMore: { showOverflow = true }
+                ) {
+                    inboxContent
+                } detail: {
+                    HomeChatDetail(
+                        selectedThread: selectedThread,
+                        newChatContext: newChatContext,
+                        onOpenThread: openThread,
+                        onNewChat: { openNewChat() }
+                    )
+                }
+            } else {
+                compactHome
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+    }
+
+    /// Phone / compact: drawer under a stack. Selecting a thread or compose
+    /// destination still pushes, independent of the floating iPad panel.
+    private var compactHome: some View {
         NavDrawerLayout(
             isOpen: $showDrawer,
             hostLabel: hostLabel,
             isConnected: app.gateway.state == .connected,
             recentThreads: InboxGrouping.recentThreads(from: app.snapshot),
             canSwipeOpen: selectedThread == nil && newChatContext == nil,
-            onSearch: {
-                // Let the card land before raising the keyboard.
-                Task {
-                    try? await Task.sleep(for: .seconds(0.35))
-                    searchFieldFocused = true
-                }
-            },
-            onSelectThread: { selectedThread = $0 },
-            onNewChat: { newChatContext = NewChatContext() },
+            onSearch: { focusInboxSearch() },
+            onSelectThread: openThread,
+            onNewChat: { openNewChat() },
             onSettings: { showSettings = true }
         ) {
             NavigationStack {
-                ZStack(alignment: .bottom) {
-                    RemoteInboxScreen(
-                        projects: projects,
-                        isLoading: app.snapshot == nil && app.isPaired,
-                        collapsedProjectIds: $collapsedProjectIds,
-                        onToggleProject: { id in
-                            if collapsedProjectIds.contains(id) {
-                                collapsedProjectIds.remove(id)
-                            } else {
-                                collapsedProjectIds.insert(id)
-                            }
-                        },
-                        onSelectThread: { selectedThread = $0 },
-                        onComposeInProject: {
-                            newChatContext = NewChatContext(preselectedProjectId: $0)
-                        },
-                        onRefresh: { app.reconnectIfNeeded() }
-                    )
+                inboxRoot
+                    .navigationDestination(item: $selectedThread) { thread in
+                        ThreadView(threadId: thread.id, title: thread.title)
+                    }
+                    .navigationDestination(item: $newChatContext) { context in
+                        NewChatView(preselectedProjectId: context.preselectedProjectId)
+                    }
+            }
+        }
+    }
 
-                    RemoteInboxBottomBar(
-                        searchText: $searchText,
-                        searchFocused: $searchFieldFocused,
-                        onCompose: { newChatContext = NewChatContext() }
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
+    private var inboxContent: some View {
+        ZStack(alignment: .bottom) {
+            RemoteInboxScreen(
+                projects: inboxProjects,
+                isLoading: app.snapshot == nil && app.isPaired,
+                collapsedProjectIds: $collapsedProjectIds,
+                selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
+                fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
+                    usesPersistentSidebar: usesPersistentSidebar
+                ),
+                onToggleProject: { id in
+                    if collapsedProjectIds.contains(id) {
+                        collapsedProjectIds.remove(id)
+                    } else {
+                        collapsedProjectIds.insert(id)
+                    }
+                },
+                onSelectThread: openThread,
+                onComposeInProject: { openNewChat(projectId: $0) },
+                onRefresh: { app.reconnectIfNeeded() }
+            )
 
-                    if let error = app.gatewayError {
-                        VStack {
-                            Spacer()
-                            HomeGatewayErrorBanner(message: homeErrorMessage(error))
-                                .padding(.bottom, 72)
-                        }
-                    }
-                }
-                // Native bar: the iOS scroll-edge fade only comes from real
-                // toolbar items over scrolling content, not a custom header row.
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    // The bar renders in a UIKit layer the drawer's clip shape
-                    // can't touch, so the button's glass platter would ride
-                    // proud of the card's rounded corner while slid aside —
-                    // drop the platter (keeping the glyph) whenever the drawer
-                    // is open.
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            showDrawer = true
-                        } label: {
-                            Image(systemName: "line.3.horizontal")
-                        }
-                        .accessibilityLabel(Text("Menu", comment: "Open navigation drawer"))
-                    }
-                    .sharedBackgroundVisibility(showDrawer ? .hidden : .automatic)
-                    ToolbarItem(placement: .principal) {
-                        InboxTitleLockup(
-                            hostLabel: hostLabel,
-                            isConnected: app.gateway.state == .connected
-                        )
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showOverflow = true
-                        } label: {
-                            Image(systemName: "ellipsis")
-                        }
-                        .accessibilityLabel(Text("More", comment: "Open overflow menu"))
-                    }
-                }
-                .navigationDestination(item: $selectedThread) { thread in
-                    ThreadView(threadId: thread.id, title: thread.title)
-                }
-                .navigationDestination(item: $newChatContext) { context in
-                    NewChatView(preselectedProjectId: context.preselectedProjectId)
-                }
-                .confirmationDialog(
-                    "Environment",
-                    isPresented: $showOverflow,
-                    titleVisibility: .visible
-                ) {
-                    Button("Disconnect", role: .destructive) {
-                        Task { await app.unpair() }
-                    }
-                    Button("Cancel", role: .cancel) {}
+            RemoteInboxBottomBar(
+                searchText: $searchText,
+                searchFocused: $searchFieldFocused,
+                onCompose: { openNewChat() }
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+
+            if let error = app.gatewayError {
+                VStack {
+                    Spacer()
+                    HomeGatewayErrorBanner(message: homeErrorMessage(error))
+                        .padding(.bottom, 72)
                 }
             }
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
+        .confirmationDialog(
+            "Environment",
+            isPresented: $showOverflow,
+            titleVisibility: .visible
+        ) {
+            Button("Disconnect", role: .destructive) {
+                Task { await app.unpair() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private var inboxRoot: some View {
+        inboxContent
+            .navigationTitle(Text("Projects", comment: "Remote inbox navigation title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { inboxToolbar }
+    }
+
+    @ToolbarContentBuilder
+    private var inboxToolbar: some ToolbarContent {
+        if !usesPersistentSidebar {
+            // The bar renders in a UIKit layer the drawer's clip shape
+            // can't touch, so the button's glass platter would ride
+            // proud of the card's rounded corner while slid aside —
+            // drop the platter (keeping the glyph) whenever the drawer
+            // is open.
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showDrawer = true
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                }
+                .accessibilityLabel(Text("Menu", comment: "Open navigation drawer"))
+            }
+            .sharedBackgroundVisibility(showDrawer ? .hidden : .automatic)
+        }
+        ToolbarItem(placement: .principal) {
+            InboxTitleLockup(
+                hostLabel: hostLabel,
+                isConnected: app.gateway.state == .connected
+            )
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showOverflow = true
+            } label: {
+                Image(systemName: "ellipsis")
+            }
+            .accessibilityLabel(Text("More", comment: "Open overflow menu"))
+        }
+    }
+
+    private var inboxProjects: [InboxProjectGroup] {
+        InboxGrouping.projects(from: app.snapshot, searchQuery: searchText)
+    }
+
+    private func openThread(_ thread: InboxThreadItem) {
+        newChatContext = nil
+        selectedThread = thread
+    }
+
+    private func openNewChat(projectId: String? = nil) {
+        selectedThread = nil
+        newChatContext = NewChatContext(preselectedProjectId: projectId)
+    }
+
+    private func focusInboxSearch() {
+        Task {
+            try? await Task.sleep(for: .seconds(0.35))
+            searchFieldFocused = true
         }
     }
 
@@ -134,6 +192,66 @@ struct HomeView: View {
             return label
         }
         return "Studio"
+    }
+}
+
+/// Keeps the active chat at one structural location when the panel is toggled
+/// or resized, preserving its composer and session lifecycle.
+private struct HomeChatDetail: View {
+    let selectedThread: InboxThreadItem?
+    let newChatContext: NewChatContext?
+    let onOpenThread: (InboxThreadItem) -> Void
+    let onNewChat: () -> Void
+
+    var body: some View {
+        if let thread = selectedThread {
+            ThreadView(threadId: thread.id, title: thread.title)
+        } else if let context = newChatContext {
+            NewChatView(
+                preselectedProjectId: context.preselectedProjectId,
+                onOpenedThread: onOpenThread
+            )
+            .id(context.id)
+        } else {
+            HomeEmptyChatPlaceholder(onNewChat: onNewChat)
+        }
+    }
+}
+
+/// Empty regular-width detail: pick a sidebar thread or start one.
+struct HomeEmptyChatPlaceholder: View {
+    let onNewChat: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(
+                "Select a chat",
+                systemImage: "bubble.left.and.bubble.right"
+            )
+        } description: {
+            Text(
+                "Choose a thread from the sidebar or start a new chat.",
+                comment: "Regular-width empty chat detail guidance"
+            )
+        } actions: {
+            Button(action: onNewChat) {
+                Label("New chat", systemImage: "square.and.pencil")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .readableChatColumn()
+        .navigationTitle(Text("Chat", comment: "Empty regular-width chat title"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                ChatNavigationTitle {
+                    Text("Chat", comment: "Empty regular-width chat title")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .accessibilityAddTraits(.isHeader)
+                }
+            }
+        }
     }
 }
 
@@ -148,9 +266,10 @@ struct NewChatContext: Identifiable, Hashable {
 struct InboxTitleLockup: View {
     let hostLabel: String
     let isConnected: Bool
+    var alignment: HorizontalAlignment = .center
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(alignment: alignment, spacing: 2) {
             Text("Projects", comment: "Remote inbox navigation title")
                 .font(.headline.weight(.semibold))
             HStack(spacing: 6) {
@@ -173,6 +292,10 @@ struct RemoteInboxScreen: View {
     let projects: [InboxProjectGroup]
     let isLoading: Bool
     @Binding var collapsedProjectIds: Set<String>
+    var selectedThreadId: String? = nil
+    /// Phone inbox paints `systemBackground` over the drawer. The iPad
+    /// floating panel stays clear so its glass background can show through.
+    var fillsOpaqueBackground: Bool = true
     let onToggleProject: (String) -> Void
     let onSelectThread: (InboxThreadItem) -> Void
     let onComposeInProject: (String) -> Void
@@ -201,6 +324,7 @@ struct RemoteInboxScreen: View {
                                     name: project.name,
                                     threads: project.threads,
                                     isExpanded: !collapsedProjectIds.contains(project.id),
+                                    selectedThreadId: selectedThreadId,
                                     onToggle: { onToggleProject(project.id) },
                                     onCompose: { onComposeInProject(project.id) },
                                     onSelectThread: onSelectThread
@@ -214,7 +338,12 @@ struct RemoteInboxScreen: View {
                 .refreshable { onRefresh() }
             }
         }
-        .background(Color(.systemBackground))
+        .background {
+            if fillsOpaqueBackground {
+                Color(.systemBackground)
+            }
+        }
+        .scrollContentBackground(.hidden)
     }
 }
 
@@ -224,6 +353,7 @@ struct RemoteProjectSection: View {
     let name: String
     let threads: [InboxThreadItem]
     let isExpanded: Bool
+    var selectedThreadId: String? = nil
     let onToggle: () -> Void
     let onCompose: () -> Void
     let onSelectThread: (InboxThreadItem) -> Void
@@ -242,6 +372,7 @@ struct RemoteProjectSection: View {
                     RemoteThreadRow(
                         title: thread.title,
                         showsAttentionDot: thread.showsAttentionDot,
+                        isSelected: selectedThreadId == thread.id,
                         action: { onSelectThread(thread) }
                     )
                 }
@@ -359,6 +490,7 @@ struct OpenFolderGlyph: Shape {
 struct RemoteThreadRow: View {
     let title: String
     let showsAttentionDot: Bool
+    var isSelected: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -384,10 +516,18 @@ struct RemoteThreadRow: View {
             .padding(.leading, 52)
             .padding(.trailing, 20)
             .padding(.vertical, 11)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(0.08))
+                        .padding(.horizontal, 10)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityHint(
             Text("Open thread", comment: "Accessibility hint for a remote thread row")
         )
