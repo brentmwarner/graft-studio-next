@@ -246,10 +246,9 @@ const traceMigrationBoundary = (
   name: string,
   migration: Effect.Effect<unknown, unknown, SqlClient.SqlClient>,
 ) => {
-  if (
-    process.env.GRAFT_DESKTOP_PACKAGED !== "1" ||
-    process.env.GRAFT_TRACE_SQLITE_STARTUP !== "1"
-  ) {
+  // One line per boundary stays useful in normal packaged diagnostics without
+  // enabling the much heavier per-statement SQLite trace.
+  if (process.env.GRAFT_DESKTOP_PACKAGED !== "1") {
     return migration;
   }
 

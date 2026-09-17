@@ -101,11 +101,13 @@ describe("packaged desktop startup verification", () => {
       {
         PATH: process.env.PATH,
         GRAFT_AUTH_TOKEN: "must-not-leak",
+        GRAFT_TRACE_SQLITE_STARTUP: "0",
         ELECTRON_RUN_AS_NODE: "1",
       },
     );
 
     expect(env.GRAFT_AUTH_TOKEN).toBeUndefined();
+    expect(env.GRAFT_TRACE_SQLITE_STARTUP).toBe("0");
     expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     for (const name of [
       "HOME",
