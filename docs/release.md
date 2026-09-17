@@ -67,9 +67,13 @@ GitHub release is coupled to this desktop workflow.
    app using isolated state.
 4. Download and test the exact artifacts against real legacy installs. Validate
    the old updater's download/install path, account continuity, history and
-   settings preservation, reconnect behavior, and rollback on every target.
-   Keep evidence tied to the exact artifact hash, source commit, and predecessor
-   version. A successful clean-profile startup alone is insufficient.
+   settings preservation, reconnect behavior, and rollback on every target that
+   had a released predecessor. The 0.1.143 feed had no Intel Mac artifact, so
+   the 0.9.0 Intel receipt uses the documented no-legacy-release status for the
+   impossible update and rollback checks while still requiring all other Intel
+   checks. Keep evidence tied to the exact artifact hash, source commit,
+   predecessor version, and predecessor artifact. A successful clean-profile
+   startup alone is insufficient.
 5. After completing those tests, dispatch **Graft Production Upgrade Evidence**
    in the release-host repository with the same source/version, signed build run
    ID, and the completed `upgrade-evidence.json`. The workflow downloads the
@@ -194,16 +198,23 @@ WorkOS environment.
 
 `upgrade-evidence.json` contains:
 
-- `schemaVersion: 1`, stable `version`, and full `sourceCommit`.
+- `schemaVersion: 2`, stable `version`, and full `sourceCommit`.
 - `previousVersions`, an object containing the observed version of each of
   `latest-mac.yml`, `latest.yml`, and `latest-linux.yml`.
 - `platforms`, exactly one receipt each for `mac-arm64`, `mac-x64`, `win-x64`, and
   `linux-x64`.
 - Each receipt has `platform`, the versioned update `artifact` filename, its
-  `sha256`, an HTTPS `evidenceUrl` linking the test record, and `checks`.
+  `sha256`, an HTTPS `evidenceUrl` linking the test record, the exact
+  `previousArtifact` (or `null` when no production artifact existed), and
+  `checks`.
 - Every receipt's `checks` contains `legacy-update`, `account-continuity`,
   `history-preserved`, `settings-preserved`, `reconnect`, and `rollback`, each
-  equal to `passed` only after the corresponding verification happened.
+  equal to `passed` only after the corresponding verification happened. The
+  only exception is the exact 0.1.143 to 0.9.0 Intel Mac cutover: because the
+  live 0.1.143 feed never published an Intel artifact, `legacy-update` and
+  `rollback` must be `not-applicable-no-legacy-release`; every other Intel Mac
+  check still has to pass. The validator rejects this status for any other
+  platform, predecessor, version, or check.
 
 The type and executable validation live in
 `scripts/lib/graft-release-publisher.ts`. Mac receipts reference their update ZIP;

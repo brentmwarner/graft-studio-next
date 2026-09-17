@@ -25,9 +25,44 @@ export const UPGRADE_CHECKS = [
   "rollback",
 ] as const;
 
+export const NO_LEGACY_RELEASE_CHECKS = ["legacy-update", "rollback"] as const;
+
 type ReleasePlatform = (typeof RELEASE_PLATFORMS)[number];
+const INITIAL_CUTOVER_PREVIOUS_ARTIFACTS: Record<ReleasePlatform, string | null> = {
+  "mac-arm64": "Graft-0.1.143-arm64-mac.zip",
+  "mac-x64": null,
+  "win-x64": "Graft-Setup-x64.exe",
+  "linux-x64": "Graft-x64.AppImage",
+};
+
+function previousVersionForPlatform(
+  previousVersions: UpgradeEvidence["previousVersions"],
+  platform: ReleasePlatform,
+): string {
+  return previousVersions[
+    platform.startsWith("mac-")
+      ? "latest-mac.yml"
+      : platform === "win-x64"
+        ? "latest.yml"
+        : "latest-linux.yml"
+  ];
+}
+
+function expectedPreviousArtifact(
+  previousVersions: UpgradeEvidence["previousVersions"],
+  platform: ReleasePlatform,
+): string {
+  const previousVersion = previousVersionForPlatform(previousVersions, platform);
+  return platform === "mac-arm64"
+    ? `Graft-${previousVersion}-arm64.zip`
+    : platform === "mac-x64"
+      ? `Graft-${previousVersion}-x64.zip`
+      : platform === "win-x64"
+        ? `Graft-${previousVersion}-x64.exe`
+        : `Graft-${previousVersion}-x86_64.AppImage`;
+}
 export interface UpgradeEvidence {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly version: string;
   readonly sourceCommit: string;
   readonly previousVersions: Record<(typeof STABLE_MANIFESTS)[number], string>;
@@ -36,7 +71,11 @@ export interface UpgradeEvidence {
     readonly artifact: string;
     readonly sha256: string;
     readonly evidenceUrl: string;
-    readonly checks: Record<(typeof UPGRADE_CHECKS)[number], "passed">;
+    readonly previousArtifact: string | null;
+    readonly checks: Record<
+      (typeof UPGRADE_CHECKS)[number],
+      "passed" | "not-applicable-no-legacy-release"
+    >;
   }>;
 }
 
@@ -115,7 +154,7 @@ export function validateUpgradeEvidence(
   artifacts: ReadonlyMap<string, ReleaseObject>,
 ): void {
   if (
-    evidence.schemaVersion !== 1 ||
+    evidence.schemaVersion !== 2 ||
     evidence.version !== version ||
     evidence.sourceCommit !== sourceCommit
   ) {
@@ -144,8 +183,31 @@ export function validateUpgradeEvidence(
     const evidenceUrl = new URL(receipt.evidenceUrl);
     if (evidenceUrl.protocol !== "https:" || evidenceUrl.username || evidenceUrl.password)
       throw new Error(`Invalid evidence URL for ${platform}.`);
+    const isInitialCutover =
+      version === "0.9.0" &&
+      Object.values(evidence.previousVersions).every((previous) => previous === "0.1.143");
+    const expectedPredecessor = isInitialCutover
+      ? INITIAL_CUTOVER_PREVIOUS_ARTIFACTS[platform]
+      : expectedPreviousArtifact(evidence.previousVersions, platform);
+    if (receipt.previousArtifact !== expectedPredecessor)
+      throw new Error(`Wrong predecessor artifact for ${platform}.`);
+    const hasNoLegacyRelease = receipt.previousArtifact === null;
+    if (hasNoLegacyRelease && !(isInitialCutover && platform === "mac-x64")) {
+      throw new Error(
+        `Only the unreleased Intel Mac 0.1.143 to 0.9.0 cutover may omit a legacy artifact.`,
+      );
+    }
+    if (
+      receipt.previousArtifact !== null &&
+      (receipt.previousArtifact !== basename(receipt.previousArtifact) || !receipt.previousArtifact)
+    ) {
+      throw new Error(`Invalid previous release artifact for ${platform}.`);
+    }
     for (const check of UPGRADE_CHECKS) {
-      if (receipt.checks[check] !== "passed")
+      const canBeNotApplicable =
+        hasNoLegacyRelease && (NO_LEGACY_RELEASE_CHECKS as ReadonlyArray<string>).includes(check);
+      const expected = canBeNotApplicable ? "not-applicable-no-legacy-release" : "passed";
+      if (receipt.checks[check] !== expected)
         throw new Error(`${platform} has no passing ${check} evidence.`);
     }
   }
