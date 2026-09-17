@@ -13,7 +13,8 @@ vi.mock("../legacyGraft", () => ({
 }));
 const originalBridge = window.desktopBridge;
 afterEach(() => {
-  window.desktopBridge = originalBridge;
+  if (originalBridge) window.desktopBridge = originalBridge;
+  else delete window.desktopBridge;
   vi.resetAllMocks();
 });
 
@@ -63,7 +64,7 @@ describe("legacy import first launch", () => {
   });
 
   it("does not apply desktop history import policy to browser clients", async () => {
-    window.desktopBridge = undefined;
+    delete window.desktopBridge;
     const screen = await render(
       <LegacyGraftMigrationGate>
         <p>Browser workspace</p>

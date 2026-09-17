@@ -118,29 +118,44 @@ describe("Graft account lifecycle", () => {
     expect(JSON.stringify(onState.mock.calls)).not.toContain(TOKEN);
   });
 
-  it.each(["credential", "verified cache"])("disconnects paired access when the %s cannot be read and preserves retry", async (source) => {
-    const { service, store, fetchImpl, onSessionInvalidated } = harness(TOKEN);
-    const read = source === "credential" ? store.read : store.readVerifiedAccount;
-    read.mockImplementationOnce(() => { throw new AccountStorageUnavailable(); });
-    const disconnect = deferred<void>();
-    onSessionInvalidated.mockReturnValueOnce(disconnect.promise);
-    const restoring = service.getState();
-    expect(onSessionInvalidated).toHaveBeenCalledOnce();
-    expect((await service.getState()).status).toBe("checking");
-    expect(fetchImpl).not.toHaveBeenCalled();
-    disconnect.resolve();
-    expect(await restoring).toEqual({ status: "unavailable", account: null, issue: "secure-storage-unavailable" });
-    expect(store.clear).not.toHaveBeenCalled();
-    expect(store.write).not.toHaveBeenCalled();
-    expect((await service.refresh()).status).toBe("signed-in");
-    expect(store.read()).toBe(TOKEN);
-  });
+  it.each(["credential", "verified cache"])(
+    "disconnects paired access when the %s cannot be read and preserves retry",
+    async (source) => {
+      const { service, store, fetchImpl, onSessionInvalidated } = harness(TOKEN);
+      const read = source === "credential" ? store.read : store.readVerifiedAccount;
+      read.mockImplementationOnce(() => {
+        throw new AccountStorageUnavailable();
+      });
+      const disconnect = deferred<void>();
+      onSessionInvalidated.mockReturnValueOnce(disconnect.promise);
+      const restoring = service.getState();
+      expect(onSessionInvalidated).toHaveBeenCalledOnce();
+      expect((await service.getState()).status).toBe("checking");
+      expect(fetchImpl).not.toHaveBeenCalled();
+      disconnect.resolve();
+      expect(await restoring).toEqual({
+        status: "unavailable",
+        account: null,
+        issue: "secure-storage-unavailable",
+      });
+      expect(store.clear).not.toHaveBeenCalled();
+      expect(store.write).not.toHaveBeenCalled();
+      expect((await service.refresh()).status).toBe("signed-in");
+      expect(store.read()).toBe(TOKEN);
+    },
+  );
 
   it("disconnects paired access after verified-token persistence fails and preserves the saved token for retry", async () => {
     const { service, store, onSessionInvalidated } = harness(TOKEN);
     await service.getState();
-    store.write.mockImplementationOnce(() => { throw new Error("disk full"); });
-    expect(await service.refresh()).toEqual({ status: "unavailable", account: null, issue: "storage-failed" });
+    store.write.mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    expect(await service.refresh()).toEqual({
+      status: "unavailable",
+      account: null,
+      issue: "storage-failed",
+    });
     expect(onSessionInvalidated).toHaveBeenCalledOnce();
     expect(store.clear).not.toHaveBeenCalled();
     expect(store.read()).toBe(TOKEN);
@@ -149,7 +164,9 @@ describe("Graft account lifecycle", () => {
 
   it("retries failed paired cleanup before restored storage can reopen the account", async () => {
     const { service, store, fetchImpl, onSessionInvalidated } = harness(TOKEN);
-    store.read.mockImplementationOnce(() => { throw new AccountStorageUnavailable(); });
+    store.read.mockImplementationOnce(() => {
+      throw new AccountStorageUnavailable();
+    });
     onSessionInvalidated.mockRejectedValueOnce(new Error("backend unavailable"));
     expect((await service.getState()).issue).toBe("disconnect-failed");
     const disconnect = deferred<void>();
@@ -164,7 +181,9 @@ describe("Graft account lifecycle", () => {
 
   it("does not overwrite a new sign-in when unavailable-account cleanup finishes late", async () => {
     const { service, store, onSessionInvalidated } = harness(TOKEN);
-    store.read.mockImplementationOnce(() => { throw new AccountStorageUnavailable(); });
+    store.read.mockImplementationOnce(() => {
+      throw new AccountStorageUnavailable();
+    });
     const disconnect = deferred<void>();
     onSessionInvalidated.mockReturnValueOnce(disconnect.promise);
     const restoring = service.getState();
@@ -175,7 +194,12 @@ describe("Graft account lifecycle", () => {
 
   it("disconnects a previously verified account after a malformed authority response and retries without offline grace", async () => {
     vi.useFakeTimers();
-    const token = "header." + Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url") + ".signature";
+    const token =
+      "header." +
+      Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString(
+        "base64url",
+      ) +
+      ".signature";
     const { service, store, fetchImpl, onSessionInvalidated } = harness(token);
     await service.getState();
     fetchImpl.mockResolvedValueOnce(json({ accountId: "incomplete" }));
