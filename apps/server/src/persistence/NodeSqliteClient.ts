@@ -184,8 +184,8 @@ const makeWithDatabase = (
         });
       };
 
-      const runValues = (sql: string, params: ReadonlyArray<unknown>) =>
-        Effect.acquireUseRelease(
+      const runValues = (sql: string, params: ReadonlyArray<unknown>) => {
+        const effect = Effect.acquireUseRelease(
           Cache.get(prepareCache, sql),
           (statement) =>
             Effect.try({
@@ -209,6 +209,14 @@ const makeWithDatabase = (
               }
             }),
         );
+        if (!traceSqliteStatements) return effect;
+        return Effect.sync(() => traceSqliteStatement("values execution started", sql)).pipe(
+          Effect.andThen(effect),
+          Effect.tap(() =>
+            Effect.sync(() => traceSqliteStatement("values execution completed", sql)),
+          ),
+        );
+      };
 
       return identity<Connection>({
         execute(sql, params, rowTransform) {

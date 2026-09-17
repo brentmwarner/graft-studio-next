@@ -119,6 +119,7 @@ import Migration0100 from "./Migrations/100_MessageTextChunks.ts";
 import Migration0101 from "./Migrations/101_RemoveTranscriptMarkers.ts";
 import Migration0102 from "./Migrations/102_ProjectionThreadMessagesTurnBoundary.ts";
 import ClaudeTokenAccountingMigration from "./Migrations/103_ClaudeTokenAccounting.ts";
+import { tracePackagedStartup } from "../packagedStartupTrace.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -240,12 +241,33 @@ export const migrationEntries = [
   [103, "ClaudeTokenAccounting", ClaudeTokenAccountingMigration],
 ] as const;
 
+const traceMigrationBoundary = (
+  id: number,
+  name: string,
+  migration: Effect.Effect<unknown, unknown, SqlClient.SqlClient>,
+) => {
+  if (
+    process.env.GRAFT_DESKTOP_PACKAGED !== "1" ||
+    process.env.GRAFT_TRACE_SQLITE_STARTUP !== "1"
+  ) {
+    return migration;
+  }
+
+  return Effect.sync(() => tracePackagedStartup(`migration ${id}_${name} started`)).pipe(
+    Effect.andThen(migration),
+    Effect.tap(() => Effect.sync(() => tracePackagedStartup(`migration ${id}_${name} completed`))),
+  );
+};
+
 export const makeMigrationLoader = (throughId?: number) =>
   Migrator.fromRecord(
     Object.fromEntries(
       migrationEntries
         .filter(([id]) => throughId === undefined || id <= throughId)
-        .map(([id, name, migration]) => [`${id}_${name}`, migration]),
+        .map(([id, name, migration]) => [
+          `${id}_${name}`,
+          traceMigrationBoundary(id, name, migration),
+        ]),
     ),
   );
 
