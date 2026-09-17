@@ -17,7 +17,30 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
         GeometryReader { geometry in
             let width = geometry.size.width
 
-            HStack(spacing: 0) {
+            ZStack(alignment: .leading) {
+                DS.Color.bg.ignoresSafeArea()
+
+                HStack(spacing: 0) {
+                    // Reserve layout space without painting a separate sidebar column.
+                    Color.clear
+                        .frame(width: presentation.chatLeadingInset(in: width))
+
+                    NavigationStack {
+                        detail
+                            .toolbar {
+                                if !presentation.isVisible {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        Button("Show Projects", systemImage: "sidebar.left") {
+                                            presentation.isVisible = true
+                                        }
+                                        .accessibilityIdentifier("show-projects-sidebar")
+                                    }
+                                }
+                            }
+                    }
+                    .frame(width: max(width - presentation.chatLeadingInset(in: width), 0))
+                }
+
                 if presentation.isVisible {
                     FloatingProjectsPanel(
                         hostLabel: hostLabel,
@@ -32,25 +55,6 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
                     .padding(AdaptiveChrome.sidebarMargin)
                     .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
                 }
-
-                NavigationStack {
-                    detail
-                        .toolbar {
-                            if !presentation.isVisible {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    Button("Show Projects", systemImage: "sidebar.left") {
-                                        presentation.isVisible = true
-                                    }
-                                    .accessibilityIdentifier("show-projects-sidebar")
-                                }
-                            }
-                        }
-                }
-                .frame(width: max(width - presentation.chatLeadingInset(in: width), 0))
-            }
-            .background {
-                Color(.systemBackground)
-                    .ignoresSafeArea()
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: presentation.isVisible)
         }
@@ -90,7 +94,6 @@ private struct FloatingProjectsPanel<Content: View>: View {
                     cornerRadius: AdaptiveChrome.sidebarCornerRadius,
                     style: .continuous
                 ))
-                .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 8)
         }
         .accessibilityIdentifier("floating-projects-panel")
     }

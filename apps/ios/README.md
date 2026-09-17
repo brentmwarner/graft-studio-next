@@ -57,7 +57,9 @@ Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 On iPad (regular horizontal size class), Projects is a **floating Liquid Glass
 panel**, inset 16pt from the safe-area edges with 28pt continuous corners. It
 uses SwiftUI's `.glassEffect(.regular, in:)` on a background shape above the
-full-bleed chat canvas. This is a floating panel, not another edge-to-edge
+full-bleed chat canvas. Clear layout space reserves the panel's width without
+painting a separate sidebar gutter; the glass supplies its own depth without
+an additional shadow. This is a floating panel, not another edge-to-edge
 `NavigationSplitView` material tweak; its geometry stays floating on iPadOS 26
 and 27. The system glass material retains its accessibility adaptations.
 
