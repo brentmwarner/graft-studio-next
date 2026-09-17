@@ -28,7 +28,7 @@ function harness() {
   };
   const skill = {
     name: "swiftui-specialist",
-    path: "/workspace/skills/swiftui-specialist/SKILL.md",
+    path: "/home/tester/.codex/skills/swiftui-specialist/SKILL.md",
     enabled: true,
   };
   const listCommands = vi.fn(() => Effect.succeed({ commands: [] }));
@@ -72,7 +72,10 @@ function harness() {
         ),
     } as never),
     Layer.succeed(ProviderDiscoveryService, { listCommands, listSkills } as never),
-    Layer.succeed(ServerConfig, {} as never),
+    Layer.succeed(ServerConfig, {
+      homeDir: "/home/tester",
+      baseDir: "/home/tester/.graft",
+    } as never),
     Layer.succeed(WorkspaceEntries, {} as never),
     Layer.succeed(WorkspaceFileSystem, { readFile } as never),
     Layer.succeed(ServerEnvironment, {} as never),
@@ -113,8 +116,8 @@ describe("mobile composer gateway", () => {
       name: test.skill.name,
     });
     expect(test.readFile).toHaveBeenCalledWith({
-      cwd: "/workspace/skills/swiftui-specialist",
-      relativePath: "SKILL.md",
+      cwd: "/home/tester/.codex/skills",
+      relativePath: "swiftui-specialist/SKILL.md",
       maxBytes: 80_000,
     });
     expect(result).toMatchObject({
@@ -133,6 +136,14 @@ describe("mobile composer gateway", () => {
       test.run({ type: "composer.skill.read", threadId: "thread", name: "/private/secret" }),
     ).rejects.toThrow("no longer available");
     test.skill.enabled = false;
+    await expect(
+      test.run({ type: "composer.skill.read", threadId: "thread", name: test.skill.name }),
+    ).rejects.toThrow("no longer available");
+    expect(test.readFile).not.toHaveBeenCalled();
+  });
+  it("does not preview a provider skill path outside catalog roots", async () => {
+    const test = harness();
+    test.skill.path = "/home/tester/.ssh/id_rsa";
     await expect(
       test.run({ type: "composer.skill.read", threadId: "thread", name: test.skill.name }),
     ).rejects.toThrow("no longer available");

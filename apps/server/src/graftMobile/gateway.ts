@@ -43,10 +43,13 @@ import {
   type OrchestrationDispatchContext,
 } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
+import { discoverClaudePluginSkillRoots } from "../provider/claudePluginSkills";
 import { ProviderDiscoveryService } from "../provider/Services/ProviderDiscoveryService";
+import { skillsCatalogRoots } from "../provider/skillsCatalog";
 import { listProviderUsage } from "../providerUsage";
 import { ServerSettingsService } from "../serverSettings";
 import { WorkspaceEntries } from "../workspace/Services/WorkspaceEntries";
+import { WorkspacePathOutsideRootError } from "../workspace/Services/WorkspacePaths";
 import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
 import {
   MOBILE_PROVIDER_ORDER,
@@ -80,6 +83,23 @@ function mobileWorkspacePath(reference: string, cwd: string): string | null {
     ? workspaceRelativePathOf(reference, cwd)
     : reference.replace(/^(?:\.\/)+/, "");
   return relative && isWorkspaceRelativePathSafe(relative) ? relative : null;
+}
+
+function skillPreviewReadTarget(
+  skillPath: string,
+  roots: ReadonlyArray<{ readonly path: string }>,
+): { cwd: string; relativePath: string } | null {
+  const resolvedSkill = nodePath.resolve(skillPath);
+  let match: { cwd: string; relativePath: string } | null = null;
+  for (const root of roots) {
+    const cwd = nodePath.resolve(root.path);
+    const relativePath = workspaceRelativePathOf(resolvedSkill, cwd);
+    if (!relativePath) continue;
+    if (!match || cwd.length > match.cwd.length) {
+      match = { cwd, relativePath };
+    }
+  }
+  return match;
 }
 
 export class GraftMobileCommandError extends Data.TaggedError("GraftMobileCommandError")<{
@@ -650,6 +670,7 @@ export const executeMobileCommand = Effect.fn(function* (
         commands: (yield* loadComposerCommands(command.threadId)).commands,
       };
     case "composer.skill.read": {
+      const { thread, cwd } = yield* loadThreadWorkspace(command.threadId);
       const catalog = yield* loadComposerCommands(command.threadId);
       // The phone supplies a catalog name, never a filesystem path. Recheck the
       // current provider's enabled skills before reading its discovered file.
@@ -659,12 +680,38 @@ export const executeMobileCommand = Effect.fn(function* (
         !catalog.commands.some((entry) => entry.kind === "skill" && entry.name === skill.name)
       )
         return yield* fail("not_found", "This skill is no longer available. Reopen the / menu.");
+      const config = yield* ServerConfig;
+      const pluginRoots = yield* Effect.tryPromise(() =>
+        discoverClaudePluginSkillRoots({ homeDir: config.homeDir, cwd }),
+      );
+      const preview = skillPreviewReadTarget(skill.path, [
+        ...skillsCatalogRoots({
+          cwd,
+          homeDir: config.homeDir,
+          graftBaseDir: config.baseDir,
+          provider: thread.modelSelection.provider,
+        }),
+        ...pluginRoots,
+      ]);
+      if (!preview)
+        return yield* fail(
+          "validation_failed",
+          "This skill is no longer available. Reopen the / menu.",
+        );
       const files = yield* WorkspaceFileSystem;
-      const file = yield* files.readFile({
-        cwd: nodePath.dirname(skill.path),
-        relativePath: nodePath.basename(skill.path),
-        maxBytes: 80_000,
-      });
+      const file = yield* files
+        .readFile({
+          cwd: preview.cwd,
+          relativePath: preview.relativePath,
+          maxBytes: 80_000,
+        })
+        .pipe(
+          Effect.catchIf(
+            (error) => error instanceof WorkspacePathOutsideRootError,
+            () =>
+              fail("validation_failed", "This skill is no longer available. Reopen the / menu."),
+          ),
+        );
       return {
         type: "composer.skill.read.result",
         skill: {

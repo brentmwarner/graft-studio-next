@@ -270,6 +270,7 @@ export function buildTranscriptItems(
   const activityItems = new Map<string, TranscriptActivityItem>();
   const assistantItems = new Map<string, Extract<TranscriptItem, { kind: "assistant" }>>();
   const completedMessages = new Set<string>();
+  const completedRunIDs = new Set<string>();
   const assistantRunIds = new Map<string, string | undefined>();
   const optimisticIds = new Set(
     liveEvents.filter((event) => event.cursor === 0).map((event) => event.id),
@@ -313,6 +314,18 @@ export function buildTranscriptItems(
   }
 
   for (const event of mergeTimelineEvents(settledEvents, liveEvents, snapshotCursor)) {
+    if (
+      event.runId &&
+      completedRunIDs.has(event.runId) &&
+      (event.kind === "assistant.delta" ||
+        event.kind === "thinking.delta" ||
+        event.kind === "tool.start" ||
+        event.kind === "tool.update" ||
+        event.kind === "tool.end" ||
+        event.kind === "status")
+    ) {
+      continue;
+    }
     switch (event.kind) {
       case "user.message": {
         const text = event.text?.trim() ?? "";
@@ -394,12 +407,16 @@ export function buildTranscriptItems(
       }
       case "run.status":
         if (isTerminalRunStatus(event.runStatus)) {
+          if (event.runId) completedRunIDs.add(event.runId);
           for (const item of assistantItems.values()) {
             const runId = assistantRunIds.get(item.id);
             if (event.runId && runId && event.runId !== runId) continue;
             item.streaming = false;
             completedMessages.add(item.id);
             if (currentAssistant === item) currentAssistant = undefined;
+          }
+          for (const item of toolItems.values()) {
+            item.running = false;
           }
         }
         break;

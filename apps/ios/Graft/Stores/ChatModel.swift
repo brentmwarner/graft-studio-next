@@ -252,7 +252,7 @@ final class ChatModel: Identifiable {
             transcriptCursor = event.cursor
         }
         if let runId = event.runId, completedRunIDs.contains(runId),
-           ["assistant.delta", "thinking.delta", "tool.start", "tool.update", "status"].contains(event.kind) {
+           ["assistant.delta", "thinking.delta", "tool.start", "tool.update", "tool.end", "status"].contains(event.kind) {
             return
         }
 

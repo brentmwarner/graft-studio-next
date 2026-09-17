@@ -192,6 +192,17 @@ final class ChatModelTests: XCTestCase {
         XCTAssertNil(chat.liveStatusText)
     }
 
+    func testFoldIgnoresDelayedToolEndAfterRunCompletes() {
+        let chat = makeChat()
+        chat.fold(event(id: "start", cursor: 1, kind: "tool.start", runId: "r1", toolName: "read"))
+        chat.fold(event(id: "done", cursor: 2, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertEqual(chat.items.first?.toolStatus, .done)
+        chat.fold(event(id: "late", cursor: 3, kind: "tool.end", runId: "r1", toolName: "read"))
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertEqual(chat.items.first?.toolStatus, .done)
+    }
+
     // MARK: Itemization
 
     func testItemizeBuildsUserAssistantAndToolRows() {

@@ -51,6 +51,22 @@ describe("mobile view models", () => {
     expect(buildTranscriptItems(events, [])).toEqual(items);
   });
 
+  it("ignores a delayed tool.end after the run has settled", () => {
+    const items = buildTranscriptItems(
+      [],
+      [
+        { ...event(1, "tool.start"), toolId: "call-1", toolName: "Read" },
+        { ...event(2, "run.status"), runStatus: "completed" },
+        { ...event(3, "tool.end"), toolId: "call-2", toolName: "Bash" },
+      ],
+    );
+    const tools = items.flatMap((item) =>
+      item.kind === "toolGroup" ? item.tools : item.kind === "tool" ? [item] : [],
+    );
+    expect(tools).toHaveLength(1);
+    expect(tools[0]).toMatchObject({ kind: "tool", name: "Read", running: false });
+  });
+
   it("groups and alphabetizes threads under the same projects as iOS", () => {
     const snapshot = {
       projects: [{ id: "project-1", name: "Graft", kind: "repo" }],
