@@ -21,6 +21,12 @@ export interface ProcessLaunchInput {
   readonly env?: NodeJS.ProcessEnv;
   /** Fail before spawn when the native executable cannot be resolved. */
   readonly requireExecutable?: boolean;
+  /**
+   * On macOS, start `/bin/sh` first and replace it in-place with the resolved
+   * executable. This avoids a direct packaged-Electron posix_spawn while
+   * preserving the child PID and inherited descriptors.
+   */
+  readonly macosExecutableHandoff?: boolean;
 }
 
 export interface ProcessLaunchPlan extends WindowsSafeProcessCommand {
@@ -123,6 +129,16 @@ export function prepareProcess(
   const resolvedCommand = resolved ?? command;
 
   if (platform !== "win32") {
+    if (platform === "darwin" && input.macosExecutableHandoff) {
+      return {
+        command: "/bin/sh",
+        args: ["-c", 'exec "$@"', "graft-process-handoff", resolvedCommand, ...args],
+        shell: false,
+        requestedCommand: command,
+        resolvedCommand,
+        executionBackend: "native",
+      };
+    }
     return {
       command: resolvedCommand,
       args: [...args],

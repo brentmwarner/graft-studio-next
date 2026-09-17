@@ -49,6 +49,33 @@ describe("prepareProcess", () => {
     },
   );
 
+  it("plans the macOS executable handoff without interpolating arguments", () => {
+    expect(
+      prepareProcess(
+        "/Applications/Graft Preview.app/Contents/MacOS/Graft",
+        ["--max-old-space-size=2048", "/bundle with spaces/server.mjs"],
+        {
+          platform: "darwin",
+          macosExecutableHandoff: true,
+        },
+      ),
+    ).toMatchObject({
+      command: "/bin/sh",
+      args: [
+        "-c",
+        'exec "$@"',
+        "graft-process-handoff",
+        "/Applications/Graft Preview.app/Contents/MacOS/Graft",
+        "--max-old-space-size=2048",
+        "/bundle with spaces/server.mjs",
+      ],
+      shell: false,
+      requestedCommand: "/Applications/Graft Preview.app/Contents/MacOS/Graft",
+      resolvedCommand: "/Applications/Graft Preview.app/Contents/MacOS/Graft",
+      executionBackend: "native",
+    });
+  });
+
   it.skipIf(process.platform === "win32")(
     "uses the native POSIX search path when PATH is absent",
     () => {

@@ -18,7 +18,10 @@ import {
 
 import { prepareProcess, type ProcessLaunchInput, type ProcessLaunchPlan } from "./platformProcess";
 
-type ProcessPlanningOptions = Pick<ProcessLaunchInput, "platform" | "requireExecutable">;
+type ProcessPlanningOptions = Pick<
+  ProcessLaunchInput,
+  "macosExecutableHandoff" | "platform" | "requireExecutable"
+>;
 
 type ProcessGroupOptions = {
   /** Own a POSIX process group while keeping Windows launches attached for tree control. */
@@ -50,7 +53,10 @@ export type RuntimeExecFileOptions = Omit<
 > &
   ProcessPlanningOptions;
 
-type PipeStdio = "pipe" | readonly ["pipe", "pipe", "pipe"];
+type PipeStdio =
+  | "pipe"
+  | readonly ["pipe", "pipe", "pipe"]
+  | readonly ["pipe", "pipe", "pipe", "pipe"];
 type PlanningOptions =
   | RuntimeSpawnOptions
   | RuntimeSpawnSyncStringOptions
@@ -69,13 +75,17 @@ function planFromOptions(
     ...(options.requireExecutable !== undefined
       ? { requireExecutable: options.requireExecutable }
       : {}),
+    ...(options.macosExecutableHandoff !== undefined
+      ? { macosExecutableHandoff: options.macosExecutableHandoff }
+      : {}),
   });
 }
 
 function runtimeOptions<T extends ProcessPlanningOptions & ProcessGroupOptions>(
   options: T,
-): Omit<T, "platform" | "requireExecutable" | "ownProcessGroup"> {
+): Omit<T, "macosExecutableHandoff" | "platform" | "requireExecutable" | "ownProcessGroup"> {
   const {
+    macosExecutableHandoff: _macosExecutableHandoff,
     platform: _platform,
     requireExecutable: _requireExecutable,
     ownProcessGroup: _ownProcessGroup,
