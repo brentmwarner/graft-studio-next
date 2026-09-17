@@ -118,13 +118,40 @@ restoring the feed is not an automatic downgrade.
 
 ## Signing and publisher access
 
-The workflow can be installed in the legacy `brentmwarner/graft-studio` repository
-to reuse its existing release secrets. It always checks out an exact SHA from
-the current `graft-studio-next` repository; when hosted in legacy, explicitly
-provide `source_commit`. The local setup action and release scripts come from
-that checked-out SHA. Keep **one authoritative production publisher** active;
-GitHub concurrency groups do not coordinate different repositories. Disable the
-legacy `production` branch's old delete-first Blob uploader before cutover.
+For the initial cutover, install this workflow in the legacy
+`brentmwarner/graft-studio` repository as
+`.github/workflows/graft-next-release.yml`, through a separate PR. Keeping the
+release job there reuses its existing secrets; `graft-studio-next` remains the
+source of all application code. Every checkout explicitly names that repository
+and the selected full commit SHA. The setup action, lockfile, package version,
+and build/publish scripts all come from that checked-out commit. Credentials
+come from the repository hosting the workflow, not the checked-out source.
+
+The sequence for the first update is:
+
+1. Merge the app release PR in `graft-studio-next` and the workflow-only PR in
+   `graft-studio`. Copy the canonical workflow from the reviewed app commit.
+2. In `graft-studio`, run `graft-next-release.yml` with operation `build`, the
+   reviewed `graft-studio-next` commit as `source_commit`, and version `0.9.0`.
+3. Complete signed native builds and upgrade validation. These runs do not
+   alter the public updater feed.
+4. At cutover, disable the old `graft-studio/release.yml` workflow in GitHub
+   Actions. Changing that file only on `main` would leave the old copy on the
+   `production` branch able to publish. Disabling the workflow retires that
+   automatic publisher across branches. Let any existing legacy release finish,
+   or cancel it deliberately, before promoting the replacement.
+5. Promote the verified build through `graft-next-release.yml`, with the same
+   source/version and the successful build/evidence run IDs. Promotion verifies
+   the build came from the same workflow ID and refuses to run while the old
+   publisher is active or has an unfinished release run.
+
+For later releases, keep dispatching that workflow with the new app's reviewed
+commit/version. No application code needs to be copied into `graft-studio`.
+If release workflow logic changes in `graft-studio-next`, update its host copy
+through a workflow-only PR before using it. Release hosting can move into
+`graft-studio-next` after provisioning its secrets; first retire the old host's
+publisher so there is **one authoritative production publisher**. GitHub
+concurrency groups do not coordinate different repositories.
 
 macOS requires the existing Developer ID certificate and Apple account values:
 

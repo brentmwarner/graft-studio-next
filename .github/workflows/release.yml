@@ -1,7 +1,7 @@
 name: Graft Production Release
 
-# This workflow may also be installed in brentmwarner/graft-studio to reuse its
-# existing Apple and Blob secrets. It always builds an exact graft-studio-next SHA.
+# Install in brentmwarner/graft-studio as graft-next-release.yml to reuse its
+# Apple and Blob secrets. It always builds an exact graft-studio-next SHA.
 on:
   workflow_dispatch:
     inputs:
@@ -160,13 +160,28 @@ jobs:
           EVIDENCE_RUN_ID: ${{ inputs.evidence_run_id }}
         with:
           script: |
+            const { data: promotion } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: context.runId });
             for (const [kind, id] of Object.entries({ build: process.env.BUILD_RUN_ID, evidence: process.env.EVIDENCE_RUN_ID })) {
               if (!/^\d+$/.test(id || '')) throw new Error(`A successful ${kind} run ID is required.`);
               const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(id) });
               if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error(`${kind} run has not succeeded.`);
-              if (kind === 'build' && (run.path !== '.github/workflows/release.yml' || run.event !== 'workflow_dispatch')) {
+              if (kind === 'build' && (run.workflow_id !== promotion.workflow_id || run.event !== 'workflow_dispatch')) {
                 throw new Error('Build artifacts must come from the manual Graft production build workflow.');
               }
+            }
+      - name: Require the legacy publisher to be retired before cutover
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: legacy } = await github.rest.actions.getWorkflow({ owner: 'brentmwarner', repo: 'graft-studio', workflow_id: 'release.yml' });
+            if (legacy.state === 'active') {
+              throw new Error('Disable graft-studio/release.yml before promotion. The old production-branch publisher must not overwrite the new app feed.');
+            }
+            const pending = await Promise.all(['queued', 'in_progress', 'requested', 'waiting', 'pending'].map(status =>
+              github.rest.actions.listWorkflowRuns({ owner: 'brentmwarner', repo: 'graft-studio', workflow_id: 'release.yml', status, per_page: 1 })
+            ));
+            if (pending.some(({ data }) => data.total_count > 0)) {
+              throw new Error('An unfinished legacy release can still publish. Wait for or cancel it before promotion.');
             }
       - uses: actions/download-artifact@v8
         with:
