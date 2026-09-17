@@ -74,6 +74,23 @@ final class AdaptiveChromeTests: XCTestCase {
         )
     }
 
+    func testSplitSidebarUsesLiquidGlassInsteadOfOpaqueFill() {
+        XCTAssertEqual(
+            AdaptiveChrome.sidebarChrome(usesPersistentSidebar: true),
+            .liquidGlass
+        )
+        XCTAssertFalse(
+            AdaptiveChrome.paintsOpaqueInboxBackground(usesPersistentSidebar: true)
+        )
+        XCTAssertEqual(
+            AdaptiveChrome.sidebarChrome(usesPersistentSidebar: false),
+            .opaque
+        )
+        XCTAssertTrue(
+            AdaptiveChrome.paintsOpaqueInboxBackground(usesPersistentSidebar: false)
+        )
+    }
+
     func testSidebarWidthsStayUsableWhenPinned() {
         XCTAssertLessThan(AdaptiveChrome.sidebarMinWidth, AdaptiveChrome.sidebarIdealWidth)
         XCTAssertLessThan(AdaptiveChrome.sidebarIdealWidth, AdaptiveChrome.sidebarMaxWidth)

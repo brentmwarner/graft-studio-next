@@ -68,6 +68,7 @@ struct HomeView: View {
     private var splitHome: some View {
         NavigationSplitView(columnVisibility: $splitVisibility) {
             inboxRoot
+                .adaptiveSplitSidebarChrome(.liquidGlass)
                 .navigationSplitViewColumnWidth(
                     min: AdaptiveChrome.sidebarMinWidth,
                     ideal: AdaptiveChrome.sidebarIdealWidth,
@@ -77,6 +78,8 @@ struct HomeView: View {
             NavigationStack {
                 splitDetail
             }
+            // Lets the system glass sidebar sample / extend the chat column.
+            .backgroundExtensionEffect()
         }
         // One concrete style — `.balanced` / `.prominentDetail` are distinct
         // types, so a ternary here fails to compile. Portrait vs landscape is
@@ -116,6 +119,9 @@ struct HomeView: View {
                 isLoading: app.snapshot == nil && app.isPaired,
                 collapsedProjectIds: $collapsedProjectIds,
                 selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
+                fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
+                    usesPersistentSidebar: usesPersistentSidebar
+                ),
                 onToggleProject: { id in
                     if collapsedProjectIds.contains(id) {
                         collapsedProjectIds.remove(id)
@@ -301,6 +307,9 @@ struct RemoteInboxScreen: View {
     let isLoading: Bool
     @Binding var collapsedProjectIds: Set<String>
     var selectedThreadId: String? = nil
+    /// Phone inbox paints `systemBackground` over the drawer. The iPad
+    /// split column must stay clear so Liquid Glass can show through.
+    var fillsOpaqueBackground: Bool = true
     let onToggleProject: (String) -> Void
     let onSelectThread: (InboxThreadItem) -> Void
     let onComposeInProject: (String) -> Void
@@ -343,7 +352,12 @@ struct RemoteInboxScreen: View {
                 .refreshable { onRefresh() }
             }
         }
-        .background(Color(.systemBackground))
+        .background {
+            if fillsOpaqueBackground {
+                Color(.systemBackground)
+            }
+        }
+        .scrollContentBackground(.hidden)
     }
 }
 

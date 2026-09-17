@@ -61,6 +61,21 @@ enum AdaptiveChrome {
         guard prefersPinnedSplit(containerWidth: width) else { return width }
         return min(width, readableColumnMaxWidth)
     }
+
+    /// Split sidebar lets `NavigationSplitView` paint Liquid Glass. The
+    /// compact inbox keeps an opaque fill so it still covers the phone drawer.
+    enum SidebarChrome: Equatable {
+        case opaque
+        case liquidGlass
+    }
+
+    static func sidebarChrome(usesPersistentSidebar: Bool) -> SidebarChrome {
+        usesPersistentSidebar ? .liquidGlass : .opaque
+    }
+
+    static func paintsOpaqueInboxBackground(usesPersistentSidebar: Bool) -> Bool {
+        sidebarChrome(usesPersistentSidebar: usesPersistentSidebar) == .opaque
+    }
 }
 
 extension View {
@@ -69,6 +84,28 @@ extension View {
     func readableChatColumn() -> some View {
         containerRelativeFrame(.horizontal, alignment: .center) { length, _ in
             AdaptiveChrome.readableColumnWidth(in: length)
+        }
+    }
+
+    /// Clears custom fills so iOS 26 can apply the system Liquid Glass
+    /// sidebar. Opaque phone inbox is left alone.
+    func adaptiveSplitSidebarChrome(_ chrome: AdaptiveChrome.SidebarChrome) -> some View {
+        modifier(AdaptiveSplitSidebarChrome(chrome: chrome))
+    }
+}
+
+private struct AdaptiveSplitSidebarChrome: ViewModifier {
+    let chrome: AdaptiveChrome.SidebarChrome
+
+    func body(content: Content) -> some View {
+        switch chrome {
+        case .opaque:
+            content
+        case .liquidGlass:
+            content
+                .scrollContentBackground(.hidden)
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .containerBackground(.clear, for: .navigation)
         }
     }
 }
