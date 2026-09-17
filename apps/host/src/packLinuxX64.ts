@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { GRAFT_HOST_LINUX_X64_ARCHIVE } from "@graft/desktop-contract";
@@ -19,10 +19,20 @@ export interface AssembledGraftHostLinuxArchive {
 export function assembleGraftHostLinuxArchive(
   input: AssembleGraftHostLinuxArchiveInput,
 ): AssembledGraftHostLinuxArchive {
-  mkdirSync(dirname(input.archivePath), { recursive: true });
-  const packed = spawnSync("tar", ["-czf", input.archivePath, "-C", input.stagingDir, "bin"], {
-    encoding: "utf8",
-  });
+  const archiveDir = dirname(input.archivePath);
+  mkdirSync(archiveDir, { recursive: true });
+  // GNU tar treats the colon in an absolute Windows path such as D:\\... as a
+  // remote archive separator. Run from the archive directory and pass only
+  // relative paths so this Linux payload can be assembled on every build OS.
+  const relativeStagingDir = relative(archiveDir, input.stagingDir) || ".";
+  const packed = spawnSync(
+    "tar",
+    ["-czf", basename(input.archivePath), "-C", relativeStagingDir, "bin"],
+    {
+      cwd: archiveDir,
+      encoding: "utf8",
+    },
+  );
   if (packed.status !== 0) {
     throw new Error(packed.stderr || packed.stdout || "tar failed");
   }
