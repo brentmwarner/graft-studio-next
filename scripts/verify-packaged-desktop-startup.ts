@@ -20,6 +20,8 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH } from "@graft/shared/desktopIdentity";
+
 export type PackagedDesktopPlatform = "linux" | "mac" | "win";
 
 export interface PackagedDesktopStartupOptions {
@@ -124,6 +126,42 @@ interface PackagedRuntime {
   readonly resourcesDirectory: string;
 }
 
+interface PackagedDependencySmokeLaunch {
+  readonly entry: string;
+  readonly executable: string;
+  readonly usesElectronNodeMode: boolean;
+}
+
+export function resolvePackagedDependencySmokeLaunch(
+  runtime: PackagedRuntime,
+  fileExists: (path: string) => boolean = existsSync,
+): PackagedDependencySmokeLaunch {
+  const bundledNode = join(
+    runtime.resourcesDirectory,
+    GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH,
+  );
+  if (fileExists(bundledNode)) {
+    return {
+      entry: join(
+        runtime.resourcesDirectory,
+        "app.asar.unpacked",
+        "apps/server/dist/runtimeDependencySmoke.mjs",
+      ),
+      executable: bundledNode,
+      usesElectronNodeMode: false,
+    };
+  }
+  return {
+    entry: join(
+      runtime.resourcesDirectory,
+      "app.asar",
+      "apps/server/dist/runtimeDependencySmoke.mjs",
+    ),
+    executable: runtime.executable,
+    usesElectronNodeMode: true,
+  };
+}
+
 function prepareMacLaunch(assetsDirectory: string, extractionRoot: string): LaunchCommand {
   const archive = requireSingleAsset(assetsDirectory, ".zip");
   runCommand("ditto", ["-x", "-k", archive, extractionRoot]);
@@ -209,16 +247,17 @@ export function verifyPackagedRuntimeDependencies(
   isolatedEnvironment: NodeJS.ProcessEnv,
   timeoutMs: number,
 ): void {
-  const entry = join(
-    runtime.resourcesDirectory,
-    "app.asar",
-    "apps/server/dist/runtimeDependencySmoke.mjs",
-  );
-  const env: NodeJS.ProcessEnv = { ...isolatedEnvironment, ELECTRON_RUN_AS_NODE: "1" };
+  const launch = resolvePackagedDependencySmokeLaunch(runtime);
+  const env: NodeJS.ProcessEnv = { ...isolatedEnvironment };
+  if (launch.usesElectronNodeMode) {
+    env.ELECTRON_RUN_AS_NODE = "1";
+  } else {
+    delete env.ELECTRON_RUN_AS_NODE;
+  }
   // A workspace loader or NODE_PATH could conceal a missing packaged dependency.
   delete env.NODE_OPTIONS;
   delete env.NODE_PATH;
-  const result = spawnSync(runtime.executable, [entry], {
+  const result = spawnSync(launch.executable, [launch.entry], {
     cwd: runtime.resourcesDirectory,
     env,
     encoding: "utf8",

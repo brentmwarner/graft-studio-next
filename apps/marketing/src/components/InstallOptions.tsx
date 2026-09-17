@@ -72,7 +72,7 @@ export default function InstallOptions({
           index={0}
           icon={<FaApple className="size-6" aria-hidden="true" />}
           name="macOS"
-          subtitle="macOS 12.3+ · Apple Silicon & Intel"
+          subtitle="macOS 13.5+ · Apple Silicon & Intel"
           href={macHref}
           recommended={os === "mac"}
         >

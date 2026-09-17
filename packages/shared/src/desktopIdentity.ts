@@ -20,6 +20,7 @@ export const GRAFT_CANARY_DESKTOP_ORIGIN = `${GRAFT_CANARY_DESKTOP_SCHEME}://app
 export const GRAFT_CANARY_DESKTOP_ENTRY_URL = `${GRAFT_CANARY_DESKTOP_ORIGIN}/index.html`;
 export const GRAFT_SOURCE_DESKTOP_BUILD_MARKER = "graft-source-desktop-build-v2";
 export const GRAFT_DESKTOP_SMOKE_USER_DATA_ENV = "GRAFT_DESKTOP_SMOKE_USER_DATA";
+export const GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH = "node-runtime/node";
 
 export type GraftDesktopFlavor = "production" | "development" | "canary";
 

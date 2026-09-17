@@ -8,6 +8,7 @@ import {
   createPackagedDesktopSmokeEnvironment,
   parsePackagedDesktopStartupArgs,
   readPackagedStartupLogTails,
+  resolvePackagedDependencySmokeLaunch,
   resolveNativePackagedDesktopPlatform,
   verifyPackagedRuntimeDependencies,
 } from "./verify-packaged-desktop-startup.ts";
@@ -104,6 +105,22 @@ describe("packaged desktop startup verification", () => {
     expect(resolveNativePackagedDesktopPlatform("darwin")).toBe("mac");
     expect(resolveNativePackagedDesktopPlatform("win32")).toBe("win");
     expect(resolveNativePackagedDesktopPlatform("linux")).toBe("linux");
+  });
+
+  it("uses the bundled Node runtime with the physical unpacked server entry", () => {
+    const root = join("root", "Resources");
+    const bundledNode = join(root, "node-runtime", "node");
+
+    expect(
+      resolvePackagedDependencySmokeLaunch(
+        { executable: join("root", "MacOS", "Graft"), resourcesDirectory: root },
+        (candidate) => candidate === bundledNode,
+      ),
+    ).toEqual({
+      entry: join(root, "app.asar.unpacked", "apps/server/dist/runtimeDependencySmoke.mjs"),
+      executable: bundledNode,
+      usesElectronNodeMode: false,
+    });
   });
 
   it("rejects a missing packaged peer even when the development tree provides it", () => {

@@ -3,6 +3,8 @@
 // Layer: Release/build helper
 // Depends on: Desktop packaging policy and electron-builder config shape.
 
+import { GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH } from "@graft/shared/desktopIdentity";
+
 export const MICROPHONE_USAGE_DESCRIPTION =
   "Graft needs microphone access so you can record voice notes and transcribe them into the chat composer.";
 export const MAC_ENTITLEMENTS_PATH = "apps/desktop/resources/entitlements.mac.plist";
@@ -12,17 +14,22 @@ export const MAC_APPSNAP_HELPER_STAGE_PATH =
   "apps/desktop/native/appsnap/build/graft-appsnap-helper";
 export const MAC_APPSNAP_HELPER_ASAR_EXCLUSION = "!apps/desktop/native/appsnap/build/**";
 export const MAC_APPSNAP_HELPER_BUNDLE_PATH = "Contents/Helpers/graft-appsnap-helper";
+export const MAC_NODE_RUNTIME_STAGE_PATH = "apps/desktop/native/node-runtime/node";
+export const MAC_NODE_RUNTIME_ASAR_EXCLUSION = "!apps/desktop/native/node-runtime/**";
+export const MAC_NODE_RUNTIME_BUNDLE_PATH = `Contents/Resources/${GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH}`;
 export const MAC_DEVICE_HELPER_STAGE_PATH = "apps/server/dist/device-helper";
 export const MAC_DEVICE_HELPER_RESOURCE_PATH = "Resources/device-helper";
 export const WINDOWS_INSTALLER_GUID = "f67e4f48-bfd9-5024-b23c-0d23fd8d8e4a";
-export const MAC_MINIMUM_SYSTEM_VERSION = "12.3";
-// Apple's macOS 12.3 release pins xnu-8020.101.4, whose MasterVersion is 21.4.0.
+// Node 24 requires macOS 13.5 or newer.
+export const MAC_MINIMUM_SYSTEM_VERSION = "13.5";
+// Apple's macOS 13.5 release reports Darwin 22.6.0.
 // electron-updater compares minimumSystemVersion against os.release(), not macOS marketing version.
-export const MAC_MINIMUM_DARWIN_VERSION = "21.4.0";
+export const MAC_MINIMUM_DARWIN_VERSION = "22.6.0";
 export const WINDOWS_MINIMUM_SYSTEM_VERSION = "10.0.0";
 const MAC_DMG_ICON_PATH = "icon.icns";
 export const NODE_PTY_ASAR_UNPACK_GLOBS = ["node_modules/node-pty/**"] as const;
 export const GRAFT_HOST_ARCHIVE_ASAR_UNPACK = "apps/server/dist/graft-host-linux-x64.tar.gz";
+export const MAC_NODE_MODULES_ASAR_UNPACK = "node_modules/**";
 // Electron keeps logical app.asar paths working while reading these files from
 // app.asar.unpacked, so Node package resolution stays rooted in app.asar/node_modules.
 export const SERVER_RUNTIME_ASAR_UNPACK = "apps/server/dist/**/*.mjs";
@@ -52,24 +59,22 @@ export interface CreateDesktopPlatformBuildConfigInput {
 }
 
 export interface DesktopNativeBuildHostInput {
-  readonly arch: "arm64" | "x64" | "universal";
+  readonly arch: "arm64" | "x64";
   readonly hostArch: string;
   readonly hostPlatform: NodeJS.Platform;
   readonly platform: "linux" | "mac" | "win";
 }
 
 export function validateDesktopNativeBuildHost(input: DesktopNativeBuildHostInput): string | null {
-  if (input.platform === "mac" && input.hostPlatform !== "darwin") {
+  if (input.platform === "mac") {
+    if (input.hostPlatform === "darwin" && input.hostArch === input.arch) return null;
     return [
-      "macOS desktop artifacts include the native Swift AppSnap helper.",
-      `Build mac/${input.arch} on macOS so the helper can be compiled and signed.`,
+      "macOS desktop artifacts include native Swift and Node runtimes.",
+      `Build mac/${input.arch} on a matching macOS host so both runtimes can be bundled and signed.`,
       `Current host is ${input.hostPlatform}/${input.hostArch}.`,
     ].join(" ");
   }
   if (input.platform !== "linux") return null;
-  if (input.arch === "universal") {
-    return "Linux desktop artifacts support x64 or arm64 builds, not universal builds.";
-  }
   if (input.hostPlatform === "linux" && input.hostArch === input.arch) return null;
 
   return [
@@ -100,10 +105,7 @@ export function createDesktopPlatformBuildConfig(
       notarize: input.signed === true,
       entitlements: MAC_ENTITLEMENTS_PATH,
       entitlementsInherit: MAC_INHERITED_ENTITLEMENTS_PATH,
-      binaries: [MAC_APPSNAP_HELPER_BUNDLE_PATH],
-      // The universal build stages the same pre-lipo'd helper in both app trees.
-      // @electron/universal needs this pattern to preserve that existing fat binary.
-      x64ArchFiles: MAC_APPSNAP_HELPER_BUNDLE_PATH,
+      binaries: [MAC_APPSNAP_HELPER_BUNDLE_PATH, MAC_NODE_RUNTIME_BUNDLE_PATH],
       extendInfo: {
         NSMicrophoneUsageDescription: MICROPHONE_USAGE_DESCRIPTION,
       },
@@ -111,6 +113,7 @@ export function createDesktopPlatformBuildConfig(
 
     return {
       ...nativePackaging,
+      asarUnpack: [...DESKTOP_ASAR_UNPACK_GLOBS, MAC_NODE_MODULES_ASAR_UNPACK],
       dmg: {
         sign: input.signed === true,
         // The signed release flow notarizes and staples the DMG after electron-builder exits.
@@ -118,7 +121,7 @@ export function createDesktopPlatformBuildConfig(
         // macOS auto-updates use the separately finalized ZIP artifact.
         writeUpdateInfo: false,
       },
-      files: ["**/*", MAC_APPSNAP_HELPER_ASAR_EXCLUSION],
+      files: ["**/*", MAC_APPSNAP_HELPER_ASAR_EXCLUSION, MAC_NODE_RUNTIME_ASAR_EXCLUSION],
       extraFiles: [
         {
           from: MAC_APPSNAP_HELPER_STAGE_PATH,
@@ -127,6 +130,10 @@ export function createDesktopPlatformBuildConfig(
         {
           from: MAC_DEVICE_HELPER_STAGE_PATH,
           to: MAC_DEVICE_HELPER_RESOURCE_PATH,
+        },
+        {
+          from: MAC_NODE_RUNTIME_STAGE_PATH,
+          to: `Resources/${GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH}`,
         },
       ],
       mac,

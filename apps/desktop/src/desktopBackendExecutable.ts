@@ -4,31 +4,40 @@
 
 import * as Path from "node:path";
 
+import { GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH } from "@graft/shared/desktopIdentity";
+
 export interface DesktopBackendExecutableInput {
   readonly appIsPackaged: boolean;
   readonly execPath: string;
   readonly platform: NodeJS.Platform;
+  readonly resourcesPath: string;
+}
+
+export interface DesktopBackendEntryInput {
+  readonly appIsPackaged: boolean;
+  readonly appRoot: string;
+  readonly platform: NodeJS.Platform;
+  readonly resourcesPath: string;
 }
 
 /**
- * The packaged macOS app's primary executable and utility process can stall
- * while loading the server module graph. Electron's primary Helper provides
- * the same Node runtime in ELECTRON_RUN_AS_NODE mode without that loader path.
+ * Electron's embedded Node runtime can stall while applying SQLite migrations
+ * in a packaged Helper process. macOS packages include a matching standalone
+ * Node runtime so the backend does not depend on Electron process behavior.
  */
 export function resolveDesktopBackendExecutable(input: DesktopBackendExecutableInput): string {
   if (!input.appIsPackaged || input.platform !== "darwin") {
     return input.execPath;
   }
 
-  const executableName = Path.basename(input.execPath);
-  const contentsDirectory = Path.dirname(Path.dirname(input.execPath));
-  const helperName = `${executableName} Helper`;
-  return Path.join(
-    contentsDirectory,
-    "Frameworks",
-    `${helperName}.app`,
-    "Contents",
-    "MacOS",
-    helperName,
-  );
+  return Path.join(input.resourcesPath, GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH);
+}
+
+/** Standalone Node cannot read Electron ASAR archives, so use the unpacked server graph. */
+export function resolveDesktopBackendEntry(input: DesktopBackendEntryInput): string {
+  const relativeEntry = Path.join("apps", "server", "dist", "index.mjs");
+  if (!input.appIsPackaged || input.platform !== "darwin") {
+    return Path.join(input.appRoot, relativeEntry);
+  }
+  return Path.join(input.resourcesPath, "app.asar.unpacked", relativeEntry);
 }
