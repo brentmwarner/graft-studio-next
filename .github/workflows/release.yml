@@ -112,6 +112,14 @@ jobs:
       - uses: ./.github/actions/setup-workspace
         with:
           electron: "true"
+      - name: Restore exact release source after dependency setup
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
+        run: |
+          git reset --hard "$SOURCE_COMMIT"
+          git clean -fd
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Linux native runtime dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libfuse2 xvfb libgbm1 libasound2

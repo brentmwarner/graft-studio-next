@@ -1018,7 +1018,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     }
     if (gitStatus.stdout.trim().length > 0) {
       return yield* new BuildScriptError({
-        message: "Release source worktree is not clean; refusing to stage uncommitted bytes.",
+        message: `Release source worktree is not clean; refusing to stage uncommitted bytes:\n${gitStatus.stdout.trim()}`,
       });
     }
   }
