@@ -27,6 +27,15 @@ import { tracePackagedStartup } from "../packagedStartupTrace.ts";
 
 const ATTR_DB_SYSTEM_NAME = "db.system.name";
 
+const describeSql = (sql: string): string => sql.replaceAll(/\s+/gu, " ").trim().slice(0, 160);
+const traceSqliteStatements =
+  process.env.GRAFT_DESKTOP_PACKAGED === "1" && process.env.GRAFT_TRACE_SQLITE_STARTUP === "1";
+
+const traceSqliteStatement = (event: string, sql: string): void => {
+  if (!traceSqliteStatements) return;
+  tracePackagedStartup(`node sqlite ${event} sql=${describeSql(sql)}`);
+};
+
 export const TypeId: TypeId = "~local/sqlite-node/SqliteClient";
 
 export type TypeId = "~local/sqlite-node/SqliteClient";
@@ -100,12 +109,25 @@ const makeWithDatabase = (
       );
 
       const statementReaderCache = new WeakMap<StatementSync, boolean>();
+      const statementSql = new WeakMap<StatementSync, string>();
       const hasRows = (statement: StatementSync): boolean => {
         const cached = statementReaderCache.get(statement);
         if (cached !== undefined) {
           return cached;
         }
+        if (traceSqliteStatements) {
+          traceSqliteStatement(
+            "columns inspection started",
+            statementSql.get(statement) ?? "<unknown>",
+          );
+        }
         const value = statement.columns().length > 0;
+        if (traceSqliteStatements) {
+          traceSqliteStatement(
+            "columns inspection completed",
+            statementSql.get(statement) ?? "<unknown>",
+          );
+        }
         statementReaderCache.set(statement, value);
         return value;
       };
@@ -115,7 +137,13 @@ const makeWithDatabase = (
         timeToLive: options.prepareCacheTTL ?? Duration.minutes(10),
         lookup: (sql: string) =>
           Effect.try({
-            try: () => db.prepare(sql),
+            try: () => {
+              traceSqliteStatement("prepare started", sql);
+              const statement = db.prepare(sql);
+              if (traceSqliteStatements) statementSql.set(statement, sql);
+              traceSqliteStatement("prepare completed", sql);
+              return statement;
+            },
             catch: (cause) => new SqlError({ cause, message: "Failed to prepare statement" }),
           }),
       });
@@ -139,8 +167,22 @@ const makeWithDatabase = (
           }
         });
 
-      const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) =>
-        Effect.flatMap(Cache.get(prepareCache, sql), (s) => runStatement(s, params, raw));
+      const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) => {
+        if (!traceSqliteStatements) {
+          return Effect.flatMap(Cache.get(prepareCache, sql), (statement) =>
+            runStatement(statement, params, raw),
+          );
+        }
+        return Effect.gen(function* () {
+          traceSqliteStatement("statement acquisition started", sql);
+          const statement = yield* Cache.get(prepareCache, sql);
+          traceSqliteStatement("statement acquisition completed", sql);
+          traceSqliteStatement("statement execution started", sql);
+          const rows = yield* runStatement(statement, params, raw);
+          traceSqliteStatement("statement execution completed", sql);
+          return rows;
+        });
+      };
 
       const runValues = (sql: string, params: ReadonlyArray<unknown>) =>
         Effect.acquireUseRelease(
@@ -196,9 +238,28 @@ const makeWithDatabase = (
     const transactionAcquirer = Effect.uninterruptibleMask((restore) => {
       const fiber = Fiber.getCurrent()!;
       const scope = ServiceMap.getUnsafe(fiber.services, Scope.Scope);
+      if (!traceSqliteStatements) {
+        return Effect.as(
+          Effect.tap(restore(semaphore.take(1)), () =>
+            Scope.addFinalizer(scope, semaphore.release(1)),
+          ),
+          connection,
+        );
+      }
       return Effect.as(
-        Effect.tap(restore(semaphore.take(1)), () =>
-          Scope.addFinalizer(scope, semaphore.release(1)),
+        Effect.sync(() => {
+          if (traceSqliteStatements) {
+            tracePackagedStartup("node sqlite transaction permit requested");
+          }
+        }).pipe(
+          Effect.andThen(restore(semaphore.take(1))),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              if (traceSqliteStatements) {
+                tracePackagedStartup("node sqlite transaction permit acquired");
+              }
+            }).pipe(Effect.andThen(Scope.addFinalizer(scope, semaphore.release(1)))),
+          ),
         ),
         connection,
       );
