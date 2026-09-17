@@ -112,10 +112,12 @@ const makeSetup = ({
       // The event log alone can exceed a gigabyte, so the 2MB default page
       // cache thrashes during projector replay and large projection reads.
       // The page cache (negative value = KiB) keeps the hot b-tree interior
-      // pages resident and is sized to the host's physical memory (see
-      // sqliteMemoryBudget.ts). It is an on-demand ceiling for the single
-      // serialized connection, not an upfront allocation. temp_store stays at
-      // its default deliberately: the snapshot window queries can build
+      // pages resident. Most runtimes size it to the host's physical memory;
+      // packaged macOS uses the conservative tier because its native memory
+      // probe can block startup (see sqliteMemoryBudget.ts). It is an on-demand
+      // ceiling for the single serialized connection, not an upfront
+      // allocation. temp_store stays at its default deliberately: the snapshot
+      // window queries can build
       // temp b-trees proportional to live-thread history, and MEMORY would
       // turn those into unbounded native RSS; the disk default already keeps
       // small temp structures in memory and only spills when they grow.

@@ -53,6 +53,13 @@ describe("resolveSqliteMemoryBudget", () => {
         readTotalMemory,
       }),
     ).toEqual(resolveSqliteMemoryBudget(32 * GIB));
-    expect(readTotalMemory).toHaveBeenCalledOnce();
+    expect(
+      resolveRuntimeSqliteMemoryBudget({
+        platform: "darwin",
+        packagedDesktop: false,
+        readTotalMemory,
+      }),
+    ).toEqual(resolveSqliteMemoryBudget(32 * GIB));
+    expect(readTotalMemory).toHaveBeenCalledTimes(2);
   });
 });
