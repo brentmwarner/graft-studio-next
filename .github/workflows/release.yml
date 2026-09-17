@@ -12,9 +12,9 @@ on:
         default: build
         required: true
       source_commit:
-        description: Full graft-studio-next commit SHA (required when hosted in the legacy repository)
+        description: Full graft-studio-next commit SHA from its main branch
         type: string
-        required: false
+        required: true
       version:
         description: Stable version, matching apps/desktop/package.json
         type: string
@@ -50,8 +50,23 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: brentmwarner/graft-studio-next
-          ref: ${{ inputs.source_commit || github.sha }}
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Require source from graft-studio-next main
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          if [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || [[ "$(git rev-parse HEAD)" != "$SOURCE_COMMIT" ]]; then
+            echo "source_commit must be the exact checked-out 40-character graft-studio-next SHA." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main; then
+            echo "Production builds may only use source already merged into graft-studio-next/main." >&2
+            exit 1
+          fi
       - uses: actions/setup-node@v6
         with:
           node-version-file: package.json
@@ -59,7 +74,7 @@ jobs:
         name: Resolve exact source and version
         env:
           RELEASE_VERSION: ${{ inputs.version }}
-          EXPECTED_COMMIT: ${{ inputs.source_commit || github.sha }}
+          EXPECTED_COMMIT: ${{ inputs.source_commit }}
         run: node scripts/graft-release-source.ts
       - uses: ./.github/actions/setup-workspace
         if: inputs.operation == 'build'
@@ -161,12 +176,19 @@ jobs:
         with:
           script: |
             const { data: promotion } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: context.runId });
+            const { data: evidenceWorkflow } = await github.rest.actions.getWorkflow({
+              ...context.repo,
+              workflow_id: 'graft-next-upgrade-evidence.yml',
+            });
             for (const [kind, id] of Object.entries({ build: process.env.BUILD_RUN_ID, evidence: process.env.EVIDENCE_RUN_ID })) {
               if (!/^\d+$/.test(id || '')) throw new Error(`A successful ${kind} run ID is required.`);
               const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(id) });
               if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error(`${kind} run has not succeeded.`);
               if (kind === 'build' && (run.workflow_id !== promotion.workflow_id || run.event !== 'workflow_dispatch')) {
                 throw new Error('Build artifacts must come from the manual Graft production build workflow.');
+              }
+              if (kind === 'evidence' && (run.workflow_id !== evidenceWorkflow.id || run.event !== 'workflow_dispatch')) {
+                throw new Error('Upgrade evidence must come from the Graft production upgrade evidence workflow.');
               }
             }
       - name: Require the legacy publisher to be retired before cutover

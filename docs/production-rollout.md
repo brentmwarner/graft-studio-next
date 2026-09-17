@@ -90,9 +90,9 @@ checks real encrypted storage, and writes its result and screenshot to
 `.tmp/production-rollout/packaged-smoke/`. A missing or locked keyring must remain
 an explicit failure; do not enable Chromium's plaintext credential fallback.
 
-Full workspace formatting, lint, and type checks remain pending the user's
-explicit request required by the supplied AGENTS.md. GitHub CLI access is
-verified. The legacy repository has the expected Apple signing/notarization
+Full workspace formatting, lint, type checks, tests, desktop build, Windows
+process regression, release smoke, and marketing validation pass in PR CI.
+GitHub CLI access is verified. The legacy repository has the expected Apple signing/notarization
 and Blob publication secret names; the new repository has no Actions secrets.
 Host the replacement release workflow in the legacy repository to reuse those
 credentials, or provision them in the new repository before building there.

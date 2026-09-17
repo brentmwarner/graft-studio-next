@@ -137,6 +137,16 @@ function verifyReleaseWorkflowSafety(): void {
   );
   assertContains(
     workflow,
+    "source_commit:\n        description: Full graft-studio-next commit SHA from its main branch\n        type: string\n        required: true",
+    "Hosted production releases must require an explicit current-product source commit.",
+  );
+  assertContains(
+    workflow,
+    'git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main',
+    "Secret-bearing builds must accept only source merged into graft-studio-next/main.",
+  );
+  assertContains(
+    workflow,
     "node scripts/graft-release-source.ts",
     "Builds must verify the exact requested source commit.",
   );
@@ -152,6 +162,11 @@ function verifyReleaseWorkflowSafety(): void {
   );
   assertContains(
     workflow,
+    "workflow_id: 'graft-next-upgrade-evidence.yml'",
+    "Promotion must bind upgrade evidence to the dedicated host workflow.",
+  );
+  assertContains(
+    workflow,
     "node scripts/publish-graft-release.ts",
     "Promotion must use the verified immutable Blob publisher.",
   );
@@ -159,6 +174,36 @@ function verifyReleaseWorkflowSafety(): void {
     workflow,
     "GRAFT_ALLOW_UNSIGNED_WINDOWS_RELEASE",
     "Production must not bypass Windows signature verification.",
+  );
+
+  const evidenceWorkflow = readFileSync(
+    resolve(repoRoot, ".github/workflows/graft-next-upgrade-evidence.yml"),
+    "utf8",
+  ).replaceAll("\r\n", "\n");
+  assertContains(
+    evidenceWorkflow,
+    "source_commit:\n        description: Full graft-studio-next commit SHA from its main branch\n        type: string\n        required: true",
+    "Upgrade evidence must require the exact current-product source commit.",
+  );
+  assertContains(
+    evidenceWorkflow,
+    'git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main',
+    "Upgrade evidence must accept only source merged into graft-studio-next/main.",
+  );
+  assertContains(
+    evidenceWorkflow,
+    "workflowFile = context.repo.repo === 'graft-studio'",
+    "Upgrade evidence must bind artifacts to the production build workflow on its host.",
+  );
+  assertContains(
+    evidenceWorkflow,
+    "node scripts/publish-graft-release.ts --assets-dir release-assets --evidence upgrade-evidence.json",
+    "Upgrade evidence must validate every receipt against the signed native artifacts.",
+  );
+  assertContains(
+    evidenceWorkflow,
+    "name: graft-upgrade-evidence",
+    "The evidence workflow must upload the artifact consumed by promotion.",
   );
 
   const cliScript = readFileSync(resolve(repoRoot, "apps/server/scripts/cli.ts"), "utf8");

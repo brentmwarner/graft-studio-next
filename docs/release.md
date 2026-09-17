@@ -70,9 +70,12 @@ GitHub release is coupled to this desktop workflow.
    settings preservation, reconnect behavior, and rollback on every target.
    Keep evidence tied to the exact artifact hash, source commit, and predecessor
    version. A successful clean-profile startup alone is insufficient.
-5. Have the successful native-upgrade validation run upload artifact
-   `graft-upgrade-evidence`, containing `upgrade-evidence.json` in the schema
-   below. Never manufacture passing receipts for untested platforms.
+5. After completing those tests, dispatch **Graft Production Upgrade Evidence**
+   in the release-host repository with the same source/version, signed build run
+   ID, and the completed `upgrade-evidence.json`. The workflow downloads the
+   exact signed artifacts, validates every receipt and hash against them, and
+   uploads artifact `graft-upgrade-evidence`. Never manufacture passing receipts
+   for untested platforms.
 6. Dispatch operation `promote`, the same source/version, and the successful
    `build_run_id` and `evidence_run_id`. Both runs must be in the repository
    hosting this workflow. The promotion downloads the previously built bytes;
@@ -123,18 +126,22 @@ For the initial cutover, install this workflow in the legacy
 `.github/workflows/graft-next-release.yml`, through a separate PR. Keeping the
 release job there reuses its existing secrets; `graft-studio-next` remains the
 source of all application code. Every checkout explicitly names that repository
-and the selected full commit SHA. The setup action, lockfile, package version,
+and the selected full commit SHA. The workflow refuses a source commit that is
+not already reachable from `graft-studio-next/main`. The setup action, lockfile, package version,
 and build/publish scripts all come from that checked-out commit. Credentials
 come from the repository hosting the workflow, not the checked-out source.
 
 The sequence for the first update is:
 
 1. Merge the app release PR in `graft-studio-next` and the workflow-only PR in
-   `graft-studio`. Copy the canonical workflow from the reviewed app commit.
+   `graft-studio`. Copy both canonical workflows from the reviewed app commit:
+   `release.yml` becomes `graft-next-release.yml`, while
+   `graft-next-upgrade-evidence.yml` keeps its filename.
 2. In `graft-studio`, run `graft-next-release.yml` with operation `build`, the
    reviewed `graft-studio-next` commit as `source_commit`, and version `0.9.0`.
-3. Complete signed native builds and upgrade validation. These runs do not
-   alter the public updater feed.
+3. Complete signed native builds and upgrade validation. Dispatch
+   `graft-next-upgrade-evidence.yml` to bind the completed native receipts to the
+   exact build artifacts. These runs do not alter the public updater feed.
 4. At cutover, disable the old `graft-studio/release.yml` workflow in GitHub
    Actions. Changing that file only on `main` would leave the old copy on the
    `production` branch able to publish. Disabling the workflow retires that
