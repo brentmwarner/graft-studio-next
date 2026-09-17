@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createConnection, type Socket } from "node:net";
 import { endianness, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -153,6 +153,58 @@ describe("canonical browser host pipe resolution", () => {
     try {
       await expect(server.start()).rejects.toThrow("permissions are not private");
       expect((await stat(directory)).mode & 0o777).toBe(0o755);
+    } finally {
+      await server.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not listen when startup is already aborted", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "graft-browser-host-abort-test-"));
+    const pipePath = join(directory, "browser.sock");
+    await writeFile(pipePath, "existing socket placeholder");
+    const server = new BrowserHostPipeServer({} as never, {
+      pipePath,
+      capability: TEST_CAPABILITY,
+      automationHost: { executeTool: async () => ({}) } as never,
+    });
+    const controller = new AbortController();
+    const reason = new Error("startup deadline elapsed");
+    controller.abort(reason);
+    try {
+      await expect(server.start(controller.signal)).rejects.toBe(reason);
+      expect(await readFile(pipePath, "utf8")).toBe("existing socket placeholder");
+    } finally {
+      await server.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("aborts an in-flight Unix listener and can start cleanly afterward", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "graft-browser-host-racing-abort-test-"));
+    const pipePath = join(directory, "browser.sock");
+    const server = new BrowserHostPipeServer({} as never, {
+      pipePath,
+      capability: TEST_CAPABILITY,
+      automationHost: { executeTool: async () => ({}) } as never,
+    });
+    const controller = new AbortController();
+    const reason = new Error("startup deadline elapsed");
+    const firstStart = server.start(controller.signal);
+    controller.abort(reason);
+    try {
+      await expect(firstStart).rejects.toBe(reason);
+      await vi.waitFor(async () => {
+        const exists = await stat(pipePath).then(
+          () => true,
+          () => false,
+        );
+        expect(exists).toBe(false);
+      });
+
+      await server.start();
+      const socket = await connect(pipePath);
+      socket.destroy();
     } finally {
       await server.dispose();
       await rm(directory, { recursive: true, force: true });

@@ -256,6 +256,7 @@ import {
   GRAFT_BROWSER_HOST_PIPE_PATH,
   resolveBrowserHostPipeBackendEnv,
 } from "./browserUsePipeServer";
+import { withStartupTimeout } from "./startupTimeout";
 import { normalizeDesktopWsUrl, resolveDesktopWsUrlFromEnv } from "./desktopWsBridge";
 import {
   repairBrowserProfileFromBridgeManifest,
@@ -524,7 +525,7 @@ function startBrowserPerformanceLogging(): void {
   browserPerfInterval.unref();
 }
 
-async function ensureBrowserHostPipeServer(): Promise<void> {
+async function ensureBrowserHostPipeServer(signal?: AbortSignal): Promise<void> {
   if (browserHostPipeServer || !GRAFT_BROWSER_HOST_PIPE_PATH) {
     return;
   }
@@ -537,7 +538,16 @@ async function ensureBrowserHostPipeServer(): Promise<void> {
       mainWindow?.webContents.send(IPC.browser.requestOpenPanel, { threadId });
     },
   });
-  await server.start();
+  try {
+    await server.start(signal);
+  } catch (error) {
+    await server.dispose();
+    throw error;
+  }
+  if (signal?.aborted) {
+    await server.dispose();
+    throw signal.reason;
+  }
   browserHostPipeServer = server;
 }
 
@@ -5378,7 +5388,11 @@ async function bootstrap(): Promise<void> {
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
   try {
-    await ensureBrowserHostPipeServer();
+    await withStartupTimeout(
+      (signal) => ensureBrowserHostPipeServer(signal),
+      5_000,
+      "Browser host pipe startup",
+    );
   } catch (error) {
     console.warn("[Graft browser] Failed to start browser host pipe", error);
   }

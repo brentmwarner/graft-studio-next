@@ -211,6 +211,12 @@ function cleanupUnixPipe(pipePath: string): void {
   }
 }
 
+function browserHostPipeAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("Browser host pipe startup was aborted.");
+}
+
 export class BrowserHostPipeServer {
   private readonly sockets = new Set<Net.Socket>();
   private readonly clients = new Map<Net.Socket, PipeClient>();
@@ -261,18 +267,45 @@ export class BrowserHostPipeServer {
     await this.drainAutomationHost?.();
   }
 
-  async start(): Promise<void> {
+  async start(signal?: AbortSignal): Promise<void> {
     if (this.started) return;
+    if (signal?.aborted) throw browserHostPipeAbortReason(signal);
     if (this.platform !== "win32") {
       ensureUnixPipeParent(this.pipePath);
       cleanupUnixPipe(this.pipePath);
     }
     await new Promise<void>((resolve, reject) => {
-      this.server.once("error", reject);
-      this.server.listen({ path: this.pipePath, readableAll: false, writableAll: false }, () => {
-        this.server.off("error", reject);
-        resolve();
-      });
+      let settled = false;
+      const cleanup = () => {
+        this.server.off("error", onError);
+        signal?.removeEventListener("abort", onAbort);
+      };
+      const settle = (result: { readonly error?: unknown }) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (result.error === undefined) resolve();
+        else reject(result.error);
+      };
+      const onError = (error: Error) => settle({ error });
+      const onAbort = () => {
+        if (signal) settle({ error: browserHostPipeAbortReason(signal) });
+      };
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      this.server.once("error", onError);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      this.server.listen(
+        {
+          path: this.pipePath,
+          readableAll: false,
+          writableAll: false,
+          ...(signal ? { signal } : {}),
+        },
+        () => settle({}),
+      );
     });
     if (this.platform !== "win32") FS.chmodSync(this.pipePath, 0o600);
     this.started = true;
