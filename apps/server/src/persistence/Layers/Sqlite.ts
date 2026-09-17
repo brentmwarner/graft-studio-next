@@ -14,7 +14,7 @@ import {
 } from "../MigrationBackup.ts";
 import { createMigrationSchemaTooNewStartupBlockError } from "../MigrationSchemaTooNewStartupBlock.ts";
 import { ensurePrivateFileSync, repairPrivateFile } from "../../privatePathPermissions.ts";
-import { resolveSqliteMemoryBudget } from "../sqliteMemoryBudget.ts";
+import { resolveRuntimeSqliteMemoryBudget } from "../sqliteMemoryBudget.ts";
 import { ServerConfig } from "../../config.ts";
 import {
   acquireDatabaseLifecycleLock,
@@ -119,7 +119,11 @@ const makeSetup = ({
       // temp b-trees proportional to live-thread history, and MEMORY would
       // turn those into unbounded native RSS; the disk default already keeps
       // small temp structures in memory and only spills when they grow.
-      const memoryBudget = resolveSqliteMemoryBudget(totalmem());
+      const memoryBudget = resolveRuntimeSqliteMemoryBudget({
+        platform: process.platform,
+        packagedDesktop: process.env.GRAFT_DESKTOP_PACKAGED === "1",
+        readTotalMemory: totalmem,
+      });
       yield* sql`PRAGMA cache_size = ${sql.literal(String(memoryBudget.cacheSizePragma))};`;
       if (dbPath) {
         // mmap serves large sequential reads (event replay, VACUUM INTO

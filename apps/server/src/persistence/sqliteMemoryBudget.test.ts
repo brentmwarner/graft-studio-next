@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { resolveSqliteMemoryBudget } from "./sqliteMemoryBudget.ts";
+import {
+  resolveRuntimeSqliteMemoryBudget,
+  resolveSqliteMemoryBudget,
+} from "./sqliteMemoryBudget.ts";
 
 const GIB = 1024 * 1024 * 1024;
 
@@ -25,5 +28,31 @@ describe("resolveSqliteMemoryBudget", () => {
     expect(resolveSqliteMemoryBudget(8 * GIB)).toEqual(small);
     expect(resolveSqliteMemoryBudget(0)).toEqual(small);
     expect(resolveSqliteMemoryBudget(Number.NaN)).toEqual(small);
+  });
+
+  it("does not inspect host memory in a packaged macOS backend", () => {
+    const readTotalMemory = vi.fn(() => 32 * GIB);
+
+    expect(
+      resolveRuntimeSqliteMemoryBudget({
+        platform: "darwin",
+        packagedDesktop: true,
+        readTotalMemory,
+      }),
+    ).toEqual(resolveSqliteMemoryBudget(0));
+    expect(readTotalMemory).not.toHaveBeenCalled();
+  });
+
+  it("keeps adaptive sizing outside packaged macOS", () => {
+    const readTotalMemory = vi.fn(() => 32 * GIB);
+
+    expect(
+      resolveRuntimeSqliteMemoryBudget({
+        platform: "linux",
+        packagedDesktop: true,
+        readTotalMemory,
+      }),
+    ).toEqual(resolveSqliteMemoryBudget(32 * GIB));
+    expect(readTotalMemory).toHaveBeenCalledOnce();
   });
 });

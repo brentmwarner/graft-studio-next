@@ -3622,6 +3622,7 @@ function backendEnv(): NodeJS.ProcessEnv {
       ? { [MIGRATION_DIVERGENCE_CONSENT_ENV]: migrationDivergenceConsent }
       : {}),
     GRAFT_MODE: "desktop",
+    GRAFT_DESKTOP_PACKAGED: app.isPackaged ? "1" : "0",
     GRAFT_NO_BROWSER: "1",
     GRAFT_PORT: String(backendPort),
     GRAFT_HOME: BASE_DIR,
