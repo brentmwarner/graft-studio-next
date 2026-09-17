@@ -47,6 +47,7 @@ import {
   deviceHelperCacheKey,
   readDeviceHelperSourceRevision,
 } from "@graft/shared/deviceHelperCache";
+import { resolveUserHomeDirectory } from "@graft/shared/graftHome";
 
 import { runProcess, type ProcessRunResult } from "../processRunner.ts";
 import {
@@ -80,7 +81,16 @@ const MAX_RECORDING_STDERR_LENGTH = 64 * 1024;
 /** Screenshots are PNG on stdout-adjacent temp files; cap what we will read. */
 const MAX_SCREENSHOT_BYTES = 32 * 1024 * 1024;
 
-export const DEVICE_HELPER_CACHE_ROOT = path.join(homedir(), ...DEVICE_HELPER_CACHE_SEGMENTS);
+export function resolveDeviceHelperCacheRoot(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  readHomeDirectory: () => string = homedir,
+): string {
+  return path.join(
+    resolveUserHomeDirectory({ env, platform, readHomeDirectory }),
+    ...DEVICE_HELPER_CACHE_SEGMENTS,
+  );
+}
 
 /**
  * Resolve the helper sources in both execution layouts.
@@ -317,7 +327,8 @@ export class IosSimulatorBackend implements DeviceBackend {
         undefined,
         this.processEnv[DEVICE_HELPER_SOURCE_DIR_ENV],
       );
-    this.helperCacheRoot = options.helperCacheRoot ?? DEVICE_HELPER_CACHE_ROOT;
+    this.helperCacheRoot =
+      options.helperCacheRoot ?? resolveDeviceHelperCacheRoot(this.processEnv, this.osPlatform);
     this.run = options.run ?? runProcess;
     this.makeHelperClient =
       options.makeHelperClient ??

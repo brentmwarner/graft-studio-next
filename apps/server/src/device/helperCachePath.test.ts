@@ -1,4 +1,3 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +8,7 @@ import {
 } from "@graft/shared/deviceHelperCache";
 
 import type { ProcessRunResult } from "../processRunner.ts";
-import { DEVICE_HELPER_CACHE_ROOT, IosSimulatorBackend } from "./IosSimulatorBackend.ts";
+import { IosSimulatorBackend, resolveDeviceHelperCacheRoot } from "./IosSimulatorBackend.ts";
 
 const XCODEBUILD_OUTPUT = "Xcode 26.2\nBuild version 17C52";
 
@@ -49,7 +48,11 @@ describe("helper cache path agreement", () => {
   });
 
   it("roots the cache where the smoke script writes it", () => {
-    expect(DEVICE_HELPER_CACHE_ROOT).toBe(join(homedir(), ...DEVICE_HELPER_CACHE_SEGMENTS));
+    expect(
+      resolveDeviceHelperCacheRoot({ HOME: "/Users/tester" }, "darwin", () => {
+        throw new Error("OS home lookup should remain lazy");
+      }),
+    ).toBe(join("/Users/tester", ...DEVICE_HELPER_CACHE_SEGMENTS));
   });
 
   it("names the binary the build script produces", () => {
