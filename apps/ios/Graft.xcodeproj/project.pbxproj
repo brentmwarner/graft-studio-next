@@ -20,11 +20,13 @@
 		119CC0768DE7D582E049D426 /* ThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE8EF04872CD215C2D4DAD65 /* ThreadView.swift */; };
 		12F7DCDB0550FC4CA4F23968 /* host-event-artifact.json in Resources */ = {isa = PBXBuildFile; fileRef = 5AAE796911AECC12CDED88F2 /* host-event-artifact.json */; };
 		1442C69A6C1695EA12058C57 /* InboxGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75304AF60203F86CF9B99954 /* InboxGroupingTests.swift */; };
+		2E7C9E3F5B1D8406C9F2E518 /* AdaptiveChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D9F2A1C8305E4B02F7D316 /* AdaptiveChromeTests.swift */; };
 		15DAC901FAFDDB31A6C8DC5A /* ConnectionProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F4895018FA939CA8BCA0D4B /* ConnectionProbe.swift */; };
 		16359F75323DF4C49F4ABAC4 /* GenerativeCardBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F01509C24066A670F070EE /* GenerativeCardBlocks.swift */; };
 		18C85A6AAFD3CFFE217FFBCB /* client-command-approval.json in Resources */ = {isa = PBXBuildFile; fileRef = A9B501AD0AFD9E0582DC8FCD /* client-command-approval.json */; };
 		199D91F9D0DDB3D88AF36B5A /* AgentAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BC490736122F48B4386DF4 /* AgentAvatar.swift */; };
 		1AF4225169D6287340C1676B /* StreamingReveal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25D3FDC7A6E14216E92BB1EB /* StreamingReveal.swift */; };
+		1F6B8D2E4A0C7395B8E1D407 /* AdaptiveChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C8E1F0B7294D3A91E6C205 /* AdaptiveChrome.swift */; };
 		1D703FB4EAE6F013EE538BB5 /* PushRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B76CFF78BEAFA5DA81D8E42 /* PushRegistrar.swift */; };
 		201EFEFE28DFA52182EF9D89 /* host-event-plan.json in Resources */ = {isa = PBXBuildFile; fileRef = 6ECCC52B4B8B9B62E4FFC634 /* host-event-plan.json */; };
 		20D48831C64A34F1F39CF60F /* AgentThreadCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B919AC64CEC79A92C2275E1F /* AgentThreadCard.swift */; };
@@ -286,6 +288,7 @@
 		73C306D46FFDED76F1DA885E /* pairing-payload.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "pairing-payload.json"; sourceTree = "<group>"; };
 		7487E288038FBED5B0331480 /* client-command-turn-start.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "client-command-turn-start.json"; sourceTree = "<group>"; };
 		75304AF60203F86CF9B99954 /* InboxGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxGroupingTests.swift; sourceTree = "<group>"; };
+		B5D9F2A1C8305E4B02F7D316 /* AdaptiveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveChromeTests.swift; sourceTree = "<group>"; };
 		756C2FB51EE7BC5F5F792A66 /* host-pong.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "host-pong.json"; sourceTree = "<group>"; };
 		766085D42E9949A9287D4AD9 /* ComposerAccessoryModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerAccessoryModelsTests.swift; sourceTree = "<group>"; };
 		76BCD237F05A32C7BF6A540C /* Graft.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Graft.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -303,6 +306,7 @@
 		8C25C815FCA9A33EC97DAF4A /* ComposingOrbLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposingOrbLoader.swift; sourceTree = "<group>"; };
 		8C6CB5BD08CCDCB08605CF75 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		8D766B3FA49924C1D0DAF69B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A4C8E1F0B7294D3A91E6C205 /* AdaptiveChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveChrome.swift; sourceTree = "<group>"; };
 		8DA0250ABE8CB5508F578378 /* ChatVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatVideoView.swift; sourceTree = "<group>"; };
 		8EB58330D98FA3B58E100AAA /* GenerativeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCard.swift; sourceTree = "<group>"; };
 		90CEC9D9512E33BE2096B630 /* ImageViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewer.swift; sourceTree = "<group>"; };
@@ -437,6 +441,7 @@
 		17AF196A2B8234BE79993123 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A4C8E1F0B7294D3A91E6C205 /* AdaptiveChrome.swift */,
 				046812E2CB0D7355CF753BFA /* AppDelegate.swift */,
 				8D766B3FA49924C1D0DAF69B /* RootView.swift */,
 			);
@@ -617,6 +622,7 @@
 			isa = PBXGroup;
 			children = (
 				D65A3607AEF4B7F502F34F1C /* Fixtures */,
+				B5D9F2A1C8305E4B02F7D316 /* AdaptiveChromeTests.swift */,
 				271131396219DFBE5AA1040D /* AppTransportSecurityTests.swift */,
 				CD52167F106CB39E5604ABD2 /* AuthenticatedWebSocketRequestTests.swift */,
 				92C80B57E94CC7BC3652C775 /* AuthStoreTests.swift */,
@@ -901,6 +907,7 @@
 				FCC9BF083CC471D2086A4ECE /* AgentAvatarSettings.swift in Sources */,
 				D10F2A531BBDBC345DE808B2 /* AgentRun.swift in Sources */,
 				20D48831C64A34F1F39CF60F /* AgentThreadCard.swift in Sources */,
+				1F6B8D2E4A0C7395B8E1D407 /* AdaptiveChrome.swift in Sources */,
 				B80EB351D024EBA5E22DDDFE /* AppDelegate.swift in Sources */,
 				5B17C38836399C06F11FB953 /* AppLog.swift in Sources */,
 				D6FD863CB546B5891E91D369 /* AppModel.swift in Sources */,
@@ -1004,6 +1011,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2E7C9E3F5B1D8406C9F2E518 /* AdaptiveChromeTests.swift in Sources */,
 				B37449E44922F157FD1BCC29 /* AppTransportSecurityTests.swift in Sources */,
 				EE2B1010D0F512AFAA9DC902 /* AuthStoreTests.swift in Sources */,
 				8BB85CFAD2B8CAA44FD25A68 /* AuthenticatedWebSocketRequestTests.swift in Sources */,

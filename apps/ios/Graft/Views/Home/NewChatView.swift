@@ -6,6 +6,9 @@ import SwiftUI
 struct NewChatView: View {
     @Environment(AppModel.self) private var app
     var preselectedProjectId: String?
+    /// When set (regular-width split), the created thread is selected in the
+    /// sidebar instead of being pushed on this stack.
+    var onOpenedThread: ((InboxThreadItem) -> Void)? = nil
 
     @State private var selectedProjectId: String?
     @State private var selectedMode = "local"
@@ -39,6 +42,8 @@ struct NewChatView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 10)
+        .readableChatColumn()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
         .navigationTitle(Text("New chat", comment: "New mobile chat title"))
         .navigationBarTitleDisplayMode(.inline)
@@ -393,11 +398,16 @@ struct NewChatView: View {
             }
             _ = await app.activeChat?.send(text)
             draft = ""
-            openedThread = InboxThreadItem(
+            let item = InboxThreadItem(
                 id: thread.id,
                 title: thread.title,
                 showsAttentionDot: false
             )
+            if let onOpenedThread {
+                onOpenedThread(item)
+            } else {
+                openedThread = item
+            }
         }
     }
 }

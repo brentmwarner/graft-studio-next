@@ -54,6 +54,13 @@ open Graft.xcodeproj
 
 Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 
+On iPad (regular horizontal size class), paired home uses `NavigationSplitView`:
+projects/threads stay in a persistent sidebar and chat occupies the detail
+column. Transcript and composer chrome cap at a readable width instead of
+stretching edge to edge. Compact widths (iPhone, iPad Slide Over) keep the
+existing drawer + push stack. Verify both iPad orientations and an iPhone
+destination before calling a layout change done.
+
 ## Welcome visuals
 
 The welcome screen uses the official vector `GraftMark` and a native two-pass
@@ -105,6 +112,11 @@ xcodebuild -project Graft.xcodeproj -scheme Graft \
 xcodebuild test -project Graft.xcodeproj -scheme Graft \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -quiet
+
+# iPad (regular-width split)
+xcodebuild -project Graft.xcodeproj -scheme Graft \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4),OS=26.5' \
+  -quiet build
 ```
 
 If only the iOS 27 simulator is available:
@@ -123,7 +135,8 @@ apps/ios/
     GraftApp.swift                     # @main entry point
     App/
       AppDelegate.swift                # APNs registration callbacks
-      RootView.swift                   # Scene root; drives scenePhase hooks
+      RootView.swift                   # Scene root; Welcome vs Home, scenePhase hooks
+      AdaptiveChrome.swift             # Regular-width split vs compact drawer policy
     Core/
       Keychain.swift                   # Generic-password Keychain wrapper
       AppLog.swift                     # os.Logger categories
@@ -150,7 +163,7 @@ apps/ios/
         QRScannerView.swift             # VisionKit QR scanner bridge
         QRScannerHostController.swift   # Camera presentation and lifecycle
       Home/
-        HomeView.swift                 # Main screen (threads, runs, approvals)
+        HomeView.swift                 # Adaptive home: compact drawer, regular split + chat
     Resources/
       graft-app-icon.icon              # Icon Composer app icon (iOS home screen)
       Assets.xcassets                  # Raster AppIcon fallback + accent colour
