@@ -4157,6 +4157,7 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
   } else {
     const spawnedChild = spawnProcess(process.execPath, [...backendExecArgv, backendEntry], {
       platform: process.platform,
+      macosExecutableHandoff: true,
       requireExecutable: true,
       cwd: backendChildCwd,
       // In Electron main, process.execPath points to the Electron binary.
