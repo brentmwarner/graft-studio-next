@@ -70,7 +70,9 @@ and the chat stack no longer applies `backgroundExtensionEffect()` to text.
 - **Regular windows**: chat always reserves the visible panel's width plus
   its margins, in portrait and landscape. The navigation stack fills only the
   remaining pane, so its title, readable transcript, and composer center beside
-  Projects. Selecting a thread or New Chat keeps Projects open. Use **Hide
+  Projects. The transcript, composer, and new/empty chat surfaces use the parent
+  pane's proposed width, capped at 720pt, rather than container-relative window
+  sizing. Selecting a thread or New Chat keeps Projects open. Use **Hide
   Projects** to reclaim the full chat width and
   **Show Projects** in the chat toolbar to restore the panel. There is no pin
   toggle or overlay mode; resizing preserves the chosen visibility.
@@ -96,7 +98,9 @@ Motion enabled, panel transitions fade without sliding or resizing animation.
 
 `AdaptiveChromeTests` covers size-class routing, panel margins and width,
 reserved chat space at all iPad widths, hide/show behavior, rendered panel/chat
-separation, and title/readable-column centering within the remaining pane.
+separation, and title/transcript/composer centering within the remaining pane.
+It also verifies that a narrower parent proposal wins over a wider navigation
+ancestor, including compact widths, so content cannot overflow the chat pane.
 Visual verification still requires the simulator; policy tests do not prove
 material rendering or header sharpness.
 

@@ -10,17 +10,6 @@ final class AdaptiveChromeTests: XCTestCase {
         XCTAssertFalse(AdaptiveChrome.usesPersistentSidebar(horizontalSizeClass: nil))
     }
 
-    func testReadableColumnWidthCapsWideContainersAndLeavesPhoneWidthsAlone() {
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 1_204), 720)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 900), 720)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 899), 899)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 834), 834)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 720), 720)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 390), 390)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 0), 0)
-        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: -40), 0)
-    }
-
     func testVisiblePanelReservesChatSpaceAtEveryRegularWidth() {
         let presentation = AdaptiveChrome.SidebarPresentation()
         XCTAssertTrue(presentation.isVisible)
@@ -89,13 +78,20 @@ final class AdaptiveChromeTests: XCTestCase {
             let sidebarMeasured = expectation(description: "Sidebar laid out at \(width)")
             let detailMeasured = expectation(description: "Chat laid out at \(width)")
             let columnMeasured = expectation(description: "Readable column laid out at \(width)")
+            let composerMeasured = expectation(description: "Composer laid out at \(width)")
             let titleMeasured = expectation(description: "Navigation title laid out at \(width)")
             let canvasMeasured = expectation(description: "Canvas laid out at \(width)")
             var sidebarFrame: CGRect?
             var detailFrame: CGRect?
             var columnFrame: CGRect?
+            var composerFrame: CGRect?
             var titleFrame: CGRect?
             var canvasFrame: CGRect?
+            let app = AppModel(store: LocalStore(inMemory: true))
+            let chat = ChatModel(threadId: "centering", title: "New chat", app: app)
+            let answer = TranscriptItem(kind: .assistant)
+            answer.text = "The transcript and composer should share a readable column centered in the space beside Projects, including when this paragraph wraps in a narrow pane."
+            chat.applyReconciledItems([.user("Check the chat layout."), answer])
             let view = FloatingSidebarLayout(
                 hostLabel: "Mac",
                 isConnected: true,
@@ -111,17 +107,25 @@ final class AdaptiveChromeTests: XCTestCase {
             } detail: {
                 ZStack {
                     Color.clear
-                    ScrollView {
-                        Text("Chat content")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .readableChatColumn()
-                    .onGeometryChange(for: CGRect.self) {
-                        $0.frame(in: .global)
-                    } action: { frame in
-                        if columnFrame == nil { columnMeasured.fulfill() }
-                        columnFrame = frame
-                    }
+                    TranscriptView(chat: chat)
+                        // Measure the content, before the full-pane centering frame.
+                        .onGeometryChange(for: CGRect.self) {
+                            $0.frame(in: .global)
+                        } action: { frame in
+                            if columnFrame == nil { columnMeasured.fulfill() }
+                            columnFrame = frame
+                        }
+                        .readableChatColumn()
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    ThreadComposerDock(chat: chat)
+                        .onGeometryChange(for: CGRect.self) {
+                            $0.frame(in: .global)
+                        } action: { frame in
+                            if composerFrame == nil { composerMeasured.fulfill() }
+                            composerFrame = frame
+                        }
+                        .readableChatColumn()
                 }
                 .onGeometryChange(for: CGRect.self) {
                     $0.frame(in: .global)
@@ -146,6 +150,7 @@ final class AdaptiveChromeTests: XCTestCase {
                     }
                 }
             }
+            .environment(app)
             .frame(width: width, height: 900)
             .onGeometryChange(for: CGRect.self) {
                 $0.frame(in: .global)
@@ -159,12 +164,13 @@ final class AdaptiveChromeTests: XCTestCase {
             defer { window.isHidden = true }
 
             await fulfillment(
-                of: [sidebarMeasured, detailMeasured, columnMeasured, titleMeasured, canvasMeasured],
+                of: [sidebarMeasured, detailMeasured, columnMeasured, composerMeasured, titleMeasured, canvasMeasured],
                 timeout: 3
             )
             let sidebar = try XCTUnwrap(sidebarFrame)
             let detail = try XCTUnwrap(detailFrame)
             let column = try XCTUnwrap(columnFrame)
+            let composer = try XCTUnwrap(composerFrame)
             let title = try XCTUnwrap(titleFrame)
             let canvas = try XCTUnwrap(canvasFrame)
             XCTAssertEqual(sidebar.minX - canvas.minX, 16, accuracy: 1)
@@ -173,9 +179,50 @@ final class AdaptiveChromeTests: XCTestCase {
             XCTAssertEqual(canvas.maxY - sidebar.maxY, 16, accuracy: 1)
             XCTAssertEqual(detail.minX, sidebar.maxX + 16, accuracy: 1)
             XCTAssertEqual(detail.width, width - 352, accuracy: 1)
-            XCTAssertEqual(column.width, AdaptiveChrome.readableColumnWidth(in: width - 352), accuracy: 1)
-            XCTAssertEqual(column.midX, detail.midX, accuracy: 1, "Chat centers beside Projects at \(width)pt")
+            for (name, frame) in [("Transcript", column), ("Composer", composer)] {
+                XCTAssertEqual(frame.width, min(720, detail.width), accuracy: 1, "\(name) uses the pane proposal")
+                XCTAssertEqual(frame.midX, detail.midX, accuracy: 1, "\(name) centers beside Projects at \(width)pt")
+                XCTAssertEqual(frame.minX - detail.minX, detail.maxX - frame.maxX, accuracy: 1)
+                XCTAssertGreaterThanOrEqual(frame.minX, detail.minX)
+                XCTAssertLessThanOrEqual(frame.maxX, detail.maxX)
+            }
             XCTAssertEqual(title.midX, detail.midX, accuracy: 1, "Navigation title centers beside Projects at \(width)pt")
+        }
+    }
+
+    @MainActor
+    func testReadableColumnUsesParentProposalInsideLargerNavigationContainer() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        // A narrower parent must win even when the nearest SwiftUI container
+        // remains the full window (for example, a resized or nested chat pane).
+        for paneWidth: CGFloat in [390, 672, 842, 1_014, 1_366] {
+            let measured = expectation(description: "Content laid out in \(paneWidth)pt pane")
+            var contentFrame: CGRect?
+            var paneFrame: CGRect?
+            let view = NavigationStack {
+                Color.clear
+                    .frame(height: 80)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                        if contentFrame == nil { measured.fulfill() }
+                        contentFrame = frame
+                    }
+                    .readableChatColumn()
+                    .frame(width: paneWidth)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { paneFrame = $0 }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .frame(width: 1_366, height: 900)
+            let window = UIWindow(windowScene: scene)
+            window.rootViewController = UIHostingController(rootView: view)
+            window.isHidden = false
+            defer { window.isHidden = true }
+            await fulfillment(of: [measured], timeout: 3)
+            let content = try XCTUnwrap(contentFrame)
+            let pane = try XCTUnwrap(paneFrame)
+            XCTAssertEqual(content.width, min(720, paneWidth), accuracy: 1)
+            XCTAssertEqual(content.midX, pane.midX, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(content.minX, pane.minX)
+            XCTAssertLessThanOrEqual(content.maxX, pane.maxX)
         }
     }
 }

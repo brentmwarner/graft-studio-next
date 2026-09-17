@@ -239,6 +239,7 @@ struct HomeEmptyChatPlaceholder: View {
             }
             .buttonStyle(.borderedProminent)
         }
+        .readableChatColumn()
         .navigationTitle(Text("Chat", comment: "Empty regular-width chat title"))
         .navigationBarTitleDisplayMode(.inline)
     }
