@@ -59,7 +59,7 @@ export interface CreateDesktopPlatformBuildConfigInput {
 }
 
 export interface DesktopNativeBuildHostInput {
-  readonly arch: "arm64" | "x64" | "universal";
+  readonly arch: "arm64" | "x64";
   readonly hostArch: string;
   readonly hostPlatform: NodeJS.Platform;
   readonly platform: "linux" | "mac" | "win";
@@ -67,9 +67,6 @@ export interface DesktopNativeBuildHostInput {
 
 export function validateDesktopNativeBuildHost(input: DesktopNativeBuildHostInput): string | null {
   if (input.platform === "mac") {
-    if (input.arch === "universal") {
-      return "macOS desktop artifacts require a native arm64 or x64 build so the bundled Node runtime matches the app architecture.";
-    }
     if (input.hostPlatform === "darwin" && input.hostArch === input.arch) return null;
     return [
       "macOS desktop artifacts include native Swift and Node runtimes.",
@@ -78,9 +75,6 @@ export function validateDesktopNativeBuildHost(input: DesktopNativeBuildHostInpu
     ].join(" ");
   }
   if (input.platform !== "linux") return null;
-  if (input.arch === "universal") {
-    return "Linux desktop artifacts support x64 or arm64 builds, not universal builds.";
-  }
   if (input.hostPlatform === "linux" && input.hostArch === input.arch) return null;
 
   return [
@@ -112,9 +106,6 @@ export function createDesktopPlatformBuildConfig(
       entitlements: MAC_ENTITLEMENTS_PATH,
       entitlementsInherit: MAC_INHERITED_ENTITLEMENTS_PATH,
       binaries: [MAC_APPSNAP_HELPER_BUNDLE_PATH, MAC_NODE_RUNTIME_BUNDLE_PATH],
-      // The universal build stages the same pre-lipo'd helper in both app trees.
-      // @electron/universal needs this pattern to preserve that existing fat binary.
-      x64ArchFiles: MAC_APPSNAP_HELPER_BUNDLE_PATH,
       extendInfo: {
         NSMicrophoneUsageDescription: MICROPHONE_USAGE_DESCRIPTION,
       },

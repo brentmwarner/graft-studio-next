@@ -61,7 +61,7 @@ import { Command, Flag } from "effect/unstable/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
-const BuildArch = Schema.Literals(["arm64", "x64", "universal"]);
+const BuildArch = Schema.Literals(["arm64", "x64"]);
 const requireFromScriptsWorkspace = createRequire(new URL("./package.json", import.meta.url));
 
 const RepoRoot = Effect.service(Path.Path).pipe(
@@ -107,7 +107,7 @@ const PLATFORM_CONFIG: Record<typeof BuildPlatform.Type, PlatformConfig> = {
   mac: {
     cliFlag: "--mac",
     defaultTarget: "dmg",
-    archChoices: ["arm64", "x64", "universal"],
+    archChoices: ["arm64", "x64"],
   },
   linux: {
     cliFlag: "--linux",
@@ -1320,7 +1320,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
     Flag.optional,
   ),
   arch: Flag.choice("arch", BuildArch.literals).pipe(
-    Flag.withDescription("Build arch, for example arm64/x64/universal (env: GRAFT_DESKTOP_ARCH)."),
+    Flag.withDescription("Build architecture: arm64 or x64 (env: GRAFT_DESKTOP_ARCH)."),
     Flag.optional,
   ),
   buildVersion: Flag.string("build-version").pipe(

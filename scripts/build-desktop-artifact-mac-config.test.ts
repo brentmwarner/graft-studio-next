@@ -57,7 +57,6 @@ describe("createDesktopPlatformBuildConfig", () => {
     ]);
     assert.equal(MAC_NODE_RUNTIME_BUNDLE_PATH, "Contents/Resources/node-runtime/node");
     assert.equal(MAC_NODE_RUNTIME_STAGE_PATH, "apps/desktop/native/node-runtime/node");
-    assert.equal(mac.x64ArchFiles, "Contents/Helpers/graft-appsnap-helper");
     assert.equal(
       MAC_APPSNAP_HELPER_STAGE_PATH,
       "apps/desktop/native/appsnap/build/graft-appsnap-helper",
@@ -181,16 +180,6 @@ describe("createDesktopPlatformBuildConfig", () => {
       null,
     );
 
-    assert.equal(
-      validateDesktopNativeBuildHost({
-        platform: "linux",
-        arch: "universal",
-        hostPlatform: "linux",
-        hostArch: "x64",
-      }),
-      "Linux desktop artifacts support x64 or arm64 builds, not universal builds.",
-    );
-
     const issue = validateDesktopNativeBuildHost({
       platform: "linux",
       arch: "x64",
@@ -210,16 +199,6 @@ describe("createDesktopPlatformBuildConfig", () => {
         hostArch: "arm64",
       }),
       null,
-    );
-
-    assert.equal(
-      validateDesktopNativeBuildHost({
-        platform: "mac",
-        arch: "universal",
-        hostPlatform: "darwin",
-        hostArch: "arm64",
-      }),
-      "macOS desktop artifacts require a native arm64 or x64 build so the bundled Node runtime matches the app architecture.",
     );
 
     const issue = validateDesktopNativeBuildHost({
