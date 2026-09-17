@@ -80,6 +80,7 @@ import { setOccupancyListenPort } from "./graftOccupancy/occupancyRuntime";
 import { ProviderDiscoveryService } from "./provider/Services/ProviderDiscoveryService";
 import { legacyGraftRouteLayer } from "./legacyGraftHttp";
 import { legacyGraftRuntime } from "./legacyGraftRuntime";
+import { tracePackagedStartup } from "./packagedStartupTrace";
 
 export interface ServerShape {
   readonly start: Effect.Effect<
@@ -168,6 +169,7 @@ export async function closeServerRemoteAccess(input: {
 export const createEffectServer = Effect.fn(function* (
   shutdownController: ServerShutdownController,
 ) {
+  tracePackagedStartup("createEffectServer started");
   const config = yield* ServerConfig;
   const remotePolicyError = remoteAccessPolicyError(config);
   if (remotePolicyError) {
@@ -191,6 +193,7 @@ export const createEffectServer = Effect.fn(function* (
   const serverSettings = yield* ServerSettingsService;
   const threadDeletionReactor = yield* ThreadDeletionReactor;
   const readiness = yield* makeServerReadiness;
+  tracePackagedStartup("createEffectServer services acquired");
 
   yield* keybindings.syncDefaultKeybindingsOnStartup.pipe(
     Effect.catch((error) =>
@@ -204,6 +207,7 @@ export const createEffectServer = Effect.fn(function* (
   yield* serverSettings.start;
   yield* readiness.markPushBusReady;
   yield* readiness.markKeybindingsReady;
+  tracePackagedStartup("settings and keybindings ready");
 
   let nodeServer: http.Server | null = null;
   patchBunWebSocketCloseEventCompatibility();
@@ -216,6 +220,7 @@ export const createEffectServer = Effect.fn(function* (
   }, listenOptions).pipe(
     Effect.mapError((cause) => new ServerLifecycleError({ operation: "httpServerListen", cause })),
   );
+  tracePackagedStartup("HTTP socket bound");
 
   const routesLayer = Layer.mergeAll(
     makeEffectHttpRouteLayer(readiness, shutdownController),
@@ -229,11 +234,13 @@ export const createEffectServer = Effect.fn(function* (
     legacyGraftRouteLayer,
   );
   const httpApp = yield* HttpRouter.toHttpEffect(routesLayer);
+  tracePackagedStartup("HTTP routes ready");
   yield* httpServer
     .serve(httpApp)
     .pipe(
       Effect.mapError((cause) => new ServerLifecycleError({ operation: "httpServerServe", cause })),
     );
+  tracePackagedStartup("HTTP handlers attached");
 
   const listeningPort = resolveListeningPort(
     (nodeServer as http.Server | null)?.address() ?? null,
@@ -295,6 +302,7 @@ export const createEffectServer = Effect.fn(function* (
   );
   yield* Effect.addFinalizer(() => clearPersistedServerRuntimeState(config.serverRuntimeStatePath));
   yield* readiness.markHttpListening;
+  tracePackagedStartup("HTTP readiness marked");
 
   const subscriptionsScope = yield* Scope.make("sequential");
   yield* Effect.addFinalizer(() =>
@@ -312,12 +320,14 @@ export const createEffectServer = Effect.fn(function* (
       Effect.runPromise(orchestrationEngine.dispatch(command)),
     ),
   );
+  tracePackagedStartup("legacy history startup finished");
   yield* Scope.provide(orchestrationReactor.start, subscriptionsScope);
   yield* Scope.provide(automationScheduler.start(), subscriptionsScope);
   yield* Scope.provide(automationRunReactor.start(), subscriptionsScope);
   yield* Scope.provide(threadDeletionReactor.start(), subscriptionsScope);
   yield* Scope.provide(providerSessionReaper.start(), subscriptionsScope);
   yield* Scope.provide(providerRuntimeReconciler.start(), subscriptionsScope);
+  tracePackagedStartup("runtime subscriptions started");
   yield* readiness.markOrchestrationSubscriptionsReady;
   yield* readiness.markTerminalSubscriptionsReady;
   // Heal turns orphaned by the previous process exit (their in-memory runtimes
@@ -331,6 +341,7 @@ export const createEffectServer = Effect.fn(function* (
   // process start cannot replay state-dependent commands against the terminal
   // projection.
   yield* orchestrationReactor.reconcileSettledOpenTurns;
+  tracePackagedStartup("turn reconciliation finished");
   yield* recoverGitHandoffOperations((command) => orchestrationEngine.dispatch(command)).pipe(
     Effect.mapError(
       (cause) => new ServerLifecycleError({ operation: "recoverGitHandoffOperations", cause }),
@@ -340,6 +351,7 @@ export const createEffectServer = Effect.fn(function* (
   // command (and so no new quit) can run yet; a missing record costs one stat.
   const quitResumeRecord = yield* claimQuitResumeRecordAtStartup;
   yield* runtimeStartup.markCommandReady;
+  tracePackagedStartup("command runtime ready");
   // The recorded chats get their continuation turn now that the orphaned turns
   // above are settled. Forked so the (rare) dispatch work never delays readiness.
   yield* resumeQuitInterruptedChats(quitResumeRecord).pipe(Effect.forkIn(subscriptionsScope));
@@ -359,6 +371,7 @@ export const createEffectServer = Effect.fn(function* (
     type: "ready",
     payload: { at: new Date().toISOString() },
   });
+  tracePackagedStartup("ready lifecycle event published");
 
   if (!nodeServer) {
     return yield* new ServerLifecycleError({ operation: "httpServerListen" });
