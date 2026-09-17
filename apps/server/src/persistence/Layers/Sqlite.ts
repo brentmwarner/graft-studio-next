@@ -14,7 +14,7 @@ import {
 } from "../MigrationBackup.ts";
 import { createMigrationSchemaTooNewStartupBlockError } from "../MigrationSchemaTooNewStartupBlock.ts";
 import { ensurePrivateFileSync, repairPrivateFile } from "../../privatePathPermissions.ts";
-import { resolveSqliteMemoryBudget } from "../sqliteMemoryBudget.ts";
+import { resolveRuntimeSqliteMemoryBudget } from "../sqliteMemoryBudget.ts";
 import { ServerConfig } from "../../config.ts";
 import {
   acquireDatabaseLifecycleLock,
@@ -112,14 +112,20 @@ const makeSetup = ({
       // The event log alone can exceed a gigabyte, so the 2MB default page
       // cache thrashes during projector replay and large projection reads.
       // The page cache (negative value = KiB) keeps the hot b-tree interior
-      // pages resident and is sized to the host's physical memory (see
-      // sqliteMemoryBudget.ts). It is an on-demand ceiling for the single
-      // serialized connection, not an upfront allocation. temp_store stays at
-      // its default deliberately: the snapshot window queries can build
+      // pages resident. Most runtimes size it to the host's physical memory;
+      // packaged macOS uses the conservative tier because its native memory
+      // probe can block startup (see sqliteMemoryBudget.ts). It is an on-demand
+      // ceiling for the single serialized connection, not an upfront
+      // allocation. temp_store stays at its default deliberately: the snapshot
+      // window queries can build
       // temp b-trees proportional to live-thread history, and MEMORY would
       // turn those into unbounded native RSS; the disk default already keeps
       // small temp structures in memory and only spills when they grow.
-      const memoryBudget = resolveSqliteMemoryBudget(totalmem());
+      const memoryBudget = resolveRuntimeSqliteMemoryBudget({
+        platform: process.platform,
+        packagedDesktop: process.env.GRAFT_DESKTOP_PACKAGED === "1",
+        readTotalMemory: totalmem,
+      });
       yield* sql`PRAGMA cache_size = ${sql.literal(String(memoryBudget.cacheSizePragma))};`;
       if (dbPath) {
         // mmap serves large sequential reads (event replay, VACUUM INTO

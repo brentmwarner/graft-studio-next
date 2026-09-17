@@ -12,6 +12,20 @@ export interface SqliteMemoryBudget {
   readonly mmapSizeBytes: number;
 }
 
+export function resolveRuntimeSqliteMemoryBudget(input: {
+  readonly platform: NodeJS.Platform;
+  readonly packagedDesktop: boolean;
+  readonly readTotalMemory: () => number;
+}): SqliteMemoryBudget {
+  // macOS can block inside os.totalmem() when Electron launches the packaged
+  // backend. The conservative tier is safe on every supported Mac and avoids
+  // making native host inspection part of the database-startup critical path.
+  if (input.platform === "darwin" && input.packagedDesktop) {
+    return resolveSqliteMemoryBudget(0);
+  }
+  return resolveSqliteMemoryBudget(input.readTotalMemory());
+}
+
 /**
  * The event log alone can exceed a gigabyte, so the 2 MB SQLite default page
  * cache thrashes during projector replay and large snapshot reads. Big hosts
