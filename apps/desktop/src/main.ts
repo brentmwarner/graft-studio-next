@@ -267,6 +267,7 @@ import {
 import { isBrokenPipeError } from "./desktopProcessErrors";
 import { createDesktopStaticProtocolResolver } from "./desktopStaticProtocol";
 import {
+  configureDesktopBackendRuntimeEnvironment,
   resolveDesktopBackendEntry,
   resolveDesktopBackendExecutable,
 } from "./desktopBackendExecutable";
@@ -4132,12 +4133,14 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
   writeDesktopLogHeader("backend node args ready");
   const resolvedBackendEnv = backendEnv();
   writeDesktopLogHeader("backend environment ready");
-  const backendChildEnv: NodeJS.ProcessEnv = {
-    ...resolvedBackendEnv,
-    ELECTRON_RUN_AS_NODE: "1",
-    GRAFT_SERVER_ENTRY: backendEntry,
-    GRAFT_DESKTOP_PARENT_STDIN: "1",
-  };
+  const backendChildEnv = configureDesktopBackendRuntimeEnvironment(
+    {
+      ...resolvedBackendEnv,
+      GRAFT_SERVER_ENTRY: backendEntry,
+      GRAFT_DESKTOP_PARENT_STDIN: "1",
+    },
+    { appIsPackaged: app.isPackaged, platform: process.platform },
+  );
   const backendChildCwd = resolveBackendCwd();
   const backendExecutable = resolveDesktopBackendExecutable({
     appIsPackaged: app.isPackaged,
@@ -4155,8 +4158,8 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
     requireExecutable: true,
     cwd: backendChildCwd,
     // Electron executables become Node runtimes when ELECTRON_RUN_AS_NODE is set.
-    // Packaged macOS builds use a standalone Node runtime because Electron's
-    // embedded runtime stalls while applying SQLite migrations.
+    // The packaged macOS launch helper removes that marker because it selects a
+    // standalone Node runtime instead.
     env: backendChildEnv,
     // Keep output piped in every environment so startup blockers and readiness
     // are observable even when packaged log setup is unavailable. The fourth

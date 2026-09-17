@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createPackagedDesktopSmokeEnvironment,
   parsePackagedDesktopStartupArgs,
+  readLatestPackagedBackendPort,
   readPackagedStartupLogTails,
   retainMacBackendSampleCallGraph,
   resolvePackagedDependencySmokeLaunch,
@@ -53,6 +54,15 @@ describe("packaged desktop startup verification", () => {
 
     expect(diagnostics).toMatch(/^Sampling process 123\nCall graph:/u);
     expect(diagnostics.length).toBeLessThanOrEqual(65_536);
+  });
+
+  it("reads the latest valid packaged backend port from the desktop log", () => {
+    expect(
+      readLatestPackagedBackendPort(
+        "bootstrap resolved backend endpoint port=41001\nrestart resolved backend endpoint port=42002",
+      ),
+    ).toBe(42_002);
+    expect(readLatestPackagedBackendPort("resolved backend endpoint port=99999")).toBeNull();
   });
 
   it("parses a bounded native payload request", () => {

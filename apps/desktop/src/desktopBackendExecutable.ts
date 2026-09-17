@@ -20,6 +20,11 @@ export interface DesktopBackendEntryInput {
   readonly resourcesPath: string;
 }
 
+export interface DesktopBackendRuntimeEnvironmentInput {
+  readonly appIsPackaged: boolean;
+  readonly platform: NodeJS.Platform;
+}
+
 /**
  * Electron's embedded Node runtime can stall while applying SQLite migrations
  * in a packaged Helper process. macOS packages include a matching standalone
@@ -31,6 +36,24 @@ export function resolveDesktopBackendExecutable(input: DesktopBackendExecutableI
   }
 
   return Path.join(input.resourcesPath, GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH);
+}
+
+/**
+ * Electron requires this marker when its own executable hosts the backend. The
+ * packaged macOS backend uses a standalone Node binary, where retaining the
+ * Electron marker can make imported runtime code select the wrong host mode.
+ */
+export function configureDesktopBackendRuntimeEnvironment(
+  environment: NodeJS.ProcessEnv,
+  input: DesktopBackendRuntimeEnvironmentInput,
+): NodeJS.ProcessEnv {
+  const configured = { ...environment };
+  if (input.appIsPackaged && input.platform === "darwin") {
+    delete configured.ELECTRON_RUN_AS_NODE;
+  } else {
+    configured.ELECTRON_RUN_AS_NODE = "1";
+  }
+  return configured;
 }
 
 /** Standalone Node cannot read Electron ASAR archives, so use the unpacked server graph. */

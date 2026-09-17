@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  configureDesktopBackendRuntimeEnvironment,
   resolveDesktopBackendEntry,
   resolveDesktopBackendExecutable,
 } from "./desktopBackendExecutable";
@@ -34,6 +35,26 @@ describe("resolveDesktopBackendExecutable", () => {
         resourcesPath: "C:\\Program Files\\Graft\\resources",
       }),
     ).toBe("C:\\Program Files\\Graft\\graft.exe");
+  });
+});
+
+describe("configureDesktopBackendRuntimeEnvironment", () => {
+  it("removes Electron node mode from the packaged macOS standalone runtime", () => {
+    expect(
+      configureDesktopBackendRuntimeEnvironment(
+        { ELECTRON_RUN_AS_NODE: "inherited", GRAFT_MODE: "desktop" },
+        { appIsPackaged: true, platform: "darwin" },
+      ),
+    ).toEqual({ GRAFT_MODE: "desktop" });
+  });
+
+  it("enables Electron node mode when Electron remains the backend executable", () => {
+    expect(
+      configureDesktopBackendRuntimeEnvironment(
+        { GRAFT_MODE: "desktop" },
+        { appIsPackaged: true, platform: "win32" },
+      ),
+    ).toEqual({ ELECTRON_RUN_AS_NODE: "1", GRAFT_MODE: "desktop" });
   });
 });
 
