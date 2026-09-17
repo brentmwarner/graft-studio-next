@@ -45,12 +45,11 @@ struct NewChatView: View {
         .navigationDestination(item: $openedThread) { thread in
             ThreadView(threadId: thread.id, title: thread.title)
         }
-        .task {
+        .task(id: app.gateway.state == .connected) {
             if selectedProjectId == nil {
                 selectedProjectId = preselectedProjectId ?? projects.first?.id
             }
             await app.loadModelsIfNeeded()
-            applyModelDefaults()
         }
         .onChange(of: currentModel?.selectionID) {
             applyModelDefaults()
@@ -102,7 +101,6 @@ struct NewChatView: View {
         }
         .frame(height: 50)
         .clipShape(.capsule)
-        .overlay(Capsule().stroke(Color.secondary.opacity(0.28), lineWidth: 1))
     }
 
     private func modeButton(value: String, label: LocalizedStringKey) -> some View {
@@ -126,10 +124,25 @@ struct NewChatView: View {
 
     private var composerDock: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                modelSettingsMenu
-                if !approvalOptions.isEmpty {
-                    approvalMenu
+            GlassEffectContainer(spacing: 6) {
+                HStack(spacing: 8) {
+                    NewChatModelMenu(
+                        catalog: app.models,
+                        currentModel: currentModel,
+                        selectedEffort: Binding(
+                            get: { resolvedEffort },
+                            set: { selectedEffort = $0 }
+                        ),
+                        onSelect: { model in
+                            selectedModelId = model.id
+                            selectedProviderId = model.providerId
+                        },
+                        onRefresh: { Task { await app.loadModelsIfNeeded(force: true) } }
+                    )
+                    .disabled(isCreating)
+                    if !approvalOptions.isEmpty {
+                        approvalMenu
+                    }
                 }
             }
 
@@ -221,57 +234,6 @@ struct NewChatView: View {
         .accessibilityLabel("Composer options")
     }
 
-    private var modelSettingsMenu: some View {
-        Menu {
-            if !efforts.isEmpty {
-                Section("Intelligence") {
-                    ForEach(efforts, id: \.self) { effort in
-                        Button {
-                            selectedEffort = effort
-                        } label: {
-                            if effort == resolvedEffort {
-                                Label(
-                                    ComposerView.effortDisplayName(effort),
-                                    systemImage: "checkmark"
-                                )
-                            } else {
-                                Text(ComposerView.effortDisplayName(effort))
-                            }
-                        }
-                    }
-                }
-            }
-            Section("Model") {
-                ForEach(app.availableModels, id: \.selectionID) { model in
-                    Button {
-                        selectedModelId = model.id
-                        selectedProviderId = model.providerId
-                    } label: {
-                        if model.selectionID == currentModel?.selectionID {
-                            Label(model.label, systemImage: "checkmark")
-                        } else {
-                            Text(model.label)
-                        }
-                    }
-                }
-            }
-            Section("Speed") {
-                Label("Normal", systemImage: "checkmark")
-            }
-        } label: {
-            Text(modelChipLabel)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .padding(.horizontal, 14)
-                .frame(height: 38)
-                .background(Color.secondary.opacity(0.12), in: .capsule)
-        }
-        .buttonStyle(.plain)
-        .disabled(app.availableModels.isEmpty)
-        .accessibilityLabel("Model and reasoning effort")
-    }
-
     @ViewBuilder
     private var approvalMenu: some View {
         let label = Text(approvalLabel)
@@ -280,7 +242,9 @@ struct NewChatView: View {
             .lineLimit(1)
             .padding(.horizontal, 14)
             .frame(height: 38)
-            .background(Color.secondary.opacity(0.12), in: .capsule)
+            .glassEffect(.regular.interactive(approvalOptions.count > 1), in: .capsule)
+            .frame(minHeight: 44)
+            .contentShape(.capsule)
         if approvalOptions.count <= 1 {
             label
                 .accessibilityLabel("Permissions")
@@ -311,6 +275,7 @@ struct NewChatView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Permissions")
+            .accessibilityIdentifier("new-chat-permissions")
         }
     }
 
@@ -356,6 +321,9 @@ struct NewChatView: View {
         if let selectedEffort, efforts.contains(selectedEffort) {
             return selectedEffort
         }
+        if let effort = currentModel?.defaultReasoningEffort, efforts.contains(effort) {
+            return effort
+        }
         if efforts.contains("xhigh") { return "xhigh" }
         if efforts.contains("high") { return "high" }
         return efforts.first
@@ -385,12 +353,6 @@ struct NewChatView: View {
         return policy != baseline
     }
 
-    private var modelChipLabel: String {
-        let model = currentModel?.label ?? String(localized: "Model")
-        guard let effort = resolvedEffort else { return model }
-        return "\(model) \(ComposerView.effortDisplayName(effort))"
-    }
-
     private var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && selectedProjectId != nil
@@ -402,12 +364,7 @@ struct NewChatView: View {
         guard let model = currentModel else { return }
         selectedModelId = model.id
         selectedProviderId = model.providerId
-        selectedEffort = {
-            let efforts = model.reasoningEfforts ?? []
-            if efforts.contains("xhigh") { return "xhigh" }
-            if efforts.contains("high") { return "high" }
-            return efforts.first
-        }()
+        selectedEffort = nil
         selectedApprovalPolicy = model.defaultApprovalPolicy
     }
 
@@ -416,21 +373,24 @@ struct NewChatView: View {
         guard !text.isEmpty, let projectId = selectedProjectId, !isCreating else {
             return
         }
+        let model = currentModel
+        let effort = resolvedEffort
+        let approvalPolicy = resolvedApprovalPolicy
         isCreating = true
         Task {
             defer { isCreating = false }
             guard let thread = await app.createThread(
                 projectId: projectId,
                 mode: selectedMode,
-                model: currentModel,
-                approvalPolicy: resolvedApprovalPolicy
+                model: model,
+                approvalPolicy: approvalPolicy
             ) else {
                 return
             }
-            if let effort = resolvedEffort {
+            await app.openThread(thread.id, title: thread.title)
+            if let effort {
                 app.setThreadEffort(threadId: thread.id, effort: effort)
             }
-            await app.openThread(thread.id, title: thread.title)
             _ = await app.activeChat?.send(text)
             draft = ""
             openedThread = InboxThreadItem(
@@ -439,6 +399,95 @@ struct NewChatView: View {
                 showsAttentionDot: false
             )
         }
+    }
+}
+
+/// Native provider submenus mirror the desktop hierarchy. Intelligence is a
+/// separate submenu for the selected model, keeping the first level compact.
+struct NewChatModelMenu: View {
+    let catalog: ModelSettingsStore
+    let currentModel: ModelOption?
+    @Binding var selectedEffort: String?
+    let onSelect: (ModelOption) -> Void
+    let onRefresh: () -> Void
+
+    var body: some View {
+        Menu {
+            Section("Provider") {
+                ForEach(catalog.providerGroups) { provider in
+                    Menu {
+                        ForEach(provider.models, id: \.selectionID) { model in
+                            Button {
+                                onSelect(model)
+                            } label: {
+                                if model.selectionID == currentModel?.selectionID {
+                                    Label(model.label, systemImage: "checkmark")
+                                } else {
+                                    Text(model.label)
+                                }
+                            }
+                            .accessibilityIdentifier("new-chat-model-\(model.selectionID)")
+                        }
+                    } label: {
+                        Label {
+                            Text(provider.label)
+                        } icon: {
+                            ProviderLogo.image(for: provider.id) ?? Image(systemName: "cpu")
+                        }
+                    }
+                    .accessibilityAddTraits(currentModel?.providerId == provider.id ? .isSelected : [])
+                    .accessibilityIdentifier("new-chat-provider-\(provider.id)")
+                }
+            }
+
+            if let efforts = currentModel?.reasoningEfforts, !efforts.isEmpty {
+                Section {
+                    Menu {
+                        Picker("Intelligence", selection: $selectedEffort) {
+                            ForEach(efforts, id: \.self) { effort in
+                                Text(ComposerView.effortDisplayName(effort)).tag(Optional(effort))
+                            }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Text("Intelligence: \(ComposerView.effortDisplayName(selectedEffort ?? ""))")
+                    }
+                    .accessibilityIdentifier("new-chat-intelligence")
+                }
+            }
+
+            if catalog.isLoading {
+                Text("Loading models…")
+            } else if let error = catalog.loadError {
+                Section {
+                    Text(error)
+                    Button("Retry", systemImage: "arrow.clockwise", action: onRefresh)
+                }
+            } else if catalog.providerGroups.isEmpty {
+                Button("Load models", systemImage: "arrow.clockwise", action: onRefresh)
+            }
+        } label: {
+            Text(chipLabel)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 38)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .frame(minHeight: 44)
+                .contentShape(.capsule)
+        }
+        .menuOrder(.fixed)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Provider, model, and intelligence")
+        .accessibilityValue(chipLabel)
+        .accessibilityIdentifier("new-chat-model-settings")
+    }
+
+    private var chipLabel: String {
+        let model = currentModel?.label ?? String(localized: "Choose model")
+        guard let effort = selectedEffort else { return model }
+        return "\(model) \(ComposerView.effortDisplayName(effort))"
     }
 }
 

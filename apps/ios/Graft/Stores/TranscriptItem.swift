@@ -25,8 +25,13 @@ final class TranscriptItem: Identifiable {
     let id = UUID()
     let kind: Kind
     var sourceID: String?
+    var runID: String?
+    var isMessageComplete = false
+    var createdAt: Int?
+    var completedAt: Int?
 
     var text = "" { didSet { cachedNormalizedMergeText = nil; refreshDerivedFlags() } }
+    var skills: [MessageSkill] = []
     var reasoning = "" { didSet { refreshDerivedFlags() } }
     /// Images attached to this row: agent screenshots/tool images, user
     /// composer attachments, or markdown/path refs in prose.
@@ -88,11 +93,22 @@ final class TranscriptItem: Identifiable {
         refreshDerivedFlags()
     }
 
-    static func user(_ text: String, attachments: [TimelineAttachment] = []) -> TranscriptItem {
+    static func user(_ text: String, attachments: [TimelineAttachment] = [], skills: [MessageSkill] = []) -> TranscriptItem {
         let item = TranscriptItem(kind: .user)
         item.text = text
         item.attachments = attachments
+        item.skills = skills
         return item
+    }
+
+    /// A live echo/history snapshot carries canonical names. Keep the selected
+    /// display label when the host has no presentation label of its own.
+    func mergeSkills(_ incoming: [MessageSkill]?) {
+        guard let incoming, !incoming.isEmpty else { return }
+        skills = incoming.map { skill in
+            MessageSkill(name: skill.name, displayName: skill.displayName
+                ?? skills.first(where: { $0.name == skill.name })?.displayName)
+        }
     }
 
     static func assistant(_ text: String = "", streaming: Bool = false) -> TranscriptItem {
@@ -219,11 +235,21 @@ final class TranscriptItem: Identifiable {
 
     /// Copy the displayable content of a freshly-itemized row into this surviving
     /// object, so a reconcile updates it in place and the row keeps its identity
-    /// (and its realized SwiftUI subtree). Live-stream scratch state
-    /// (`reasoningStartedAt`, `isStreaming`) is deliberately left untouched.
+    /// (and its realized SwiftUI subtree). The authoritative streaming state
+    /// must replace the live flags, including when completion arrived offline.
     func absorb(_ other: TranscriptItem) {
         sourceID = other.sourceID
+        runID = other.runID
+        isMessageComplete = other.isMessageComplete
+        createdAt = other.createdAt ?? createdAt
+        completedAt = other.completedAt ?? completedAt
         isStreaming = other.isStreaming
+        if !isStreaming {
+            if let started = reasoningStartedAt, reasoningDuration == nil {
+                reasoningDuration = Date().timeIntervalSince(started)
+            }
+            reasoningStartedAt = nil
+        }
         // Equivalent prose in a different spelling (a raw history row whose
         // media refs the live bubble already scrubbed) keeps the displayed
         // text; a material change adopts the server's and re-arms the lazy
@@ -232,6 +258,7 @@ final class TranscriptItem: Identifiable {
             text = other.text
             richContentAttached = false
         }
+        mergeSkills(other.skills)
         reasoning = other.reasoning
         attachments = other.attachments
         if !other.images.isEmpty { images = other.images }
@@ -246,7 +273,7 @@ final class TranscriptItem: Identifiable {
         toolStatus = other.toolStatus
         if !other.agentRuns.isEmpty { agentRuns = other.agentRuns }
         agentsSettled = other.agentsSettled
-        reasoningDuration = other.reasoningDuration
+        if let duration = other.reasoningDuration { reasoningDuration = duration }
     }
 }
 

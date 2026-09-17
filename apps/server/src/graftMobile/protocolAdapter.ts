@@ -14,6 +14,7 @@ import type {
   GraftThreadStatus,
   GraftThreadSummary,
   GraftTimelineEvent,
+  GraftTimelineEventData,
   GraftTimelineEventKind,
   GraftTranscriptSnapshot,
 } from "@graft/mobile-contract";
@@ -150,6 +151,8 @@ export function mobileThreadProvider(thread: OrchestrationThreadShell): Provider
 
 export function toMobileThread(thread: OrchestrationThreadShell): GraftThreadSummary {
   const pullRequest = toMobilePr(thread);
+  const options = objectValue(thread.modelSelection.options);
+  const effort = stringValue(options, ["reasoningEffort", "effort", "thinkingLevel", "variant"]);
   return {
     id: thread.id,
     projectId: thread.projectId,
@@ -159,6 +162,7 @@ export function toMobileThread(thread: OrchestrationThreadShell): GraftThreadSum
     modelName: thread.modelSelection.model,
     providerId: mobileThreadProvider(thread),
     providerLocked: mobileThreadProviderLocked(thread),
+    ...(effort ? { effort } : {}),
     mode: thread.envMode,
     interactionMode: thread.interactionMode,
     fastMode: mobileFastMode(thread.modelSelection),
@@ -294,6 +298,8 @@ export function toMobilePendingQuestions(thread: OrchestrationThread): GraftQues
 
 function activityEventKind(activity: OrchestrationThreadActivity): GraftTimelineEventKind {
   switch (activity.kind) {
+    case "turn.tasks.updated":
+      return "todo.update";
     case "approval.requested":
       return "approval.requested";
     case "approval.resolved":
@@ -326,6 +332,28 @@ function activityEventKind(activity: OrchestrationThreadActivity): GraftTimeline
   }
 }
 
+function mobileTasks(
+  activity: OrchestrationThreadActivity,
+  payload: Record<string, unknown> | null,
+): GraftTimelineEventData | undefined {
+  if (activity.kind !== "turn.tasks.updated" || !Array.isArray(payload?.tasks)) return undefined;
+  const todos = payload.tasks.slice(0, 100).flatMap((value, index) => {
+    const task = objectValue(value);
+    const text = stringValue(task, ["task"]);
+    if (!text) return [];
+    const status =
+      task?.status === "completed"
+        ? ("completed" as const)
+        : task?.status === "inProgress"
+          ? ("in_progress" as const)
+          : ("pending" as const);
+    return [{ id: `${activity.turnId ?? "tasks"}:${index}`, text, status }];
+  });
+  // An explicit empty list clears tasks; a malformed update must not erase them.
+  if (payload.tasks.length > 0 && todos.length === 0) return undefined;
+  return { type: "todo_update", todos };
+}
+
 export function toMobileActivityEvent(
   threadId: string,
   activity: OrchestrationThreadActivity,
@@ -333,7 +361,19 @@ export function toMobileActivityEvent(
   const payload = objectValue(activity.payload);
   const kind = activityEventKind(activity);
   const requestId = stringValue(payload, ["requestId"]);
-  const toolName = stringValue(payload, ["toolName", "tool", "name"]);
+  const toolData = objectValue(payload?.data);
+  const toolItem = objectValue(toolData?.item);
+  const toolName =
+    stringValue(payload, ["toolName", "tool", "name"]) ??
+    stringValue(toolData, ["toolName", "tool"]) ??
+    stringValue(toolItem, ["toolName", "name"]) ??
+    stringValue(payload, ["title"]);
+  // Event IDs identify delivery; tool IDs correlate start/progress/completion,
+  // using the same provider payload fields as desktop's work log.
+  const toolId =
+    stringValue(toolData, ["toolCallId", "toolUseId", "callID", "callId"]) ??
+    stringValue(toolItem, ["id"]);
+  const data = mobileTasks(activity, payload);
   return {
     id: activity.id,
     cursor: activity.sequence ?? 0,
@@ -342,7 +382,9 @@ export function toMobileActivityEvent(
     ...(activity.turnId ? { runId: activity.turnId } : {}),
     createdAt: timestamp(activity.createdAt),
     text: activity.summary,
+    ...(data ? { data } : {}),
     ...(toolName ? { toolName } : {}),
+    ...(toolId && kind.startsWith("tool.") ? { toolId } : {}),
     ...(kind === "approval.requested" || kind === "approval.resolved"
       ? { approvalId: requestId ?? activity.id }
       : {}),
@@ -417,6 +459,7 @@ export function toMobileTranscript(
       threadId: thread.id,
       ...(message.turnId ? { runId: message.turnId } : {}),
       createdAt: timestamp(message.createdAt),
+      ...(!message.streaming ? { completedAt: timestamp(message.updatedAt) } : {}),
       text: message.text,
       ...(message.attachments?.length
         ? {
@@ -424,6 +467,9 @@ export function toMobileTranscript(
               (attachment) => attachment.type === "image" || attachment.type === "file",
             ),
           }
+        : {}),
+      ...(message.role === "user" && message.skills?.length
+        ? { skills: message.skills.map(({ name }) => ({ name })) }
         : {}),
     };
   });
@@ -504,8 +550,11 @@ interface StaticModelDefinition {
   readonly slug: string;
   readonly name: string;
   readonly capabilities: {
+    readonly reasoningEffortLevels: ReadonlyArray<{
+      readonly value: string;
+      readonly isDefault?: boolean;
+    }>;
     readonly supportsFastMode?: boolean;
-    readonly reasoningEffortLevels: ReadonlyArray<{ readonly value: string }>;
   };
 }
 
@@ -532,6 +581,9 @@ export function toMobileModels(input: {
       const reasoningEfforts = model.capabilities.reasoningEffortLevels.map(
         (effort) => effort.value,
       );
+      const defaultReasoningEffort = model.capabilities.reasoningEffortLevels.find(
+        (effort) => effort.isDefault,
+      )?.value;
       merged.set(model.slug, {
         id: model.slug,
         label: model.name,
@@ -542,6 +594,7 @@ export function toMobileModels(input: {
           ? { isDefault: true }
           : {}),
         ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+        ...(defaultReasoningEffort ? { defaultReasoningEffort } : {}),
         approvalPolicyOptions: [...MOBILE_APPROVAL_POLICY_OPTIONS],
         defaultApprovalPolicy: "approval-required",
       });
@@ -549,10 +602,17 @@ export function toMobileModels(input: {
     for (const model of input.discoveredModels.get(provider) ?? []) {
       const reasoningEfforts = dynamicEfforts(model);
       const previous = merged.get(model.slug);
+      const defaultReasoningEffort =
+        model.defaultReasoningEffort ?? previous?.defaultReasoningEffort;
+      const supportsFastMode =
+        model.supportsFastMode ??
+        (model.optionDescriptors?.some(
+          (option) => option.id === "fastMode" && option.type === "boolean",
+        ) ||
+          previous?.supportsFastMode === true);
       merged.set(model.slug, {
         id: model.slug,
         label: model.name,
-        supportsFastMode: model.supportsFastMode ?? previous?.supportsFastMode ?? false,
         providerId: provider,
         providerLabel: PROVIDER_DISPLAY_NAMES[provider],
         ...(provider !== "pi" && DEFAULT_MODEL_BY_PROVIDER[provider] === model.slug
@@ -563,6 +623,8 @@ export function toMobileModels(input: {
           : previous?.reasoningEfforts
             ? { reasoningEfforts: previous.reasoningEfforts }
             : {}),
+        ...(defaultReasoningEffort ? { defaultReasoningEffort } : {}),
+        supportsFastMode,
         approvalPolicyOptions: [...MOBILE_APPROVAL_POLICY_OPTIONS],
         defaultApprovalPolicy: "approval-required",
       });

@@ -190,6 +190,7 @@ function GraftApp() {
                 onLoadDiff={session.loadDiff}
                 onLoadDiffFile={session.loadDiffFile}
                 onLoadUsage={session.loadUsage}
+                onLoadComposerCommands={session.loadComposerCommands}
                 onLoadModels={session.loadModels}
                 onRefresh={session.refresh}
                 onResolveApproval={session.resolveApproval}

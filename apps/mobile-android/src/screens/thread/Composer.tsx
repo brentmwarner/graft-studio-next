@@ -128,6 +128,7 @@ export function Composer({
   onCancel,
   onDraftChange,
   menuConfig,
+  modelMenuRequest,
   onSend,
   onSendDictation,
   resolvedEffort,
@@ -152,6 +153,7 @@ export function Composer({
   readonly onCancel: (runId: string) => void;
   readonly onDraftChange: (text: string) => void;
   readonly menuConfig: ComposerMenuConfig;
+  readonly modelMenuRequest?: number;
   readonly onSend: () => void;
   readonly onSendDictation: () => void;
   readonly resolvedEffort: string | undefined;
@@ -380,6 +382,7 @@ export function Composer({
                     <ComposerConfigMenu
                       config={menuConfig}
                       initialPage="intelligence"
+                      openRequest={modelMenuRequest}
                       trigger={(open) => (
                         <PressScale
                           accessibilityLabel="Model and reasoning effort"

@@ -25,6 +25,7 @@ export interface GraftPalette {
   readonly success: string;
   /// Links and attention markers only — never chrome or CTAs.
   readonly info: string;
+  readonly link: string;
   readonly warning: string;
   readonly danger: string;
   /// Diff line tints. Semantic — they mean added and removed, not good and
@@ -54,6 +55,7 @@ const light: GraftPalette = {
   accentFg: "#FFFFFF",
   success: "#1F7A4D",
   info: "#1A56DB",
+  link: "#2F789C",
   warning: "#B45309",
   danger: "#B42318",
   diffAddBackground: "rgba(31, 122, 77, 0.10)",
@@ -81,6 +83,7 @@ const dark: GraftPalette = {
   accentFg: "#09090B",
   success: "#5EE6A3",
   info: "#7FB4FF",
+  link: "#78B7D5",
   warning: "#E0C46C",
   danger: "#E37070",
   diffAddBackground: "rgba(94, 230, 163, 0.12)",

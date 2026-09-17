@@ -486,6 +486,15 @@ export function useGraftSession() {
     }
   }, []);
 
+  const loadComposerCommands = useCallback(async (threadId: string) => {
+    const result = await runSocketCommand(
+      socketRef.current,
+      { type: "composer.commands", threadId },
+      "composer.commands.result",
+    );
+    return result.commands;
+  }, []);
+
   const loadDiff = useCallback(async (threadId: string, diffId = threadId) => {
     try {
       const result = await runSocketCommand(
@@ -806,6 +815,7 @@ export function useGraftSession() {
     loadDiffFile,
     loadModels,
     loadUsage,
+    loadComposerCommands,
     openThread,
     pair,
     pendingSendThreadId,

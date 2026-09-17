@@ -248,6 +248,8 @@ export const GraftThreadSummarySchema = z.object({
   /** True once conversation activity binds this thread to its provider. */
   providerLocked: z.boolean().optional(),
   interactionMode: GraftInteractionModeSchema.optional(),
+  /** Model options last confirmed by Studio. */
+  effort: z.string().min(1).max(40).optional(),
   fastMode: z.boolean().optional(),
   /** Workspace selected when the thread was created. */
   mode: GraftThreadModeSchema.optional(),
@@ -275,6 +277,7 @@ export const GraftModelOptionSchema = z.object({
    * when the model has no effort choice.
    */
   reasoningEfforts: z.array(z.string().min(1).max(40)).max(12).optional(),
+  defaultReasoningEffort: z.string().min(1).max(40).optional(),
   /** Provider-defined policies available before a new thread exists. */
   approvalPolicyOptions: z.array(GraftApprovalPolicyOptionSchema).max(12).optional(),
   /** Safe provider default for a newly-created thread. */
@@ -450,6 +453,12 @@ export const GraftTimelineEventDataSchema = z.discriminatedUnion("type", [
 ]);
 export type GraftTimelineEventData = z.infer<typeof GraftTimelineEventDataSchema>;
 
+/** Presentation metadata only; skill paths stay on the Studio host. */
+export const GraftMessageSkillSchema = z.object({
+  name: z.string().min(1),
+  displayName: z.string().optional(),
+});
+
 export const GraftTimelineEventSchema = z.object({
   id: z.string().min(1),
   cursor: GraftRemoteCursorSchema,
@@ -457,14 +466,17 @@ export const GraftTimelineEventSchema = z.object({
   threadId: z.string().min(1),
   runId: z.string().min(1).optional(),
   createdAt: z.number().int().nonnegative(),
+  completedAt: z.number().int().nonnegative().optional(),
   text: z.string().optional(),
   toolName: z.string().optional(),
+  toolId: z.string().min(1).optional(),
   approvalId: z.string().min(1).optional(),
   questionId: z.string().min(1).optional(),
   diffId: z.string().min(1).optional(),
   runStatus: GraftRunStatusSchema.optional(),
   data: GraftTimelineEventDataSchema.optional(),
   attachments: z.array(GraftAttachmentSchema).max(GRAFT_MOBILE_MAX_ATTACHMENTS).optional(),
+  skills: z.array(GraftMessageSkillSchema).optional(),
 });
 export type GraftTimelineEvent = z.infer<typeof GraftTimelineEventSchema>;
 
@@ -710,6 +722,24 @@ export type GraftSnapshotQuery = z.infer<typeof GraftSnapshotQuerySchema>;
 // Commands (client → host mutations / reads)
 // ---------------------------------------------------------------------------
 
+export const GraftComposerCommandSchema = z.object({
+  name: z.string().min(1),
+  description: z.string(),
+  kind: z.enum(["model", "tasks", "native", "skill"]),
+  displayName: z.string().optional(),
+});
+export type GraftComposerCommand = z.infer<typeof GraftComposerCommandSchema>;
+
+export const GraftWorkspaceFileReferenceSchema = z.object({
+  reference: z.string(),
+  path: z.string().nullable(),
+});
+export const GraftWorkspaceFileSchema = z.object({
+  path: z.string().min(1),
+  contents: z.string().max(200_000),
+  truncated: z.boolean(),
+});
+
 export const GraftMobileCommandSchema = z
   .discriminatedUnion("type", [
     z.object({
@@ -746,6 +776,25 @@ export const GraftMobileCommandSchema = z
     }),
     z.object({
       type: z.literal("models.list"),
+    }),
+    z.object({
+      type: z.literal("composer.commands"),
+      threadId: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal("composer.skill.read"),
+      threadId: z.string().min(1),
+      name: z.string().min(1).max(512),
+    }),
+    z.object({
+      type: z.literal("files.resolve"),
+      threadId: z.string().min(1),
+      references: z.array(z.string().min(1).max(4096)).min(1).max(64),
+    }),
+    z.object({
+      type: z.literal("file.read"),
+      threadId: z.string().min(1),
+      path: z.string().min(1).max(4096),
     }),
     z.object({
       type: z.literal("turn.start"),
@@ -829,6 +878,27 @@ export const GraftMobileCommandResultSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("models.list.result"),
     models: z.array(GraftModelOptionSchema),
+  }),
+  z.object({
+    type: z.literal("composer.commands.result"),
+    commands: z.array(GraftComposerCommandSchema),
+  }),
+  z.object({
+    type: z.literal("composer.skill.read.result"),
+    skill: z.object({
+      name: z.string().min(1),
+      description: z.string(),
+      contents: z.string().max(200_000),
+      truncated: z.boolean(),
+    }),
+  }),
+  z.object({
+    type: z.literal("files.resolve.result"),
+    references: z.array(GraftWorkspaceFileReferenceSchema),
+  }),
+  z.object({
+    type: z.literal("file.read.result"),
+    file: GraftWorkspaceFileSchema,
   }),
   z.object({
     type: z.literal("turn.start.result"),
@@ -963,6 +1033,14 @@ export function describeMobileCommand(command: GraftMobileCommand): string {
       return "thread.set_approval";
     case "models.list":
       return "models.list";
+    case "composer.commands":
+      return "composer.commands";
+    case "composer.skill.read":
+      return "composer.skill.read";
+    case "files.resolve":
+      return "files.resolve";
+    case "file.read":
+      return "file.read";
     case "turn.start":
       return "turn.start";
     case "turn.cancel":

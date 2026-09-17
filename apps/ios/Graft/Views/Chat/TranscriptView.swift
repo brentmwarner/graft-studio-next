@@ -26,10 +26,11 @@ struct TranscriptView: View {
     private static let nearBottomDistance: CGFloat = 24
     private static let awayDistance: CGFloat = 64
 
-    /// Group work independently of replies so completion never reparents a row.
+    /// Live rows stay in order; settled turns fold behind their final answer.
     private var groupingSignature: TranscriptGroupingSignature {
         TranscriptGroupingSignature(
             itemCount: chat.items.count,
+            isTurnActive: chat.isTurnActive,
             tail: chat.items.suffix(8).map {
                 TranscriptGroupingKey(
                     id: $0.id,
@@ -37,6 +38,7 @@ struct TranscriptView: View {
                     isActivityItem: Self.isActivityItem($0),
                     isStreaming: $0.isStreaming,
                     hasReasoning: !$0.reasoning.isEmpty,
+                    hasText: !$0.text.isEmpty,
                     toolStatus: Self.toolStatusSignature($0.toolStatus)
                 )
             }
@@ -44,12 +46,31 @@ struct TranscriptView: View {
     }
 
     private var displayedGroupedRows: [TranscriptRowGroup] {
-        cachedGroupingSignature == groupingSignature ? cachedGroupedRows : Self.groupRows(chat.items)
+        cachedGroupingSignature == groupingSignature ? cachedGroupedRows : Self.groupRows(chat.items, isTurnActive: chat.isTurnActive)
     }
 
-    private static func groupRows(_ items: [TranscriptItem]) -> [TranscriptRowGroup] {
+    private static func groupRows(_ items: [TranscriptItem], isTurnActive: Bool = false) -> [TranscriptRowGroup] {
         var result: [TranscriptRowGroup] = []
         var pendingActivity: [TranscriptItem] = []
+        var finalAssistantIndex: Int?
+        var turnStart = 0
+
+        func finishTurn(showActions: Bool) {
+            if let index = finalAssistantIndex {
+                result[index].showMessageActions = showActions
+                if showActions {
+                    let foldIndices = (turnStart..<result.count).filter { candidate in
+                        candidate != index && result[candidate].items.allSatisfy {
+                            $0.kind == .assistant || $0.kind == .tool
+                        }
+                    }
+                    result[index].foldedActivityItems = foldIndices.flatMap { result[$0].items }
+                    for candidate in foldIndices.reversed() { result.remove(at: candidate) }
+                }
+            }
+            finalAssistantIndex = nil
+            turnStart = result.count
+        }
 
         func flushPendingActivity() {
             guard !pendingActivity.isEmpty else { return }
@@ -60,6 +81,10 @@ struct TranscriptView: View {
         for item in items {
             // Hermes' startup config banner / lifecycle notices never get a row.
             if item.isSessionNotice { continue }
+            if item.kind == .user {
+                flushPendingActivity()
+                finishTurn(showActions: true)
+            }
             let isActivity = Self.isActivityItem(item)
 
             if isActivity {
@@ -67,11 +92,16 @@ struct TranscriptView: View {
                 continue
             }
 
-            // Work keeps its own stable row when an answer starts or settles.
+            // Preserve live row identity; only completion folds the work.
             flushPendingActivity()
             result.append(TranscriptRowGroup(id: item.id, items: [item]))
+            if item.kind == .user { turnStart = result.count }
+            if item.kind == .assistant, !item.text.isEmpty {
+                finalAssistantIndex = result.count - 1
+            }
         }
         flushPendingActivity()
+        finishTurn(showActions: !isTurnActive)
         return result
     }
 
@@ -91,6 +121,10 @@ struct TranscriptView: View {
     static func debugGroupedRowFoldedActivityCounts(_ items: [TranscriptItem]) -> [Int] {
         groupRows(items).map(\.foldedActivityItems.count)
     }
+
+    static func debugGroupedRowActionFlags(_ items: [TranscriptItem], isTurnActive: Bool) -> [Bool] {
+        groupRows(items, isTurnActive: isTurnActive).map(\.showMessageActions)
+    }
     #endif
 
     /// Belongs in the turn's activity timeline: a tool call, or an assistant
@@ -99,6 +133,19 @@ struct TranscriptView: View {
     /// the reply row.
     static func isActivityItem(_ item: TranscriptItem) -> Bool {
         item.isActivityTimelineItem
+    }
+
+    /// Read user metadata only, so incoming assistant text does not rebuild
+    /// the context. Restored history and optimistic messages use the same path.
+    static func referencedSkills(in items: [TranscriptItem]) -> [MessageSkill] {
+        var skills: [String: MessageSkill] = [:]
+        for item in items where item.kind == .user {
+            for skill in item.skills {
+                skills[skill.name] = MessageSkill(name: skill.name,
+                    displayName: skill.displayName ?? skills[skill.name]?.displayName)
+            }
+        }
+        return skills.values.sorted { $0.name < $1.name }
     }
 
     var body: some View {
@@ -117,6 +164,7 @@ struct TranscriptView: View {
                             TranscriptRow(
                                 item: row.items[0],
                                 showInlineReasoning: row.showInlineReasoning,
+                                showMessageActions: row.showMessageActions,
                                 foldedActivityItems: row.foldedActivityItems
                             )
                         }
@@ -126,11 +174,11 @@ struct TranscriptView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 10)
-            // Tunes the pinned tail: the newest row sits this far + the
-            // structural floor (row inset + footer + bottom-chrome spacing,
-            // ~46pt) above the composer. 2 → ~48pt total above the keyboard.
-            .padding(.bottom, 2)
+            // Give the live indicator a little breathing room above the
+            // floating controls without changing the completed transcript.
+            .padding(.bottom, chat.liveStatusText == nil ? 2 : 10)
         }
+        .environment(\.transcriptSkills, Self.referencedSkills(in: chat.items))
         // Open at the latest message by anchoring ONLY the initial content offset to
         // the bottom. `scrollPosition.scrollTo(edge: .bottom)` computes the bottom from
         // the LazyVStack's *estimated* height, so when the last row is un-realized
@@ -286,7 +334,7 @@ struct TranscriptView: View {
     private func refreshGroupedRows(force: Bool = false) {
         let signature = groupingSignature
         guard force || signature != cachedGroupingSignature else { return }
-        cachedGroupedRows = Self.groupRows(chat.items)
+        cachedGroupedRows = Self.groupRows(chat.items, isTurnActive: chat.isTurnActive)
         cachedGroupingSignature = signature
     }
 
@@ -336,6 +384,7 @@ private struct TranscriptFollowSignal: Equatable {
 
 private struct TranscriptGroupingSignature: Equatable {
     var itemCount = 0
+    var isTurnActive = false
     var tail: [TranscriptGroupingKey] = []
 }
 
@@ -345,6 +394,7 @@ private struct TranscriptGroupingKey: Equatable {
     var isActivityItem: Bool
     var isStreaming: Bool
     var hasReasoning: Bool
+    var hasText: Bool
     var toolStatus: Int
 }
 
@@ -352,6 +402,7 @@ private struct TranscriptRowGroup: Identifiable {
     let id: UUID
     var items: [TranscriptItem]
     var showInlineReasoning = true
+    var showMessageActions = false
     var foldedActivityItems: [TranscriptItem] = []
     var isToolGroup: Bool {
         items.first.map(TranscriptView.isActivityItem) ?? false
@@ -359,24 +410,29 @@ private struct TranscriptRowGroup: Identifiable {
 }
 
 /// Glass "jump to latest" affordance shown when the user scrolls up.
-/// Rendered by the thread's bottom chrome, beside the diff pill.
+/// Floats above the thread's accessory row without reserving transcript space.
 struct ScrollToBottomButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
             Image(systemName: "arrow.down")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
-                .frame(width: 38, height: 38)
+                .frame(width: 44, height: 44)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .circle)
+        .accessibilityLabel("Scroll to latest message")
+        .accessibilityIdentifier("scroll-to-latest")
     }
 }
 
-/// One live status, hidden while the answer itself is visible.
+/// One stable live status throughout text, reasoning, and tool transitions.
 private struct StreamingFooter: View {
     let chat: ChatModel
     private var status: String? {
@@ -389,14 +445,20 @@ private struct StreamingFooter: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let status {
+            if let status = chat.liveStatusText {
                 HStack(spacing: 10) {
                     if !chat.needsInteraction, chat.app?.gateway.state == .connected {
                         RunStatusDotMatrixLoader(size: 18, tint: DS.Color.fgSubtle)
+                            .accessibilityIdentifier("chat-live-loader")
                     }
-                    Text(status).font(.subheadline).foregroundStyle(.secondary)
+                    if !chat.needsInteraction, chat.app?.gateway.state == .connected {
+                        ShimmerText(text: status, font: .subheadline)
+                    } else {
+                        Text(status).font(.subheadline).foregroundStyle(.secondary)
+                    }
                 }
                 .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("chat-live-status")
             }
             if let error = chat.lastError {
                 Label(error, systemImage: "exclamationmark.triangle")

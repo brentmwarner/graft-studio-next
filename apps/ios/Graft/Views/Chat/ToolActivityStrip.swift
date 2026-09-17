@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Stable work details; the transcript footer owns live progress.
 struct ToolActivityStrip: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let items: [TranscriptItem]
 
     @State private var expanded = false
@@ -39,14 +40,17 @@ struct ToolActivityStrip: View {
     private var summaryRow: some View {
         let tools = toolEntries
         return Button {
-            withAnimation(.snappy) { expanded.toggle() }
+            withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
         } label: {
             HStack(spacing: 9) {
-                if !tools.isEmpty {
-                    BrandCircleStack(presentations: tools.map(\.presentation))
+                if let tool = tools.last {
+                    Image(systemName: tool.presentation.symbol)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20)
                 }
                 Text(summaryPhrase)
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Image(systemName: "chevron.right")
@@ -94,6 +98,15 @@ struct ToolActivityStrip: View {
             return toolCount == 1 ? "Used 1 tool" : "Used \(toolCount) tools"
         }
         return "Worked"
+    }
+
+    static func turnSummaryPhrase(for items: [TranscriptItem]) -> String {
+        guard let start = items.compactMap(\.createdAt).filter({ $0 > 0 }).min(),
+              let end = items.compactMap(\.completedAt).max(), end > start else { return "Worked" }
+        let seconds = max(1, (end - start) / 1000)
+        let duration = seconds < 60 ? "\(seconds)s"
+            : seconds % 60 == 0 ? "\(seconds / 60)m" : "\(seconds / 60)m \(seconds % 60)s"
+        return "Worked for \(duration)"
     }
 
     #if DEBUG

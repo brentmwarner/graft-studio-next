@@ -70,6 +70,139 @@ final class ChatModelTests: XCTestCase {
         XCTAssertEqual(ChatModel.itemize([event(id: "photo-turn", cursor: 1, kind: "user.message", text: "Review this", attachments: [attachment])]).first?.attachments, [attachment])
     }
 
+    func testSkillMetadataSurvivesEchoHistoryAndReconciliation() throws {
+        let chosen = MessageSkill(name: "swiftui-specialist", displayName: "SwiftUI Specialist")
+        let chat = makeChat()
+        chat.fold(event(id: "local", cursor: 0, kind: "user.message", text: "/swiftui-specialist Fix chat"))
+        let optimistic = try XCTUnwrap(chat.items.first)
+        optimistic.sourceID = nil
+        optimistic.skills = [chosen]
+        var echo = event(id: "user1", cursor: 1, kind: "user.message", text: optimistic.text)
+        echo.skills = [MessageSkill(name: chosen.name)]
+        chat.fold(echo)
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertTrue(chat.items.first === optimistic)
+        XCTAssertEqual(optimistic.skills, [chosen])
+        let persisted = try JSONDecoder().decode(TimelineEvent.self, from: JSONEncoder().encode(echo))
+        let history = try XCTUnwrap(ChatModel.itemize([persisted]).first)
+        XCTAssertEqual(history.skills.map(\.name), [chosen.name])
+        optimistic.absorb(history)
+        XCTAssertEqual(optimistic.skills, [chosen])
+        echo.skills = nil
+        optimistic.absorb(try XCTUnwrap(ChatModel.itemize([echo]).first))
+        XCTAssertEqual(optimistic.skills, [chosen], "Older hosts must not erase the selected label")
+    }
+
+    func testToolLifecycleUsesStableCallIdentityAcrossDistinctEventIDs() {
+        var started = event(id: "start", cursor: 1, kind: "tool.start", runId: "run1", toolName: "Read")
+        started.toolId = "call1"
+        var ended = event(id: "end", cursor: 2, kind: "tool.end", runId: "run1", text: "Read complete")
+        ended.toolId = "call1"
+        var late = event(id: "late-progress", cursor: 3, kind: "tool.update", runId: "run1")
+        late.toolId = "call1"
+        let chat = makeChat()
+        chat.fold(started)
+        let original = chat.items.first
+        chat.fold(ended)
+        chat.fold(late)
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertTrue(chat.items.first === original)
+        XCTAssertEqual(chat.items.first?.toolStatus, .done)
+        XCTAssertEqual(chat.items.first?.toolName, "Read")
+        XCTAssertEqual(ChatModel.itemize([started, ended, late]).count, 1)
+        XCTAssertEqual(ChatModel.itemize([started, ended, late]).first?.toolStatus, .done)
+        var nextTurn = event(id: "next-start", cursor: 4, kind: "tool.start", runId: "run2", toolName: "Read")
+        nextTurn.toolId = "call1"
+        chat.fold(nextTurn)
+        XCTAssertEqual(chat.items.count, 2, "Providers may reuse call IDs in a later turn")
+    }
+
+    func testMessageActionsAppearOnlyOnTheFinalReplyOfACompletedTurn() {
+        let items: [TranscriptItem] = [
+            .user("Fix the formatting"),
+            .assistant("I will inspect the transcript."),
+            .tool(id: "read", name: "Read", context: "TranscriptView.swift", status: .done),
+            .assistant("The formatting is fixed."),
+        ]
+        XCTAssertEqual(TranscriptView.debugGroupedRowActionFlags(items, isTurnActive: true), [false, false, false, false])
+        XCTAssertEqual(TranscriptView.debugGroupedRowActionFlags(items, isTurnActive: false), [false, true])
+    }
+
+    func testPriorTurnActionsRemainVisibleWhileANewTurnStreams() {
+        let items: [TranscriptItem] = [
+            .user("First request"), .assistant("First answer"),
+            .user("Follow-up"), .assistant("Checking that now."),
+            .assistant("New answer", streaming: true),
+        ]
+        XCTAssertEqual(TranscriptView.debugGroupedRowActionFlags(items, isTurnActive: true), [false, true, false, false, false])
+        XCTAssertEqual(TranscriptView.debugGroupedRowActionFlags(items, isTurnActive: false), [false, true, false, true])
+    }
+
+
+    func testSettledTurnFoldsAllCommentaryAndTrailingToolsAboveTheFinalAnswer() {
+        let items: [TranscriptItem] = [
+            .user("Fix it"), .assistant("Inspecting the code."),
+            .tool(id: "read", name: "read", context: "src/Chat.tsx", status: .done),
+            .assistant("Applying the fix."), .assistant("Fixed and verified."),
+            .tool(id: "late", name: "test", context: "Tests passed", status: .done),
+        ]
+        XCTAssertEqual(TranscriptView.debugGroupedRowCounts(items), [1, 5])
+        XCTAssertEqual(TranscriptView.debugGroupedRowFoldedActivityCounts(items), [0, 4])
+        XCTAssertEqual(TranscriptView.debugGroupedRowActionFlags(items, isTurnActive: false), [false, true])
+        XCTAssertEqual(TranscriptView.debugGroupedRowActionFlags(items, isTurnActive: true).count, 6)
+        // Folding is presentation only: every original message remains intact.
+        XCTAssertEqual(items[1].text, "Inspecting the code.")
+        XCTAssertEqual(items[4].text, "Fixed and verified.")
+    }
+
+    func testTurnSummaryDurationUsesHostTimesAcrossSnapshotReconciliation() {
+        let first = TranscriptItem.assistant("Inspecting")
+        first.createdAt = 1000
+        first.completedAt = 2000
+        let last = TranscriptItem.assistant("Done")
+        last.createdAt = 62_000
+        last.completedAt = 81_000
+        XCTAssertEqual(ToolActivityStrip.turnSummaryPhrase(for: [first, last]), "Worked for 1m 20s")
+        let reloaded = TranscriptItem.assistant("Done")
+        reloaded.createdAt = 62_000
+        reloaded.completedAt = 81_000
+        last.absorb(reloaded)
+        XCTAssertEqual(ToolActivityStrip.turnSummaryPhrase(for: [first, last]), "Worked for 1m 20s")
+    }
+
+    func testLiveStatusNeverDropsBetweenNarrationThinkingAndToolFrames() {
+        let chat = makeChat()
+        let frames = [
+            event(id: "start", cursor: 1, kind: "run.status", runId: "r1", runStatus: "running"),
+            event(id: "preamble", cursor: 2, kind: "assistant.delta", runId: "r1", text: "Inspecting the code"),
+            event(id: "preamble", cursor: 3, kind: "assistant.message", runId: "r1", text: "Inspecting the code."),
+            event(id: "read", cursor: 4, kind: "tool.start", runId: "r1", toolName: "read"),
+            event(id: "read", cursor: 5, kind: "tool.end", runId: "r1", toolName: "read"),
+            event(id: "thought", cursor: 6, kind: "thinking.delta", runId: "r1", text: "Checking the result"),
+            event(id: "answer", cursor: 7, kind: "assistant.delta", runId: "r1", text: "Fixed"),
+            event(id: "answer", cursor: 8, kind: "assistant.message", runId: "r1", text: "Fixed."),
+        ]
+        for frame in frames {
+            chat.fold(frame)
+            XCTAssertNotNil(chat.liveStatusText, frame.kind)
+        }
+        chat.fold(event(id: "end", cursor: 9, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertNil(chat.liveStatusText)
+        chat.fold(event(id: "read", cursor: 10, kind: "tool.update", runId: "r1", toolName: "read"))
+        XCTAssertNil(chat.liveStatusText)
+    }
+
+    func testFoldIgnoresDelayedToolEndAfterRunCompletes() {
+        let chat = makeChat()
+        chat.fold(event(id: "start", cursor: 1, kind: "tool.start", runId: "r1", toolName: "read"))
+        chat.fold(event(id: "done", cursor: 2, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertEqual(chat.items.first?.toolStatus, .done)
+        chat.fold(event(id: "late", cursor: 3, kind: "tool.end", runId: "r1", toolName: "read"))
+        XCTAssertEqual(chat.items.count, 1)
+        XCTAssertEqual(chat.items.first?.toolStatus, .done)
+    }
+
     // MARK: Itemization
 
     func testItemizeBuildsUserAssistantAndToolRows() {
@@ -339,8 +472,9 @@ final class ChatModelTests: XCTestCase {
     func testStreamingTailRebindsAfterReconcile() {
         let chat = makeChat()
         chat.applySnapshot(snapshot(
-            events: [event(id: "d1", cursor: 1, kind: "assistant.delta", text: "Stream")],
-            cursor: 1
+            events: [event(id: "d1", cursor: 1, kind: "assistant.delta", runId: "r1", text: "Stream")],
+            cursor: 1,
+            runs: [ActiveRun(id: "r1", threadId: "t1", status: "running", startedAt: 0)]
         ))
         XCTAssertTrue(chat.items[0].isStreaming)
 
@@ -368,6 +502,127 @@ final class ChatModelTests: XCTestCase {
         chat.fold(event(id: "answer", cursor: 4, kind: "assistant.message", text: "Done"))
         chat.fold(event(id: "another", cursor: 5, kind: "assistant.message", text: "Done"))
         XCTAssertEqual(chat.items.map(\.text), ["Checking", "Done", "Done"])
+    }
+
+
+    func testCompletionClearsEveryReasoningAndToolIndicator() {
+        let chat = makeChat()
+        chat.fold(event(id: "thinking", cursor: 1, kind: "thinking.delta", runId: "r1", text: "Checking"))
+        XCTAssertNotNil(chat.liveStatusText)
+        chat.fold(event(id: "tool", cursor: 2, kind: "tool.start", runId: "r1", toolName: "read"))
+        chat.fold(event(id: "reply", cursor: 3, kind: "assistant.delta", runId: "r1", text: "Here is the answer"))
+        XCTAssertNotNil(chat.liveStatusText)
+        chat.fold(event(id: "reply", cursor: 4, kind: "assistant.message", runId: "r1", text: "Here is the answer."))
+        chat.fold(event(id: "done", cursor: 5, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertFalse(chat.isStreaming)
+        XCTAssertNil(chat.liveStatusText)
+        XCTAssertTrue(chat.items.allSatisfy { !$0.isStreaming && $0.toolStatus != .running })
+        XCTAssertTrue(chat.items.allSatisfy { $0.reasoningStartedAt == nil })
+    }
+
+    func testHistoryTerminalStatusSettlesAllRowsAndIgnoresReplayedThinking() {
+        let events = [
+            event(id: "thought", cursor: 1, kind: "thinking.delta", runId: "r1", text: "Checking"),
+            event(id: "tool", cursor: 2, kind: "tool.start", runId: "r1", toolName: "read"),
+            event(id: "done", cursor: 3, kind: "run.status", runId: "r1", runStatus: "completed"),
+            event(id: "thought", cursor: 4, kind: "thinking.delta", runId: "r1", text: "Checking again"),
+        ]
+        let items = ChatModel.itemize(events)
+        XCTAssertEqual(items.count, 2)
+        XCTAssertTrue(items.allSatisfy { !$0.isStreaming && $0.toolStatus != .running })
+        XCTAssertEqual(items[0].reasoning, "Checking")
+    }
+
+    func testCompletionWhileOfflineSettlesSnapshotFlags() {
+        let chat = makeChat()
+        let thought = event(id: "thought", cursor: 1, kind: "thinking.delta", runId: "r1", text: "Checking")
+        chat.fold(thought)
+        let identity = chat.items[0].id
+        // Persisted reasoning is still represented as a delta, but the run is gone.
+        chat.applySnapshot(snapshot(events: [thought], cursor: 3))
+        XCTAssertEqual(chat.items[0].id, identity)
+        XCTAssertFalse(chat.items[0].isStreaming)
+        XCTAssertFalse(chat.isStreaming)
+        XCTAssertNil(chat.liveStatusText)
+        XCTAssertNil(chat.items[0].reasoningStartedAt)
+    }
+
+    func testCompletedRunCannotRestartOnLateFramesOrStaleSnapshot() {
+        let chat = makeChat()
+        chat.fold(event(id: "reply", cursor: 10, kind: "assistant.delta", runId: "r1", text: "Answer"))
+        chat.fold(event(id: "done", cursor: 11, kind: "run.status", runId: "r1", runStatus: "completed"))
+        chat.applySnapshot(snapshot(events: [], cursor: 9,
+            runs: [ActiveRun(id: "r1", threadId: "t1", status: "running", startedAt: 0)]))
+        chat.fold(event(id: "thought", cursor: 12, kind: "thinking.delta", runId: "r1", text: "Old thought"))
+        chat.fold(event(id: "running", cursor: 13, kind: "run.status", runId: "r1", runStatus: "running"))
+        XCTAssertEqual(chat.items.map(\.text), ["Answer"])
+        XCTAssertFalse(chat.isStreaming)
+        XCTAssertNil(chat.liveStatusText)
+    }
+
+    func testOlderRunCompletionDoesNotStopNewRun() {
+        let chat = makeChat()
+        chat.fold(event(id: "new", cursor: 1, kind: "assistant.delta", runId: "new-run", text: "New reply"))
+        chat.fold(event(id: "old", cursor: 2, kind: "run.status", runId: "old-run", runStatus: "completed"))
+        XCTAssertTrue(chat.isStreaming)
+        XCTAssertTrue(chat.items[0].isStreaming)
+    }
+
+    func testFinalMessageRejectsDelayedPrefixInLiveAndHistory() {
+        let events = [
+            event(id: "reply:complete", cursor: 1, kind: "assistant.message", text: "    final code\n"),
+            event(id: "reply:delta:2", cursor: 2, kind: "assistant.delta", text: "    final"),
+        ]
+        let chat = makeChat()
+        events.forEach(chat.fold)
+        for items in [chat.items, ChatModel.itemize(events)] {
+            XCTAssertEqual(items.count, 1)
+            XCTAssertEqual(items[0].text, "    final code\n")
+            XCTAssertFalse(items[0].isStreaming)
+        }
+    }
+
+    func testErrorStopsThinkingAndRunningTools() {
+        let chat = makeChat()
+        chat.fold(event(id: "tool", cursor: 1, kind: "tool.start", runId: "r1", toolName: "read"))
+        chat.fold(event(id: "error", cursor: 2, kind: "error", runId: "r1", text: "Disconnected from provider"))
+        XCTAssertFalse(chat.isStreaming)
+        XCTAssertNil(chat.liveStatusText)
+        XCTAssertEqual(chat.items[0].toolStatus, .failed)
+    }
+
+    func testIdenticalUserMessagesAreSeparateTurns() {
+        let chat = makeChat()
+        chat.fold(event(id: "u1", cursor: 1, kind: "user.message", text: "Continue"))
+        chat.fold(event(id: "u2", cursor: 2, kind: "user.message", text: "Continue"))
+        XCTAssertEqual(chat.items.count, 2)
+    }
+
+    func testToolUpdateDoesNotSettleConcurrentAnswer() {
+        let chat = makeChat()
+        chat.fold(event(id: "tool", cursor: 1, kind: "tool.start", runId: "r1", toolName: "read"))
+        chat.fold(event(id: "reply", cursor: 2, kind: "assistant.delta", runId: "r1", text: "Answer"))
+        chat.fold(event(id: "tool", cursor: 3, kind: "tool.update", runId: "r1", toolName: "read"))
+        XCTAssertTrue(chat.items[1].isStreaming)
+        XCTAssertEqual(chat.liveStatusText, "Reading files")
+    }
+
+    func testProviderLocksAfterUserMessageAndStaysLockedOnCompletion() {
+        let chat = makeChat()
+        XCTAssertFalse(chat.canChangeProvider, "Unknown history must not enable a provider switch")
+        chat.applySnapshot(snapshot(events: [], cursor: 0))
+        XCTAssertTrue(chat.canChangeProvider)
+        chat.fold(event(id: "user", cursor: 1, kind: "user.message", runId: "r1", text: "Hello"))
+        XCTAssertFalse(chat.canChangeProvider)
+        chat.fold(event(id: "done", cursor: 2, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertFalse(chat.canChangeProvider)
+    }
+
+    func testProviderLocksForRestoredChat() {
+        let chat = makeChat()
+        chat.applyCachedTranscript(TranscriptContainer(threadId: "t1", cursor: 1,
+            events: [event(id: "user", cursor: 1, kind: "user.message", text: "Hello")]))
+        XCTAssertFalse(chat.canChangeProvider)
     }
 
 }

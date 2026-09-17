@@ -1,5 +1,26 @@
 import SwiftUI
 
+/// Glyphs exported from the desktop's ProviderIcon mapping. Asset rendering
+/// intent preserves brand colors while monochrome marks follow the menu tint.
+enum ProviderLogo {
+    private static let marks: [String: String] = [
+        "codex": "ProviderCodexMark",
+        "claudeAgent": "ProviderClaudeMark",
+        "claude": "ProviderClaudeMark",
+        "cursor": "ProviderCursorMark",
+        "devin": "ProviderDevinMark",
+        "antigravity": "ProviderAntigravityMark",
+        "grok": "ProviderGrokMark",
+        "droid": "ProviderDroidMark",
+        "opencode": "ProviderOpenCodeMark",
+        "pi": "ProviderPiMark",
+    ]
+
+    static func image(for providerId: String) -> Image? {
+        marks[providerId].map { Image($0) }
+    }
+}
+
 /// Provider brand mark for the composer's model controls — the same marks the
 /// desktop composer shows. Known providers get their catalog asset; anything
 /// else falls back to a monogram tile so an unrecognized provider still reads.
@@ -15,7 +36,12 @@ struct ProviderLogoView: View {
     ]
 
     var body: some View {
-        if let asset = Self.assetNames[providerId] {
+        if let image = ProviderLogo.image(for: providerId) {
+            image
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+        } else if let asset = Self.assetNames[providerId] {
             Image(asset)
                 .resizable()
                 .scaledToFit()
@@ -33,10 +59,6 @@ struct ProviderLogoView: View {
             .foregroundStyle(DS.Color.fgMuted)
             .frame(width: size, height: size)
             .background(DS.Color.bgSubtle, in: .rect(cornerRadius: size * 0.225))
-            .overlay(
-                RoundedRectangle(cornerRadius: size * 0.225)
-                    .strokeBorder(DS.Color.border, lineWidth: 1)
-            )
     }
 }
 

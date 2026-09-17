@@ -21,6 +21,7 @@ Read only what the task needs:
 
 ## Transcript and UI safeguards
 
+- Neutral filled containers use color and spacing for separation, without decorative border strokes. Apply this to cards, pills, fields, and composer surfaces. Semantic marks such as focus indicators, checkboxes, charts, and internal table separators remain meaningful.
 - Auto-follow represents real assistant text streaming, not generic work, buffering, reconnecting, pending approvals, or tool-only activity. Tool/work rows must not retrigger message-arrival auto-stick behavior.
 - Keep the common transcript path simple. Introduce virtualization only with measured need; never couple virtualizer measurement to a bottom-stick/height-follow feedback loop. Cover scrolling and measurement changes with focused transcript tests.
 - Reuse [disclosureMotion.ts](apps/web/src/lib/disclosureMotion.ts) and its existing disclosure components for open/close transitions, including reduced-motion behavior. Do not duplicate timing constants or bespoke toggle animations.

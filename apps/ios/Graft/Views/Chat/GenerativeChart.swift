@@ -595,7 +595,6 @@ private struct CalloutPill: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
         .background(DS.Color.bgElevated, in: .capsule)
-        .overlay(Capsule().strokeBorder(DS.Color.borderStrong, lineWidth: 1))
         .shadow(color: .black.opacity(0.06), radius: 1.5, y: 1)
     }
 }

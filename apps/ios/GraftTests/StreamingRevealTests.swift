@@ -47,4 +47,16 @@ final class StreamingRevealTests: XCTestCase {
         XCTAssertEqual(stream.displayedText, "A B C")
         XCTAssertFalse(stream.commit())
     }
+
+    func testPartialLinkDestinationDoesNotFlashIntoProse() {
+        XCTAssertEqual(StreamingReveal.readableMarkdownTail("Read [the guide](https://example.com/pa"), "Read the guide")
+        XCTAssertEqual(StreamingReveal.readableMarkdownTail("Read [the guide](https://example.com)"), "Read [the guide](https://example.com)")
+    }
+
+    func testPartialLinkInsideCodeOrEscapedLabelStaysLiteral() {
+        for source in ["`[label](https://example.com", "``[label](https://example.com", #"\[label](https://example.com"#] {
+            XCTAssertEqual(StreamingReveal.readableMarkdownTail(source), source)
+        }
+        XCTAssertEqual(StreamingReveal.readableMarkdownTail("`code` then [guide](https://example.com"), "`code` then guide")
+    }
 }

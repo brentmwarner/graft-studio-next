@@ -56,10 +56,12 @@ export function ComposerConfigMenu({
   config,
   initialPage,
   trigger,
+  openRequest,
 }: {
   readonly config: ComposerMenuConfig;
   readonly initialPage: ComposerMenuPage;
   readonly trigger: (open: () => void) => ReactElement;
+  readonly openRequest?: number;
 }) {
   const [page, setPage] = useState(initialPage);
   const [pending, setPending] = useState(false);
@@ -264,6 +266,7 @@ export function ComposerConfigMenu({
   return (
     <AnchoredMenu
       trigger={trigger}
+      openRequest={openRequest}
       onOpenChange={(open) => {
         generation.current += 1;
         if (open) {

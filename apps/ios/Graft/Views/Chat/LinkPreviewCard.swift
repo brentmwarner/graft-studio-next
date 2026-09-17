@@ -98,58 +98,9 @@ final class LinkMetadataCache: @unchecked Sendable {
     }
 }
 
-/// Grok-register sources affordance: overlapping favicons + "N Sources" in a
-/// hairline capsule at the end of a cited reply. Tapping opens the full list.
-struct SourcesPill: View {
-    let previews: [LinkPreviewLoader]
-    @State private var showSheet = false
-
-    private var uniqueHosts: [String] {
-        var seen = Set<String>()
-        var hosts: [String] = []
-        for preview in previews where seen.insert(preview.host).inserted {
-            hosts.append(preview.host)
-        }
-        return hosts
-    }
-
-    var body: some View {
-        Button {
-            showSheet = true
-        } label: {
-            HStack(spacing: 8) {
-                HStack(spacing: -6) {
-                    ForEach(Array(uniqueHosts.prefix(3).enumerated()), id: \.element) { index, host in
-                        FaviconCircle(host: host, size: 18)
-                            .background(Circle().fill(DS.Color.bg).frame(width: 21, height: 21))
-                            .zIndex(Double(3 - index))
-                    }
-                }
-                Text(uniqueHosts.count == 1 ? "1 Source" : "\(uniqueHosts.count) Sources")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(DS.Color.fgMuted)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background {
-                Capsule().strokeBorder(DS.Color.border, lineWidth: 1)
-            }
-            .contentShape(.capsule)
-        }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $showSheet) {
-            SourcesSheet(previews: previews)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(DS.Radius.xl)
-        }
-        .accessibilityLabel("\(uniqueHosts.count) sources")
-    }
-}
-
 /// The tapped-open list: one preview row per source, opening in the in-chat
 /// browser.
-private struct SourcesSheet: View {
+struct SourcesSheet: View {
     let previews: [LinkPreviewLoader]
 
     var body: some View {
@@ -235,10 +186,6 @@ struct LinkPreviewCard: View {
             .padding(10)
             .frame(maxWidth: 360, alignment: .leading)
             .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.md))
-            .overlay {
-                RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous)
-                    .strokeBorder(DS.Color.border, lineWidth: 1)
-            }
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

@@ -1,0 +1,17 @@
+{
+  "envelope": "response",
+  "commandId": "55555555-5555-4555-8555-555555555555",
+  "receipt": {
+    "commandId": "55555555-5555-4555-8555-555555555555",
+    "status": "accepted"
+  },
+  "result": {
+    "type": "composer.skill.read.result",
+    "skill": {
+      "name": "swiftui-specialist",
+      "description": "Native SwiftUI",
+      "contents": "# SwiftUI\n\nUse native SwiftUI views.",
+      "truncated": false
+    }
+  }
+}

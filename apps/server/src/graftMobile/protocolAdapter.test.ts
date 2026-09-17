@@ -21,12 +21,14 @@ import {
 import {
   mobileThreadProviderLocked,
   mobileThreadProvider,
+  toMobileActivityEvent,
   toMobileModels,
   toMobileProject,
   toMobileSnapshot,
   toMobileThread,
   toMobileTranscript,
   withMobileEffort,
+  withMobileFastMode,
 } from "./protocolAdapter";
 
 describe("mobile provider lock", () => {
@@ -167,6 +169,109 @@ function thread(): OrchestrationThread {
 }
 
 describe("Graft mobile protocol adapter", () => {
+  it.each([
+    { toolCallId: "call-1", toolName: "Read" },
+    { toolUseId: "call-1", toolName: "Read" },
+    { callID: "call-1", toolName: "Read" },
+    { item: { id: "call-1", name: "Read" } },
+  ])("preserves tool identity separately from delivery IDs: %j", (data) => {
+    const events = ["tool.started", "tool.updated", "tool.completed"].map((kind, index) =>
+      toMobileActivityEvent("thread-1", {
+        id: EventId.makeUnsafe(`event-${index}`),
+        sequence: index + 1,
+        kind,
+        tone: "tool",
+        summary: "Reading",
+        createdAt: now,
+        turnId: TurnId.makeUnsafe("turn-1"),
+        payload: { data },
+      }),
+    );
+    expect(events.map((event) => event.id)).toEqual(["event-0", "event-1", "event-2"]);
+    expect(events.map((event) => event.kind)).toEqual(["tool.start", "tool.update", "tool.end"]);
+    expect(events.every((event) => event.toolId === "call-1" && event.toolName === "Read")).toBe(
+      true,
+    );
+  });
+
+  it("projects structured tasks identically in live events and reconnect snapshots", () => {
+    const activity = {
+      id: EventId.makeUnsafe("tasks-1"),
+      kind: "turn.tasks.updated",
+      tone: "tool" as const,
+      summary: "1 of 3 tasks complete",
+      turnId: TurnId.makeUnsafe("turn-1"),
+      sequence: 20,
+      createdAt: now,
+      payload: {
+        tasks: [
+          { task: "Inspect the issue", status: "completed" },
+          { task: "Apply the fix", status: "inProgress" },
+          { task: "Verify on device", status: "pending" },
+        ],
+      },
+    };
+    const projected = toMobileActivityEvent("thread-1", activity);
+    expect(projected).toMatchObject({
+      kind: "todo.update",
+      runId: "turn-1",
+      data: {
+        type: "todo_update",
+        todos: [
+          { id: "turn-1:0", text: "Inspect the issue", status: "completed" },
+          { id: "turn-1:1", text: "Apply the fix", status: "in_progress" },
+          { id: "turn-1:2", text: "Verify on device", status: "pending" },
+        ],
+      },
+    });
+    const snapshot = toMobileTranscript({ ...thread(), activities: [activity] }, 20);
+    expect(snapshot.events.find((event) => event.id === activity.id)).toEqual(projected);
+    const live = toMobileLiveEvent(makeGraftMobileLiveEventState(), {
+      type: "thread.activity-appended",
+      sequence: 20,
+      eventId: activity.id,
+      aggregateKind: "thread",
+      aggregateId: ThreadId.makeUnsafe("thread-1"),
+      occurredAt: now,
+      commandId: null,
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      payload: { threadId: ThreadId.makeUnsafe("thread-1"), activity },
+    });
+    expect(live).toEqual(projected);
+    const updated = toMobileActivityEvent("thread-1", {
+      ...activity,
+      id: EventId.makeUnsafe("tasks-2"),
+      payload: {
+        tasks: activity.payload.tasks.map((task) => ({ task: task.task, status: "completed" })),
+      },
+    });
+    expect(
+      updated.data?.type === "todo_update" && updated.data.todos.map((task) => task.id),
+    ).toEqual(["turn-1:0", "turn-1:1", "turn-1:2"]);
+  });
+
+  it("distinguishes an explicit task clear from malformed task data", () => {
+    const activity = {
+      id: EventId.makeUnsafe("tasks"),
+      kind: "turn.tasks.updated",
+      tone: "tool" as const,
+      summary: "Task update",
+      turnId: null,
+      createdAt: now,
+    };
+    expect(toMobileActivityEvent("thread-1", { ...activity, payload: { tasks: [] } }).data).toEqual(
+      { type: "todo_update", todos: [] },
+    );
+    expect(
+      toMobileActivityEvent("thread-1", { ...activity, payload: { tasks: [null, {}] } }).data,
+    ).toBeUndefined();
+    expect(
+      toMobileActivityEvent("thread-1", { ...activity, payload: { tasks: "invalid" } }).data,
+    ).toBeUndefined();
+  });
+
   it("maps Graft project and thread identity without changing the mobile contract", () => {
     expect(toMobileProject(project())).toMatchObject({
       id: "project-1",
@@ -218,6 +323,48 @@ describe("Graft mobile protocol adapter", () => {
     });
   });
 
+  it("projects desktop intelligence and speed and advertises model capabilities", () => {
+    const thread: OrchestrationThreadShell = {
+      ...threadShell(),
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5.5",
+        options: { reasoningEffort: "max", fastMode: true },
+      },
+    };
+    expect(toMobileThread(thread)).toMatchObject({ effort: "max", fastMode: true });
+    const models = toMobileModels({
+      enabledProviders: new Set(["codex", "pi"]),
+      discoveredModels: new Map(),
+    });
+    expect(models.find((model) => model.id === "gpt-5.5")).toMatchObject({
+      supportsFastMode: true,
+      defaultReasoningEffort: expect.any(String),
+    });
+    expect(
+      models.filter((model) => model.providerId === "pi").every((model) => !model.supportsFastMode),
+    ).toBe(true);
+  });
+
+  it("does not add a speed option to providers that do not support it", () => {
+    expect(
+      withMobileFastMode(
+        { provider: "pi", model: "test", options: { thinkingLevel: "high" } },
+        true,
+      ),
+    ).toEqual({ provider: "pi", model: "test", options: { thinkingLevel: "high" } });
+    expect(
+      withMobileFastMode(
+        {
+          provider: "codex",
+          model: "gpt-5.5",
+          options: { reasoningEffort: "high", fastMode: true },
+        },
+        false,
+      ),
+    ).toMatchObject({ options: { reasoningEffort: "high", fastMode: false } });
+  });
+
   it("builds an authoritative snapshot and selected transcript", () => {
     const descriptor: ExecutionEnvironmentDescriptor = {
       environmentId: EnvironmentId.makeUnsafe("environment-1"),
@@ -248,6 +395,53 @@ describe("Graft mobile protocol adapter", () => {
       }),
     );
     expect(toMobileTranscript(thread(), 12).events).toHaveLength(2);
+  });
+
+  it("carries the same completion time as desktop into transcript snapshots", () => {
+    const source = thread();
+    const endedAt = "2026-09-15T08:00:12.000Z";
+    const messages = source.messages.map((message) => ({
+      ...message,
+      streaming: false,
+      updatedAt: endedAt,
+    }));
+    const transcript = toMobileTranscript({ ...source, messages }, 22);
+    const reply = transcript.events.find((event) => event.kind === "assistant.message");
+    expect(reply?.completedAt).toBe(Date.parse(endedAt));
+  });
+
+  it("preserves skill identity in user history and live echoes without exposing host paths", () => {
+    const source = thread();
+    const user = source.messages[0]!;
+    const skillMessage = {
+      ...user,
+      role: "user" as const,
+      text: "/swiftui-specialist Fix chat",
+      skills: [{ name: "swiftui-specialist", path: "/private/skills/swiftui-specialist/SKILL.md" }],
+    };
+    const history = toMobileTranscript({ ...source, messages: [skillMessage] }, 20).events[0];
+    const event: OrchestrationEvent = {
+      sequence: 20,
+      eventId: EventId.makeUnsafe("user-skill"),
+      aggregateKind: "thread",
+      aggregateId: source.id,
+      occurredAt: now,
+      commandId: null,
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "thread.message-sent",
+      payload: { ...skillMessage, threadId: source.id, messageId: skillMessage.id },
+    };
+    const live = toMobileLiveEvent(makeGraftMobileLiveEventState(), event);
+    for (const projected of [history, live]) {
+      expect(projected).toMatchObject({
+        kind: "user.message",
+        text: skillMessage.text,
+        skills: [{ name: "swiftui-specialist" }],
+      });
+      expect(JSON.stringify(projected)).not.toContain("/private/skills");
+    }
   });
 
   it("turns Graft assistant deltas into cumulative mobile frames", () => {
@@ -308,7 +502,43 @@ describe("Graft mobile protocol adapter", () => {
     });
     expect(toMobileLiveEvent(state, event(3, "", false))).toMatchObject({
       kind: "assistant.message",
+      completedAt: Date.parse(now),
       text: "Hello world",
+    });
+
+    const reconnect = makeGraftMobileLiveEventState();
+    seedGraftMobileLiveEventState(reconnect, { thread: thread(), snapshotSequence: 11 });
+    expect(toMobileLiveEvent(reconnect, event(11, "Working"))).toBeNull();
+    expect(toMobileLiveEvent(reconnect, event(12, " again"))).toMatchObject({
+      text: "Working again",
+    });
+    expect(toMobileLiveEvent(reconnect, event(13, "", false))).toMatchObject({
+      kind: "assistant.message",
+      text: "Working again",
+    });
+  });
+
+  it("settles a ready provider session without an active turn", () => {
+    const session = threadShell().session!;
+    const event: OrchestrationEvent = {
+      sequence: 20,
+      eventId: EventId.makeUnsafe("ready"),
+      aggregateKind: "thread",
+      aggregateId: session.threadId,
+      occurredAt: now,
+      commandId: null,
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "thread.session-set",
+      payload: {
+        threadId: session.threadId,
+        session: { ...session, status: "ready", activeTurnId: null },
+      },
+    };
+    expect(toMobileLiveEvent(makeGraftMobileLiveEventState(), event)).toMatchObject({
+      kind: "run.status",
+      runStatus: "completed",
     });
   });
 });

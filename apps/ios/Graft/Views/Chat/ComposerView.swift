@@ -18,6 +18,7 @@ struct ComposerView: View {
     @Environment(\.scenePhase) private var scenePhase
     let chat: ChatModel
     let siblingChromeHeight: CGFloat
+    var onSlashVisibilityChange: ((Bool) -> Void)? = nil
     /// Live voice mode isn't part of the Graft port yet; nil hides the
     /// waveform affordance entirely instead of showing a dead control.
     var onStartLiveMode: (() -> Void)? = nil
@@ -28,6 +29,9 @@ struct ComposerView: View {
     /// lands at the caret instead of always being tacked onto the end.
     @State private var textController = ComposerTextController()
     @State private var slash = SlashCompleter()
+    @State private var selectedSkill: ComposerCommand?
+    @State private var previewSkill: ComposerCommand?
+    @State private var focusAfterPreview = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showPhotos = false
     @State private var showFiles = false
@@ -43,6 +47,8 @@ struct ComposerView: View {
     // and reads would always be false. UIKit's delegate callbacks keep this in
     // sync instead (begin/end editing in PasteAwareComposerTextView).
     @State private var focused: Bool = false
+    @State private var showModelSheet = false
+    @State private var showModelControls = false
 
     /// Shared collapsed height for the attach button and the text capsule so
     /// the two read as one balanced row. `@ScaledMetric` keeps them locked
@@ -60,14 +66,6 @@ struct ComposerView: View {
             ? 0
             : ComposerLayout.attachmentChromeHeight
         VStack(spacing: 8) {
-            if text.hasPrefix("/"), !slash.items.isEmpty {
-                SlashPalette(completions: slash.items) { picked in
-                    // Fill the field; the user adds arguments and hits send.
-                    text = picked.fillText
-                    focused = true
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
             if let voiceError = voice.errorText {
                 Text(voiceError)
                     .font(.caption2)
@@ -117,6 +115,7 @@ struct ComposerView: View {
                                 ),
                                 placeholder: "Message Graft",
                                 controller: textController,
+                                selectedSkill: selectedSkill,
                                 height: $editorHeight,
                                 acceptsHeightMeasurements: !recordingActive,
                                 additionalChromeHeight: attachmentChromeHeight + siblingChromeHeight
@@ -147,6 +146,7 @@ struct ComposerView: View {
                             .padding(.leading, 16)
                             .padding(.trailing, isExpanded ? 16 : 0)
                             if !isExpanded {
+                                modelEffortTrigger
                                 trailingControl
                                     .padding(.trailing, 7)
                                     .padding(.bottom, 7)
@@ -202,7 +202,53 @@ struct ComposerView: View {
         // software keyboard on iOS 26 and 27. Keep one design-system spacing
         // unit between the floating glass controls and the keyboard chrome.
         .padding(.bottom, DS.Space.s1)
-        .task { await app.loadModelsIfNeeded() }
+        // Keep the editor mounted and focused while its model controls replace
+        // the composer, preserving its draft, caret, and keyboard placement.
+        .opacity(showModelControls ? 0 : 1)
+        .allowsHitTesting(!showModelControls)
+        .accessibilityHidden(showModelControls)
+        .background {
+            ModelControlsPresentation(
+                isPresented: showModelControls,
+                threadId: chat.threadId,
+                app: app,
+                onDismiss: { showModelControls = false },
+                onAdvanced: openModelSettings
+            )
+        }
+        .overlay(alignment: .top) {
+            VStack(spacing: 0) {
+                if slashVisible, !showModelControls {
+                    SlashPalette(
+                        completions: slash.items,
+                        status: slashStatus,
+                        onPreview: { command in
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            focused = false
+                            KeyboardDismissal.dismiss()
+                            focusAfterPreview = true
+                            previewSkill = command
+                        },
+                        onPick: pickCommand
+                    )
+                    .padding(.bottom, 12)
+                }
+            }
+            .alignmentGuide(.top) { $0[.bottom] }
+            // Keep the anchor on the overlay's outer container so the
+            // conditional menu stays wholly above the composer while typing.
+            .transaction { $0.animation = nil }
+        }
+        .task(id: app.gateway.state == .connected) {
+            guard app.gateway.state == .connected else { return }
+            await app.loadModelsIfNeeded(force: true)
+        }
+        .task(id: slashContextKey + ":" + String(app.gateway.state == .connected)) {
+            guard app.gateway.state == .connected else { return }
+            slash.prefetch(contextKey: slashContextKey) {
+                try await app.fetchComposerCommands(threadId: chat.threadId)
+            }
+        }
         .photosPicker(isPresented: $showPhotos, selection: $photoItems,
                       maxSelectionCount: 4, matching: .images)
         .fileImporter(
@@ -220,6 +266,28 @@ struct ComposerView: View {
             }
             .ignoresSafeArea()
         }
+        .sheet(isPresented: $showModelSheet) {
+            ModelPickerSheet(chat: chat)
+                .presentationDetents([.fraction(0.56), .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(44)
+        }
+        .sheet(item: $previewSkill, onDismiss: {
+            if focusAfterPreview {
+                focused = true
+                focusAfterPreview = false
+            }
+        }) { command in
+            SkillPreviewSheet(command: command, load: {
+                try await app.fetchSkillPreview(threadId: chat.threadId, name: command.name)
+            }, onUse: {
+                pickCommand(command, focusEditor: false)
+                focusAfterPreview = true
+            })
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackgroundInteraction(.disabled)
+        }
         .onChange(of: photoItems) {
             guard !photoItems.isEmpty else { return }
             let items = photoItems
@@ -229,14 +297,25 @@ struct ComposerView: View {
             }
         }
         .onChange(of: text) {
-            slash.update(query: text, app: app)
+            showModelControls = false
+            updateSlashCommands()
+        }
+        .onChange(of: currentModel?.providerId) {
+            selectedSkill = nil
+            updateSlashCommands()
+        }
+        .onChange(of: slashVisible || showModelControls) { _, visible in
+            onSlashVisibilityChange?(visible)
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase != .active { showModelControls = false }
             if phase != .active, voice.isRecording {
                 voice.cancel()
             }
         }
         .onDisappear {
+            showModelControls = false
+            slash.clear()
             if voice.isRecording {
                 voice.cancel()
             }
@@ -254,7 +333,6 @@ struct ComposerView: View {
                     .allowsHitTesting(false)
             }
         }
-        .animation(.snappy(duration: 0.18), value: slash.items)
         .animation(.snappy(duration: 0.16), value: isDropTargeted)
     }
 
@@ -426,63 +504,41 @@ struct ComposerView: View {
         app.currentModel(forThread: chat.threadId)
     }
 
-    private var selectableModels: [ModelOption] {
-        guard let providerId = app.lockedProviderId(forThread: chat.threadId) else {
-            return app.availableModels
-        }
-        return app.availableModels.filter { $0.providerId == providerId }
-    }
-
-    /// Combined model + effort readout, Codex-style: "Opus 4.8 High" with the
-    /// model in ink and the effort in a muted step. Opens an anchored native menu.
     private var modelEffortTrigger: some View {
-        Menu {
-            Menu("Model") {
-                ForEach(selectableModels, id: \.selectionID) { model in
-                    Button {
-                        Task { _ = await app.setThreadModel(threadId: chat.threadId, model: model) }
-                    } label: {
-                        if model.id == currentModel?.id && model.providerId == currentModel?.providerId {
-                            Label(model.label, systemImage: "checkmark")
-                        } else {
-                            Text(model.label)
-                        }
-                    }
-                }
-            }
-            if let efforts = currentModel?.reasoningEfforts, !efforts.isEmpty {
-                Section("Reasoning effort") {
-                    ForEach(efforts, id: \.self) { effort in
-                        Button {
-                            app.setThreadEffort(threadId: chat.threadId, effort: effort)
-                        } label: {
-                            if effort == app.resolvedEffort(forThread: chat.threadId) {
-                                Label(Self.effortDisplayName(effort), systemImage: "checkmark")
-                            } else {
-                                Text(Self.effortDisplayName(effort))
-                            }
-                        }
-                    }
-                }
-            }
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showModelControls.toggle()
         } label: {
-            HStack(spacing: 4) {
-                Text(currentModel?.label ?? "Model")
-                    .foregroundStyle(.primary)
-                if let effort = app.resolvedEffort(forThread: chat.threadId) {
-                    Text(Self.effortDisplayName(effort))
-                        .foregroundStyle(.secondary)
+            HStack(spacing: 5) {
+                if app.models.pendingSelections[chat.threadId] != nil {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(currentModel?.label ?? "Model").foregroundStyle(.primary)
+                    if isExpanded, let effort = app.resolvedEffort(forThread: chat.threadId) {
+                        Text(Self.effortDisplayName(effort)).foregroundStyle(.secondary)
+                    }
                 }
             }
             .font(.footnote.weight(.medium))
             .lineLimit(1)
             .padding(.horizontal, 8)
-            .frame(height: 32)
+            .frame(minWidth: 44, minHeight: 44)
+            .frame(maxWidth: isExpanded ? nil : 140)
             .contentShape(.capsule)
         }
         .buttonStyle(PressableButtonStyle())
-        .disabled(app.availableModels.isEmpty && currentModel == nil)
-        .accessibilityLabel("Model and reasoning effort")
+        .accessibilityLabel("Model and intelligence")
+        .accessibilityValue([currentModel?.label, app.resolvedEffort(forThread: chat.threadId)]
+            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityIdentifier("composer-model-settings")
+    }
+
+    private func openModelSettings() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        showModelControls = false
+        focused = false
+        KeyboardDismissal.dismiss()
+        showModelSheet = true
     }
 
     /// Mirror of the desktop's effort labels (formatReasoningEffort). Shared
@@ -524,6 +580,7 @@ struct ComposerView: View {
                 }
                 if canSend {
                     filledCircle(icon: "arrow.up") { send() }
+                        .disabled(app.models.pendingSelections[chat.threadId] != nil)
                         .transition(.scale.combined(with: .opacity))
                 } else if let onStartLiveMode {
                     filledCircle(icon: "waveform", action: onStartLiveMode)
@@ -670,13 +727,60 @@ struct ComposerView: View {
 
     // MARK: Actions
 
+    private var slashVisible: Bool {
+        focused && previewSkill == nil && SlashCompleter.searchTerm(text) != nil
+    }
+
+    private var slashStatus: String? {
+        if !slash.items.isEmpty { return nil }
+        if let error = slash.error { return error }
+        if slash.isLoading { return "Loading commands…" }
+        return slash.items.isEmpty ? "No matching commands" : nil
+    }
+
+    private func pickCommand(_ command: ComposerCommand) {
+        pickCommand(command, focusEditor: true)
+    }
+
+    private func pickCommand(_ command: ComposerCommand, focusEditor: Bool) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        selectedSkill = command.kind == "skill" ? command : nil
+        if command.kind == "model" {
+            text = ""
+            openModelSettings()
+        } else {
+            text = "/" + command.name + " "
+            focused = focusEditor
+        }
+    }
+
+    private var slashContextKey: String {
+        chat.threadId + ":" + (currentModel?.providerId ?? "")
+    }
+
+    private func updateSlashCommands() {
+        slash.update(
+            query: text,
+            contextKey: slashContextKey
+        ) {
+            try await app.fetchComposerCommands(threadId: chat.threadId)
+        }
+    }
+
     private func send() {
         let message = text
+        let skill = ComposerSkillText.leadingSkill(in: message, selected: selectedSkill)
         guard canSend else { return }
+        if message.trimmingCharacters(in: .whitespacesAndNewlines) == "/model" {
+            text = ""
+            openModelSettings()
+            return
+        }
         attachmentError = nil
+        showModelControls = false
         text = ""
         Task {
-            let accepted = await chat.send(message)
+            let accepted = await chat.send(message, skill: skill)
             // A rejected send (e.g. agent offline) must never eat the draft —
             // restore it unless the user has already started typing again.
             if !accepted, text.isEmpty {
@@ -819,8 +923,14 @@ final class ComposerTextController {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let textView else { return }
         guard let range = textView.selectedTextRange else {
-            let existing = textView.text ?? ""
-            textView.text = existing.isEmpty ? trimmed : existing + " " + trimmed
+            let existing = textView.attributedText ?? NSAttributedString(string: "")
+            let result = NSMutableAttributedString(attributedString: existing)
+            result.append(NSAttributedString(
+                string: existing.length == 0 ? trimmed : " " + trimmed,
+                attributes: ComposerSkillText.baseAttributes(font: textView.font)
+            ))
+            textView.attributedText = result
+            textView.selectedRange = NSRange(location: result.length, length: 0)
             textView.delegate?.textViewDidChange?(textView)
             return
         }
@@ -910,6 +1020,7 @@ private struct PasteAwareComposerTextView: UIViewRepresentable {
     @Binding var isFocused: Bool
     let placeholder: String
     let controller: ComposerTextController
+    let selectedSkill: ComposerCommand?
     @Binding var height: CGFloat
     /// Dictation keeps the UIKit text view mounted while SwiftUI collapses the
     /// visible row. During that hidden state UIKit can report a one-line/zero-
@@ -945,8 +1056,7 @@ private struct PasteAwareComposerTextView: UIViewRepresentable {
         }
         controller.textView = textView
 
-        if textView.text != text {
-            textView.text = text
+        if textView.setDraft(text, skill: selectedSkill) {
             textView.updatePlaceholderVisibility()
             context.coordinator.scheduleHeightUpdate(for: textView)
         } else if chromeHeightChanged {
@@ -971,9 +1081,16 @@ private struct PasteAwareComposerTextView: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
-            parent.text = textView.text
             (textView as? ComposerUITextView)?.updatePlaceholderVisibility()
             updateHeight(for: textView)
+            guard textView.markedTextRange == nil else { return }
+            parent.text = ComposerSkillText.plainText(textView.attributedText)
+            textView.typingAttributes = ComposerSkillText.baseAttributes(font: textView.font)
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            guard textView.markedTextRange == nil else { return }
+            textView.typingAttributes = ComposerSkillText.baseAttributes(font: textView.font)
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
@@ -1091,7 +1208,7 @@ enum ComposerTextHeightPolicy {
     }
 }
 
-private final class ComposerUITextView: UITextView {
+final class ComposerUITextView: UITextView {
     var placeholder = "" {
         didSet {
             placeholderLabel.text = placeholder
@@ -1132,7 +1249,63 @@ private final class ComposerUITextView: UITextView {
         else { return }
         lastReportedWidth = bounds.width
         lastReportedWindowBottom = windowBottom
+        refreshSkillAppearance()
         onLayoutChange?(self)
+    }
+
+    /// UIKit keeps a skill as one editable atom; the wire draft still contains
+    /// the original slash invocation. Never rewrite marked text during IME input.
+    @discardableResult
+    func setDraft(_ draft: String, skill: ComposerCommand?) -> Bool {
+        guard markedTextRange == nil else { return false }
+        let current = ComposerSkillText.plainText(attributedText)
+        let expectedSkill = ComposerSkillText.leadingSkill(in: draft, selected: skill)
+        let currentSkill = attributedText.length > 0
+            ? (attributedText.attribute(.attachment, at: 0, effectiveRange: nil) as? ComposerSkillAttachment)?.command.name
+            : nil
+        guard current != draft || currentSkill != expectedSkill?.name else { return false }
+        attributedText = ComposerSkillText.render(draft, skill: expectedSkill, font: font)
+        selectedRange = NSRange(location: attributedText.length, length: 0)
+        typingAttributes = ComposerSkillText.baseAttributes(font: font)
+        refreshSkillAppearance()
+        return true
+    }
+
+    override var accessibilityValue: String? {
+        get { ComposerSkillText.plainText(attributedText) }
+        set { super.accessibilityValue = newValue }
+    }
+
+    override func copy(_ sender: Any?) {
+        guard selectedRange.length > 0 else { return }
+        UIPasteboard.general.string = ComposerSkillText.plainText(
+            attributedText.attributedSubstring(from: selectedRange)
+        )
+    }
+
+    override func cut(_ sender: Any?) {
+        copy(sender)
+        guard let range = selectedTextRange else { return }
+        replace(range, withText: "")
+        delegate?.textViewDidChange?(self)
+    }
+
+    private func refreshSkillAppearance() {
+        guard let attributedText, attributedText.length > 0 else { return }
+        attributedText.enumerateAttribute(.attachment, in: NSRange(location: 0, length: attributedText.length)) { value, range, _ in
+            guard let attachment = value as? ComposerSkillAttachment else { return }
+            if attachment.updateAppearance(
+                font: font ?? .systemFont(ofSize: 16),
+                color: UIColor(DS.Color.link).resolvedColor(with: traitCollection),
+                maxWidth: bounds.width > 0 ? bounds.width : 280
+            ) {
+                if let manager = textLayoutManager, let document = manager.textContentManager?.documentRange {
+                    manager.invalidateLayout(for: document)
+                } else {
+                    layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+                }
+            }
+        }
     }
 
     /// A plain-text `UITextView` reports it *cannot* paste when the clipboard
@@ -1190,6 +1363,12 @@ private final class ComposerUITextView: UITextView {
         textContainerInset = .zero
         textContainer.lineFragmentPadding = 0
         font = .systemFont(ofSize: 16, weight: .regular)
+        registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) {
+            (view: ComposerUITextView, _: UITraitCollection) in
+            view.font = UIFontMetrics.default.scaledFont(for: .systemFont(ofSize: 16))
+            view.refreshSkillAppearance()
+            view.onLayoutChange?(view)
+        }
         textColor = .label
         tintColor = .label
         adjustsFontForContentSizeCategory = true
@@ -1305,5 +1484,91 @@ private extension UIImage {
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: newSize))
         }
+    }
+}
+
+/// Render-only skill tokens. Serialization expands each attachment to the
+/// original command so selection, paste, dictation, and retries preserve intent.
+@MainActor
+enum ComposerSkillText {
+    static func baseAttributes(font: UIFont?) -> [NSAttributedString.Key: Any] {
+        [.font: font ?? UIFont.systemFont(ofSize: 16), .foregroundColor: UIColor.label]
+    }
+
+    static func leadingSkill(in draft: String, selected: ComposerCommand?) -> ComposerCommand? {
+        guard let selected, selected.kind == "skill" else { return nil }
+        let prefix = "/" + selected.name
+        guard draft.hasPrefix(prefix),
+              draft.count == prefix.count || draft.dropFirst(prefix.count).first?.isWhitespace == true
+        else { return nil }
+        return selected
+    }
+
+    static func render(_ draft: String, skill: ComposerCommand?, font: UIFont?) -> NSAttributedString {
+        let attributes = baseAttributes(font: font)
+        guard let skill = leadingSkill(in: draft, selected: skill) else {
+            return NSAttributedString(string: draft, attributes: attributes)
+        }
+        let token = NSAttributedString(attachment: ComposerSkillAttachment(command: skill))
+        let result = NSMutableAttributedString(attributedString: token)
+        result.addAttributes(attributes, range: NSRange(location: 0, length: result.length))
+        result.append(NSAttributedString(string: String(draft.dropFirst(skill.name.count + 1)), attributes: attributes))
+        return result
+    }
+
+    static func plainText(_ attributed: NSAttributedString?) -> String {
+        guard let attributed else { return "" }
+        var result = ""
+        attributed.enumerateAttribute(.attachment, in: NSRange(location: 0, length: attributed.length)) { value, range, _ in
+            if let skill = value as? ComposerSkillAttachment {
+                result += "/" + skill.command.name
+            } else {
+                result += (attributed.string as NSString).substring(with: range)
+            }
+        }
+        return result
+    }
+}
+
+/// Atomic inline text with desktop's building-blocks icon and link-blue label.
+/// The image is regenerated only when its font, width, or resolved color changes.
+@MainActor
+final class ComposerSkillAttachment: NSTextAttachment {
+    let command: ComposerCommand
+    private var appearanceKey = ""
+
+    init(command: ComposerCommand) {
+        self.command = command
+        super.init(data: nil, ofType: nil)
+        _ = updateAppearance(font: .systemFont(ofSize: 16), color: UIColor(DS.Color.link), maxWidth: 280)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    @discardableResult
+    func updateAppearance(font: UIFont, color: UIColor, maxWidth: CGFloat) -> Bool {
+        let key = "\(font.pointSize):\(maxWidth):\(color)"
+        guard appearanceKey != key else { return false }
+        appearanceKey = key
+        let labelFont = UIFont.systemFont(ofSize: font.pointSize, weight: .medium)
+        let iconSize = font.pointSize + 2
+        let label = command.skillLabel as NSString
+        let attributes: [NSAttributedString.Key: Any] = [.font: labelFont, .foregroundColor: color]
+        let naturalWidth = iconSize + 4 + label.size(withAttributes: attributes).width
+        let width = max(iconSize + 20, min(ceil(naturalWidth), maxWidth - 8))
+        let height = ceil(max(font.lineHeight, iconSize))
+        image = UIGraphicsImageRenderer(size: CGSize(width: width, height: height)).image { _ in
+            UIImage(named: "SkillIcon")?.withTintColor(color, renderingMode: .alwaysOriginal)
+                .draw(in: CGRect(x: 0, y: (height - iconSize) / 2, width: iconSize, height: iconSize))
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byTruncatingTail
+            var textAttributes = attributes
+            textAttributes[.paragraphStyle] = paragraph
+            label.draw(in: CGRect(x: iconSize + 4, y: (height - labelFont.lineHeight) / 2,
+                                  width: width - iconSize - 4, height: height), withAttributes: textAttributes)
+        }
+        bounds = CGRect(x: 0, y: font.descender, width: width, height: height)
+        return true
     }
 }

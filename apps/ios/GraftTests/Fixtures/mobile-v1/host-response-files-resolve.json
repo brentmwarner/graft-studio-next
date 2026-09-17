@@ -1,0 +1,21 @@
+{
+  "envelope": "response",
+  "commandId": "66666666-6666-4666-8666-666666666666",
+  "receipt": {
+    "commandId": "66666666-6666-4666-8666-666666666666",
+    "status": "accepted"
+  },
+  "result": {
+    "type": "files.resolve.result",
+    "references": [
+      {
+        "reference": "README.md",
+        "path": "README.md"
+      },
+      {
+        "reference": "src/Chat.tsx",
+        "path": "src/Chat.tsx"
+      }
+    ]
+  }
+}

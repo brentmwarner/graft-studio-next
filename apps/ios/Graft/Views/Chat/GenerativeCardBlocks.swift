@@ -578,7 +578,7 @@ private struct CompareColumn: View {
         .background(DS.Color.bgElevated, in: .rect(cornerRadius: DS.Radius.md))
         .overlay(
             RoundedRectangle(cornerRadius: DS.Radius.md)
-                .strokeBorder(picked ? DS.Color.fg : DS.Color.border,
+                .strokeBorder(picked ? DS.Color.fg : .clear,
                               lineWidth: picked ? 1.5 : 1)
         )
         .overlay(alignment: .topLeading) {

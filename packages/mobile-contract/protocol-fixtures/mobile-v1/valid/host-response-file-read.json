@@ -1,0 +1,16 @@
+{
+  "envelope": "response",
+  "commandId": "66666666-6666-4666-8666-666666666666",
+  "receipt": {
+    "commandId": "66666666-6666-4666-8666-666666666666",
+    "status": "accepted"
+  },
+  "result": {
+    "type": "file.read.result",
+    "file": {
+      "path": "src/Chat.tsx",
+      "contents": "export const Chat = () => <main>Hello</main>;\n",
+      "truncated": false
+    }
+  }
+}

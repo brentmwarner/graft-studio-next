@@ -44,6 +44,7 @@ import {
   loadMobileUsage,
   makeGraftMobileGatewayState,
 } from "./gateway";
+import { makeMobileCommandDispatcher } from "./commandDispatch";
 import { getMobileLanGatewayPort, mobileLanGatewayAdvertisesIpv6 } from "./lanGateway";
 import {
   makeGraftMobileLiveEventState,
@@ -493,6 +494,7 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
         const outbound = yield* Queue.dropping<string>(MOBILE_WS_OUTBOUND_CAPACITY);
         const outboundLock = yield* Semaphore.make(1);
         const liveState = makeGraftMobileLiveEventState();
+        const dispatchCommand = makeMobileCommandDispatcher();
         let welcomed = false;
 
         const send = (message: GraftMobileHostMessage) =>
@@ -521,10 +523,38 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
                   });
                   return;
                 }
-                // Seed cumulative text and its cursor together. If the snapshot
-                // already covers this frame, request a refresh and keep later
-                // deltas attached to the full message from the snapshot.
                 seedGraftMobileLiveEventState(liveState, snapshot.value);
+                if (snapshot.value.snapshotSequence >= event.sequence) {
+                  // The projection already includes this frame. Send its full
+                  // message now so the first chunk is visible without losing a
+                  // reconnect prefix or appending the covered delta twice.
+                  const message = snapshot.value.thread.messages.find(
+                    (candidate) => candidate.id === event.payload.messageId,
+                  );
+                  if (message) {
+                    yield* send({
+                      envelope: "event",
+                      event: {
+                        id: message.id,
+                        cursor: event.sequence,
+                        threadId: event.payload.threadId,
+                        kind: message.streaming ? "assistant.delta" : "assistant.message",
+                        createdAt: Date.parse(message.createdAt),
+                        ...(!message.streaming
+                          ? { completedAt: Date.parse(message.updatedAt) }
+                          : {}),
+                        text: message.text,
+                        ...(message.turnId ? { runId: message.turnId } : {}),
+                      },
+                    });
+                  }
+                  yield* send({
+                    envelope: "snapshot_required",
+                    reason: "resync",
+                    message: "Refreshing the conversation.",
+                  });
+                  return;
+                }
               }
               const mobileEvent = toMobileLiveEvent(liveState, event);
               yield* mobileEvent
@@ -587,62 +617,78 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
             }
             if (message.envelope === "subscribe") return;
 
-            const claimed = claimMobileCommand(gatewayState, message.commandId);
-            if (claimed.kind === "reserved") {
-              yield* executeMobileCommand(gatewayState, message.commandId, message.command, {
-                attachmentPrincipal: attachmentPrincipalForSession(authenticated.sessionId),
-              }).pipe(
-                Effect.flatMap((result) =>
-                  engine.getEventHighWaterSequence.pipe(
-                    Effect.map(
-                      (cursor): GraftMobileHostMessage => ({
+            yield* dispatchCommand(
+              message.command,
+              Effect.gen(function* () {
+                const claimed = claimMobileCommand(gatewayState, message.commandId);
+                if (claimed.kind === "reserved") {
+                  yield* executeMobileCommand(gatewayState, message.commandId, message.command, {
+                    attachmentPrincipal: attachmentPrincipalForSession(authenticated.sessionId),
+                  }).pipe(
+                    Effect.flatMap((result) =>
+                      engine.getEventHighWaterSequence.pipe(
+                        Effect.map(
+                          (cursor): GraftMobileHostMessage => ({
+                            envelope: "response",
+                            commandId: message.commandId,
+                            ...(message.requestId ? { requestId: message.requestId } : {}),
+                            receipt: {
+                              commandId: message.commandId,
+                              status: "completed",
+                              ...(message.requestId ? { requestId: message.requestId } : {}),
+                              cursor,
+                            },
+                            result,
+                          }),
+                        ),
+                      ),
+                    ),
+                    Effect.catch((error) => {
+                      const commandError =
+                        error instanceof GraftMobileCommandError
+                          ? error
+                          : new GraftMobileCommandError({
+                              code: "internal",
+                              message:
+                                error instanceof Error ? error.message : "Mobile command failed.",
+                              cause: error,
+                            });
+                      return Effect.succeed<GraftMobileHostMessage>({
                         envelope: "response",
                         commandId: message.commandId,
                         ...(message.requestId ? { requestId: message.requestId } : {}),
                         receipt: {
                           commandId: message.commandId,
-                          status: "completed",
+                          status: "rejected",
                           ...(message.requestId ? { requestId: message.requestId } : {}),
-                          cursor,
+                          errorCode: commandError.code,
+                          message: commandError.message,
                         },
-                        result,
-                      }),
-                    ),
-                  ),
-                ),
-                Effect.catch((error) => {
-                  const commandError =
-                    error instanceof GraftMobileCommandError
-                      ? error
-                      : new GraftMobileCommandError({
-                          code: "internal",
-                          message:
-                            error instanceof Error ? error.message : "Mobile command failed.",
-                          cause: error,
-                        });
-                  return Effect.succeed<GraftMobileHostMessage>({
-                    envelope: "response",
-                    commandId: message.commandId,
-                    ...(message.requestId ? { requestId: message.requestId } : {}),
-                    receipt: {
-                      commandId: message.commandId,
-                      status: "rejected",
-                      ...(message.requestId ? { requestId: message.requestId } : {}),
-                      errorCode: commandError.code,
-                      message: commandError.message,
-                    },
-                  });
-                }),
-                Effect.tap((response) => Effect.sync(() => claimed.complete(response))),
-                Effect.uninterruptible,
-                Effect.forkDetach,
-              );
-            }
-            const response =
-              claimed.kind === "cached"
-                ? claimed.response
-                : yield* Effect.promise(() => claimed.promise);
-            yield* send(response);
+                      });
+                    }),
+                    Effect.tap((response) => Effect.sync(() => claimed.complete(response))),
+                    Effect.uninterruptible,
+                    Effect.forkDetach,
+                  );
+                }
+                const response =
+                  claimed.kind === "cached"
+                    ? claimed.response
+                    : yield* Effect.promise(() => claimed.promise);
+                yield* send(response);
+              }),
+              send({
+                envelope: "response",
+                commandId: message.commandId,
+                ...(message.requestId ? { requestId: message.requestId } : {}),
+                receipt: {
+                  commandId: message.commandId,
+                  status: "rejected",
+                  errorCode: "overload",
+                  message: "Too many mobile reads are pending. Try again shortly.",
+                },
+              }),
+            );
           });
 
         yield* Stream.fromQueue(inbound).pipe(Stream.runForEach(handleFrame), Effect.forkScoped);

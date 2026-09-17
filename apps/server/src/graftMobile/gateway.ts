@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import nodePath from "node:path";
 
 import {
   DEFAULT_MOBILE_CAPABILITIES,
@@ -26,19 +27,30 @@ import {
   type ServerSettings,
 } from "@graft/contracts";
 import { autoRuntimeModeSelectionIssue } from "@graft/shared/runtimeMode";
+import {
+  isLocalAbsolutePath,
+  isWorkspaceRelativePathSafe,
+  workspaceRelativePathOf,
+} from "@graft/shared/path";
 import { Data, Effect, Option } from "effect";
 
-import { CheckpointDiffQuery } from "../checkpointing/Services/CheckpointDiffQuery";
 import { ServerConfig } from "../config";
+import { resolveThreadWorkspaceCwd } from "../checkpointing/Utils";
+import { GitCore } from "../git/Services/GitCore";
 import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import {
   OrchestrationEngineService,
   type OrchestrationDispatchContext,
 } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
+import { discoverClaudePluginSkillRoots } from "../provider/claudePluginSkills";
 import { ProviderDiscoveryService } from "../provider/Services/ProviderDiscoveryService";
+import { skillsCatalogRoots } from "../provider/skillsCatalog";
 import { listProviderUsage } from "../providerUsage";
 import { ServerSettingsService } from "../serverSettings";
+import { WorkspaceEntries } from "../workspace/Services/WorkspaceEntries";
+import { WorkspacePathOutsideRootError } from "../workspace/Services/WorkspacePaths";
+import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
 import {
   MOBILE_PROVIDER_ORDER,
   defaultModelForProvider,
@@ -56,11 +68,39 @@ import {
   withMobileEffort,
   withMobileFastMode,
 } from "./protocolAdapter";
-import { loadMobileDiff } from "./diff";
+import { mobilePatchFile } from "./diff";
 import { toMobileAllowance, toMobileContextUsage } from "./usage";
+import { mobileComposerCommands, prepareMobileSlashMessage } from "./composerCommands";
+import { mobileWorkingDiff } from "./workingDiff";
 
 const PROJECTION_WAIT_MS = 5_000;
 const PROJECTION_POLL_MS = 25;
+
+// Resolve inside the thread's actual worktree. The shared file service also
+// checks real paths so a symlink cannot escape the workspace on read.
+function mobileWorkspacePath(reference: string, cwd: string): string | null {
+  const relative = isLocalAbsolutePath(reference)
+    ? workspaceRelativePathOf(reference, cwd)
+    : reference.replace(/^(?:\.\/)+/, "");
+  return relative && isWorkspaceRelativePathSafe(relative) ? relative : null;
+}
+
+function skillPreviewReadTarget(
+  skillPath: string,
+  roots: ReadonlyArray<{ readonly path: string }>,
+): { cwd: string; relativePath: string } | null {
+  const resolvedSkill = nodePath.resolve(skillPath);
+  let match: { cwd: string; relativePath: string } | null = null;
+  for (const root of roots) {
+    const cwd = nodePath.resolve(root.path);
+    const relativePath = workspaceRelativePathOf(resolvedSkill, cwd);
+    if (!relativePath) continue;
+    if (!match || cwd.length > match.cwd.length) {
+      match = { cwd, relativePath };
+    }
+  }
+  return match;
+}
 
 export class GraftMobileCommandError extends Data.TaggedError("GraftMobileCommandError")<{
   readonly code: GraftRemoteErrorCode;
@@ -262,9 +302,15 @@ const loadModels = Effect.fn(function* () {
     MOBILE_PROVIDER_ORDER.filter((provider) => settings.providers[provider].enabled),
   );
   const discoveredEntries = yield* Effect.forEach(
-    [...enabledProviders],
+    // Both mobile composers load this catalog on open/reconnect. Droid model
+    // discovery starts an authenticated ACP session, so serve its built-in
+    // choices without starting that runtime as a side effect of browsing.
+    [...enabledProviders].filter((provider) => provider !== "droid"),
     (provider) =>
       discovery.listModels(providerDiscoveryInput(provider, settings, config.cwd)).pipe(
+        // One slow provider must not hold every model picker behind discovery.
+        // The adapter merges built-in choices when a runtime catalog is unavailable.
+        Effect.timeout("4 seconds"),
         Effect.map((result) => [provider, result.models] as const),
         Effect.catch(() => Effect.succeed([provider, [] as ProviderModelDescriptor[]] as const)),
       ),
@@ -348,6 +394,55 @@ export const loadMobileUsage = Effect.fn(function* (threadId: string) {
     ),
   };
   return usage;
+});
+
+const loadThreadWorkspace = Effect.fn(function* (threadId: string) {
+  const query = yield* ProjectionSnapshotQuery;
+  const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(threadId));
+  if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+  const project = yield* query.getProjectShellById(current.value.projectId);
+  const cwd = resolveThreadWorkspaceCwd({
+    thread: current.value,
+    projects: Option.isSome(project) ? [project.value] : [],
+  });
+  if (!cwd) return yield* fail("not_found", "Thread workspace is unavailable.");
+  return { thread: current.value, cwd };
+});
+
+const loadComposerCommands = Effect.fn(function* (threadId: string) {
+  const { thread, cwd } = yield* loadThreadWorkspace(threadId);
+  const discovery = yield* ProviderDiscoveryService;
+  const settings = yield* ServerSettingsService;
+  const input = {
+    ...providerDiscoveryInput(thread.modelSelection.provider, yield* settings.getSettings, cwd),
+    cwd,
+    threadId: thread.id,
+  };
+  const [commands, skills] = yield* Effect.all(
+    [discovery.listCommands(input), discovery.listSkills(input)],
+    { concurrency: 2 },
+  );
+  return {
+    commands: mobileComposerCommands(
+      commands.commands,
+      skills.skills,
+      thread.modelSelection.provider === "codex" && thread.interactionMode !== "plan",
+    ),
+    skills: skills.skills,
+  };
+});
+
+const prepareMobileMessage = Effect.fn(function* (threadId: string, text: string) {
+  if (!/^\/[^\s/]+(?:\s|$)/.test(text.trim())) return { text };
+  const catalog = yield* loadComposerCommands(threadId);
+  return yield* Effect.try({
+    try: () => prepareMobileSlashMessage(text, catalog.commands, catalog.skills),
+    catch: (cause) =>
+      new GraftMobileCommandError({
+        code: "validation_failed",
+        message: cause instanceof Error ? cause.message : "Command unavailable.",
+      }),
+  });
 });
 
 const waitForThreadShell = Effect.fn(function* (threadId: string, minimumSequence: number) {
@@ -445,13 +540,15 @@ export const executeMobileCommand = Effect.fn(function* (
 ): Effect.fn.Return<
   GraftMobileCommandResult,
   unknown,
-  | CheckpointDiffQuery
   | OrchestrationEngineService
   | ProjectionSnapshotQuery
   | ProviderDiscoveryService
   | ServerConfig
   | ServerEnvironment
   | ServerSettingsService
+  | GitCore
+  | WorkspaceEntries
+  | WorkspaceFileSystem
 > {
   const engine = yield* OrchestrationEngineService;
   const query = yield* ProjectionSnapshotQuery;
@@ -567,9 +664,97 @@ export const executeMobileCommand = Effect.fn(function* (
     }
     case "models.list":
       return { type: "models.list.result", models: yield* loadModels() };
+    case "composer.commands":
+      return {
+        type: "composer.commands.result",
+        commands: (yield* loadComposerCommands(command.threadId)).commands,
+      };
+    case "composer.skill.read": {
+      const { thread, cwd } = yield* loadThreadWorkspace(command.threadId);
+      const catalog = yield* loadComposerCommands(command.threadId);
+      // The phone supplies a catalog name, never a filesystem path. Recheck the
+      // current provider's enabled skills before reading its discovered file.
+      const skill = catalog.skills.find((entry) => entry.enabled && entry.name === command.name);
+      if (
+        !skill ||
+        !catalog.commands.some((entry) => entry.kind === "skill" && entry.name === skill.name)
+      )
+        return yield* fail("not_found", "This skill is no longer available. Reopen the / menu.");
+      const config = yield* ServerConfig;
+      const pluginRoots = yield* Effect.tryPromise(() =>
+        discoverClaudePluginSkillRoots({ homeDir: config.homeDir, cwd }),
+      );
+      const preview = skillPreviewReadTarget(skill.path, [
+        ...skillsCatalogRoots({
+          cwd,
+          homeDir: config.homeDir,
+          graftBaseDir: config.baseDir,
+          provider: thread.modelSelection.provider,
+        }),
+        ...pluginRoots,
+      ]);
+      if (!preview)
+        return yield* fail(
+          "validation_failed",
+          "This skill is no longer available. Reopen the / menu.",
+        );
+      const files = yield* WorkspaceFileSystem;
+      const file = yield* files
+        .readFile({
+          cwd: preview.cwd,
+          relativePath: preview.relativePath,
+          maxBytes: 80_000,
+        })
+        .pipe(
+          Effect.catchIf(
+            (error) => error instanceof WorkspacePathOutsideRootError,
+            () =>
+              fail("validation_failed", "This skill is no longer available. Reopen the / menu."),
+          ),
+        );
+      return {
+        type: "composer.skill.read.result",
+        skill: {
+          name: skill.name,
+          description: skill.description ?? skill.interface?.shortDescription ?? "",
+          contents: file.contents,
+          truncated: file.truncated,
+        },
+      };
+    }
+    case "files.resolve": {
+      const { cwd } = yield* loadThreadWorkspace(command.threadId);
+      const entries = yield* WorkspaceEntries;
+      const candidates = command.references.map((reference) => mobileWorkspacePath(reference, cwd));
+      const validPaths = candidates.filter((candidate): candidate is string => candidate !== null);
+      const resolved = validPaths.length
+        ? (yield* entries.resolveFileReferences({ cwd, relativePaths: validPaths })).relativePaths
+        : [];
+      let index = 0;
+      return {
+        type: "files.resolve.result",
+        references: command.references.map((reference, candidateIndex) => ({
+          reference,
+          path: candidates[candidateIndex] === null ? null : (resolved[index++] ?? null),
+        })),
+      };
+    }
+    case "file.read": {
+      const { cwd } = yield* loadThreadWorkspace(command.threadId);
+      const relativePath = mobileWorkspacePath(command.path, cwd);
+      if (!relativePath)
+        return yield* fail("validation_failed", "This file is outside the thread workspace.");
+      const files = yield* WorkspaceFileSystem;
+      const file = yield* files.readFile({ cwd, relativePath, maxBytes: 80_000 });
+      return {
+        type: "file.read.result",
+        file: { path: file.relativePath, contents: file.contents, truncated: file.truncated },
+      };
+    }
     case "turn.start": {
       const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
       if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+      const message = yield* prepareMobileMessage(command.threadId, command.text);
       const result = yield* engine.dispatch(
         {
           type: "thread.turn.start",
@@ -578,7 +763,7 @@ export const executeMobileCommand = Effect.fn(function* (
           message: {
             messageId: MessageId.makeUnsafe(randomUUID()),
             role: "user",
-            text: command.text,
+            ...message,
             attachments: command.attachments ?? [],
           },
           modelSelection: withMobileFastMode(
@@ -620,6 +805,7 @@ export const executeMobileCommand = Effect.fn(function* (
     }
     case "turn.steer": {
       const resolved = yield* resolveRunThread(state, command.runId);
+      const message = yield* prepareMobileMessage(resolved.threadId, command.text);
       const current =
         resolved.thread ??
         (yield* query
@@ -638,7 +824,7 @@ export const executeMobileCommand = Effect.fn(function* (
         message: {
           messageId: MessageId.makeUnsafe(randomUUID()),
           role: "user",
-          text: command.text,
+          ...message,
           attachments: [],
         },
         modelSelection: current.modelSelection,
@@ -698,15 +884,34 @@ export const executeMobileCommand = Effect.fn(function* (
       return { type: "question.resolve.result", questionId: command.questionId };
     }
     case "diff.get": {
-      const detail = yield* loadThreadDetail(command.diffId);
-      return {
-        type: "diff.get.result",
-        diff: yield* loadMobileDiff(
-          command.diffId,
-          detail.thread.checkpoints.at(-1),
-          command.filePath,
-        ),
-      };
+      const { cwd } = yield* loadThreadWorkspace(command.diffId);
+      const git = yield* GitCore;
+      const status = yield* git.status({ cwd });
+      const porcelain = status.hasWorkingTreeChanges
+        ? (yield* git.execute({
+            operation: "mobile.diff.status",
+            cwd,
+            args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+          })).stdout
+        : "";
+      const diff = mobileWorkingDiff(command.diffId, status.workingTree, porcelain);
+      const requested = diff.files.find((file) => file.path === command.filePath);
+      if (requested) {
+        const detail = yield* git.readWorkingTreePatch(cwd, requested.path).pipe(
+          Effect.flatMap(({ patch, truncated }) =>
+            mobilePatchFile(requested, patch).pipe(
+              Effect.map((file) =>
+                truncated ? { ...file, detailStatus: "truncated" as const } : file,
+              ),
+            ),
+          ),
+          Effect.catch(() =>
+            Effect.succeed({ ...requested, detailStatus: "unavailable" as const }),
+          ),
+        );
+        diff.files = diff.files.map((file) => (file.path === requested.path ? detail : file));
+      }
+      return { type: "diff.get.result", diff };
     }
     case "cursor.replay": {
       // First slice: ask the client for a snapshot instead of replaying an

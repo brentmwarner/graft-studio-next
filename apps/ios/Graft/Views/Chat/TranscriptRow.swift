@@ -8,6 +8,7 @@ struct TranscriptRow: View {
     @Environment(AppModel.self) private var app
     let item: TranscriptItem
     var showInlineReasoning = true
+    var showMessageActions = true
     var foldedActivityItems: [TranscriptItem] = []
 
     var body: some View {
@@ -19,6 +20,7 @@ struct TranscriptRow: View {
                 AssistantMessage(
                     item: item,
                     showReasoning: app.settings.showReasoning && showInlineReasoning,
+                    showActions: showMessageActions,
                     foldedActivityItems: foldedActivityItems
                 )
             case .tool:
@@ -36,6 +38,7 @@ struct TranscriptRow: View {
 
 private struct UserBubble: View {
     let item: TranscriptItem
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 16
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
@@ -68,7 +71,7 @@ private struct UserBubble: View {
             }
             if !item.text.isEmpty {
                 if item.isOversized {
-                    LongMessageView(text: item.text, alignment: .trailing)
+                    LongMessageView(text: item.text, alignment: .trailing, skills: item.skills)
                 } else {
                     userText
                 }
@@ -79,9 +82,9 @@ private struct UserBubble: View {
     private var userText: some View {
         HStack {
             Spacer(minLength: 56)
-            Text(item.text)
+            UserMessageText(text: item.text, skills: item.skills)
                 .textSelection(.enabled)
-                .font(DS.Font.body)
+                .font(.system(size: fontSize))
                 .foregroundStyle(DS.Color.fg)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
@@ -100,9 +103,38 @@ private struct UserBubble: View {
     }
 }
 
+/// Sent skills retain the composer's blue building-blocks icon and label.
+/// Only host-confirmed or locally selected skills are decorated; paths and
+/// native slash commands remain ordinary text.
+struct UserMessageText: View {
+    let text: String
+    var skills: [MessageSkill] = []
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 18
+
+    static func leadingSkill(in text: String, skills: [MessageSkill]) -> MessageSkill? {
+        guard let prefix = text.first, prefix == "/" || prefix == "$" else { return nil }
+        return skills.first { skill in
+            let invocation = String(prefix) + skill.name
+            return text.hasPrefix(invocation) && (text.count == invocation.count
+                || text.dropFirst(invocation.count).first?.isWhitespace == true)
+        }
+    }
+
+    var body: some View {
+        if let skill = Self.leadingSkill(in: text, skills: skills) {
+            let token = SkillMention.text(skill.command.skillLabel, iconSize: iconSize)
+            Text("\(token)\(String(text.dropFirst(skill.name.count + 1)))")
+                .accessibilityLabel(skill.command.skillLabel + String(text.dropFirst(skill.name.count + 1)))
+        } else {
+            Text(text)
+        }
+    }
+}
+
 private struct AssistantMessage: View {
     let item: TranscriptItem
     let showReasoning: Bool
+    let showActions: Bool
     let foldedActivityItems: [TranscriptItem]
 
     var body: some View {
@@ -127,11 +159,7 @@ private struct AssistantMessage: View {
             ForEach(item.videos) { video in
                 ChatVideoView(video: video)
             }
-            if !item.linkPreviews.isEmpty {
-                SourcesPill(previews: item.linkPreviews)
-                    .padding(.top, 2)
-            }
-            if !item.isStreaming, !item.text.isEmpty {
+            if showActions, !item.isStreaming, !item.text.isEmpty {
                 MessageActionBar(item: item)
             }
         }
@@ -148,14 +176,9 @@ private struct AssistantMessage: View {
     }
 
     private var shouldShowReasoningBlock: Bool {
-        if showReasoning {
-            if !item.reasoning.isEmpty { return true }
-            if foldedActivityItems.contains(where: { $0.kind == .assistant && !$0.reasoning.isEmpty }) {
-                return true
-            }
-        }
-        return foldedActivityItems.contains { $0.kind == .tool }
+        !foldedActivityItems.isEmpty || (showReasoning && !item.reasoning.isEmpty)
     }
+
 }
 
 /// Coalesces rapid snapshots without holding back received text.
@@ -166,9 +189,6 @@ private struct StreamingAssistantText: View {
     let isStreaming: Bool
 
     @State private var stream: StreamingReveal
-    @State private var reveal: Double = 1
-    @State private var lastHapticAt = Date.distantPast
-    @State private var hapticTick = 0
 
     init(text: String, isStreaming: Bool) {
         self.text = text
@@ -177,11 +197,8 @@ private struct StreamingAssistantText: View {
     }
 
     var body: some View {
-        MarkdownText(
-            !isStreaming || reduceMotion ? text : stream.displayedText,
-            revealTail: isStreaming && !reduceMotion ? reveal : nil
-        )
-            .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.65), trigger: hapticTick)
+        MarkdownText(!isStreaming || reduceMotion ? text : stream.displayedText, isStreaming: isStreaming)
+            .transaction { $0.animation = nil }
             .onChange(of: text) { _, newText in
                 receive(newText)
             }
@@ -198,7 +215,6 @@ private struct StreamingAssistantText: View {
     @MainActor
     private func receive(_ text: String) {
         stream.receive(text, isStreaming: isStreaming, reduceMotion: reduceMotion)
-        if stream.displayedText == text { reveal = 1 }
     }
 
     @MainActor
@@ -211,24 +227,11 @@ private struct StreamingAssistantText: View {
             }
             guard !Task.isCancelled, stream.displayedText != stream.targetText else { continue }
 
-            let previousLength = stream.displayedText.utf16.count
-            let nextLength = stream.targetText.utf16.count
-            let settled = Double(previousLength) / Double(max(nextLength, 1))
+            // Text is already progress. Repeated fades and haptics make a
+            // frequently updated reading surface harder to follow.
             var transaction = Transaction()
             transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                stream.commit()
-                reveal = min(reveal, settled)
-            }
-            withAnimation(.easeOut(duration: 0.12)) {
-                reveal = 1
-            }
-
-            let now = Date()
-            if now.timeIntervalSince(lastHapticAt) >= 0.1 {
-                lastHapticAt = now
-                hapticTick &+= 1
-            }
+            withTransaction(transaction) { _ = stream.commit() }
         }
     }
 
@@ -259,6 +262,7 @@ private struct AssistantMediaGrid: View {
 
 /// A stable, expandable reasoning summary. Live progress belongs to the footer.
 private struct ReasoningView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let item: TranscriptItem
     var foldedActivityItems: [TranscriptItem] = []
     var includeReasoning = true
@@ -267,24 +271,25 @@ private struct ReasoningView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                withAnimation(.snappy) { expanded.toggle() }
+                withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
             } label: {
                 HStack(spacing: 5) {
                     Text(headerText)
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(DS.Color.fgSubtle)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
-                    if !toolPresentations.isEmpty {
-                        BrandCircleStack(presentations: toolPresentations)
-                            .padding(.leading, 2)
-                    }
                 }
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+
+            if !foldedActivityItems.isEmpty {
+                Divider()
+                    .padding(.bottom, 6)
+            }
 
             if expanded {
                 expandedContent
@@ -309,11 +314,10 @@ private struct ReasoningView: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(activityTimelineItems) { activityItem in
-                    if activityItem.kind == .tool {
-                        ToolCallCard(item: activityItem)
-                    } else {
-                        ExpandedThought(item: activityItem)
-                    }
+                    TurnWorkItem(item: activityItem, includeReasoning: includeReasoning)
+                }
+                if includeReasoning, !item.reasoning.isEmpty {
+                    ExpandedThought(item: item)
                 }
             }
             .padding(.leading, 6)
@@ -323,7 +327,7 @@ private struct ReasoningView: View {
 
     private var headerText: String {
         if !foldedActivityItems.isEmpty {
-            return ToolActivityStrip.summaryPhrase(for: summaryItems)
+            return ToolActivityStrip.turnSummaryPhrase(for: foldedActivityItems + [item])
         }
         if let duration = item.reasoningDuration, duration >= 0.5 {
             return "Thought for \(Self.format(duration))"
@@ -332,45 +336,16 @@ private struct ReasoningView: View {
     }
 
     private var activityTimelineItems: [TranscriptItem] {
-        var result = foldedActivityItems.filter { activityItem in
+        foldedActivityItems.filter { activityItem in
             switch activityItem.kind {
             case .tool:
                 return true
             case .assistant:
-                return includeReasoning && !activityItem.reasoning.isEmpty
+                return !activityItem.text.isEmpty || (includeReasoning && !activityItem.reasoning.isEmpty)
             case .agents, .user, .system, .error:
                 return false
             }
         }
-        if includeReasoning, !item.reasoning.isEmpty {
-            result.append(item)
-        }
-        return result
-    }
-
-    private var summaryItems: [TranscriptItem] {
-        var result = foldedActivityItems.filter { activityItem in
-            activityItem.kind == .tool || (includeReasoning && activityItem.kind == .assistant)
-        }
-        if includeReasoning, !item.reasoning.isEmpty {
-            result.append(item)
-        }
-        return result
-    }
-
-    private var latestReasoning: String {
-        if includeReasoning, !item.reasoning.isEmpty {
-            return item.reasoning
-        }
-        return foldedActivityItems
-            .last { $0.kind == .assistant && !$0.reasoning.isEmpty }
-            .map(\.reasoning) ?? ""
-    }
-
-    private var toolPresentations: [ToolPresentation] {
-        foldedActivityItems
-            .filter { $0.kind == .tool }
-            .map { ToolPresentation(name: $0.toolName, context: $0.toolContext) }
     }
 
     private static func format(_ seconds: Double) -> String {
@@ -378,6 +353,27 @@ private struct ReasoningView: View {
         let minutes = Int(seconds / 60)
         let rest = Int(seconds) % 60
         return rest == 0 ? "\(minutes)m" : "\(minutes)m \(rest)s"
+    }
+}
+
+/// The completed turn keeps narration and tool details in their original order.
+private struct TurnWorkItem: View {
+    let item: TranscriptItem
+    let includeReasoning: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if item.kind == .tool {
+                ToolCallCard(item: item)
+            } else {
+                if includeReasoning, !item.reasoning.isEmpty {
+                    ExpandedThought(item: item)
+                }
+                if !item.text.isEmpty {
+                    MarkdownText(String(item.text.prefix(TranscriptItem.maxRenderedChars)))
+                }
+            }
+        }
     }
 }
 
@@ -403,6 +399,7 @@ private struct CenteredNote: View {
 private struct LongMessageView: View {
     let text: String
     var alignment: HorizontalAlignment = .leading
+    var skills: [MessageSkill] = []
     @State private var showingFull = false
 
     private static let previewLimit = 1_200
@@ -411,7 +408,7 @@ private struct LongMessageView: View {
 
     var body: some View {
         VStack(alignment: alignment, spacing: 8) {
-            Text(String(text.prefix(Self.previewLimit)) + "…")
+            UserMessageText(text: String(text.prefix(Self.previewLimit)) + "…", skills: skills)
                 .font(MarkdownStyle.body)
                 .lineSpacing(MarkdownStyle.lineSpacing)
                 .textSelection(.enabled)

@@ -1,0 +1,9 @@
+{
+  "envelope": "command",
+  "commandId": "66666666-6666-4666-8666-666666666666",
+  "command": {
+    "type": "file.read",
+    "threadId": "t1",
+    "path": "src/Chat.tsx"
+  }
+}

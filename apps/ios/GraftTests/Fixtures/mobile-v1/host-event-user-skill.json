@@ -1,0 +1,12 @@
+{
+  "envelope": "event",
+  "event": {
+    "id": "message-user-skill",
+    "cursor": 12,
+    "kind": "user.message",
+    "threadId": "thread-1",
+    "createdAt": 1789473600000,
+    "text": "/swiftui-specialist Fix the chat layout.",
+    "skills": [{ "name": "swiftui-specialist", "displayName": "SwiftUI Specialist" }]
+  }
+}

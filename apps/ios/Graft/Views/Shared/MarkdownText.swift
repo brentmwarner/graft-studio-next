@@ -6,37 +6,52 @@ import SwiftUI
 /// the block structure that initializer ignores: fenced code, headings,
 /// lists, and rules. No third-party dependencies.
 struct MarkdownText: View {
+    @Environment(WorkspaceFileLinks.self) private var fileLinks: WorkspaceFileLinks?
     let blocks: [MarkdownBlock]
-    /// When set, the final block fades its newest glyphs in (streaming tail).
-    var revealTail: Double?
+    let isStreaming: Bool
 
-    init(_ text: String, revealTail: Double? = nil) {
+    init(_ text: String, isStreaming: Bool = false) {
         blocks = MarkdownBlock.parse(text)
-        self.revealTail = revealTail
+        self.isStreaming = isStreaming
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MarkdownStyle.blockGap) {
-            ForEach(blocks) { block in
-                MarkdownBlockView(
-                    block: block,
-                    reveal: block.id == blocks.last?.id ? revealTail : nil
-                )
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
+                MarkdownBlockView(block: block, isStreaming: isStreaming && block.id == blocks.last?.id)
+                    .padding(.top, index == 0 ? 0 : block.isHeading ? 28 : blocks[index - 1].isHeading ? 12 : MarkdownStyle.blockGap)
             }
         }
         .textSelection(.enabled)
+        .tint(DS.Color.link)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: fileCandidates) {
+            await fileLinks?.resolve(fileCandidates)
+        }
+    }
+
+    private var fileCandidates: [String] {
+        let prose = blocks.flatMap { block -> [String] in
+            switch block.kind {
+            case .paragraph(let text), .heading(_, let text), .quote(let text): [text]
+            case .list(let items): items.map(\.text)
+            case .table(let spec): spec.header + spec.rows.flatMap { $0 }
+            case .code, .rule, .card, .cardPlaceholder, .cardFailure: []
+            }
+        }
+        return Array(Set(prose.flatMap { InlineText.fileCandidates(in: $0) })).sorted()
     }
 }
 
 /// The reading register for assistant prose — ChatGPT-like: larger body,
 /// relaxed line height, generous paragraph and list rhythm.
 enum MarkdownStyle {
-    static let body = Font.system(size: 17)
+    static let body = Font.body
     static let lineSpacing: CGFloat = 5
     /// Gap between blocks (paragraphs, lists, headings).
-    static let blockGap: CGFloat = 14
+    static let blockGap: CGFloat = 22
     /// Gap between items inside a list.
-    static let itemGap: CGFloat = 10
+    static let itemGap: CGFloat = 7
 }
 
 struct MarkdownBlock: Identifiable {
@@ -44,8 +59,8 @@ struct MarkdownBlock: Identifiable {
         case paragraph(String)
         case heading(level: Int, text: String)
         case code(language: String, text: String)
-        case bullet(items: [String])
-        case numbered(items: [String])
+        case list(items: [MarkdownListItem])
+        case quote(String)
         case table(TableSpec)
         case rule
         case card(CardSpec)
@@ -59,18 +74,18 @@ struct MarkdownBlock: Identifiable {
     let id: Int
     let kind: Kind
 
-    /// Block parsing is a pure function of `text`, but `MarkdownText.init` calls
-    /// it on EVERY render — and a streaming reply re-renders constantly (one per
-    /// delta, plus every frame of the 0.4s glyph-reveal animation), each time
-    /// re-scanning the whole message from scratch (~O(N²) over a turn). The
-    /// reveal frames and any unrelated invalidation re-parse text that hasn't
-    /// changed at all. Memoizing by the exact string collapses all of those to a
-    /// dictionary hit; only a genuinely new string does real work. NSCache caps
-    /// memory and self-evicts the short-lived intermediate streaming strings.
+    var isHeading: Bool {
+        if case .heading = kind { return true }
+        return false
+    }
+
+    /// Reuse parsed blocks across unrelated updates. Bound both count and cost
+    /// so intermediate snapshots of a long reply cannot fill the cache.
     private final class BlocksBox { let blocks: [MarkdownBlock]; init(_ b: [MarkdownBlock]) { blocks = b } }
     private static let cache: NSCache<NSString, BlocksBox> = {
         let c = NSCache<NSString, BlocksBox>()
-        c.countLimit = 256
+        c.countLimit = 64
+        c.totalCostLimit = 2 * 1024 * 1024
         return c
     }()
 
@@ -78,38 +93,46 @@ struct MarkdownBlock: Identifiable {
         let key = text as NSString
         if let hit = cache.object(forKey: key) { return hit.blocks }
         let blocks = parseUncached(text)
-        cache.setObject(BlocksBox(blocks), forKey: key)
+        cache.setObject(BlocksBox(blocks), forKey: key, cost: text.utf8.count)
         return blocks
     }
 
     private static func parseUncached(_ text: String) -> [MarkdownBlock] {
-        var blocks: [Kind] = []
+        var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
-        var bullets: [String] = []
-        var numbers: [String] = []
+        var paragraphStart = 0
+        var listItems: [MarkdownListItem] = []
+        var quoteLines: [String] = []
+        var quoteStart = 0
         var codeLines: [String] = []
         var codeLanguage = ""
+        var fenceStart = 0
+        var fenceMarker: Character = "`"
+        var fenceLength = 3
         var inFence = false
 
         func flushParagraph() {
             if !paragraph.isEmpty {
-                blocks.append(.paragraph(paragraph.joined(separator: "\n")))
+                blocks.append(MarkdownBlock(id: paragraphStart, kind: .paragraph(joinProseLines(paragraph))))
                 paragraph = []
             }
         }
         func flushLists() {
-            if !bullets.isEmpty {
-                blocks.append(.bullet(items: bullets))
-                bullets = []
+            if let first = listItems.first {
+                blocks.append(MarkdownBlock(id: first.id, kind: .list(items: listItems)))
+                listItems = []
             }
-            if !numbers.isEmpty {
-                blocks.append(.numbered(items: numbers))
-                numbers = []
+        }
+        func flushQuote() {
+            if !quoteLines.isEmpty {
+                blocks.append(MarkdownBlock(id: quoteStart, kind: .quote(joinProseLines(quoteLines))))
+                quoteLines = []
             }
         }
         func flushAll() {
             flushParagraph()
             flushLists()
+            flushQuote()
         }
 
         let lines = text.components(separatedBy: "\n")
@@ -118,32 +141,39 @@ struct MarkdownBlock: Identifiable {
             if idx <= consumedThrough { continue }
             let line = rawLine.trimmingCharacters(in: .whitespaces)
 
-            if line.hasPrefix("```") {
-                if inFence {
+            if inFence {
+                let markerCount = line.prefix(while: { $0 == fenceMarker }).count
+                if markerCount >= fenceLength && line.dropFirst(markerCount).trimmingCharacters(in: .whitespaces).isEmpty {
                     let body = codeLines.joined(separator: "\n")
+                    let kind: Kind
                     if cardLanguages.contains(codeLanguage.lowercased()) {
                         if let spec = CardSpec.parse(body) {
-                            blocks.append(.card(spec))
+                            kind = .card(spec)
                         } else {
                             // A malformed card is agent plumbing, not content —
                             // show a quiet notice instead of dumping raw JSON.
-                            blocks.append(.cardFailure)
+                            kind = .cardFailure
                         }
                     } else {
-                        blocks.append(.code(language: codeLanguage, text: body))
+                        kind = .code(language: codeLanguage, text: body)
                     }
+                    blocks.append(MarkdownBlock(id: fenceStart, kind: kind))
                     codeLines = []
                     codeLanguage = ""
                     inFence = false
                 } else {
-                    flushAll()
-                    codeLanguage = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                    inFence = true
+                    codeLines.append(rawLine)
                 }
                 continue
             }
-            if inFence {
-                codeLines.append(rawLine)
+            if let marker = line.first, marker == "`" || marker == "~",
+               line.prefix(while: { $0 == marker }).count >= 3 {
+                flushAll()
+                fenceStart = idx
+                fenceMarker = marker
+                fenceLength = line.prefix(while: { $0 == marker }).count
+                codeLanguage = String(line.dropFirst(fenceLength)).trimmingCharacters(in: .whitespaces)
+                inFence = true
                 continue
             }
 
@@ -166,7 +196,7 @@ struct MarkdownBlock: Identifiable {
                         next += 1
                     }
                     consumedThrough = next - 1
-                    blocks.append(.table(TableSpec(header: header, rows: bodyRows, alignments: aligns)))
+                    blocks.append(MarkdownBlock(id: idx, kind: .table(TableSpec(header: header, rows: bodyRows, alignments: aligns))))
                     continue
                 }
             }
@@ -177,56 +207,65 @@ struct MarkdownBlock: Identifiable {
             }
             if line == "---" || line == "***" || line == "___" {
                 flushAll()
-                blocks.append(.rule)
+                blocks.append(MarkdownBlock(id: idx, kind: .rule))
                 continue
             }
             if line.hasPrefix("#") {
                 let level = line.prefix(while: { $0 == "#" }).count
                 if level <= 6, line.count > level, line[line.index(line.startIndex, offsetBy: level)] == " " {
                     flushAll()
-                    blocks.append(.heading(level: level, text: String(line.dropFirst(level + 1))))
+                    blocks.append(MarkdownBlock(id: idx, kind: .heading(level: level, text: String(line.dropFirst(level + 1)))))
                     continue
                 }
             }
-            if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") {
+            if let item = MarkdownListItem.parse(rawLine, line: idx) {
                 flushParagraph()
-                bullets.append(String(line.dropFirst(2)))
+                flushQuote()
+                listItems.append(item)
                 continue
             }
-            if let dotIndex = line.firstIndex(of: "."),
-               line.distance(from: line.startIndex, to: dotIndex) <= 3,
-               Int(line[line.startIndex..<dotIndex]) != nil,
-               line.index(after: dotIndex) < line.endIndex,
-               line[line.index(after: dotIndex)] == " " {
-                flushParagraph()
-                numbers.append(String(line[line.index(dotIndex, offsetBy: 2)...]))
+            if let last = listItems.last, rawLine.prefix(while: { $0.isWhitespace }).count >= last.contentIndent {
+                listItems[listItems.count - 1].text += " " + line
                 continue
             }
             if line == ">" || line.hasPrefix("> ") {
+                flushParagraph()
                 flushLists()
-                let unquoted = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
-                if unquoted.isEmpty {
-                    flushParagraph()
-                } else {
-                    paragraph.append(unquoted)
-                }
+                if quoteLines.isEmpty { quoteStart = idx }
+                quoteLines.append(String(line.dropFirst()).trimmingCharacters(in: .whitespaces))
                 continue
             }
             flushLists()
+            flushQuote()
+            if paragraph.isEmpty { paragraphStart = idx }
             paragraph.append(rawLine)
         }
         if inFence {
             if cardLanguages.contains(codeLanguage.lowercased()) {
                 // Mid-stream card JSON never flashes raw — show a skeleton
                 // until the fence closes and parses.
-                blocks.append(.cardPlaceholder)
+                blocks.append(MarkdownBlock(id: fenceStart, kind: .cardPlaceholder))
             } else {
-                blocks.append(.code(language: codeLanguage, text: codeLines.joined(separator: "\n")))
+                blocks.append(MarkdownBlock(id: fenceStart, kind: .code(language: codeLanguage, text: codeLines.joined(separator: "\n"))))
             }
         }
         flushAll()
 
-        return blocks.enumerated().map { MarkdownBlock(id: $0.offset, kind: $0.element) }
+        return blocks
+    }
+
+    /// Markdown soft wraps are spaces; explicit hard breaks remain newlines.
+    private static func joinProseLines(_ lines: [String]) -> String {
+        var result = ""
+        for (index, line) in lines.enumerated() {
+            let hardBreak = line.hasSuffix("  ") || line.hasSuffix("\\")
+            let content = line.hasSuffix("\\") ? String(line.dropLast()) : line
+            result += content.trimmingCharacters(in: .whitespaces)
+            if index < lines.count - 1 {
+                result += hardBreak || line.isEmpty || lines[index + 1].isEmpty ? "\n" : " "
+            }
+        }
+        return result
     }
 
     // MARK: GFM table helpers
@@ -281,6 +320,45 @@ struct MarkdownBlock: Identifiable {
     }
 }
 
+struct MarkdownListItem: Identifiable {
+    enum Marker: Equatable {
+        case bullet, number(Int), task(Bool)
+    }
+
+    /// Source-line identity stays fixed as text is appended to this item.
+    let id: Int
+    let indent: Int
+    let contentIndent: Int
+    let marker: Marker
+    var text: String
+
+    static func parse(_ raw: String, line: Int) -> MarkdownListItem? {
+        let indent = raw.prefix(while: { $0.isWhitespace }).count
+        let trimmed = raw.dropFirst(indent)
+        let marker: Marker
+        let prefixLength: Int
+        if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
+            marker = .bullet
+            prefixLength = 2
+        } else {
+            let digits = trimmed.prefix(while: { $0.isNumber })
+            let rest = trimmed.dropFirst(digits.count)
+            guard !digits.isEmpty, digits.count <= 9, let number = Int(digits),
+                  rest.hasPrefix(". ") || rest.hasPrefix(") ") else { return nil }
+            marker = .number(number)
+            prefixLength = digits.count + 2
+        }
+        var text = String(trimmed.dropFirst(prefixLength))
+        var resolvedMarker = marker
+        if marker == .bullet, text.hasPrefix("[ ] ") || text.hasPrefix("[x] ") || text.hasPrefix("[X] ") {
+            resolvedMarker = .task(!text.hasPrefix("[ ]"))
+            text = String(text.dropFirst(4))
+        }
+        return MarkdownListItem(id: line, indent: indent, contentIndent: indent + prefixLength,
+                                marker: resolvedMarker, text: text)
+    }
+}
+
 /// A parsed GFM table: header cells, body rows (already padded/truncated to the
 /// header's column count), and one alignment per column. Recovered by the block
 /// parser rather than JSON-decoded like `CardSpec`, so it lives here.
@@ -330,39 +408,27 @@ struct TableSpec: Equatable {
 
 private struct MarkdownBlockView: View {
     let block: MarkdownBlock
-    var reveal: Double?
+    let isStreaming: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch block.kind {
             case .paragraph(let text):
-                InlineText(text, reveal: reveal)
+                InlineText(text, isStreaming: isStreaming)
             case .heading(let level, let text):
-                InlineText(text, reveal: reveal)
+                InlineText(text, isStreaming: isStreaming)
                     .font(headingFont(level))
             case .code(let language, let text):
                 CodeBlockView(language: language, code: text)
-            case .bullet(let items):
-                VStack(alignment: .leading, spacing: MarkdownStyle.itemGap) {
-                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("•")
-                            InlineText(item, reveal: index == items.count - 1 ? reveal : nil)
-                        }
+            case .list(let items):
+                MarkdownListView(items: items, isStreaming: isStreaming)
+            case .quote(let text):
+                InlineText(text, isStreaming: isStreaming)
+                    .foregroundStyle(DS.Color.fgMuted)
+                    .padding(.leading, 14)
+                    .overlay(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 1).fill(DS.Color.borderStrong).frame(width: 2)
                     }
-                }
-                .padding(.leading, 6)
-            case .numbered(let items):
-                VStack(alignment: .leading, spacing: MarkdownStyle.itemGap) {
-                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("\(index + 1).")
-                                .monospacedDigit()
-                            InlineText(item, reveal: index == items.count - 1 ? reveal : nil)
-                        }
-                    }
-                }
-                .padding(.leading, 6)
             case .table(let spec):
                 MarkdownTableView(spec: spec)
             case .rule:
@@ -386,241 +452,196 @@ private struct MarkdownBlockView: View {
 
     private func headingFont(_ level: Int) -> Font {
         switch level {
-        case 1: .title2.bold()
-        case 2: .title3.bold()
+        case 1: .title2.weight(.semibold)
+        case 2: .title3.weight(.semibold)
         case 3: .headline
-        default: .subheadline.weight(.semibold)
+        default: .body.weight(.semibold)
         }
     }
 }
 
-/// Inline markdown via AttributedString; falls back to verbatim text. When
-/// `reveal` is set, glyphs fade in via `RevealTextRenderer` (streaming tail).
-/// Internal (not private) so card blocks can reuse the same link-aware
-/// pipeline for their prose.
-struct InlineText: View {
-    let text: String
-    var reveal: Double?
+private struct MarkdownListView: View {
+    let items: [MarkdownListItem]
+    let isStreaming: Bool
+    @ScaledMetric(relativeTo: .body) private var markerWidth = 22.0
+    @ScaledMetric(relativeTo: .body) private var indentWidth = 18.0
 
-    init(_ text: String, reveal: Double? = nil) {
+    var body: some View {
+        VStack(alignment: .leading, spacing: MarkdownStyle.itemGap) {
+            ForEach(items) { item in
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    marker(item.marker)
+                        .frame(minWidth: markerWidth, alignment: .trailing)
+                        .foregroundStyle(DS.Color.fgMuted)
+                    InlineText(item.text, isStreaming: isStreaming && item.id == items.last?.id)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.leading, CGFloat(min(max(0, item.indent - (items.first?.indent ?? 0)) / 2, 4)) * indentWidth)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func marker(_ marker: MarkdownListItem.Marker) -> some View {
+        switch marker {
+        case .bullet: Text("•")
+        case .number(let value): Text("\(value).").monospacedDigit()
+        case .task(let checked):
+            Image(systemName: checked ? "checkmark.square.fill" : "square")
+                .font(.callout)
+                .accessibilityLabel(checked ? "Completed" : "Not completed")
+        }
+    }
+}
+
+/// Native selectable text keeps the same layout and link interaction while
+/// streaming and after completion. Links retain their authored labels.
+struct InlineText: View {
+    @Environment(WorkspaceFileLinks.self) private var fileLinks: WorkspaceFileLinks?
+    @Environment(\.transcriptSkills) private var skills
+    @ScaledMetric(relativeTo: .body) private var skillIconSize: CGFloat = 18
+    let text: String
+    let isStreaming: Bool
+
+    init(_ text: String, isStreaming: Bool = false) {
         self.text = text
-        self.reveal = reveal
+        self.isStreaming = isStreaming
     }
 
     var body: some View {
-        let attributed = Self.attributed(from: text)
-        let composed = attributed.map(Self.composedText(from:)) ?? Text(text)
-        // A custom textRenderer silently disables `.textSelection`. Use it only
-        // when we actually need it — the streaming fade (`reveal != nil`) or
-        // citation-badge capsules — so settled, badge-free prose stays
-        // selectable.
-        let needsRenderer = reveal != nil || Self.hasURLishLink(attributed)
-        return Group {
-            if needsRenderer {
-                composed.textRenderer(ChatTextRenderer(progress: reveal ?? 1))
-            } else {
-                composed
-            }
-        }
+        Self.renderedText(Self.linkedAttributed(from: text, isStreaming: isStreaming,
+            resolvedPaths: fileLinks?.paths ?? [:], skills: skills), skillIconSize: skillIconSize)
+            .tint(DS.Color.link)
     }
 
-    /// Same redundancy as block parsing: `body` rebuilds the inline
-    /// `AttributedString` (markdown grammar + `NSDataDetector` link scan) for
-    /// EVERY paragraph on EVERY render, including the settled paragraphs above a
-    /// streaming tail that never change. Memoize per-paragraph text so a
-    /// re-render reuses the parse; only new/changed paragraph text pays.
-    private final class AttrBox { let value: AttributedString?; init(_ v: AttributedString?) { value = v } }
-    private static let attrCache: NSCache<NSString, AttrBox> = {
-        let c = NSCache<NSString, AttrBox>()
-        c.countLimit = 512
-        return c
-    }()
-
-    static func attributed(from text: String) -> AttributedString? {
-        let key = text as NSString
-        if let hit = attrCache.object(forKey: key) { return hit.value }
-        let value: AttributedString?
-        if var attributed = try? AttributedString(
-            markdown: text,
-            options: AttributedString.MarkdownParsingOptions(
-                interpretedSyntax: .inlineOnlyPreservingWhitespace
-            )
-        ) {
-            linkifyBareURLs(&attributed)
-            value = attributed
-        } else {
-            value = nil
-        }
-        attrCache.setObject(AttrBox(value), forKey: key)
-        return value
+    static func fileCandidates(in text: String) -> [String] {
+        fileRanges(in: attributed(from: text) ?? AttributedString(text)).map { $0.reference.path }
     }
 
-    private static func hasURLishLink(_ attributed: AttributedString?) -> Bool {
-        guard let attributed else { return false }
-        for run in attributed.runs where isBadgeRun(run, in: attributed) {
-            return true
-        }
-        return false
-    }
-
-    /// The one place that decides badge vs. tappable link. A run whose
-    /// visible text IS its destination is a bare URL — pasted into prose (a
-    /// lead) or auto-linked by the 2027-SDK markdown parser — and must stay a
-    /// tappable `.link`. Only an authored citation, whose URLish text differs
-    /// from where it points (domain text over a deep URL), collapses to a
-    /// badge. Text comparison, not provenance: the parser's auto-links are
-    /// indistinguishable from authored `[url](url)` by attributes alone.
-    static func isBadgeRun(
-        _ run: AttributedString.Runs.Run, in attributed: AttributedString
-    ) -> Bool {
-        guard let url = run.link else { return false }
-        let text = String(attributed[run.range].characters)
-            .trimmingCharacters(in: .whitespaces)
-        guard isURLish(text) else { return false }
-        return !linkTextMatchesDestination(text, url: url)
-    }
-
-    /// "https://a.com/x" == destination, "a.com" over "https://a.com" (scheme
-    /// added by the detector), and trailing-slash drift all read as "the text
-    /// is the destination".
-    static func linkTextMatchesDestination(_ text: String, url: URL) -> Bool {
-        func canon(_ s: String) -> String {
-            var s = s.lowercased()
-            if s.hasSuffix("/") { s.removeLast() }
-            s = s.replacingOccurrences(of: "https://", with: "")
-            s = s.replacingOccurrences(of: "http://", with: "")
-            return s
-        }
-        return canon(text) == canon(url.absoluteString)
-    }
-
-    /// Build the Text by concatenating runs: links whose visible text is just
-    /// a URL become compact Grok-style host badges ("forbes") tagged with the
-    /// `CitationBadge` custom attribute so the renderer draws their capsule —
-    /// embedding the attribute in the AttributedString doesn't reach layout
-    /// runs; `Text.customAttribute` does. Links with prose text keep their
-    /// words untouched.
-    private static func composedText(from attributed: AttributedString) -> Text {
-        var result = Text(verbatim: "")
-        for run in attributed.runs {
-            let segment = attributed[run.range]
-            guard let url = run.link, isBadgeRun(run, in: attributed) else {
-                result = Text("\(result)\(AttributedString(segment))")
+    static func linkedAttributed(from text: String, isStreaming: Bool = false, resolvedPaths: [String: String], skills: [MessageSkill] = []) -> AttributedString {
+        var result = attributed(from: text, isStreaming: isStreaming) ?? AttributedString(text)
+        SkillMention.decorate(&result, skills: skills)
+        for entry in fileRanges(in: result) {
+            guard let path = resolvedPaths[entry.reference.path],
+                  let url = entry.reference.url(resolvedPath: path) else {
+                // A Mac path is not an iPhone URL. Only verified workspace
+                // references get an action; web links remain unchanged.
+                result[entry.range].link = nil
+                result[entry.range].foregroundColor = nil
                 continue
             }
-            // No .link on the badge: link runs take a separate layout path
-            // that drops custom attributes, and the capsule needs the
-            // CitationBadge marker to reach the renderer. The Sources pill
-            // owns navigation.
-            var badge = AttributedString("\u{00A0}\(shortHost(of: url))\u{00A0}")
-            badge.font = .caption.weight(.medium)
-            badge.foregroundColor = DS.Color.fgMuted
-            let badgeText = Text(badge).customAttribute(CitationBadge())
-            result = Text("\(result) \(badgeText)")
+            result[entry.range].link = url
+            result[entry.range].font = .body.weight(.medium)
+            result[entry.range].foregroundColor = DS.Color.link
+            result[entry.range].backgroundColor = nil
+            result[entry.range].underlineStyle = nil
+            result[entry.range].inlinePresentationIntent?.remove(.code)
         }
         return result
     }
 
-    private static func isURLish(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespaces).lowercased()
-        return trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
-            || trimmed.hasPrefix("www.")
-            || (trimmed.contains(".") && !trimmed.contains(" ") && trimmed.count < 80)
-    }
-
-    /// "www.forbes.com/x" → "forbes"; subdomains keep their qualifier
-    /// ("finance.yahoo").
-    private static func shortHost(of url: URL) -> String {
-        guard var host = url.host(percentEncoded: false) else { return url.absoluteString }
-        if host.hasPrefix("www.") { host.removeFirst(4) }
-        let parts = host.split(separator: ".")
-        if parts.count >= 2 {
-            return parts.dropLast().joined(separator: ".")
+    private static func renderedText(_ attributed: AttributedString, skillIconSize: CGFloat) -> Text {
+        var result = Text("")
+        for run in attributed.runs {
+            let content = Text(AttributedString(attributed[run.range]))
+            if let label = run[SkillMentionAttribute.self] {
+                result = Text("\(result)\(SkillMention.text(label, iconSize: skillIconSize))")
+            } else if let url = run.link, let selected = WorkspaceFileSelection(url: url),
+               let reference = MarkdownFileReference(selected.path) {
+                let icon: Text
+                switch reference.typeLabel {
+                case "React": icon = Text(Image(systemName: "atom"))
+                case "Swift": icon = Text(Image(systemName: "swift"))
+                case "File": icon = Text(Image(systemName: "doc"))
+                default: icon = Text(verbatim: reference.typeLabel)
+                }
+                result = Text("\(result)\(icon.font(.caption2.weight(.semibold)).foregroundStyle(DS.Color.link)) \(content)")
+            } else {
+                result = Text("\(result)\(content)")
+            }
         }
-        return host
+        return result
     }
 
-    /// `AttributedString(markdown:)` only links `[text](url)` syntax; make
-    /// bare "https://…" runs tappable too, leaving existing links alone.
+    private static func fileRanges(in attributed: AttributedString) -> [(range: Range<AttributedString.Index>, reference: MarkdownFileReference)] {
+        var result: [(Range<AttributedString.Index>, MarkdownFileReference)] = []
+        for run in attributed.runs {
+            guard run[SkillMentionAttribute.self] == nil else { continue }
+            let code = run.inlinePresentationIntent?.contains(.code) == true
+            if let link = run.link {
+                if let reference = MarkdownFileReference(link.relativeString.removingPercentEncoding ?? link.relativeString) {
+                    result.append((run.range, reference))
+                }
+            } else if code {
+                if let reference = MarkdownFileReference(String(attributed[run.range].characters), inlineCode: true) {
+                    result.append((run.range, reference))
+                }
+            } else {
+                let text = String(attributed[run.range].characters)
+                guard let expression = try? NSRegularExpression(pattern: #"[^\s<>`\[\]()]+"#) else { continue }
+                let segment = AttributedString(attributed[run.range])
+                for match in expression.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+                    guard let stringRange = Range(match.range, in: text) else { continue }
+                    let token = String(text[stringRange]).trimmingCharacters(in: CharacterSet(charactersIn: ",.;!?"))
+                    guard let reference = MarkdownFileReference(token, inlineCode: true),
+                          let local = Range(NSRange(location: match.range.location, length: (token as NSString).length), in: segment) else { continue }
+                    let start = attributed.characters.index(run.range.lowerBound, offsetBy: segment.characters.distance(from: segment.startIndex, to: local.lowerBound))
+                    let end = attributed.characters.index(start, offsetBy: token.count)
+                    result.append((start..<end, reference))
+                }
+            }
+        }
+        return result
+    }
+
+    private final class AttrBox {
+        let value: AttributedString
+        init(_ value: AttributedString) { self.value = value }
+    }
+    private static let attrCache: NSCache<NSString, AttrBox> = {
+        let cache = NSCache<NSString, AttrBox>()
+        cache.countLimit = 256
+        cache.totalCostLimit = 1024 * 1024
+        return cache
+    }()
+
+    static func attributed(from text: String, isStreaming: Bool = false) -> AttributedString? {
+        let source = isStreaming ? StreamingReveal.readableMarkdownTail(text) : text
+        let key = source as NSString
+        if let hit = attrCache.object(forKey: key) { return hit.value }
+        guard var attributed = try? AttributedString(
+            markdown: source,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) else { return nil }
+        linkifyBareURLs(&attributed)
+        for run in attributed.runs {
+            if run.inlinePresentationIntent?.contains(.code) == true {
+                attributed[run.range].font = .callout.monospaced()
+                if run.link == nil {
+                    attributed[run.range].backgroundColor = DS.Color.bgSubtle
+                }
+            }
+            if run.link != nil {
+                attributed[run.range].foregroundColor = DS.Color.link
+                attributed[run.range].underlineStyle = nil
+            }
+        }
+        attrCache.setObject(AttrBox(attributed), forKey: key, cost: text.utf8.count)
+        return attributed
+    }
+
+    /// Plain URLs are links too; URL-shaped text inside code remains literal.
     private static func linkifyBareURLs(_ attributed: inout AttributedString) {
         let plain = String(attributed.characters)
-        guard plain.contains("http"),
-              let detector = try? NSDataDetector(
-                  types: NSTextCheckingResult.CheckingType.link.rawValue
-              )
+        guard plain.contains("http") || plain.contains("www."),
+              let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         else { return }
-        let matches = detector.matches(
-            in: plain, range: NSRange(location: 0, length: (plain as NSString).length)
-        )
-        for match in matches {
-            guard let url = match.url,
-                  let scheme = url.scheme?.lowercased(),
-                  scheme == "http" || scheme == "https",
-                  let range = Range(match.range, in: attributed)
-            else { continue }
-            let alreadyLinked = attributed[range].runs.contains { $0.link != nil }
-            if !alreadyLinked {
-                attributed[range].link = url
-            }
-            // The 2027-SDK parser auto-links bare URLs before we get here
-            // (alreadyLinked), so the underline is applied outside the guard —
-            // a bare URL reads as a link on every OS the app runs on.
-            attributed[range].underlineStyle = .single
-        }
-    }
-}
-
-/// Marks a run as a citation badge so `ChatTextRenderer` draws a capsule
-/// behind it — attributed-string backgrounds can only paint square rects.
-struct CitationBadge: TextAttribute {}
-
-/// One renderer for assistant prose: rounded-capsule backgrounds behind
-/// citation-badge runs, plus the streaming glyph fade (`progress` < 1)
-/// inherited from `RevealTextRenderer` — a Text can only have one renderer.
-struct ChatTextRenderer: TextRenderer, Animatable {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
-        // Capsules first, behind the glyphs. One per badge run per line.
-        for line in layout {
-            for run in line where run[CitationBadge.self] != nil {
-                var bounds: CGRect?
-                for slice in run {
-                    let rect = slice.typographicBounds.rect
-                    bounds = bounds.map { $0.union(rect) } ?? rect
-                }
-                guard let bounds else { continue }
-                let capsule = bounds.insetBy(dx: -1, dy: -2.5)
-                context.fill(
-                    Path(roundedRect: capsule, cornerRadius: capsule.height / 2),
-                    with: .color(DS.Color.bgMuted.opacity(0.55))
-                )
-            }
-        }
-
-        let slices = layout.flatMap { line in line }.flatMap { run in run }
-        let count = slices.count
-        guard count > 0 else { return }
-        if progress >= 1 {
-            for slice in slices {
-                context.draw(slice)
-            }
-            return
-        }
-        // Streaming tail: soft fade edge over the most recent glyphs.
-        let span = max(0.04, 12.0 / Double(count))
-        for (index, slice) in slices.enumerated() {
-            let position = Double(index) / Double(count)
-            let alpha = ((progress - position) / span).clamped(to: 0...1)
-            guard alpha > 0 else { continue }
-            var copy = context
-            copy.opacity = alpha
-            copy.draw(slice)
+        for match in detector.matches(in: plain, range: NSRange(plain.startIndex..., in: plain)) {
+            guard let url = match.url, ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+                  let range = Range(match.range, in: attributed) else { continue }
+            let isCode = attributed[range].runs.contains { $0.inlinePresentationIntent?.contains(.code) == true }
+            let isLinked = attributed[range].runs.contains { $0.link != nil }
+            if !isCode && !isLinked { attributed[range].link = url }
         }
     }
 }
@@ -633,25 +654,26 @@ private struct CodeBlockView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(language.isEmpty ? "code" : language)
-                    .font(.caption2)
+                    .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                 Spacer()
                 CopyButton(text: code, size: 13)
             }
-            .padding(.leading, 10)
+            .padding(.leading, 14)
             .padding(.trailing, 4)
             // The header has no selectable text; disabling selection here
             // prevents taps from being swallowed by the selection gesture
             // instead of reaching the copy button.
             .textSelection(.disabled)
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
-                    .font(.callout.monospaced())
+            ScrollView(.horizontal) {
+                Text(verbatim: code)
+                    .font(.footnote.monospaced())
                     .textSelection(.enabled)
-                    .padding(10)
+                    .padding(14)
             }
         }
-        .background(.fill.quaternary, in: .rect(cornerRadius: 10))
+        .lineSpacing(3)
+        .background(DS.Color.bgSubtle, in: .rect(cornerRadius: 12))
     }
 }
 
@@ -668,32 +690,31 @@ private struct MarkdownTableView: View {
 
     private let radius = DS.Radius.md
     private let hPad: CGFloat = 14
-    private let minColumn: CGFloat = 44
+    private let minColumn: CGFloat = 112
 
     private var columnCount: Int { spec.header.count }
 
     var body: some View {
         let widths = resolvedColumnWidths
-        VStack(alignment: .leading, spacing: 0) {
-            row(spec.header, isHeader: true, widths: widths)
-                .background(DS.Color.bgSubtle)
-            hairline()
-            ForEach(Array(spec.rows.enumerated()), id: \.offset) { index, cells in
-                row(cells, isHeader: false, widths: widths)
-                if index < spec.rows.count - 1 { hairline() }
+        ScrollView(.horizontal) {
+            VStack(alignment: .leading, spacing: 0) {
+                row(spec.header, isHeader: true, widths: widths)
+                    .background(DS.Color.bgSubtle)
+                hairline()
+                ForEach(Array(spec.rows.enumerated()), id: \.offset) { index, cells in
+                    row(cells, isHeader: false, widths: widths)
+                    if index < spec.rows.count - 1 { hairline() }
+                }
             }
+            .frame(width: max(width, minColumn * CGFloat(columnCount)), alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DS.Color.bgElevated)
         .clipShape(RoundedRectangle(cornerRadius: radius))
-        .overlay(
-            RoundedRectangle(cornerRadius: radius)
-                .strokeBorder(DS.Color.border, lineWidth: 1)
-        )
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // A table isn't prose — drop the inherited reading line spacing so
         // wrapped cells stay tight.
-        .lineSpacing(0)
+        .lineSpacing(2)
     }
 
     /// Per-column widths: a `minColumn` floor for every column, then the
@@ -701,7 +722,7 @@ private struct MarkdownTableView: View {
     /// clamped so one long cell can't starve the rest). Nil until the width is
     /// known — the first frame falls back to equal flexible columns.
     private var resolvedColumnWidths: [CGFloat]? {
-        guard width > 0, columnCount > 0 else { return nil }
+        guard columnCount > 0 else { return nil }
         let weights = (0..<columnCount).map { column -> CGFloat in
             var longest = column < spec.header.count ? spec.header[column].count : 0
             for bodyRow in spec.rows where column < bodyRow.count {
@@ -737,7 +758,7 @@ private struct MarkdownTableView: View {
     private func cell(_ text: String, column: Int, isHeader: Bool, width: CGFloat?) -> some View {
         let align = spec.resolved(column)
         return InlineText(text)
-            .font(isHeader ? .system(size: 12, weight: .semibold) : .system(size: 15))
+            .font(isHeader ? .subheadline.weight(.semibold) : .subheadline)
             .foregroundStyle(
                 isHeader ? DS.Color.fgSubtle : (column == 0 ? DS.Color.fg : DS.Color.fgMuted)
             )

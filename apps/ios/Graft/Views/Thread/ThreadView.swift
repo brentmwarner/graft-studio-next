@@ -16,6 +16,7 @@ struct ThreadView: View {
 
             if let chat = boundChat {
                 TranscriptView(chat: chat)
+                    .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
                     .id(chat.id)
             } else {
                 ProgressView("Loading thread…")
@@ -24,40 +25,8 @@ struct ThreadView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let chat = boundChat {
-                // 12pt steps match the Codex reference: the diff pill floats
-                // just above the composer instead of a full control-row away.
-                VStack(spacing: 12) {
-                    // Diff pill and the jump-to-latest arrow share one row so
-                    // the two floating chips read as a single chrome band.
-                    if !chat.pendingDiffs.isEmpty || chat.isAwayFromLatest {
-                        HStack(spacing: 8) {
-                            if !chat.pendingDiffs.isEmpty {
-                                ComposerDiffBubbleStrip(
-                                    diffs: chat.pendingDiffs,
-                                    onOpenDiff: { diffId in
-                                        Task { await chat.openDiff(id: diffId) }
-                                    }
-                                )
-                            }
-                            Spacer(minLength: 0)
-                            if chat.isAwayFromLatest {
-                                ScrollToBottomButton {
-                                    chat.scrollToLatest()
-                                }
-                                .transition(.scale(scale: 0.6).combined(with: .opacity))
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .animation(.snappy(duration: 0.25), value: chat.isAwayFromLatest)
-                    }
-                    if chat.needsInteraction {
-                        InteractionBar(chat: chat)
-                    }
-                    ComposerView(chat: chat, siblingChromeHeight: 0)
-                        .id(chat.id)
-                }
-                // No painted backdrop behind the bottom chrome — the glass
-                // pieces float directly over the transcript, natively.
+                ThreadComposerDock(chat: chat)
+                    .id(chat.id)
             }
         }
         .navigationTitle(title)
@@ -101,7 +70,7 @@ struct ThreadView: View {
                 }
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
-                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                    .presentationBackgroundInteraction(.disabled)
                     .presentationCornerRadius(DS.Radius.xl)
             }
         }
@@ -124,6 +93,73 @@ struct ThreadView: View {
     }
 
 
+}
+
+/// Only the composer and its compact accessories reserve transcript space.
+/// Menus and the jump button grow into an overlay above those stable bounds.
+struct ThreadComposerDock: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var tasksExpanded = false
+    @State private var slashVisible = false
+    let chat: ChatModel
+
+    private var hasAccessories: Bool {
+        chat.taskProgress != nil || !chat.pendingDiffs.isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if hasAccessories {
+                GlassEffectContainer(spacing: 12) {
+                    HStack(spacing: 12) {
+                        ComposerDiffBubbleStrip(diffs: chat.pendingDiffs) { diffId in
+                            tasksExpanded = false
+                            Task { await chat.openDiff(id: diffId) }
+                        }
+                        Spacer(minLength: 0)
+                        if let progress = chat.taskProgress {
+                            TaskProgressPill(progress: progress, expanded: tasksExpanded) {
+                                withAnimation(reduceMotion ? nil : .smooth(duration: 0.24)) {
+                                    tasksExpanded.toggle()
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .opacity(slashVisible ? 0 : 1)
+                .allowsHitTesting(!slashVisible)
+                .accessibilityHidden(slashVisible)
+                .accessibilityIdentifier("composer-accessory-row")
+            }
+            if chat.needsInteraction {
+                InteractionBar(chat: chat)
+            }
+            ComposerView(chat: chat, siblingChromeHeight: hasAccessories ? 56 : 0, onSlashVisibilityChange: { visible in
+                slashVisible = visible
+                if visible { tasksExpanded = false }
+            })
+            .zIndex(2)
+        }
+        .overlay(alignment: .top) {
+            VStack(spacing: 12) {
+                if tasksExpanded, let progress = chat.taskProgress, !slashVisible {
+                    TaskProgressDetails(progress: progress)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: .bottomTrailing).combined(with: .opacity))
+                } else if chat.isAwayFromLatest, !slashVisible {
+                    ScrollToBottomButton { chat.scrollToLatest() }
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+            .alignmentGuide(.top) { $0[.bottom] }
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: chat.isAwayFromLatest)
+        .onChange(of: chat.taskProgress == nil) { _, isEmpty in
+            if isEmpty { tasksExpanded = false }
+        }
+    }
 }
 
 private struct ContextProgressRing: View {

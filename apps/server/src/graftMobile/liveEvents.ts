@@ -37,9 +37,12 @@ function timestamp(value: string): number {
   return Number.isFinite(parsed) ? parsed : Date.now();
 }
 
-function runStatusFromSession(status: OrchestrationSessionStatus): GraftRunStatus {
+function runStatusFromSession(
+  status: OrchestrationSessionStatus,
+  hasActiveTurn: boolean,
+): GraftRunStatus {
   if (status === "starting") return "queued";
-  if (status === "running" || status === "ready") return "running";
+  if (status === "running" || (status === "ready" && hasActiveTurn)) return "running";
   if (status === "interrupted" || status === "stopped") return "cancelled";
   if (status === "error") return "failed";
   return "completed";
@@ -70,6 +73,7 @@ export function toMobileLiveEvent(
         ...base,
         id: payload.messageId,
         kind: payload.streaming ? "assistant.delta" : "assistant.message",
+        ...(!payload.streaming ? { completedAt: base.createdAt } : {}),
         ...(payload.turnId ? { runId: payload.turnId } : {}),
         text,
       };
@@ -87,6 +91,9 @@ export function toMobileLiveEvent(
             ),
           }
         : {}),
+      ...(payload.role === "user" && payload.skills?.length
+        ? { skills: payload.skills.map(({ name }) => ({ name })) }
+        : {}),
     };
   }
 
@@ -103,7 +110,7 @@ export function toMobileLiveEvent(
       ...base,
       kind: "run.status",
       ...(session.activeTurnId ? { runId: session.activeTurnId } : {}),
-      runStatus: runStatusFromSession(session.status),
+      runStatus: runStatusFromSession(session.status, session.activeTurnId !== null),
       ...(session.lastError ? { text: session.lastError } : {}),
     };
   }
