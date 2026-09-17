@@ -7,7 +7,7 @@ import {
   mergeMacUpdateManifests,
   parseMacUpdateManifest,
   serializeMacUpdateManifest,
-} from "../merge-mac-update-manifests.ts";
+} from "./mac-update-manifests.ts";
 import {
   MAC_MINIMUM_DARWIN_VERSION,
   WINDOWS_MINIMUM_SYSTEM_VERSION,

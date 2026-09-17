@@ -159,7 +159,7 @@ export async function createLegacySnapshot(
   const sourceId = createHash("sha256").update(sourcePath).digest("hex");
   const temporaryPath = path.join(directory, `source-${randomUUID()}.partial`);
   const snapshotPath = path.join(directory, "source.sqlite");
-  const source = new DatabaseSync(sourcePath, { readOnly: true, enableExtensions: false });
+  const source = new DatabaseSync(sourcePath, { readOnly: true, allowExtension: false });
   try {
     const logical = source
       .prepare(
@@ -186,7 +186,7 @@ export async function createLegacySnapshot(
     source.close();
   }
   try {
-    const copy = new DatabaseSync(temporaryPath, { readOnly: true, enableExtensions: false });
+    const copy = new DatabaseSync(temporaryPath, { readOnly: true, allowExtension: false });
     let inspection: ReturnType<typeof inspectLegacySnapshot>;
     try {
       inspection = inspectLegacySnapshot(copy);

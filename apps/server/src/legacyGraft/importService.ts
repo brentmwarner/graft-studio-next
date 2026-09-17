@@ -186,7 +186,7 @@ export async function prepareLegacyGraftImport(
       ) {
         // Recover a crash after publishing the snapshot but before its metadata write.
         const sha256 = await digestFile(frozenPath);
-        const copy = new DatabaseSync(frozenPath, { readOnly: true, enableExtensions: false });
+        const copy = new DatabaseSync(frozenPath, { readOnly: true, allowExtension: false });
         try {
           snapshot = {
             ...inspectLegacySnapshot(copy),
@@ -212,7 +212,7 @@ export async function prepareLegacyGraftImport(
       throw new Error("Legacy snapshot identity or integrity changed.");
     const copy = new DatabaseSync(snapshot.snapshotPath, {
       readOnly: true,
-      enableExtensions: false,
+      allowExtension: false,
     });
     try {
       const mapped: LegacyGraftPlan = mapLegacySnapshot(copy, snapshot, new Date().toISOString());
