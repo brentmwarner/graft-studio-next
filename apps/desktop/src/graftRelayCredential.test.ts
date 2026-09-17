@@ -10,6 +10,26 @@ afterEach(() =>
 );
 
 describe("legacy Graft relay credential migration", () => {
+  it("does not probe encrypted storage when no legacy credential exists", () => {
+    const appData = mkdtempSync(join(tmpdir(), "graft-no-legacy-relay-"));
+    directories.push(appData);
+    const isEncryptionAvailable = vi.fn(() => true);
+    const decryptString = vi.fn(() => '{"environmentId":"one"}');
+
+    expect(
+      readLegacyGraftRelayCredential({
+        appData,
+        platform: "darwin",
+        safeStorage: {
+          isEncryptionAvailable,
+          decryptString,
+        },
+      }),
+    ).toBeNull();
+    expect(isEncryptionAvailable).not.toHaveBeenCalled();
+    expect(decryptString).not.toHaveBeenCalled();
+  });
+
   it("reads only the relay entry from the stable legacy profile and leaves it untouched", () => {
     const appData = mkdtempSync(join(tmpdir(), "graft-legacy-relay-"));
     directories.push(appData);
