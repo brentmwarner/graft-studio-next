@@ -23,8 +23,11 @@ const tracePackagedImport = (message: string): void => {
 // Electron's macOS utility process then evaluated twice during startup.
 tracePackagedImport("server module graph ready");
 
+tracePackagedImport("desktop parent input resolution started");
 const desktopParentInput = consumeDesktopParentInput(process.env, () => process.stdin);
+tracePackagedImport("desktop parent input resolution completed");
 
+tracePackagedImport("runtime layer construction started");
 const RuntimeLayer = Layer.empty.pipe(
   Layer.provideMerge(CliConfig.layer),
   Layer.provideMerge(ServerLive),
@@ -33,8 +36,14 @@ const RuntimeLayer = Layer.empty.pipe(
   Layer.provideMerge(NodeServices.layer),
   Layer.provideMerge(FetchHttpClient.layer),
 );
+tracePackagedImport("runtime layer construction completed");
 
-Command.run(graftCli, { version })
+tracePackagedImport("command program construction started");
+const commandProgram = Command.run(graftCli, { version })
   .pipe(Effect.provide(RuntimeLayer))
-  .pipe((program) => withDesktopParentLifetime(program, desktopParentInput))
-  .pipe((program) => NodeRuntime.runMain(program as Effect.Effect<void, unknown, never>));
+  .pipe((program) => withDesktopParentLifetime(program, desktopParentInput));
+tracePackagedImport("command program construction completed");
+
+tracePackagedImport("node runtime start requested");
+NodeRuntime.runMain(commandProgram as Effect.Effect<void, unknown, never>);
+tracePackagedImport("node runtime start returned");
