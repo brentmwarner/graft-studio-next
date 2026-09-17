@@ -8,6 +8,7 @@ import {
   createPackagedDesktopSmokeEnvironment,
   parsePackagedDesktopStartupArgs,
   readPackagedStartupLogTails,
+  retainMacBackendSampleCallGraph,
   resolvePackagedDependencySmokeLaunch,
   resolveNativePackagedDesktopPlatform,
   verifyPackagedRuntimeDependencies,
@@ -32,6 +33,26 @@ describe("packaged desktop startup verification", () => {
     expect(diagnostics).not.toContain("old entry");
     expect(diagnostics).toContain("server-child.log: unavailable");
     expect(diagnostics.length).toBeLessThan(16_500);
+  });
+
+  it("retains the macOS process call graph and removes the binary image list", () => {
+    const callGraph = "Call graph:\nnode::sqlite";
+    const diagnostics = retainMacBackendSampleCallGraph(
+      `Sampling process 123\n${callGraph}\nBinary Images:\n${"library".repeat(10_000)}`,
+    );
+
+    expect(diagnostics).toContain("Sampling process 123");
+    expect(diagnostics).toContain("Call graph:");
+    expect(diagnostics).not.toContain("Binary Images:");
+  });
+
+  it("bounds a macOS process call graph without discarding its beginning", () => {
+    const diagnostics = retainMacBackendSampleCallGraph(
+      `Sampling process 123\nCall graph:\n${"node::sqlite".repeat(10_000)}`,
+    );
+
+    expect(diagnostics).toMatch(/^Sampling process 123\nCall graph:/u);
+    expect(diagnostics.length).toBeLessThanOrEqual(65_536);
   });
 
   it("parses a bounded native payload request", () => {

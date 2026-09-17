@@ -383,6 +383,7 @@ function hasStartupProof(logPath: string): boolean {
 }
 
 const STARTUP_DIAGNOSTIC_TAIL_LENGTH = 16_384;
+const MAC_BACKEND_SAMPLE_LENGTH = 65_536;
 
 export function readPackagedStartupLogTails(logDirectory: string): string {
   return ["desktop-main.log", "server-child.log"]
@@ -399,6 +400,12 @@ export function readPackagedStartupLogTails(logDirectory: string): string {
     .join("\n");
 }
 
+export function retainMacBackendSampleCallGraph(output: string): string {
+  const binaryImagesIndex = output.indexOf("Binary Images:");
+  const callGraph = binaryImagesIndex >= 0 ? output.slice(0, binaryImagesIndex) : output;
+  return callGraph.trim().slice(0, MAC_BACKEND_SAMPLE_LENGTH);
+}
+
 function readMacBackendSample(logDirectory: string): string {
   try {
     const serverLog = readFileSync(join(logDirectory, "server-child.log"), "utf8");
@@ -411,9 +418,9 @@ function readMacBackendSample(logDirectory: string): string {
       maxBuffer: 8 * 1024 * 1024,
       timeout: 10_000,
     });
-    const output = (result.stdout || result.stderr || result.error?.message || "No sample output.")
-      .trim()
-      .slice(-STARTUP_DIAGNOSTIC_TAIL_LENGTH);
+    const output = retainMacBackendSampleCallGraph(
+      result.stdout || result.stderr || result.error?.message || "No sample output.",
+    );
     return `Packaged macOS backend sample (pid=${pid}):\n${output}`;
   } catch (error) {
     return `Packaged macOS backend sample failed: ${error instanceof Error ? error.message : String(error)}`;
