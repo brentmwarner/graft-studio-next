@@ -4,8 +4,9 @@ import SwiftUI
 /// (hierarchical remote projects list), not the Fetch chat home.
 ///
 /// Compact horizontal size class keeps the phone drawer under a
-/// `NavigationStack`. Regular width uses `NavigationSplitView` so iPad
-/// (portrait and landscape) gets a persistent sidebar + chat column.
+/// `NavigationStack`. Regular width uses `NavigationSplitView` in both
+/// iPad orientations: landscape pins sidebar + chat; narrower portrait
+/// uses an automatic overlay split so chat is not crushed.
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -16,7 +17,8 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var selectedThread: InboxThreadItem?
     @State private var newChatContext: NewChatContext?
-    @State private var splitVisibility = NavigationSplitViewVisibility.all
+    @State private var splitVisibility = NavigationSplitViewVisibility.automatic
+    @State private var splitContainerWidth: CGFloat = 0
     @FocusState private var searchFieldFocused: Bool
 
     private var usesPersistentSidebar: Bool {
@@ -62,8 +64,8 @@ struct HomeView: View {
         }
     }
 
-    /// Regular width (iPad, and plus-size landscape): persistent sidebar of
-    /// projects/threads plus a chat detail column. No overlay drawer.
+    /// Regular width (iPad, and plus-size landscape). Landscape and 13-inch
+    /// portrait pin both columns; Mini / 11-inch portrait overlay the sidebar.
     private var splitHome: some View {
         NavigationSplitView(columnVisibility: $splitVisibility) {
             inboxRoot
@@ -77,7 +79,22 @@ struct HomeView: View {
                 splitDetail
             }
         }
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(
+            AdaptiveChrome.prefersPinnedSplit(containerWidth: splitContainerWidth)
+                ? .balanced
+                : .prominentDetail
+        )
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            splitContainerWidth = width
+            let preferred = AdaptiveChrome.preferredColumnVisibility(
+                containerWidth: width
+            )
+            if splitVisibility != preferred {
+                splitVisibility = preferred
+            }
+        }
     }
 
     @ViewBuilder

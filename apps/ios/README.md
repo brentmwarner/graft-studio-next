@@ -54,12 +54,30 @@ open Graft.xcodeproj
 
 Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 
-On iPad (regular horizontal size class), paired home uses `NavigationSplitView`:
-projects/threads stay in a persistent sidebar and chat occupies the detail
-column. Transcript and composer chrome cap at a readable width instead of
-stretching edge to edge. Compact widths (iPhone, iPad Slide Over) keep the
-existing drawer + push stack. Verify both iPad orientations and an iPhone
-destination before calling a layout change done.
+On iPad (regular horizontal size class), paired home uses `NavigationSplitView`
+in **both** orientations:
+
+- **Landscape** (and 13-inch portrait): pinned sidebar + chat. Transcript and
+  composer cap at a 720pt readable column instead of stretching edge to edge.
+- **Mini / 11-inch portrait**: automatic overlay split so the sidebar can
+  dismiss and chat keeps a usable width. Use the system sidebar control to
+  show threads again.
+- **Compact** (iPhone, iPad Slide Over): existing drawer + push stack.
+
+### Simulator verification (portrait and landscape)
+
+Use the **Graft** scheme. Pair first if the welcome screen is showing.
+
+| Destination | Orientation | Expect |
+| ----------- | ----------- | ------ |
+| iPad Pro 13-inch (M4) | Landscape | Persistent Projects sidebar + chat. Composer/transcript stay a readable column, not full pane width. |
+| iPad Pro 13-inch (M4) | Portrait | Still a two-column split (window is 1024pt). Chat remains usable beside the sidebar. Rotate back to landscape; sidebar stays pinned. |
+| iPad Pro 11-inch (M4) or iPad mini | Landscape | Same pinned sidebar + readable chat as 13-inch landscape. |
+| iPad Pro 11-inch (M4) or iPad mini | Portrait | Sidebar overlays / can hide (`automatic`); chat is the primary column. Toggle the sidebar, open a thread, rotate to landscape and confirm both columns pin. |
+| iPhone 17 Pro | Portrait | Hamburger drawer and push navigation unchanged. |
+
+Hardware → Rotate in the simulator, or `⌘←` / `⌘→`. Confirm New Chat opens in the
+detail column in both orientations, and Settings still presents as a sheet.
 
 ## Welcome visuals
 
