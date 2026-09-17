@@ -47,6 +47,9 @@ export class GraftAccountService {
   private initialized = false;
   private disposed = false;
   private signOutPending = false;
+  // Recovery must finish failed remote cleanup before restoring account access.
+  private pairedAccessDisconnectPending = false;
+  private pairedAccessDisconnectedGeneration = -1;
   private offlineBlockedToken: string | null = null;
   private verifiedSession: { token: string; value: VerifiedGraftAccount } | null = null;
   private verification: AbortController | null = null;
@@ -134,6 +137,7 @@ export class GraftAccountService {
       return this.state;
     }
     if (!this.current(generation)) return this.state;
+    this.pairedAccessDisconnectPending = false;
     this.setState({ status: "signing-in", account: null, issue: null });
     try {
       await this.login.start();
@@ -188,10 +192,34 @@ export class GraftAccountService {
     }
     await this.login.cancel();
     if (this.current(generation)) {
+      if (issue !== "disconnect-failed") this.pairedAccessDisconnectPending = false;
       this.signOutPending = issue !== null;
       this.setState({ status: issue ? "unavailable" : "signed-out", account: null, issue });
     }
     return this.state;
+  }
+
+  private async disconnectPairedAccess(generation: number): Promise<boolean> {
+    if (!this.current(generation)) return false;
+    if (this.pairedAccessDisconnectedGeneration === generation) return true;
+    this.pairedAccessDisconnectPending = true;
+    this.setState({ status: "checking", account: null, issue: null });
+    try {
+      await this.dependencies.onSessionInvalidated?.();
+    } catch {
+      if (this.current(generation))
+        this.setState({ status: "unavailable", account: null, issue: "disconnect-failed" });
+      return false;
+    }
+    if (!this.current(generation)) return false;
+    this.pairedAccessDisconnectPending = false;
+    this.pairedAccessDisconnectedGeneration = generation;
+    return true;
+  }
+
+  private async makeUnavailable(generation: number, issue: GraftAccountIssue): Promise<void> {
+    if ((await this.disconnectPairedAccess(generation)) && this.current(generation))
+      this.setState({ status: "unavailable", account: null, issue });
   }
 
   async refresh(): Promise<GraftAccountState> {
@@ -199,6 +227,9 @@ export class GraftAccountService {
     if (this.signOutPending) return this.signOut();
     this.initialized = true;
     const generation = this.invalidate();
+    if (this.pairedAccessDisconnectPending && !(await this.disconnectPairedAccess(generation)))
+      return this.state;
+    if (!this.current(generation)) return this.state;
     let token: string | null;
     let cached: VerifiedGraftAccount | null = null;
     try {
@@ -209,21 +240,12 @@ export class GraftAccountService {
             ? this.verifiedSession.value
             : (this.dependencies.store.readVerifiedAccount?.(token) ?? null);
     } catch (error) {
-      this.setState({ status: "unavailable", account: null, issue: storageIssue(error) });
+      await this.makeUnavailable(generation, storageIssue(error));
       return this.state;
     }
     if (!token) {
-      this.setState({ status: "checking", account: null, issue: null });
-      try {
-        // A saved relay may outlive a missing account credential. Read/import the
-        // credential first, then stop paired access before exposing signed-out.
-        await this.dependencies.onSessionInvalidated?.();
-      } catch {
-        if (this.current(generation))
-          this.setState({ status: "unavailable", account: null, issue: "disconnect-failed" });
-        return this.state;
-      }
-      if (this.current(generation))
+      // Read/import first: a saved relay may outlive a missing account credential.
+      if ((await this.disconnectPairedAccess(generation)) && this.current(generation))
         this.setState({ status: "signed-out", account: null, issue: null });
       return this.state;
     }
@@ -236,7 +258,7 @@ export class GraftAccountService {
         try {
           this.dependencies.store.write(token, verified);
         } catch (error) {
-          this.setState({ status: "unavailable", account: null, issue: storageIssue(error) });
+          await this.makeUnavailable(generation, storageIssue(error));
           return this.state;
         }
         this.verifiedSession = verified ? { token, value: verified } : null;
@@ -258,8 +280,8 @@ export class GraftAccountService {
         } catch {
           /* Never grant offline access from malformed authority responses. */
         }
-        this.setState({ status: "unavailable", account: null, issue: "service-unavailable" });
-        this.scheduleSessionCheck(token, 30_000);
+        await this.makeUnavailable(generation, "service-unavailable");
+        if (this.current(generation)) this.scheduleSessionCheck(token, 30_000);
       } else if (cached && cached.expiresAt > Date.now()) {
         // Only an identity previously verified by /account/me can receive offline grace.
         this.verifiedSession = { token, value: cached };
@@ -270,8 +292,8 @@ export class GraftAccountService {
         });
         this.scheduleSessionCheck(token, 30_000);
       } else {
-        this.setState({ status: "unavailable", account: null, issue: "service-unavailable" });
-        this.scheduleSessionCheck(token, 30_000);
+        await this.makeUnavailable(generation, "service-unavailable");
+        if (this.current(generation)) this.scheduleSessionCheck(token, 30_000);
       }
     }
     return this.state;

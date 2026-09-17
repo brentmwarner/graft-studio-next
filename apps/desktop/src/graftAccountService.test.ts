@@ -32,6 +32,7 @@ function harness(initialToken: string | null = null) {
   const store = {
     assertAvailable: vi.fn(),
     read: vi.fn(() => token),
+    readVerifiedAccount: vi.fn(() => null),
     write: vi.fn((next: string) => {
       token = next;
     }),
@@ -115,6 +116,78 @@ describe("Graft account lifecycle", () => {
       }),
     );
     expect(JSON.stringify(onState.mock.calls)).not.toContain(TOKEN);
+  });
+
+  it.each(["credential", "verified cache"])("disconnects paired access when the %s cannot be read and preserves retry", async (source) => {
+    const { service, store, fetchImpl, onSessionInvalidated } = harness(TOKEN);
+    const read = source === "credential" ? store.read : store.readVerifiedAccount;
+    read.mockImplementationOnce(() => { throw new AccountStorageUnavailable(); });
+    const disconnect = deferred<void>();
+    onSessionInvalidated.mockReturnValueOnce(disconnect.promise);
+    const restoring = service.getState();
+    expect(onSessionInvalidated).toHaveBeenCalledOnce();
+    expect((await service.getState()).status).toBe("checking");
+    expect(fetchImpl).not.toHaveBeenCalled();
+    disconnect.resolve();
+    expect(await restoring).toEqual({ status: "unavailable", account: null, issue: "secure-storage-unavailable" });
+    expect(store.clear).not.toHaveBeenCalled();
+    expect(store.write).not.toHaveBeenCalled();
+    expect((await service.refresh()).status).toBe("signed-in");
+    expect(store.read()).toBe(TOKEN);
+  });
+
+  it("disconnects paired access after verified-token persistence fails and preserves the saved token for retry", async () => {
+    const { service, store, onSessionInvalidated } = harness(TOKEN);
+    await service.getState();
+    store.write.mockImplementationOnce(() => { throw new Error("disk full"); });
+    expect(await service.refresh()).toEqual({ status: "unavailable", account: null, issue: "storage-failed" });
+    expect(onSessionInvalidated).toHaveBeenCalledOnce();
+    expect(store.clear).not.toHaveBeenCalled();
+    expect(store.read()).toBe(TOKEN);
+    expect((await service.refresh()).status).toBe("signed-in");
+  });
+
+  it("retries failed paired cleanup before restored storage can reopen the account", async () => {
+    const { service, store, fetchImpl, onSessionInvalidated } = harness(TOKEN);
+    store.read.mockImplementationOnce(() => { throw new AccountStorageUnavailable(); });
+    onSessionInvalidated.mockRejectedValueOnce(new Error("backend unavailable"));
+    expect((await service.getState()).issue).toBe("disconnect-failed");
+    const disconnect = deferred<void>();
+    onSessionInvalidated.mockReturnValueOnce(disconnect.promise);
+    const retry = service.refresh();
+    expect(onSessionInvalidated).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    disconnect.resolve();
+    expect((await retry).status).toBe("signed-in");
+    expect(store.clear).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite a new sign-in when unavailable-account cleanup finishes late", async () => {
+    const { service, store, onSessionInvalidated } = harness(TOKEN);
+    store.read.mockImplementationOnce(() => { throw new AccountStorageUnavailable(); });
+    const disconnect = deferred<void>();
+    onSessionInvalidated.mockReturnValueOnce(disconnect.promise);
+    const restoring = service.getState();
+    expect((await service.signIn()).status).toBe("signing-in");
+    disconnect.resolve();
+    expect((await restoring).status).toBe("signing-in");
+  });
+
+  it("disconnects a previously verified account after a malformed authority response and retries without offline grace", async () => {
+    vi.useFakeTimers();
+    const token = "header." + Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url") + ".signature";
+    const { service, store, fetchImpl, onSessionInvalidated } = harness(token);
+    await service.getState();
+    fetchImpl.mockResolvedValueOnce(json({ accountId: "incomplete" }));
+    expect((await service.refresh()).status).toBe("unavailable");
+    expect(onSessionInvalidated).toHaveBeenCalledOnce();
+    expect(store.clear).not.toHaveBeenCalled();
+    fetchImpl.mockRejectedValueOnce(new Error("offline"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect((await service.getState()).status).toBe("unavailable");
+    expect(onSessionInvalidated).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect((await service.getState()).status).toBe("signed-in");
   });
 
   it("validates the account before saving a browser login and uses the original PKCE verifier", async () => {
@@ -219,7 +292,7 @@ describe("Graft account lifecycle", () => {
         "base64url",
       ) +
       ".signature";
-    const { service, fetchImpl } = harness(token);
+    const { service, fetchImpl, onSessionInvalidated } = harness(token);
     await service.getState();
     fetchImpl.mockRejectedValueOnce(new Error("offline"));
     await vi.advanceTimersByTimeAsync(5 * 60_000);
@@ -231,13 +304,15 @@ describe("Graft account lifecycle", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect((await service.getState()).issue).toBeNull();
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(onSessionInvalidated).not.toHaveBeenCalled();
   });
 
   it("never authenticates an unverified token during an outage", async () => {
     vi.useFakeTimers();
-    const { service, fetchImpl } = harness(TOKEN);
+    const { service, fetchImpl, onSessionInvalidated } = harness(TOKEN);
     fetchImpl.mockRejectedValueOnce(new Error("offline"));
     expect((await service.getState()).status).toBe("unavailable");
+    expect(onSessionInvalidated).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(30_000);
     expect((await service.getState()).status).toBe("signed-in");
   });

@@ -69,8 +69,26 @@ profile was present at the expected path on this Linux host.
 
 `apps/web/scripts/smoke-graft-production.mjs` tests the actual Linux AppImage
 with disposable profiles and synthetic legacy history, including restart.
+The local 0.9.0 AppImage passed this test on Linux x64: the production renderer
+opened, the account gate required sign-in, the source database and WAL hashes
+were unchanged, full archive records survived, and restart did not duplicate
+the import. The marketing production build also passed.
 It explicitly records real WorkOS login and legacy updater installation as
 not run; its result cannot substitute for native upgrade receipts.
+
+On a Linux host with GNOME Keyring, run the smoke in a private D-Bus session so
+the disposable profile gets its own unlocked secret store:
+
+```sh
+GRAFT_SMOKE_ISOLATED_KEYRING=1 dbus-run-session -- node \
+  apps/web/scripts/smoke-graft-production.mjs \
+  release-production-candidate/Graft-0.9.0-x86_64.AppImage
+```
+
+Use the Node version from `package.json`. The smoke records the artifact checksum,
+checks real encrypted storage, and writes its result and screenshot to
+`.tmp/production-rollout/packaged-smoke/`. A missing or locked keyring must remain
+an explicit failure; do not enable Chromium's plaintext credential fallback.
 
 Full workspace formatting, lint, and type checks remain pending the user's
 explicit request required by the supplied AGENTS.md. Production signing and

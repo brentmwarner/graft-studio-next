@@ -17,7 +17,7 @@ import { OrchestrationProjectionPipelineLive } from "../orchestration/Layers/Pro
 import { OrchestrationProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
-import { atomicJson, digestFile } from "./files";
+import { atomicJson, digestFile, LEGACY_GRAFT_LIMITS } from "./files";
 import { createLegacyFixture } from "./fixtures";
 import {
   getLegacyGraftImportProgress,
@@ -431,6 +431,63 @@ describe("legacy Graft import", () => {
           readLegacyGraftThreadArchive(fixture.destinationDir, "thread"),
         ).rejects.toThrow("regular file");
       }
+    } finally {
+      fixture.database.close();
+    }
+  });
+
+  it("caps aggregate archive page bytes and advances through large records without dropping or duplicating history", async () => {
+    const fixture = await setupFixture();
+    try {
+      const sizes = [2 * 1024 ** 2, 2 * 1024 ** 2, LEGACY_GRAFT_LIMITS.cellBytes - 1024];
+      for (const [index, bytes] of sizes.entries()) {
+        fixture.database
+          .prepare("INSERT INTO run_events VALUES (?, 'thread', 'run', ?, ?)")
+          .run(`large-${index}`, index + 2, "x".repeat(bytes));
+      }
+      const result = await prepareLegacyGraftImport({
+        sourceDbPath: fixture.databasePath,
+        destinationDir: fixture.destinationDir,
+      });
+      const archive = result.summary.threads.find((thread) => thread.sourceThreadId === "thread")!;
+      const expected = (
+        await fs.readFile(path.join(fixture.destinationDir, archive.archiveFile), "utf8")
+      )
+        .trimEnd()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { table: string; row: Record<string, unknown> });
+      const identify = (record: { table: string; row: Record<string, unknown> }) => ({
+        table: record.table,
+        id: record.row.id,
+        payloadBytes:
+          typeof record.row.payload === "string" ? Buffer.byteLength(record.row.payload) : null,
+      });
+      const received: ReturnType<typeof identify>[] = [];
+      let offset: number | null = 0;
+      let pages = 0;
+      while (offset !== null) {
+        const page = await readLegacyGraftThreadArchive(fixture.destinationDir, "thread", {
+          offset,
+          limit: 100,
+        });
+        expect(page.records.length).toBeGreaterThan(0);
+        const contentBytes = page.records.reduce(
+          (total, record) => total + Buffer.byteLength(JSON.stringify(record)),
+          0,
+        );
+        expect(contentBytes).toBeLessThanOrEqual(LEGACY_GRAFT_LIMITS.cellBytes);
+        // The near-limit record must fit by itself and cannot stall the cursor.
+        if (page.records.some((record) => record.row.id === "large-2")) {
+          expect(contentBytes).toBeGreaterThan(LEGACY_GRAFT_LIMITS.cellBytes - 1024);
+        }
+        received.push(...page.records.map(identify));
+        if (page.nextOffset !== null) expect(page.nextOffset).toBe(offset + page.records.length);
+        offset = page.nextOffset;
+        pages += 1;
+        if (pages > expected.length) throw new Error("Archive pagination did not advance.");
+      }
+      expect(pages).toBeGreaterThanOrEqual(3);
+      expect(received).toEqual(expected.map(identify));
     } finally {
       fixture.database.close();
     }
