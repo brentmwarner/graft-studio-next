@@ -253,6 +253,7 @@ export function makeHealthEffectRouteLayer(readiness: ServerReadiness) {
       return HttpServerResponse.jsonUnsafe(
         {
           status: "ok",
+          httpListening: snapshot.httpListening,
           startupReady: snapshot.startupReady,
           pushBusReady: snapshot.pushBusReady,
           keybindingsReady: snapshot.keybindingsReady,

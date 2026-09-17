@@ -6,6 +6,7 @@
 import { SKILL_ICON_NAME } from "./lib/icons";
 
 export const SETTINGS_SECTION_IDS = [
+  "account",
   "general",
   "profile",
   "appearance",
@@ -59,6 +60,14 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
 ] as const;
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    id: "account",
+    group: "personal",
+    label: "Graft account",
+    description: "Manage your Graft sign-in on this device.",
+    icon: "user",
+    eyebrow: "Your account",
+  },
   {
     id: "general",
     group: "personal",

@@ -1,733 +1,236 @@
-name: Release Desktop
+name: Graft Production Release
 
+# Install in brentmwarner/graft-studio as graft-next-release.yml to reuse its
+# Apple and Blob secrets. It always builds an exact graft-studio-next SHA.
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Release version (for example 1.2.3 or v1.2.3)"
+      operation:
+        description: Build native artifacts or promote previously verified artifacts
+        type: choice
+        options: [build, promote]
+        default: build
         required: true
+      source_commit:
+        description: Full graft-studio-next commit SHA from its main branch
         type: string
-      publish_release:
-        description: "Publish the GitHub/npm release after successful builds"
         required: true
-        default: false
+      version:
+        description: Stable version, matching apps/desktop/package.json
+        type: string
+        required: true
+      sign_artifacts:
+        description: Sign macOS/Windows builds using production identities
         type: boolean
+        default: true
+      build_run_id:
+        description: Successful signed build run to promote, in this repository
+        type: string
+        required: false
+      evidence_run_id:
+        description: Successful native upgrade run containing graft-upgrade-evidence artifact
+        type: string
+        required: false
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
-  group: graft-desktop-release
+  group: graft-production-blob-release
   cancel-in-progress: false
 
 jobs:
-  preflight:
-    name: Preflight
+  source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
     outputs:
-      version: ${{ steps.release_meta.outputs.version }}
-      tag: ${{ steps.release_meta.outputs.tag }}
-      is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
-      make_latest: ${{ steps.release_meta.outputs.make_latest }}
-      mirror_to_stable_channel: ${{ steps.release_meta.outputs.mirror_to_stable_channel }}
-      publish_release: ${{ steps.release_mode.outputs.publish_release }}
-      release_lane: ${{ steps.release_meta.outputs.release_lane }}
-      bridge_tag: ${{ steps.release_meta.outputs.bridge_tag }}
-      update_channel: ${{ steps.release_meta.outputs.update_channel }}
-      source_commit: ${{ steps.source_provenance.outputs.source_commit }}
-      source_tag: ${{ steps.source_provenance.outputs.source_tag }}
-      lockfile_sha256: ${{ steps.source_provenance.outputs.lockfile_sha256 }}
-      ref: ${{ steps.source_provenance.outputs.source_commit }}
+      commit: ${{ steps.meta.outputs.commit }}
+      lockfile: ${{ steps.meta.outputs.lockfile }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
         with:
-          node-version-file: package.json
-
-      - id: release_mode
-        name: Resolve publication mode
+          repository: brentmwarner/graft-studio-next
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require source from graft-studio-next main
         shell: bash
         env:
-          PUBLISH_RELEASE: ${{ github.event_name == 'push' || inputs.publish_release }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
-          echo "publish_release=$PUBLISH_RELEASE" >> "$GITHUB_OUTPUT"
-          if [[ "$PUBLISH_RELEASE" == "true" ]]; then
-            echo "Publication enabled."
-          else
-            echo "Build-only validation enabled; no release or package will be published."
-          fi
-
-      - id: release_meta
-        name: Resolve release policy
-        env:
-          RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
-        run: node scripts/resolve-release-update-policy.ts "$RELEASE_VERSION"
-
-      - id: source_provenance
-        name: Verify exact release source
-        env:
-          RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
-          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
-          PUBLISH_RELEASE: ${{ steps.release_mode.outputs.publish_release }}
-          EXPECTED_COMMIT: ${{ github.sha }}
-          SOURCE_REF_TYPE: ${{ github.ref_type }}
-          SOURCE_REF_NAME: ${{ github.ref_name }}
-        run: |
-          node scripts/verify-release-source-provenance.ts \
-            "$RELEASE_VERSION" \
-            "$RELEASE_TAG" \
-            "$PUBLISH_RELEASE" \
-            "$EXPECTED_COMMIT" \
-            "$SOURCE_REF_TYPE" \
-            "$SOURCE_REF_NAME"
-
-      - name: Verify public updater repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          visibility="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility)"
-          if [[ "$visibility" != "public" ]]; then
-            echo "The dedicated updater channel requires the public GitHub provider; repository visibility is $visibility." >&2
+          if [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || [[ "$(git rev-parse HEAD)" != "$SOURCE_COMMIT" ]]; then
+            echo "source_commit must be the exact checked-out 40-character graft-studio-next SHA." >&2
             exit 1
           fi
-
-      - name: Verify pinned compatibility feed
-        if: ${{ steps.release_meta.outputs.release_lane == 'clean' && steps.release_mode.outputs.publish_release == 'true' && steps.release_meta.outputs.mirror_to_stable_channel == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRIDGE_TAG: ${{ steps.release_meta.outputs.bridge_tag }}
-          UPDATE_CHANNEL: ${{ steps.release_meta.outputs.update_channel }}
-        run: |
-          actual_latest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
-          if [[ "$actual_latest" != "$BRIDGE_TAG" ]]; then
-            echo "Expected GitHub Latest to remain pinned to $BRIDGE_TAG, got $actual_latest." >&2
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main; then
+            echo "Production builds may only use source already merged into graft-studio-next/main." >&2
             exit 1
           fi
-
-          bridge_release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${BRIDGE_TAG}" --jq .id)"
-          bridge_assets="$(
-            gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/releases/${bridge_release_id}/assets?per_page=100" \
-              --jq '.[].name'
-          )"
-          required_assets=(
-            latest-mac.yml
-            latest.yml
-            latest-linux.yml
-            "${UPDATE_CHANNEL}-mac.yml"
-            "${UPDATE_CHANNEL}.yml"
-            "${UPDATE_CHANNEL}-linux.yml"
-          )
-          for required_asset in "${required_assets[@]}"; do
-            if ! grep -Fxq "$required_asset" <<< "$bridge_assets"; then
-              echo "Pinned compatibility feed is missing $required_asset." >&2
-              exit 1
-            fi
-          done
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v6
         with:
-          bun-version-file: package.json
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Verify Graft identity
-        run: bun run brand:check
-
-      - name: Lint
-        run: bun run lint
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Test
-        run: bun run test
+          node-version-file: package.json
+      - id: meta
+        name: Resolve exact source and version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          EXPECTED_COMMIT: ${{ inputs.source_commit }}
+        run: node scripts/graft-release-source.ts
+      - uses: ./.github/actions/setup-workspace
+        if: inputs.operation == 'build'
+      - name: Verify release source
+        if: inputs.operation == 'build'
+        run: |
+          bun run fmt:check
+          bun run lint
+          bun run typecheck
+          bun run brand:check
+          bun run windows-runtime:check
+          bun run migrations:check
+          bun run test
 
   build:
-    name: Build ${{ matrix.label }}
-    needs: preflight
+    if: inputs.operation == 'build'
+    needs: source
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    permissions:
-      contents: read
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: macOS arm64
-            runner: macos-14
-            platform: mac
-            target: dmg
-            arch: arm64
-          - label: macOS x64
-            runner: macos-15-intel
-            platform: mac
-            target: dmg
-            arch: x64
-          - label: Linux x64
-            runner: ubuntu-24.04
-            platform: linux
-            target: AppImage
-            arch: x64
-          - label: Windows x64
-            runner: windows-2022
-            platform: win
-            target: nsis
-            arch: x64
+          - { platform: mac, arch: arm64, target: dmg, runner: macos-14 }
+          - { platform: mac, arch: x64, target: dmg, runner: macos-15-intel }
+          - { platform: win, arch: x64, target: nsis, runner: windows-2022 }
+          # Match the oldest supported Linux build baseline; newer runners raise glibc requirements.
+          - { platform: linux, arch: x64, target: AppImage, runner: ubuntu-22.04 }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          fetch-depth: 0
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+          repository: brentmwarner/graft-studio-next
+          ref: ${{ needs.source.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
         with:
-          bun-version-file: package.json
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-
-      - name: Install dependencies
-        # Preflight already runs the full lifecycle-script install plus lint,
-        # typecheck, and tests. Artifact jobs only need dependencies available.
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - id: build_artifact
-        name: Build desktop artifact
+          electron: "true"
+      - name: Linux native runtime dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfuse2 xvfb libgbm1 libasound2
+      - name: Build native package
         shell: bash
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
-          AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
-          AZURE_TRUSTED_SIGNING_SUBJECT_DN: ${{ secrets.AZURE_TRUSTED_SIGNING_SUBJECT_DN }}
-          GRAFT_PUBLISH_RELEASE: ${{ needs.preflight.outputs.publish_release }}
-          ALLOW_UNSIGNED_WINDOWS_PUBLICATION: ${{ vars.GRAFT_ALLOW_UNSIGNED_WINDOWS_RELEASE == needs.preflight.outputs.version }}
-          SOURCE_COMMIT: ${{ needs.preflight.outputs.source_commit }}
-          SOURCE_TAG: ${{ needs.preflight.outputs.source_tag }}
-          LOCKFILE_SHA256: ${{ needs.preflight.outputs.lockfile_sha256 }}
-        run: |
-          signed=false
-          args=(
-            --platform "${{ matrix.platform }}"
-            --target "${{ matrix.target }}"
-            --arch "${{ matrix.arch }}"
-            --build-version "${{ needs.preflight.outputs.version }}"
-            --source-commit "$SOURCE_COMMIT"
-            --lockfile-sha256 "$LOCKFILE_SHA256"
-            --verbose
-          )
-
-          if [[ -n "$SOURCE_TAG" ]]; then
-            args+=(--source-tag "$SOURCE_TAG")
-          fi
-
-          has_all() {
-            for value in "$@"; do
-              if [[ -z "$value" ]]; then
-                return 1
-              fi
-            done
-            return 0
-          }
-
-          if [[ "${{ matrix.platform }}" == "mac" ]]; then
-            if has_all "$CSC_LINK" "$CSC_KEY_PASSWORD" "$APPLE_API_KEY" "$APPLE_API_KEY_ID" "$APPLE_API_ISSUER" "$APPLE_TEAM_ID"; then
-              key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
-              printf '%s' "$APPLE_API_KEY" > "$key_path"
-              export APPLE_API_KEY="$key_path"
-              echo "macOS signing enabled."
-              signed=true
-              args+=(--signed)
-            elif [[ "$GRAFT_PUBLISH_RELEASE" == "true" ]]; then
-              echo "Publishing macOS artifacts requires every signing and notarization secret."
-              exit 1
-            else
-              echo "Build-only macOS artifact will be unsigned because publication is disabled."
-            fi
-          elif [[ "${{ matrix.platform }}" == "win" ]]; then
-            if has_all \
-              "$AZURE_TENANT_ID" \
-              "$AZURE_CLIENT_ID" \
-              "$AZURE_CLIENT_SECRET" \
-              "$AZURE_TRUSTED_SIGNING_ENDPOINT" \
-              "$AZURE_TRUSTED_SIGNING_ACCOUNT_NAME" \
-              "$AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME" \
-              "$AZURE_TRUSTED_SIGNING_PUBLISHER_NAME" \
-              "$AZURE_TRUSTED_SIGNING_SUBJECT_DN"; then
-              echo "Windows signing enabled (Azure Trusted Signing)."
-              signed=true
-              args+=(--signed)
-            elif [[ "$GRAFT_PUBLISH_RELEASE" == "true" && "$ALLOW_UNSIGNED_WINDOWS_PUBLICATION" != "true" ]]; then
-              echo "Publishing Windows artifacts requires every Azure Trusted Signing secret."
-              exit 1
-            else
-              echo "Windows artifact will be unsigned under the explicit version-scoped release exception."
-            fi
-          else
-            echo "Signing disabled for ${{ matrix.platform }}."
-          fi
-
-          if [[ "${{ matrix.platform }}" == "mac" && "${{ matrix.arch }}" == "x64" ]]; then
-            # electron-builder occasionally times out fetching x64 DMG helper bundles on GitHub-hosted macOS runners.
-            # Retry this narrow packaging path so transient upstream 504s do not block the whole release.
-            max_attempts=3
-            for attempt in $(seq 1 "$max_attempts"); do
-              if bun run dist:desktop:artifact -- "${args[@]}"; then
-                break
-              fi
-
-              if [[ "$attempt" -eq "$max_attempts" ]]; then
-                echo "macOS x64 desktop artifact build failed after $max_attempts attempts."
-                exit 1
-              fi
-
-              sleep_seconds=$((attempt * 15))
-              echo "macOS x64 desktop artifact build failed on attempt $attempt/$max_attempts. Retrying in ${sleep_seconds}s..."
-              sleep "$sleep_seconds"
-            done
-          else
-            bun run dist:desktop:artifact -- "${args[@]}"
-          fi
-
-          echo "signed=$signed" >> "$GITHUB_OUTPUT"
-
-      - name: Collect release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p release-publish
-
-          shopt -s nullglob
-          for pattern in \
-            "release/*.dmg" \
-            "release/*.zip" \
-            "release/*.AppImage" \
-            "release/*.exe" \
-            "release/*.blockmap" \
-            "release/latest*.yml"; do
-            for file in $pattern; do
-              cp "$file" release-publish/
-            done
-          done
-
-          if [[ "${{ matrix.platform }}" == "mac" && "${{ matrix.arch }}" != "arm64" ]]; then
-            if [[ -f release-publish/latest-mac.yml ]]; then
-              mv release-publish/latest-mac.yml "release-publish/latest-mac-${{ matrix.arch }}.yml"
-            fi
-          fi
-
-      - name: Verify and record artifact provenance
+          RELEASE_VERSION: ${{ needs.source.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
+          LOCKFILE_SHA256: ${{ needs.source.outputs.lockfile }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+          TARGET: ${{ matrix.target }}
+          SIGN_ARTIFACTS: ${{ inputs.sign_artifacts }}
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
+          AZURE_TENANT_ID: ${{ matrix.platform == 'win' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.platform == 'win' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.platform == 'win' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ matrix.platform == 'win' && secrets.AZURE_TRUSTED_SIGNING_ENDPOINT || '' }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ matrix.platform == 'win' && secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME || '' }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ matrix.platform == 'win' && secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME || '' }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ matrix.platform == 'win' && secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME || '' }}
+          AZURE_TRUSTED_SIGNING_SUBJECT_DN: ${{ matrix.platform == 'win' && secrets.AZURE_TRUSTED_SIGNING_SUBJECT_DN || '' }}
+        run: node scripts/build-graft-release.ts
+      - name: Verify native startup
         shell: bash
         env:
-          EXPECTED_MAC_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          EXPECTED_WINDOWS_PUBLISHER: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
-          EXPECTED_WINDOWS_SUBJECT_DN: ${{ secrets.AZURE_TRUSTED_SIGNING_SUBJECT_DN }}
-          SOURCE_COMMIT: ${{ needs.preflight.outputs.source_commit }}
-          SOURCE_TAG: ${{ needs.preflight.outputs.source_tag }}
-          LOCKFILE_SHA256: ${{ needs.preflight.outputs.lockfile_sha256 }}
-          PUBLISH_RELEASE: ${{ needs.preflight.outputs.publish_release }}
-          SIGNED_ARTIFACT: ${{ steps.build_artifact.outputs.signed }}
-          ALLOW_UNSIGNED_WINDOWS_PUBLICATION: ${{ vars.GRAFT_ALLOW_UNSIGNED_WINDOWS_RELEASE == needs.preflight.outputs.version }}
-        run: |
-          node scripts/write-release-artifact-provenance.ts \
-            --assets-dir release-publish \
-            --platform "${{ matrix.platform }}" \
-            --arch "${{ matrix.arch }}" \
-            --target "${{ matrix.target }}" \
-            --version "${{ needs.preflight.outputs.version }}" \
-            --source-commit "$SOURCE_COMMIT" \
-            --source-tag "$SOURCE_TAG" \
-            --lockfile-sha256 "$LOCKFILE_SHA256" \
-            --publication "$PUBLISH_RELEASE" \
-            --signed "$SIGNED_ARTIFACT" \
-            --allow-unsigned-windows-publication "$ALLOW_UNSIGNED_WINDOWS_PUBLICATION" \
-            --expected-mac-team-id "$EXPECTED_MAC_TEAM_ID" \
-            --expected-windows-publisher "$EXPECTED_WINDOWS_PUBLISHER" \
-            --expected-windows-subject-dn "$EXPECTED_WINDOWS_SUBJECT_DN"
-
-      - name: Smoke packaged desktop startup
-        shell: bash
-        run: |
-          node scripts/verify-packaged-desktop-startup.ts \
-            --assets-dir release-publish \
-            --platform "${{ matrix.platform }}" \
-            --arch "${{ matrix.arch }}" \
-            --version "${{ needs.preflight.outputs.version }}"
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+          RELEASE_VERSION: ${{ needs.source.outputs.version }}
+        run: node scripts/verify-packaged-desktop-startup.ts --assets-dir release-publish --platform "$PLATFORM" --arch "$ARCH" --version "$RELEASE_VERSION"
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
           path: release-publish/*
           if-no-files-found: error
+          retention-days: 30
 
-  publish_cli:
-    name: Publish CLI to npm
-    if: ${{ needs.preflight.outputs.publish_release == 'true' && vars.GRAFT_PUBLISH_CLI == '1' }}
-    needs: [preflight, build]
+  promote:
+    if: inputs.operation == 'promote'
+    needs: source
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 60
     permissions:
       contents: read
-      id-token: write
+      actions: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.preflight.outputs.ref }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+          repository: brentmwarner/graft-studio-next
+          ref: ${{ needs.source.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - name: Verify artifact run identities
+        uses: actions/github-script@v8
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          EVIDENCE_RUN_ID: ${{ inputs.evidence_run_id }}
         with:
-          bun-version-file: package.json
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+          script: |
+            const { data: promotion } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: context.runId });
+            const { data: evidenceWorkflow } = await github.rest.actions.getWorkflow({
+              ...context.repo,
+              workflow_id: 'graft-next-upgrade-evidence.yml',
+            });
+            for (const [kind, id] of Object.entries({ build: process.env.BUILD_RUN_ID, evidence: process.env.EVIDENCE_RUN_ID })) {
+              if (!/^\d+$/.test(id || '')) throw new Error(`A successful ${kind} run ID is required.`);
+              const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(id) });
+              if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error(`${kind} run has not succeeded.`);
+              if (kind === 'build' && (run.workflow_id !== promotion.workflow_id || run.event !== 'workflow_dispatch')) {
+                throw new Error('Build artifacts must come from the manual Graft production build workflow.');
+              }
+              if (kind === 'evidence' && (run.workflow_id !== evidenceWorkflow.id || run.event !== 'workflow_dispatch')) {
+                throw new Error('Upgrade evidence must come from the Graft production upgrade evidence workflow.');
+              }
+            }
+      - name: Require the legacy publisher to be retired before cutover
+        uses: actions/github-script@v8
         with:
-          node-version-file: package.json
-          registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
-        # Preflight already validates lifecycle scripts; the publish job only
-        # needs dependencies available to build the package.
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Build CLI package
-        run: bun run build --filter=@graft/web --filter=@graft/cli
-
-      - name: Publish CLI package
-        run: node apps/server/scripts/cli.ts publish --tag latest --app-version "${{ needs.preflight.outputs.version }}" --verbose
-
-  build_server_tarball:
-    name: Build server tarball
-    if: ${{ needs.preflight.outputs.publish_release == 'true' }}
-    needs: [preflight, build]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-
-      - name: Install dependencies
-        # Preflight already validates lifecycle scripts; this job only needs
-        # dependencies available to build the package.
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Build server package
-        run: bun run build --filter=@graft/web --filter=@graft/cli
-
-      - name: Pack server tarball
-        run: node apps/server/scripts/cli.ts pack --out release-server --app-version "${{ needs.preflight.outputs.version }}"
-
-      - name: Upload server tarball
-        uses: actions/upload-artifact@v7
-        with:
-          name: server-tarball
-          path: release-server/*.tar.gz
-          if-no-files-found: error
-
-  release:
-    name: Publish GitHub Release
-    if: ${{ needs.preflight.outputs.publish_release == 'true' }}
-    needs: [preflight, build, build_server_tarball]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-
-      - name: Download all desktop artifacts
-        uses: actions/download-artifact@v8
+          script: |
+            const { data: legacy } = await github.rest.actions.getWorkflow({ owner: 'brentmwarner', repo: 'graft-studio', workflow_id: 'release.yml' });
+            if (legacy.state === 'active') {
+              throw new Error('Disable graft-studio/release.yml before promotion. The old production-branch publisher must not overwrite the new app feed.');
+            }
+            const pending = await Promise.all(['queued', 'in_progress', 'requested', 'waiting', 'pending'].map(status =>
+              github.rest.actions.listWorkflowRuns({ owner: 'brentmwarner', repo: 'graft-studio', workflow_id: 'release.yml', status, per_page: 1 })
+            ));
+            if (pending.some(({ data }) => data.total_count > 0)) {
+              throw new Error('An unfinished legacy release can still publish. Wait for or cancel it before promotion.');
+            }
+      - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
+          path: release-assets
           merge-multiple: true
-          path: release-assets
-
-      - name: Download server tarball
-        uses: actions/download-artifact@v8
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
         with:
-          name: server-tarball
-          path: release-assets
-
-      - name: Merge macOS updater manifests
-        run: |
-          node scripts/merge-mac-update-manifests.ts \
-            release-assets/latest-mac.yml \
-            release-assets/latest-mac-x64.yml
-          rm -f release-assets/latest-mac-x64.yml
-
-      - name: Prepare updater feed metadata
-        run: node scripts/prepare-release-update-feed.ts release-assets
-
-      - name: Prevent compatibility channel rollback
-        if: ${{ needs.preflight.outputs.release_lane == 'bridge' }}
+          name: graft-upgrade-evidence
+          path: release-evidence
+          run-id: ${{ inputs.evidence_run_id }}
+          github-token: ${{ github.token }}
+      - name: Bind native evidence to requested release source
         env:
-          GH_TOKEN: ${{ github.token }}
-          BRIDGE_TAG: ${{ needs.preflight.outputs.bridge_tag }}
-          BRIDGE_VERSION: ${{ needs.preflight.outputs.version }}
-          UPDATE_CHANNEL: ${{ needs.preflight.outputs.update_channel }}
+          RELEASE_VERSION: ${{ needs.source.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
         run: |
-          set -euo pipefail
-
-          if ! bridge_release_json="$(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${BRIDGE_TAG}" 2>&1
-          )"; then
-            if grep -q "HTTP 404" <<< "$bridge_release_json"; then
-              exit 0
-            fi
-            echo "$bridge_release_json" >&2
-            exit 1
-          fi
-          bridge_release_id="$(jq -r .id <<< "$bridge_release_json")"
-
-          bridge_assets="$(
-            gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/releases/${bridge_release_id}/assets?per_page=100" \
-              --jq '.[].name'
-          )"
-          channel_manifests=(
-            "${UPDATE_CHANNEL}-mac.yml"
-            "${UPDATE_CHANNEL}.yml"
-            "${UPDATE_CHANNEL}-linux.yml"
-          )
-          existing_manifests=()
-          for manifest in "${channel_manifests[@]}"; do
-            if grep -Fxq "$manifest" <<< "$bridge_assets"; then
-              existing_manifests+=("$manifest")
-            fi
-          done
-
-          if [[ "${#existing_manifests[@]}" -eq 0 ]]; then
-            exit 0
-          fi
-          if [[ "${#existing_manifests[@]}" -ne "${#channel_manifests[@]}" ]]; then
-            echo "Compatibility feed has a partial dedicated-channel manifest set: ${existing_manifests[*]}." >&2
-            exit 1
-          fi
-
-          manifest_directory="$(mktemp -d)"
-          trap 'rm -rf "$manifest_directory"' EXIT
-          for manifest in "${channel_manifests[@]}"; do
-            gh release download "$BRIDGE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --pattern "$manifest" \
-              --dir "$manifest_directory"
-            manifest_version="$(
-              sed -n 's/^version:[[:space:]]*//p' "$manifest_directory/$manifest" \
-                | head -n 1 \
-                | tr -d "[:space:]'\""
-            )"
-            if [[ "$manifest_version" != "$BRIDGE_VERSION" ]]; then
-              echo "Refusing to replace $manifest version ${manifest_version:-unknown} with compatibility version $BRIDGE_VERSION." >&2
-              exit 1
-            fi
-          done
-
-      - name: Recheck pinned compatibility feed
-        if: ${{ needs.preflight.outputs.release_lane == 'clean' && needs.preflight.outputs.mirror_to_stable_channel == 'true' }}
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const evidence = JSON.parse(readFileSync("release-evidence/upgrade-evidence.json", "utf8"));
+            if (evidence.version !== process.env.RELEASE_VERSION || evidence.sourceCommit !== process.env.SOURCE_COMMIT) throw new Error("Upgrade evidence belongs to another source/version");
+          '
+      - name: Verify all payloads before publication
+        run: node scripts/publish-graft-release.ts --assets-dir release-assets --evidence release-evidence/upgrade-evidence.json
+      - name: Upload immutable payloads, then promote existing stable feed
         env:
-          GH_TOKEN: ${{ github.token }}
-          BRIDGE_TAG: ${{ needs.preflight.outputs.bridge_tag }}
-        run: |
-          actual_latest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
-          if [[ "$actual_latest" != "$BRIDGE_TAG" ]]; then
-            echo "Expected GitHub Latest to remain pinned to $BRIDGE_TAG, got $actual_latest." >&2
-            exit 1
-          fi
-
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.preflight.outputs.tag }}
-          target_commitish: ${{ needs.preflight.outputs.ref }}
-          name: Graft v${{ needs.preflight.outputs.version }}
-          generate_release_notes: true
-          prerelease: ${{ needs.preflight.outputs.is_prerelease }}
-          make_latest: ${{ needs.preflight.outputs.make_latest }}
-          files: |
-            release-assets/*.dmg
-            release-assets/*.zip
-            release-assets/*.AppImage
-            release-assets/*.exe
-            release-assets/*.blockmap
-            release-assets/*.yml
-            release-assets/*.provenance.json
-            release-assets/*.tar.gz
-          fail_on_unmatched_files: true
-
-      - name: Mirror Graft artifacts onto the pinned updater feed
-        if: ${{ needs.preflight.outputs.mirror_to_stable_channel == 'true' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRIDGE_TAG: ${{ needs.preflight.outputs.bridge_tag }}
-          UPDATE_CHANNEL: ${{ needs.preflight.outputs.update_channel }}
-        run: |
-          set -euo pipefail
-
-          actual_latest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
-          if [[ "$actual_latest" != "$BRIDGE_TAG" ]]; then
-            echo "Expected GitHub Latest to remain pinned to $BRIDGE_TAG, got $actual_latest." >&2
-            exit 1
-          fi
-
-          shopt -s nullglob
-          payloads=(
-            release-assets/*.dmg
-            release-assets/*.zip
-            release-assets/*.AppImage
-            release-assets/*.exe
-            release-assets/*.blockmap
-          )
-          manifests=(
-            "release-assets/${UPDATE_CHANNEL}-mac.yml"
-            "release-assets/${UPDATE_CHANNEL}.yml"
-            "release-assets/${UPDATE_CHANNEL}-linux.yml"
-          )
-
-          if [[ "${#payloads[@]}" -eq 0 ]]; then
-            echo "No desktop payloads found for the pinned updater feed." >&2
-            exit 1
-          fi
-          for manifest in "${manifests[@]}"; do
-            if [[ ! -f "$manifest" ]]; then
-              echo "Missing updater manifest: $manifest" >&2
-              exit 1
-            fi
-          done
-
-          # Payloads must exist before a manifest is visible, otherwise an
-          # updater can observe a version whose installer is not uploaded yet.
-          gh release upload "$BRIDGE_TAG" "${payloads[@]}" --clobber --repo "$GITHUB_REPOSITORY"
-          gh release upload "$BRIDGE_TAG" "${manifests[@]}" --clobber --repo "$GITHUB_REPOSITORY"
-
-          actual_latest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
-          if [[ "$actual_latest" != "$BRIDGE_TAG" ]]; then
-            echo "Pinned updater feed moved during publication: $actual_latest." >&2
-            exit 1
-          fi
-
-  finalize:
-    name: Finalize release
-    if: ${{ needs.preflight.outputs.publish_release == 'true' && vars.GRAFT_FINALIZE_RELEASE == '1' }}
-    needs: [preflight, release]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - id: app_token
-        name: Mint release app token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ steps.app_token.outputs.token }}
-          persist-credentials: true
-
-      - id: app_bot
-        name: Resolve GitHub App bot identity
-        env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-          APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
-        run: |
-          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
-          echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
-          echo "email=${user_id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-
-      - id: update_versions
-        name: Update version strings
-        env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-        run: node scripts/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
-
-      - name: Format package.json files
-        if: steps.update_versions.outputs.changed == 'true'
-        run: bunx oxfmt apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json
-
-      - name: Refresh lockfile
-        if: steps.update_versions.outputs.changed == 'true'
-        run: bun install --lockfile-only --ignore-scripts
-
-      - name: Commit and push version bump
-        if: steps.update_versions.outputs.changed == 'true'
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
-        run: |
-          if git diff --quiet -- apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json bun.lock; then
-            echo "No version changes to commit."
-            exit 0
-          fi
-
-          git config user.name "${{ steps.app_bot.outputs.name }}"
-          git config user.email "${{ steps.app_bot.outputs.email }}"
-
-          git add apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json bun.lock
-          git commit -m "chore(release): prepare $RELEASE_TAG"
-          git push origin HEAD:main
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: node scripts/publish-graft-release.ts --assets-dir release-assets --evidence release-evidence/upgrade-evidence.json --publish

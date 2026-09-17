@@ -72,7 +72,7 @@ export default function InstallOptions({
           index={0}
           icon={<FaApple className="size-6" aria-hidden="true" />}
           name="macOS"
-          subtitle=".dmg · Apple Silicon & Intel"
+          subtitle="macOS 12.3+ · Apple Silicon & Intel"
           href={macHref}
           recommended={os === "mac"}
         >
@@ -83,7 +83,7 @@ export default function InstallOptions({
           index={1}
           icon={<FaWindows className="size-[22px]" aria-hidden="true" />}
           name="Windows"
-          subtitle=".exe installer · 64-bit"
+          subtitle="Windows 10+ · x64 installer"
           href={downloads.windows}
           recommended={os === "windows"}
         />
@@ -104,14 +104,14 @@ export default function InstallOptions({
 
       <p className="mt-2 text-[12px] leading-[1.6] text-[var(--text-tertiary)]">
         {downloads.version ? `Latest release ${downloads.version}. ` : ""}
-        Looking for an older version or the checksums?{" "}
+        Release information and checksums:{" "}
         <a
           href={downloads.releasesUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-[var(--accent-link)] underline decoration-[var(--accent-link)] underline-offset-2 transition-colors hover:text-[var(--accent-link-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-link)]"
         >
-          Browse all releases
+          Release details
         </a>
         .
       </p>
@@ -132,7 +132,7 @@ function PlatformCard({
   icon: ReactNode;
   name: string;
   subtitle: string;
-  href: string;
+  href: string | null;
   recommended: boolean;
   children?: ReactNode;
 }) {
@@ -164,13 +164,22 @@ function PlatformCard({
       {/* Pinned to the bottom so every card's Download button lines up. */}
       <div className="mt-auto w-full pt-6">
         {children ? <div className="mb-3 flex justify-center">{children}</div> : null}
-        <a
-          href={href}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-4 py-2.5 text-[13px] font-medium text-[var(--btn-primary-fg)] transition-opacity hover:opacity-90"
-        >
-          Download
-          <LuArrowDownToLine className="size-4" aria-hidden="true" />
-        </a>
+        {href ? (
+          <a
+            href={href}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-[var(--btn-primary-bg)] px-4 py-2.5 text-[13px] font-medium text-[var(--btn-primary-fg)] transition-opacity hover:opacity-90"
+          >
+            Download
+            <LuArrowDownToLine className="size-4" aria-hidden="true" />
+          </a>
+        ) : (
+          <button
+            disabled
+            className="flex w-full items-center justify-center rounded-full bg-[var(--block-elevated)] px-4 py-2.5 text-[13px] text-[var(--text-tertiary)]"
+          >
+            Download unavailable
+          </button>
+        )}
       </div>
     </div>
   );

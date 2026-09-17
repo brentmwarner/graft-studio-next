@@ -12,6 +12,7 @@ packages/*/dist
 build/
 .logs/
 release/
+release-production-candidate/
 .graft
 /.graft/electron-dev
 /.graft/backups

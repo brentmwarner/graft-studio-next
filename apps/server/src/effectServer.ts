@@ -78,6 +78,8 @@ import { graftOccupancyRouteLayer, closeOccupancyRuntime } from "./graftOccupanc
 import { graftSshRouteLayer, closeSshConnectionManager } from "./graftSsh/httpRoute";
 import { setOccupancyListenPort } from "./graftOccupancy/occupancyRuntime";
 import { ProviderDiscoveryService } from "./provider/Services/ProviderDiscoveryService";
+import { legacyGraftRouteLayer } from "./legacyGraftHttp";
+import { legacyGraftRuntime } from "./legacyGraftRuntime";
 
 export interface ServerShape {
   readonly start: Effect.Effect<
@@ -224,6 +226,7 @@ export const createEffectServer = Effect.fn(function* (
     graftSshRouteLayer,
     agentGatewayRouteLayer,
     externalMcpRouteLayer,
+    legacyGraftRouteLayer,
   );
   const httpApp = yield* HttpRouter.toHttpEffect(routesLayer);
   yield* httpServer
@@ -301,6 +304,13 @@ export const createEffectServer = Effect.fn(function* (
       managedAttachmentCleanup,
       subscriptionsScope,
     }),
+  );
+  // Import only offline history while provider/automation reactors are stopped.
+  // The renderer exposes any failure before allowing an apparently empty app.
+  yield* Effect.promise(() =>
+    legacyGraftRuntime(config).start((command) =>
+      Effect.runPromise(orchestrationEngine.dispatch(command)),
+    ),
   );
   yield* Scope.provide(orchestrationReactor.start, subscriptionsScope);
   yield* Scope.provide(automationScheduler.start(), subscriptionsScope);

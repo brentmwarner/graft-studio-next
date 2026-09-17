@@ -3,6 +3,15 @@
 // Layer: Desktop IPC contract
 
 export const DESKTOP_IPC_CHANNELS = {
+  account: {
+    connectRelay: "desktop:account:connect-relay",
+    getState: "desktop:account:get-state",
+    signIn: "desktop:account:sign-in",
+    cancelSignIn: "desktop:account:cancel-sign-in",
+    signOut: "desktop:account:sign-out",
+    refresh: "desktop:account:refresh",
+    state: "desktop:account:state",
+  },
   pickFolder: "desktop:pick-folder",
   saveFile: "desktop:save-file",
   confirm: "desktop:confirm",

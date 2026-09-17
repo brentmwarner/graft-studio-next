@@ -10,7 +10,10 @@ import {
   DEVELOPMENT_ICON_OVERRIDES,
   PUBLISH_ICON_OVERRIDES,
 } from "../../../scripts/lib/brand-assets.ts";
-import { resolveCatalogDependencies } from "../../../scripts/lib/resolve-catalog.ts";
+import {
+  resolveBundledServerDependencies,
+  verifyBundledServerOutput,
+} from "../../../scripts/lib/bundled-server-dependencies.ts";
 import rootPackageJson from "../../../package.json" with { type: "json" };
 import serverPackageJson from "../package.json" with { type: "json" };
 
@@ -191,6 +194,15 @@ const stageDistributionPackage = Effect.fn("stageDistributionPackage")(function*
     }
   }
 
+  yield* Effect.try({
+    try: () => verifyBundledServerOutput(path.join(serverDir, "dist")),
+    catch: (cause) =>
+      new CliError({
+        message: "Server distribution retains an unresolved bundled dependency.",
+        cause,
+      }),
+  });
+
   const version = Option.getOrElse(appVersion, () => serverPackageJson.version);
   const pkg = {
     name: serverPackageJson.name,
@@ -201,10 +213,9 @@ const stageDistributionPackage = Effect.fn("stageDistributionPackage")(function*
     version,
     engines: serverPackageJson.engines,
     files: serverPackageJson.files,
-    dependencies: resolveCatalogDependencies(
+    dependencies: resolveBundledServerDependencies(
       serverPackageJson.dependencies as Record<string, unknown>,
       resolveRootWorkspaceCatalog(),
-      "apps/server dependencies",
     ),
   };
 

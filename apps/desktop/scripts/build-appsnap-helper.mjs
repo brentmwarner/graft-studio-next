@@ -18,6 +18,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MAC_MINIMUM_SYSTEM_VERSION } from "../../../scripts/lib/desktop-platform-build-config.ts";
+
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptsDirectory = dirname(scriptPath);
 const desktopDirectory = resolve(scriptsDirectory, "..");
@@ -48,13 +50,13 @@ const frameworkArguments = [
 export function swiftTargetsForArch(arch) {
   switch (arch) {
     case "arm64":
-      return [{ arch: "arm64", target: "arm64-apple-macos12.3" }];
+      return [{ arch: "arm64", target: `arm64-apple-macos${MAC_MINIMUM_SYSTEM_VERSION}` }];
     case "x64":
-      return [{ arch: "x64", target: "x86_64-apple-macos12.3" }];
+      return [{ arch: "x64", target: `x86_64-apple-macos${MAC_MINIMUM_SYSTEM_VERSION}` }];
     case "universal":
       return [
-        { arch: "arm64", target: "arm64-apple-macos12.3" },
-        { arch: "x64", target: "x86_64-apple-macos12.3" },
+        { arch: "arm64", target: `arm64-apple-macos${MAC_MINIMUM_SYSTEM_VERSION}` },
+        { arch: "x64", target: `x86_64-apple-macos${MAC_MINIMUM_SYSTEM_VERSION}` },
       ];
     default:
       throw new Error(`Unsupported AppSnap helper architecture: ${arch}`);

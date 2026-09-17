@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // FILE: build-desktop-artifact.ts
-// Purpose: Stages and builds packaged desktop artifacts plus updater metadata for GitHub releases.
+// Purpose: Stages and builds packaged desktop artifacts plus updater metadata for the existing Graft update feed.
 // Layer: Release/build script
-// Depends on: apps/desktop package metadata, electron-builder, and GitHub release config.
+// Depends on: apps/desktop package metadata, electron-builder, and stable Graft release configuration.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -14,6 +14,10 @@ import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
+import {
+  resolveBundledServerDependencies,
+  verifyBundledServerOutput,
+} from "./lib/bundled-server-dependencies.ts";
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 import {
   createDesktopPlatformBuildConfig,
@@ -21,7 +25,10 @@ import {
   MAC_DEVICE_HELPER_RESOURCE_PATH,
   validateDesktopNativeBuildHost,
 } from "./lib/desktop-platform-build-config.ts";
-import { GRAFT_PRODUCTION_BUNDLE_ID } from "@graft/shared/desktopIdentity";
+import {
+  GRAFT_PRODUCTION_BUNDLE_ID,
+  GRAFT_DESKTOP_UPDATE_URL,
+} from "@graft/shared/desktopIdentity";
 import { parseBooleanEnvValue } from "./lib/env-bool.ts";
 import { finalizeSignedMacDmg } from "./lib/mac-dmg-finalize.ts";
 import { finalizeMacUpdateZip } from "./lib/mac-update-zip-finalize.ts";
@@ -34,7 +41,18 @@ import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { Config, Data, Effect, FileSystem, Layer, Logger, Option, Path, Schema } from "effect";
+import {
+  Config,
+  Data,
+  Effect,
+  FileSystem,
+  Layer,
+  Logger,
+  Option,
+  Path,
+  Schema,
+  Stream,
+} from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
@@ -354,18 +372,28 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
 
 const commandOutputOptions = (verbose: boolean) =>
   ({
-    stdout: verbose ? "inherit" : "ignore",
+    stdout: verbose ? "inherit" : "pipe",
     stderr: "inherit",
   }) as const;
 
 const runCommand = Effect.fn("runCommand")(function* (command: ChildProcess.Command) {
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const child = yield* commandSpawner.spawn(command);
-  const exitCode = yield* child.exitCode;
+  const [exitCode, outputTail] = yield* Effect.all(
+    [
+      child.exitCode,
+      Stream.runFold(
+        child.stdout,
+        () => "",
+        (tail, chunk) => (tail + Buffer.from(chunk).toString("utf8")).slice(-64_000),
+      ),
+    ],
+    { concurrency: "unbounded" },
+  );
 
   if (exitCode !== 0) {
     return yield* new BuildScriptError({
-      message: `Command exited with non-zero exit code (${exitCode})`,
+      message: `Command exited with non-zero exit code (${exitCode})${outputTail.trim() ? `\n${outputTail.trim()}` : ""}`,
     });
   }
 });
@@ -530,31 +558,6 @@ function resolveDesktopRuntimeDependencies(
   );
 
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
-}
-
-function resolveGitHubPublishConfig():
-  | {
-      readonly provider: "github";
-      readonly owner: string;
-      readonly repo: string;
-      readonly releaseType: "release";
-    }
-  | undefined {
-  const rawRepo =
-    process.env.GRAFT_DESKTOP_UPDATE_REPOSITORY?.trim() ||
-    process.env.GITHUB_REPOSITORY?.trim() ||
-    "";
-  if (!rawRepo) return undefined;
-
-  const [owner, repo, ...rest] = rawRepo.split("/");
-  if (!owner || !repo || rest.length > 0) return undefined;
-
-  return {
-    provider: "github",
-    owner,
-    repo,
-    releaseType: "release",
-  };
 }
 
 const verifyStagedNodePty = Effect.fn("verifyStagedNodePty")(function* (
@@ -733,17 +736,16 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     },
     forceCodeSigning: signed,
   };
-  const publishConfig = resolveGitHubPublishConfig();
-  if (publishConfig) {
-    buildConfig.publish = [publishConfig];
-  } else if (mockUpdates) {
-    buildConfig.publish = [
-      {
-        provider: "generic",
-        url: `http://localhost:${mockUpdateServerPort ?? 3000}`,
-      },
-    ];
-  }
+  buildConfig.publish = [
+    {
+      provider: "generic",
+      url: mockUpdates
+        ? `http://localhost:${mockUpdateServerPort ?? 3000}`
+        : GRAFT_DESKTOP_UPDATE_URL,
+      channel: "latest",
+      useMultipleRangeRequest: false,
+    },
+  ];
 
   const windowsSigningConfig =
     platform === "win" && signed ? yield* AzureTrustedSigningOptionsConfig : undefined;
@@ -903,11 +905,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
   const resolvedServerDependencies = yield* Effect.try({
     try: () =>
-      resolveCatalogDependencies(
-        serverDependencies,
-        rootPackageJson.workspaces.catalog,
-        "apps/server",
-      ),
+      resolveBundledServerDependencies(serverDependencies, rootPackageJson.workspaces.catalog),
     catch: (cause) =>
       new BuildScriptError({
         message: "Could not resolve production dependencies from apps/server/package.json.",
@@ -1023,6 +1021,15 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     });
   }
 
+  yield* Effect.try({
+    try: () => verifyBundledServerOutput(distDirs.serverDist),
+    catch: (cause) =>
+      new BuildScriptError({
+        message: "Server distribution retains an unresolved bundled dependency.",
+        cause,
+      }),
+  });
+
   yield* validateBundledClientAssets(path.dirname(bundledClientEntry));
 
   yield* fs.makeDirectory(path.join(stageAppDir, "apps/desktop"), { recursive: true });
@@ -1114,6 +1121,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     delete buildEnv.APPLE_API_KEY;
     delete buildEnv.APPLE_API_KEY_ID;
     delete buildEnv.APPLE_API_ISSUER;
+    delete buildEnv.APPLE_ID;
+    delete buildEnv.APPLE_APP_SPECIFIC_PASSWORD;
+    delete buildEnv.APPLE_TEAM_ID;
   }
 
   if (process.platform === "win32") {
@@ -1158,6 +1168,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
           appleApiKey: buildEnv.APPLE_API_KEY,
           appleApiKeyId: buildEnv.APPLE_API_KEY_ID,
           appleApiIssuer: buildEnv.APPLE_API_ISSUER,
+          appleId: buildEnv.APPLE_ID,
+          appleAppSpecificPassword: buildEnv.APPLE_APP_SPECIFIC_PASSWORD,
+          appleTeamId: buildEnv.APPLE_TEAM_ID,
           verbose: options.verbose,
         }),
       catch: (cause) =>

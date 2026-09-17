@@ -1,18 +1,20 @@
 // FILE: update-installer-downloads.mjs
 // Purpose: Refreshes stored installer counts and latest direct download links.
 // Layer: Maintenance script for the Codex daily automation
-// Depends on: GitHub Releases API, src/data installer JSON snapshots
+// Depends on: GitHub historical download counts, live Graft Blob feed, installer JSON snapshots
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { loadReleaseDownloads } from "../src/lib/releaseDownloads.ts";
+import { GRAFT_DESKTOP_UPDATE_URL } from "@graft/shared/desktopIdentity";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const downloadsOutputPath = resolve(projectRoot, "src/data/installer-downloads.json");
 const latestOutputPath = resolve(projectRoot, "src/data/latest-release-downloads.json");
 const releasesApiUrl = "https://api.github.com/repos/brentmwarner/graft-studio-next/releases";
-const latestReleaseApiUrl = `${releasesApiUrl}/latest`;
 const installerFilePattern = /\.(dmg|exe|AppImage)$/i;
 
 function createGitHubHeaders() {
@@ -55,29 +57,6 @@ async function fetchAllReleases() {
   return releases;
 }
 
-// Mirrors the website resolver's `/releases/latest` source, with the releases
-// list as a rate-limit fallback so the maintenance job can still refresh.
-async function fetchLatestRelease(releases) {
-  const response = await fetch(latestReleaseApiUrl, {
-    headers: createGitHubHeaders(),
-  });
-
-  if (response.ok) {
-    return { release: await response.json(), source: latestReleaseApiUrl };
-  }
-
-  const stableRelease = releases.find((release) => !release.draft && !release.prerelease);
-
-  if (stableRelease) {
-    console.warn(
-      `GitHub Latest Release API failed: ${response.status} ${response.statusText}; using ${stableRelease.tag_name} from releases list.`,
-    );
-    return { release: stableRelease, source: releasesApiUrl };
-  }
-
-  throw new Error(`GitHub Latest Release API failed: ${response.status} ${response.statusText}`);
-}
-
 function countInstallerDownloads(releases) {
   return releases.reduce((total, release) => {
     const releaseTotal =
@@ -93,43 +72,6 @@ function countInstallerDownloads(releases) {
   }, 0);
 }
 
-function getReleaseDownloads(release, source) {
-  const assets = release.assets ?? [];
-  const releasesUrl =
-    release.html_url ??
-    `https://github.com/brentmwarner/graft-studio-next/releases/tag/${release.tag_name}`;
-  const urlFor = (pattern) =>
-    assets.find((asset) => asset.name && pattern.test(asset.name))?.browser_download_url ??
-    releasesUrl;
-
-  const downloads = {
-    version: release.tag_name ?? null,
-    releasesUrl,
-    mac: {
-      arm64: urlFor(/arm64\.dmg$/i),
-      x64: urlFor(/x64\.dmg$/i),
-    },
-    windows: urlFor(/\.exe$/i),
-    linux: urlFor(/\.AppImage$/i),
-    updatedAt: new Date().toISOString(),
-    source,
-  };
-
-  if (
-    !downloads.version ||
-    downloads.mac.arm64 === releasesUrl ||
-    downloads.mac.x64 === releasesUrl ||
-    downloads.windows === releasesUrl ||
-    downloads.linux === releasesUrl
-  ) {
-    throw new Error(
-      `Latest release ${release.tag_name ?? "unknown"} is missing an installer asset.`,
-    );
-  }
-
-  return downloads;
-}
-
 async function readExistingSnapshot(path) {
   try {
     return JSON.parse(await readFile(path, "utf8"));
@@ -139,15 +81,17 @@ async function readExistingSnapshot(path) {
 }
 
 const releases = await fetchAllReleases();
-const latestReleaseResult = await fetchLatestRelease(releases);
+const latestDownloads = await loadReleaseDownloads((url) =>
+  fetch(url, { signal: AbortSignal.timeout(15_000), redirect: "error" }),
+);
 const count = countInstallerDownloads(releases);
 
 if (count <= 0) {
   throw new Error("Refusing to write an empty installer download count.");
 }
 
-if (!latestReleaseResult.release) {
-  throw new Error("Refusing to write latest downloads without a release.");
+if (!latestDownloads.version) {
+  throw new Error("Refusing to snapshot unavailable or mixed-version stable download feeds.");
 }
 
 const previousSnapshot = await readExistingSnapshot(downloadsOutputPath);
@@ -156,10 +100,11 @@ const nextDownloadsSnapshot = {
   updatedAt: new Date().toISOString(),
   source: releasesApiUrl,
 };
-const nextLatestSnapshot = getReleaseDownloads(
-  latestReleaseResult.release,
-  latestReleaseResult.source,
-);
+const nextLatestSnapshot = {
+  ...latestDownloads,
+  updatedAt: new Date().toISOString(),
+  source: GRAFT_DESKTOP_UPDATE_URL,
+};
 
 await mkdir(dirname(downloadsOutputPath), { recursive: true });
 await writeFile(downloadsOutputPath, `${JSON.stringify(nextDownloadsSnapshot, null, 2)}\n`);

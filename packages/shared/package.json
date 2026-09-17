@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./legacyGraft": {
+      "types": "./src/legacyGraft.ts",
+      "import": "./src/legacyGraft.ts"
+    },
     "./disclosureMotion": {
       "types": "./src/disclosureMotion.ts",
       "import": "./src/disclosureMotion.ts"
@@ -319,6 +323,10 @@
     "./contextWindow": {
       "types": "./src/contextWindow.ts",
       "import": "./src/contextWindow.ts"
+    },
+    "./graftAccountLogin": {
+      "types": "./src/graftAccountLogin.ts",
+      "import": "./src/graftAccountLogin.ts"
     }
   },
   "scripts": {

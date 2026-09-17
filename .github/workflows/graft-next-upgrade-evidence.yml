@@ -1,0 +1,117 @@
+name: Graft Production Upgrade Evidence
+
+# Install this file unchanged in the legacy release-host repository. It turns
+# operator-collected native upgrade results into a release artifact only after
+# binding them to the exact signed build artifacts they describe.
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Full graft-studio-next commit SHA from its main branch
+        type: string
+        required: true
+      version:
+        description: Stable version matching the signed build
+        type: string
+        required: true
+      build_run_id:
+        description: Successful signed Graft Production Release build run
+        type: string
+        required: true
+      evidence_json:
+        description: Complete upgrade-evidence.json from native validation
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: graft-production-upgrade-evidence
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: brentmwarner/graft-studio-next
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require source from graft-studio-next main
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          if [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || [[ "$(git rev-parse HEAD)" != "$SOURCE_COMMIT" ]]; then
+            echo "source_commit must be the exact checked-out 40-character graft-studio-next SHA." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main; then
+            echo "Production evidence may only use source already merged into graft-studio-next/main." >&2
+            exit 1
+          fi
+      - uses: ./.github/actions/setup-workspace
+      - id: source
+        name: Verify exact source and version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          EXPECTED_COMMIT: ${{ inputs.source_commit }}
+        run: node scripts/graft-release-source.ts
+      - name: Require the signed production build workflow
+        uses: actions/github-script@v8
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        with:
+          script: |
+            const id = process.env.BUILD_RUN_ID || '';
+            if (!/^\d+$/.test(id)) throw new Error('A successful build run ID is required.');
+            const workflowFile = context.repo.repo === 'graft-studio'
+              ? 'graft-next-release.yml'
+              : 'release.yml';
+            const { data: workflow } = await github.rest.actions.getWorkflow({
+              ...context.repo,
+              workflow_id: workflowFile,
+            });
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              ...context.repo,
+              run_id: Number(id),
+            });
+            if (
+              run.workflow_id !== workflow.id ||
+              run.event !== 'workflow_dispatch' ||
+              run.status !== 'completed' ||
+              run.conclusion !== 'success'
+            ) {
+              throw new Error('Artifacts must come from a successful manual Graft production build.');
+            }
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          path: release-assets
+          merge-multiple: true
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+      - name: Materialize operator upgrade results
+        env:
+          UPGRADE_EVIDENCE_JSON: ${{ inputs.evidence_json }}
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const raw = process.env.UPGRADE_EVIDENCE_JSON || "";
+            const evidence = JSON.parse(raw);
+            writeFileSync("upgrade-evidence.json", `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          '
+      - name: Bind evidence to every signed native artifact
+        run: node scripts/publish-graft-release.ts --assets-dir release-assets --evidence upgrade-evidence.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: graft-upgrade-evidence
+          path: upgrade-evidence.json
+          if-no-files-found: error
+          retention-days: 90

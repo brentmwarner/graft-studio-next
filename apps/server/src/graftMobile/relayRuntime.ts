@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { GRAFT_CONTROL_PLANE_URL } from "@graft/shared/graftAccountLogin";
+import { readFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -21,9 +22,36 @@ let enabled = false;
 let runtimePort = 0;
 let runtimeBindHost: string | undefined;
 let runtimeStateDir = "";
-let controlPlaneUrl = "https://api.graftapp.io";
+let controlPlaneUrl = GRAFT_CONTROL_PLANE_URL;
 let epoch = 0;
 let login: GraftAccountLoginService | null = null;
+let credentialWrites: Promise<void> = Promise.resolve();
+
+function serializeCredentialChange(operation: () => Promise<void>): Promise<void> {
+  const next = credentialWrites.then(operation, operation);
+  credentialWrites = next.catch(() => undefined);
+  return next;
+}
+
+/** Persist sign-out separately so startup cannot reimport the legacy relay credential. */
+export async function disconnectMobileRelayAccount(): Promise<void> {
+  const stateDir = runtimeStateDir;
+  setMobileRelayEnabled(false);
+  credential = null;
+  credentialError = null;
+  uplink = null;
+  if (!stateDir) return;
+  await serializeCredentialChange(async () => {
+    await Effect.runPromise(
+      writeFileStringAtomically({
+        filePath: join(stateDir, "mobile-relay-signed-out"),
+        contents: "1\n",
+        mode: 0o600,
+      }),
+    );
+    rmSync(join(stateDir, "mobile-relay.json"), { force: true });
+  });
+}
 
 /** Only accept the authenticated, TLS-protected relay origin supplied by the host. */
 export function parseMobileRelayCredential(serialized: string): GraftRelayEnvironmentRegistration {
@@ -67,7 +95,8 @@ export function initializeMobileRelay(
   runtimePort = localPort;
   runtimeBindHost = bindHost;
   runtimeStateDir = stateDir;
-  controlPlaneUrl = environment.GRAFT_CONTROL_PLANE_URL ?? "https://api.graftapp.io";
+  controlPlaneUrl = environment.GRAFT_CONTROL_PLANE_URL ?? GRAFT_CONTROL_PLANE_URL;
+  if (existsSync(join(stateDir, "mobile-relay-signed-out"))) return;
   const serialized = environment.GRAFT_RELAY_CREDENTIAL;
   const path = environment.GRAFT_RELAY_CREDENTIAL_FILE ?? join(stateDir, "mobile-relay.json");
   let saved: string | undefined;
@@ -165,6 +194,7 @@ export async function connectMobileRelayAccount(
   if (!enabled || !runtimePort)
     throw new Error("Enable remote connections before connecting your Graft account.");
   const generation = ++epoch;
+  const stateDir = runtimeStateDir;
   await login?.dispose();
   if (generation !== epoch || !enabled) return;
   status = { state: "connecting", lastError: "Complete Graft sign-in in your browser." };
@@ -172,39 +202,7 @@ export async function connectMobileRelayAccount(
     login = new GraftAccountLoginService({
       controlPlaneBaseUrl: controlPlaneUrl,
       openExternal,
-      persistToken: async (token) => {
-        const response = await fetch(new URL("/relay/v1/environments", controlPlaneUrl), {
-          method: "POST",
-          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-          body: JSON.stringify({
-            label,
-            ...(credential ? { environmentId: credential.environmentId } : {}),
-          }),
-          signal: AbortSignal.timeout(15_000),
-          redirect: "error",
-        });
-        if (!response.ok) throw new Error("Graft relay registration failed.");
-        const next = parseMobileRelayCredential(JSON.stringify(await response.json()));
-        if (generation !== epoch || !enabled) throw new Error("Graft relay sign-in was cancelled.");
-        await Effect.runPromise(
-          writeFileStringAtomically({
-            filePath: join(runtimeStateDir, "mobile-relay.json"),
-            contents: JSON.stringify(next),
-            mode: 0o600,
-          }),
-        );
-        uplink?.stop();
-        credential = next;
-        credentialError = null;
-        uplink = createRelayUplink({
-          credential: next,
-          localHttpBaseUrl: localRelayHttpBaseUrl(runtimePort, runtimeBindHost),
-          onStatus: (nextStatus) => {
-            status = nextStatus;
-          },
-        });
-        uplink.start();
-      },
+      persistToken: (token) => registerMobileRelayToken(token, label, generation, stateDir),
       onComplete: (result) => {
         if (generation !== epoch || result.ok) return;
         status = {
@@ -217,6 +215,79 @@ export async function connectMobileRelayAccount(
   } catch (error) {
     if (generation === epoch)
       status = { state: "error", lastError: "Could not start Graft sign-in. Try again." };
+    throw error;
+  }
+}
+
+async function registerMobileRelayToken(
+  token: string,
+  label: string,
+  generation: number,
+  stateDir: string,
+): Promise<void> {
+  const response = await fetch(new URL("/relay/v1/environments", controlPlaneUrl), {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      label,
+      ...(credential ? { environmentId: credential.environmentId } : {}),
+    }),
+    signal: AbortSignal.timeout(15_000),
+    redirect: "error",
+  });
+  if (!response.ok) throw new Error("Graft relay registration failed.");
+  const next = parseMobileRelayCredential(JSON.stringify(await response.json()));
+  if (generation !== epoch || !enabled) throw new Error("Graft relay sign-in was cancelled.");
+  await serializeCredentialChange(async () => {
+    if (generation !== epoch || !enabled) throw new Error("Graft relay sign-in was cancelled.");
+    const filePath = join(stateDir, "mobile-relay.json");
+    const previous = existsSync(filePath) ? readFileSync(filePath, "utf8") : null;
+    await Effect.runPromise(
+      writeFileStringAtomically({ filePath, contents: JSON.stringify(next), mode: 0o600 }),
+    );
+    if (generation !== epoch || !enabled) {
+      // The write is atomic but asynchronous: cancellation must also undo its commit.
+      if (previous === null) rmSync(filePath, { force: true });
+      else
+        await Effect.runPromise(
+          writeFileStringAtomically({ filePath, contents: previous, mode: 0o600 }),
+        );
+      throw new Error("Graft relay sign-in was cancelled.");
+    }
+    rmSync(join(stateDir, "mobile-relay-signed-out"), { force: true });
+    uplink?.stop();
+    credential = next;
+    credentialError = null;
+    uplink = createRelayUplink({
+      credential: next,
+      localHttpBaseUrl: localRelayHttpBaseUrl(runtimePort, runtimeBindHost),
+      onStatus: (nextStatus) => {
+        status = nextStatus;
+      },
+    });
+    uplink.start();
+  });
+}
+
+/** The desktop uses its already verified account; account tokens are never persisted here. */
+export async function connectMobileRelayWithAccount(label: string, token: string): Promise<void> {
+  if (new URL(controlPlaneUrl).origin !== GRAFT_CONTROL_PLANE_URL)
+    throw new Error("The desktop account requires the production Graft account service.");
+  if (!enabled || !runtimePort)
+    throw new Error("Enable remote connections before connecting your Graft account.");
+  const generation = ++epoch;
+  const stateDir = runtimeStateDir;
+  await login?.dispose();
+  if (generation !== epoch || !enabled) throw new Error("Graft relay sign-in was cancelled.");
+  status = { state: "connecting", lastError: null };
+  try {
+    await registerMobileRelayToken(token, label, generation, stateDir);
+  } catch (error) {
+    if (generation === epoch)
+      status = {
+        state: "error",
+        lastError: "Could not connect your Graft account to the relay. Try again.",
+      };
     throw error;
   }
 }

@@ -1,3 +1,5 @@
+import { LegacyGraftMigrationGate } from "../components/LegacyGraftMigrationGate";
+import { GraftAccountGate } from "../components/GraftAccountGate";
 import { EditorDirtyRouteGuard } from "../components/EditorDirtyRouteGuard";
 import {
   PROVIDER_DISPLAY_NAMES,
@@ -244,6 +246,16 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootRouteView() {
+  return (
+    <GraftAccountGate>
+      <LegacyGraftMigrationGate>
+        <AuthenticatedRootRouteView />
+      </LegacyGraftMigrationGate>
+    </GraftAccountGate>
+  );
+}
+
+function AuthenticatedRootRouteView() {
   useAppTypography();
   useAppDensity();
   useChatWidth();
