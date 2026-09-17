@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { readRestrictedLegacyCredentialJson } from "./legacyCredentialFile";
 
 export interface RelayCredentialStorage {
   isEncryptionAvailable(): boolean;
@@ -15,17 +16,9 @@ export function readLegacyGraftRelayCredential(options: {
   legacyUserData?: string;
 }): string | null {
   try {
-    if (!options.safeStorage.isEncryptionAvailable()) return null;
-    if (
-      options.platform === "linux" &&
-      ["basic_text", "unknown"].includes(
-        options.safeStorage.getSelectedStorageBackend?.() ?? "unknown",
-      )
-    )
-      return null;
     const userData = options.legacyUserData ?? join(options.appData, "@graft", "desktop");
-    const envelope: unknown = JSON.parse(
-      readFileSync(join(userData, "remote-gateway", "secrets.json"), "utf8"),
+    const envelope = readRestrictedLegacyCredentialJson(
+      join(userData, "remote-gateway", "secrets.json"),
     );
     if (
       !envelope ||
@@ -37,6 +30,17 @@ export function readLegacyGraftRelayCredential(options: {
       typeof envelope.secrets !== "object" ||
       !("relay-uplink" in envelope.secrets) ||
       typeof envelope.secrets["relay-uplink"] !== "string"
+    )
+      return null;
+    // Electron's safeStorage availability check can enter the native keychain
+    // path on macOS. Avoid that work entirely for clean installs and profiles
+    // without a relay credential to migrate.
+    if (!options.safeStorage.isEncryptionAvailable()) return null;
+    if (
+      options.platform === "linux" &&
+      ["basic_text", "unknown"].includes(
+        options.safeStorage.getSelectedStorageBackend?.() ?? "unknown",
+      )
     )
       return null;
     const serialized = options.safeStorage.decryptString(

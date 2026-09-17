@@ -1,17 +1,9 @@
-import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AccountEncryption } from "./graftAccountTokenStore";
+import { readRestrictedLegacyCredentialJson } from "./legacyCredentialFile";
 
 const ACCOUNT_KEY = "graft-studio-account:jwt";
-const MAX_LEGACY_BYTES = 2 * 1024 * 1024;
-
-function readRestrictedJson(path: string): unknown {
-  const stat = lstatSync(path);
-  if (!stat.isFile() || stat.size > MAX_LEGACY_BYTES)
-    throw new Error("Invalid legacy credential file.");
-  return JSON.parse(readFileSync(path, "utf8"));
-}
 
 /** Import only the account entry; never rewrite the legacy store or decode plaintext envelopes. */
 export function readLegacyGraftAccountToken(
@@ -22,7 +14,7 @@ export function readLegacyGraftAccountToken(
     const journalPath = join(userData, "credential-deletions.json");
     let journal: unknown;
     try {
-      journal = readRestrictedJson(journalPath);
+      journal = readRestrictedLegacyCredentialJson(journalPath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") return null;
     }
@@ -54,7 +46,9 @@ export function readLegacyGraftAccountToken(
       )
         return null;
     }
-    const envelope = readRestrictedJson(join(userData, "encrypted-credentials.json"));
+    const envelope = readRestrictedLegacyCredentialJson(
+      join(userData, "encrypted-credentials.json"),
+    );
     if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) return null;
     const data =
       "data" in envelope
