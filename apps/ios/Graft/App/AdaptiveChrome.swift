@@ -4,7 +4,7 @@ import SwiftUI
 ///
 /// Compact (iPhone, iPad Slide Over) keeps the existing drawer + stack.
 /// Regular horizontal (iPad) floats an inset glass panel over the chat canvas.
-/// Wide windows reserve room beside it; narrower windows use an overlay.
+/// Chat always reserves room beside the visible panel.
 enum AdaptiveChrome {
     /// Chat/composer column cap so wide regular-width panes do not stretch
     /// prose and the composer across the full detail column.
@@ -14,10 +14,8 @@ enum AdaptiveChrome {
     static let sidebarMargin: CGFloat = 16
     static let sidebarCornerRadius: CGFloat = 28
 
-    /// Pin both columns when the window can keep a readable chat pane beside
-    /// the ideal sidebar. iPad landscape (and 13-inch portrait) qualify;
-    /// Mini / 11-inch portrait keep the full chat width behind the overlay.
-    static let pinnedSidebarMinimumWidth: CGFloat = 900
+    /// Apply the readable-column cap only to wide chat containers.
+    static let readableColumnMinimumContainerWidth: CGFloat = 900
 
     /// Full-screen iPad window widths used by tests and review notes.
     enum Canvas {
@@ -35,39 +33,24 @@ enum AdaptiveChrome {
         horizontalSizeClass == .regular
     }
 
-    static func canPinSidebar(containerWidth: CGFloat) -> Bool {
-        containerWidth >= pinnedSidebarMinimumWidth
-    }
-
     static func sidebarWidth(in containerWidth: CGFloat) -> CGFloat {
         min(sidebarIdealWidth, max(containerWidth - 2 * sidebarMargin, 0))
     }
 
     struct SidebarPresentation {
         var isVisible = true
-        var prefersPinned = true
-
-        func isPinned(in containerWidth: CGFloat) -> Bool {
-            isVisible && prefersPinned && canPinSidebar(containerWidth: containerWidth)
-        }
 
         func chatLeadingInset(in containerWidth: CGFloat) -> CGFloat {
-            isPinned(in: containerWidth) ? sidebarWidth(in: containerWidth) + 2 * sidebarMargin : 0
-        }
-
-        mutating func didSelectDestination(in containerWidth: CGFloat) {
-            if !isPinned(in: containerWidth) {
-                isVisible = false
-            }
+            guard isVisible else { return 0 }
+            return min(max(containerWidth, 0), sidebarWidth(in: containerWidth) + 2 * sidebarMargin)
         }
     }
 
-    /// Caps at `readableColumnMaxWidth` only when both columns are pinned.
-    /// Overlay / compact widths keep the full container so Mini and 11-inch
-    /// portrait are not inset to 720 inside an already-narrow pane.
+    /// Wide chat containers cap at `readableColumnMaxWidth`; narrower panes
+    /// keep their full available width, including compact phone layouts.
     static func readableColumnWidth(in containerWidth: CGFloat) -> CGFloat {
         let width = max(containerWidth, 0)
-        guard canPinSidebar(containerWidth: width) else { return width }
+        guard width >= readableColumnMinimumContainerWidth else { return width }
         return min(width, readableColumnMaxWidth)
     }
 
@@ -79,8 +62,8 @@ enum AdaptiveChrome {
 }
 
 extension View {
-    /// Centers chat chrome in a readable column on pinned wide surfaces.
-    /// Overlay and compact widths use the full container (no 720 cap).
+    /// Centers chat chrome in a readable column on wide surfaces.
+    /// Narrow and compact widths use the full container (no 720 cap).
     func readableChatColumn() -> some View {
         containerRelativeFrame(.horizontal, alignment: .center) { length, _ in
             AdaptiveChrome.readableColumnWidth(in: length)

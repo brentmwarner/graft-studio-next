@@ -4,8 +4,8 @@ import SwiftUI
 /// (hierarchical remote projects list), not the Fetch chat home.
 ///
 /// Compact horizontal size class keeps the phone drawer under a
-/// `NavigationStack`. Regular width overlays an inset Liquid Glass Projects
-/// panel, reserving chat space while pinned in a sufficiently wide window.
+/// `NavigationStack`. Regular width floats an inset Liquid Glass Projects
+/// panel, always reserving chat space beside it while visible.
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -16,7 +16,6 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var selectedThread: InboxThreadItem?
     @State private var newChatContext: NewChatContext?
-    @State private var sidebarSelectionID = UUID()
     @FocusState private var searchFieldFocused: Bool
 
     private var usesPersistentSidebar: Bool {
@@ -29,7 +28,6 @@ struct HomeView: View {
                 FloatingSidebarLayout(
                     hostLabel: hostLabel,
                     isConnected: app.gateway.state == .connected,
-                    selectionID: sidebarSelectionID,
                     onSettings: { showSettings = true },
                     onMore: { showOverflow = true }
                 ) {
@@ -175,13 +173,11 @@ struct HomeView: View {
     private func openThread(_ thread: InboxThreadItem) {
         newChatContext = nil
         selectedThread = thread
-        sidebarSelectionID = UUID()
     }
 
     private func openNewChat(projectId: String? = nil) {
         selectedThread = nil
         newChatContext = NewChatContext(preselectedProjectId: projectId)
-        sidebarSelectionID = UUID()
     }
 
     private func focusInboxSearch() {
@@ -199,8 +195,8 @@ struct HomeView: View {
     }
 }
 
-/// Keeps the active chat at one structural location when the panel is toggled,
-/// unpinned, or resized, preserving its composer and session lifecycle.
+/// Keeps the active chat at one structural location when the panel is toggled
+/// or resized, preserving its composer and session lifecycle.
 private struct HomeChatDetail: View {
     let selectedThread: InboxThreadItem?
     let newChatContext: NewChatContext?

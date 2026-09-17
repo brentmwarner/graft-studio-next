@@ -8,7 +8,6 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
 
     let hostLabel: String
     let isConnected: Bool
-    let selectionID: UUID
     let onSettings: () -> Void
     let onMore: () -> Void
     @ViewBuilder var sidebar: Sidebar
@@ -17,7 +16,6 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let isPinned = presentation.isPinned(in: width)
 
             ZStack(alignment: .leading) {
                 Color(.systemBackground)
@@ -37,28 +35,11 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
                         }
                 }
                 .padding(.leading, presentation.chatLeadingInset(in: width))
-                .accessibilityHidden(presentation.isVisible && !isPinned)
-
-                if presentation.isVisible && !isPinned {
-                    Button {
-                        presentation.isVisible = false
-                    } label: {
-                        Color.black.opacity(0.06)
-                            .ignoresSafeArea()
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Dismiss Projects")
-                    .accessibilityIdentifier("dismiss-projects-overlay")
-                }
 
                 if presentation.isVisible {
                     FloatingProjectsPanel(
                         hostLabel: hostLabel,
                         isConnected: isConnected,
-                        isPinned: isPinned,
-                        canPin: AdaptiveChrome.canPinSidebar(containerWidth: width),
-                        onTogglePin: { presentation.prefersPinned.toggle() },
                         onClose: { presentation.isVisible = false },
                         onSettings: onSettings,
                         onMore: onMore
@@ -71,16 +52,6 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
                 }
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: presentation.isVisible)
-            .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: presentation.prefersPinned)
-            .onChange(of: selectionID) {
-                presentation.didSelectDestination(in: width)
-            }
-            .onChange(of: AdaptiveChrome.canPinSidebar(containerWidth: width)) { _, canPin in
-                // Returning to a wide window restores a previously pinned panel.
-                if canPin && presentation.prefersPinned {
-                    presentation.isVisible = true
-                }
-            }
         }
     }
 }
@@ -88,9 +59,6 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
 private struct FloatingProjectsPanel<Content: View>: View {
     let hostLabel: String
     let isConnected: Bool
-    let isPinned: Bool
-    let canPin: Bool
-    let onTogglePin: () -> Void
     let onClose: () -> Void
     let onSettings: () -> Void
     let onMore: () -> Void
@@ -101,9 +69,6 @@ private struct FloatingProjectsPanel<Content: View>: View {
             FloatingProjectsHeader(
                 hostLabel: hostLabel,
                 isConnected: isConnected,
-                isPinned: isPinned,
-                canPin: canPin,
-                onTogglePin: onTogglePin,
                 onClose: onClose,
                 onSettings: onSettings,
                 onMore: onMore
@@ -133,9 +98,6 @@ private struct FloatingProjectsPanel<Content: View>: View {
 private struct FloatingProjectsHeader: View {
     let hostLabel: String
     let isConnected: Bool
-    let isPinned: Bool
-    let canPin: Bool
-    let onTogglePin: () -> Void
     let onClose: () -> Void
     let onSettings: () -> Void
     let onMore: () -> Void
@@ -156,16 +118,6 @@ private struct FloatingProjectsHeader: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Projects options")
-
-            if canPin {
-                Button(action: onTogglePin) {
-                    Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(isPinned ? "Unpin Projects" : "Pin Projects")
-                .accessibilityIdentifier("pin-projects-sidebar")
-            }
 
             Button(action: onClose) {
                 Image(systemName: "sidebar.left")

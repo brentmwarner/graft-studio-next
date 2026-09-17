@@ -65,36 +65,33 @@ The Projects / host-status header is a fixed foreground view above the clipped
 scroll region. It has no navigation title or principal toolbar duplication,
 and the chat stack no longer applies `backgroundExtensionEffect()` to text.
 
-- **Wide windows (900pt+)**: the panel starts pinned. Chat reserves the panel
-  width plus its margins; existing transcript/composer layout remains intact.
-  Use **Unpin Projects** to overlay instead, or **Hide Projects** to reclaim
-  the full chat width.
-- **Narrow regular windows**: the panel overlays chat and dismisses when a
-  thread or New Chat is selected, or when the area outside the panel is tapped.
-  **Show Projects** in the chat toolbar reopens it. Widening the window restores
-  the panel when its pin preference is enabled.
+- **Regular windows**: chat always reserves the visible panel's width plus
+  its margins, in portrait and landscape. Selecting a thread or New Chat keeps
+  Projects open. Use **Hide Projects** to reclaim the full chat width and
+  **Show Projects** in the chat toolbar to restore the panel. There is no pin
+  toggle or overlay mode; resizing preserves the chosen visibility.
 - **Compact** (iPhone, iPad Slide Over): existing drawer + push stack.
 
 ### Simulator verification (portrait and landscape)
 
 Use the **Graft** scheme. Pair first if the welcome screen is showing.
 
-| Destination                   | Orientation | Expect                                                                                                             |
-| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
-| iPad Pro 13-inch              | Landscape   | Inset rounded glass Projects panel, crisp Projects / Mac header, chat beside it.                                   |
-| iPad Pro 13-inch              | Portrait    | Floating panel stays pinned. Both the screen margin and rounded top/bottom corners remain visible.                 |
-| iPad Pro 11-inch or iPad mini | Landscape   | Same pinned floating panel and readable chat.                                                                      |
-| iPad Pro 11-inch or iPad mini | Portrait    | Panel overlays; selecting a thread dismisses it. Show Projects reopens it; rotation to landscape restores pinning. |
-| iPhone                        | Portrait    | Hamburger drawer and push navigation unchanged.                                                                    |
+| Destination                   | Orientation | Expect                                                                                                  |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| iPad Pro 13-inch              | Landscape   | Inset rounded glass Projects panel, crisp Projects / Mac header, chat beside it.                        |
+| iPad Pro 13-inch              | Portrait    | Floating panel stays beside chat. Both the screen margin and rounded top/bottom corners remain visible. |
+| iPad Pro 11-inch or iPad mini | Landscape   | Same floating panel and readable chat beside it.                                                        |
+| iPad Pro 11-inch or iPad mini | Portrait    | Panel reserves chat space and stays open after selection. Hide / Show Projects changes visibility.      |
+| iPhone                        | Portrait    | Hamburger drawer and push navigation unchanged.                                                         |
 
-Check Hide / Show Projects, pin / unpin, thread selection, New Chat, search,
+Check Hide / Show Projects, thread selection, New Chat, search,
 Settings, and rotation. Scroll the projects while watching the fixed header:
 rows must stay below it and the title must remain sharp. Opening and closing
 the panel must preserve the active chat and any composer draft. With Reduce
 Motion enabled, panel transitions fade without sliding or resizing animation.
 
 `AdaptiveChromeTests` covers size-class routing, panel margins and width,
-wide/narrow pinning, hidden/unpinned chat space, and dismissal after selection.
+reserved chat space at all iPad widths, hide/show behavior, and rendered panel/chat separation.
 Visual verification still requires the simulator; policy tests do not prove
 material rendering or header sharpness.
 

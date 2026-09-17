@@ -12,74 +12,53 @@ final class AdaptiveChromeTests: XCTestCase {
 
     func testReadableColumnWidthCapsWideContainersAndLeavesPhoneWidthsAlone() {
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 1_204), 720)
+        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 900), 720)
+        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 899), 899)
+        XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 834), 834)
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 720), 720)
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 390), 390)
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 0), 0)
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: -40), 0)
     }
 
-    func testLandscapePinsFloatingPanelAndLeavesAReadableChatColumn() {
+    func testVisiblePanelReservesChatSpaceAtEveryRegularWidth() {
         let presentation = AdaptiveChrome.SidebarPresentation()
+        XCTAssertTrue(presentation.isVisible)
         for width in [
+            AdaptiveChrome.Canvas.iPadMiniPortrait,
             AdaptiveChrome.Canvas.iPadMiniLandscape,
+            AdaptiveChrome.Canvas.iPad11Portrait,
             AdaptiveChrome.Canvas.iPad11Landscape,
+            AdaptiveChrome.Canvas.iPad13Portrait,
             AdaptiveChrome.Canvas.iPad13Landscape,
         ] {
-            XCTAssertTrue(presentation.isPinned(in: width))
             let inset = presentation.chatLeadingInset(in: width)
-            XCTAssertEqual(inset, 352, "Reserve the 320pt panel plus both 16pt margins")
-            XCTAssertGreaterThanOrEqual(width - inset, AdaptiveChrome.readableColumnMaxWidth)
+            XCTAssertEqual(inset, 352, "Reserve the 320pt panel plus both 16pt margins at \(width)pt")
+            XCTAssertGreaterThanOrEqual(width - inset, 392, "Chat stays beside the panel at \(width)pt")
         }
     }
 
-    func testNarrowPortraitOverlaysAndDismissesAfterSelection() {
+    func testHiddenPanelReturnsItsSpaceToChatAndReopeningRestoresIt() {
+        var presentation = AdaptiveChrome.SidebarPresentation()
         for width in [
             AdaptiveChrome.Canvas.iPadMiniPortrait,
             AdaptiveChrome.Canvas.iPad11Portrait,
+            AdaptiveChrome.Canvas.iPad13Landscape,
         ] {
-            var presentation = AdaptiveChrome.SidebarPresentation()
-            XCTAssertFalse(presentation.isPinned(in: width))
+            presentation.isVisible = false
             XCTAssertEqual(presentation.chatLeadingInset(in: width), 0)
-            presentation.didSelectDestination(in: width)
-            XCTAssertFalse(presentation.isVisible)
-            XCTAssertTrue(presentation.prefersPinned, "Resizing must retain the pin preference")
             presentation.isVisible = true
-            XCTAssertFalse(presentation.isPinned(in: width), "Reopening must still overlay a narrow chat")
+            XCTAssertEqual(presentation.chatLeadingInset(in: width), 352)
         }
     }
 
-    func testWidePortraitKeepsFloatingPanelAfterSelection() {
-        let width = AdaptiveChrome.Canvas.iPad13Portrait
-        var presentation = AdaptiveChrome.SidebarPresentation()
-        XCTAssertTrue(presentation.isPinned(in: width))
-        XCTAssertGreaterThanOrEqual(width - presentation.chatLeadingInset(in: width), 640)
-        presentation.didSelectDestination(in: width)
-        XCTAssertTrue(presentation.isVisible)
-    }
-
-    func testUnpinningOverlaysWithoutReservingChatSpace() {
-        let width = AdaptiveChrome.Canvas.iPad13Landscape
-        var presentation = AdaptiveChrome.SidebarPresentation()
-        presentation.prefersPinned = false
-        XCTAssertTrue(presentation.isVisible)
-        XCTAssertFalse(presentation.isPinned(in: width))
-        XCTAssertEqual(presentation.chatLeadingInset(in: width), 0)
-        presentation.didSelectDestination(in: width)
-        XCTAssertFalse(presentation.isVisible)
-        presentation.isVisible = true
-        XCTAssertFalse(presentation.isPinned(in: width), "Reopening preserves the overlay preference")
-        presentation.prefersPinned = true
-        XCTAssertTrue(presentation.isPinned(in: width))
-    }
-
-    func testHiddenPanelReturnsItsSpaceToChat() {
-        let width = AdaptiveChrome.Canvas.iPad13Landscape
-        var presentation = AdaptiveChrome.SidebarPresentation()
-        presentation.isVisible = false
-        XCTAssertFalse(presentation.isPinned(in: width))
-        XCTAssertEqual(presentation.chatLeadingInset(in: width), 0)
-        presentation.isVisible = true
-        XCTAssertTrue(presentation.isPinned(in: width))
+    func testChatInsetFitsResizedAndEmptyContainers() {
+        let presentation = AdaptiveChrome.SidebarPresentation()
+        XCTAssertEqual(presentation.chatLeadingInset(in: 600), 352)
+        XCTAssertEqual(presentation.chatLeadingInset(in: 300), 300)
+        XCTAssertEqual(presentation.chatLeadingInset(in: 16), 16)
+        XCTAssertEqual(presentation.chatLeadingInset(in: 0), 0)
+        XCTAssertEqual(presentation.chatLeadingInset(in: -40), 0)
     }
 
     func testFloatingGeometryRemainsInsetAndFitsResizedWindows() {
@@ -89,8 +68,6 @@ final class AdaptiveChromeTests: XCTestCase {
         XCTAssertEqual(AdaptiveChrome.sidebarWidth(in: 300), 268)
         XCTAssertEqual(AdaptiveChrome.sidebarWidth(in: 0), 0)
         XCTAssertEqual(AdaptiveChrome.sidebarWidth(in: -40), 0)
-        XCTAssertFalse(AdaptiveChrome.canPinSidebar(containerWidth: 899))
-        XCTAssertTrue(AdaptiveChrome.canPinSidebar(containerWidth: 900))
     }
 
     func testOnlyCompactInboxPaintsOverTheDrawer() {
@@ -99,9 +76,16 @@ final class AdaptiveChromeTests: XCTestCase {
     }
 
     @MainActor
-    func testRenderedPanelIsInsetAndPinnedChatDoesNotExtendUnderIt() async throws {
+    func testRenderedPanelIsInsetAndChatNeverExtendsUnderIt() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        for width: CGFloat in [834, 1_024, 1_366] {
+        for width in [
+            AdaptiveChrome.Canvas.iPadMiniPortrait,
+            AdaptiveChrome.Canvas.iPadMiniLandscape,
+            AdaptiveChrome.Canvas.iPad11Portrait,
+            AdaptiveChrome.Canvas.iPad11Landscape,
+            AdaptiveChrome.Canvas.iPad13Portrait,
+            AdaptiveChrome.Canvas.iPad13Landscape,
+        ] {
             let sidebarMeasured = expectation(description: "Sidebar laid out at \(width)")
             let detailMeasured = expectation(description: "Chat laid out at \(width)")
             let canvasMeasured = expectation(description: "Canvas laid out at \(width)")
@@ -111,7 +95,6 @@ final class AdaptiveChromeTests: XCTestCase {
             let view = FloatingSidebarLayout(
                 hostLabel: "Mac",
                 isConnected: true,
-                selectionID: UUID(),
                 onSettings: {},
                 onMore: {}
             ) {
@@ -149,13 +132,8 @@ final class AdaptiveChromeTests: XCTestCase {
             XCTAssertEqual(sidebar.width, 320, accuracy: 1)
             XCTAssertGreaterThan(sidebar.minY - canvas.minY, 16, "Fixed header sits above the scroll region")
             XCTAssertEqual(canvas.maxY - sidebar.maxY, 16, accuracy: 1)
-            if width >= 900 {
-                XCTAssertEqual(detail.minX, sidebar.maxX + 16, accuracy: 1)
-                XCTAssertEqual(detail.width, width - 352, accuracy: 1)
-            } else {
-                XCTAssertEqual(detail.minX, canvas.minX, accuracy: 1)
-                XCTAssertEqual(detail.width, width, accuracy: 1)
-            }
+            XCTAssertEqual(detail.minX, sidebar.maxX + 16, accuracy: 1)
+            XCTAssertEqual(detail.width, width - 352, accuracy: 1)
         }
     }
 }
