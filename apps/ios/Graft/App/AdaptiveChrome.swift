@@ -50,6 +50,22 @@ enum AdaptiveChrome {
     }
 }
 
+extension EnvironmentValues {
+    @Entry var chatLeadingInset: CGFloat = 0
+}
+
+/// Navigation bars center principal items across the full stack, independently
+/// of the content's safe-area padding. Matching leading space keeps the visible
+/// title centered over the readable chat pane without narrowing the canvas.
+struct ChatNavigationTitle<Content: View>: View {
+    @Environment(\.chatLeadingInset) private var leadingInset
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content.padding(.leading, leadingInset)
+    }
+}
+
 extension View {
     /// Caps content at 720pt and centers it within the parent's proposed width.
     /// Container-relative sizing can resolve to an ancestor wider than the chat pane.

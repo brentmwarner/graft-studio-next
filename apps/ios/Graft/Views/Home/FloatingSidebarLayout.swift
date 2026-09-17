@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Regular-width navigation places an inset floating panel beside the chat stack.
-/// The stack owns only the remaining pane, including its navigation bar.
+/// Regular-width navigation floats Projects over one continuous chat canvas.
+/// Content reserves room with safe-area padding; the navigation canvas stays full width.
 struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var presentation = AdaptiveChrome.SidebarPresentation()
@@ -18,28 +18,22 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
             let width = geometry.size.width
 
             ZStack(alignment: .leading) {
-                DS.Color.bg.ignoresSafeArea()
-
-                HStack(spacing: 0) {
-                    // Reserve layout space without painting a separate sidebar column.
-                    Color.clear
-                        .frame(width: presentation.chatLeadingInset(in: width))
-
-                    NavigationStack {
-                        detail
-                            .toolbar {
-                                if !presentation.isVisible {
-                                    ToolbarItem(placement: .topBarLeading) {
-                                        Button("Show Projects", systemImage: "sidebar.left") {
-                                            presentation.isVisible = true
-                                        }
-                                        .accessibilityIdentifier("show-projects-sidebar")
+                NavigationStack {
+                    detail
+                        // Reserve content space without exposing a separate canvas.
+                        .safeAreaPadding(.leading, presentation.chatLeadingInset(in: width))
+                        .toolbar {
+                            if !presentation.isVisible {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button("Show Projects", systemImage: "sidebar.left") {
+                                        presentation.isVisible = true
                                     }
+                                    .accessibilityIdentifier("show-projects-sidebar")
                                 }
                             }
-                    }
-                    .frame(width: max(width - presentation.chatLeadingInset(in: width), 0))
+                        }
                 }
+                .environment(\.chatLeadingInset, presentation.chatLeadingInset(in: width))
 
                 if presentation.isVisible {
                     FloatingProjectsPanel(

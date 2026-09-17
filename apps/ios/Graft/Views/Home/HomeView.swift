@@ -242,6 +242,16 @@ struct HomeEmptyChatPlaceholder: View {
         .readableChatColumn()
         .navigationTitle(Text("Chat", comment: "Empty regular-width chat title"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                ChatNavigationTitle {
+                    Text("Chat", comment: "Empty regular-width chat title")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .accessibilityAddTraits(.isHeader)
+                }
+            }
+        }
     }
 }
 

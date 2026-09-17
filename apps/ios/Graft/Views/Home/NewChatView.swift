@@ -47,6 +47,16 @@ struct NewChatView: View {
         .background(Color(.systemBackground))
         .navigationTitle(Text("New chat", comment: "New mobile chat title"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                ChatNavigationTitle {
+                    Text("New chat", comment: "New mobile chat title")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .accessibilityAddTraits(.isHeader)
+                }
+            }
+        }
         .navigationDestination(item: $openedThread) { thread in
             ThreadView(threadId: thread.id, title: thread.title)
         }

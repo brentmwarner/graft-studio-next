@@ -38,10 +38,12 @@ struct ThreadView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .accessibilityAddTraits(.isHeader)
+                ChatNavigationTitle {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .accessibilityAddTraits(.isHeader)
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

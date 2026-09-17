@@ -57,8 +57,8 @@ Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 On iPad (regular horizontal size class), Projects is a **floating Liquid Glass
 panel**, inset 16pt from the safe-area edges with 28pt continuous corners. It
 uses SwiftUI's `.glassEffect(.regular, in:)` on a background shape above the
-full-bleed chat canvas. Clear layout space reserves the panel's width without
-painting a separate sidebar gutter; the glass supplies its own depth without
+full-bleed chat canvas. Leading safe-area padding reserves the panel's width
+without painting a separate sidebar gutter; the glass supplies its own depth without
 an additional shadow. This is a floating panel, not another edge-to-edge
 `NavigationSplitView` material tweak; its geometry stays floating on iPadOS 26
 and 27. The system glass material retains its accessibility adaptations.
@@ -68,9 +68,12 @@ scroll region. It has no navigation title or principal toolbar duplication,
 and the chat stack no longer applies `backgroundExtensionEffect()` to text.
 
 - **Regular windows**: chat always reserves the visible panel's width plus
-  its margins, in portrait and landscape. The navigation stack fills only the
-  remaining pane, so its title, readable transcript, and composer center beside
-  Projects. The transcript, composer, and new/empty chat surfaces use the parent
+  its margins, in portrait and landscape. The navigation stack fills the whole
+  canvas. Leading safe-area padding centers the readable transcript and composer
+  beside Projects; `ChatNavigationTitle` gives the principal title matching
+  leading space because navigation bars center independently of content safe
+  areas. Never add a background fill or spacer column behind the panel.
+  The transcript, composer, and new/empty chat surfaces use the parent
   pane's proposed width, capped at 720pt, rather than container-relative window
   sizing. Selecting a thread or New Chat keeps Projects open. Use **Hide
   Projects** to reclaim the full chat width and
@@ -98,7 +101,8 @@ Motion enabled, panel transitions fade without sliding or resizing animation.
 
 `AdaptiveChromeTests` covers size-class routing, panel margins and width,
 reserved chat space at all iPad widths, hide/show behavior, rendered panel/chat
-separation, and title/transcript/composer centering within the remaining pane.
+separation, a chat background spanning behind the panel, and
+title/transcript/composer centering within the remaining pane.
 It also verifies that a narrower parent proposal wins over a wider navigation
 ancestor, including compact widths, so content cannot overflow the chat pane.
 Visual verification still requires the simulator; policy tests do not prove

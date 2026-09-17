@@ -81,12 +81,14 @@ final class AdaptiveChromeTests: XCTestCase {
             let composerMeasured = expectation(description: "Composer laid out at \(width)")
             let titleMeasured = expectation(description: "Navigation title laid out at \(width)")
             let canvasMeasured = expectation(description: "Canvas laid out at \(width)")
+            let backgroundMeasured = expectation(description: "Chat background laid out at \(width)")
             var sidebarFrame: CGRect?
             var detailFrame: CGRect?
             var columnFrame: CGRect?
             var composerFrame: CGRect?
             var titleFrame: CGRect?
             var canvasFrame: CGRect?
+            var backgroundFrame: CGRect?
             let app = AppModel(store: LocalStore(inMemory: true))
             let chat = ChatModel(threadId: "centering", title: "New chat", app: app)
             let answer = TranscriptItem(kind: .assistant)
@@ -106,7 +108,14 @@ final class AdaptiveChromeTests: XCTestCase {
                 }
             } detail: {
                 ZStack {
-                    Color.clear
+                    Color(.systemBackground)
+                        .onGeometryChange(for: CGRect.self) {
+                            $0.frame(in: .global)
+                        } action: { frame in
+                            if backgroundFrame == nil { backgroundMeasured.fulfill() }
+                            backgroundFrame = frame
+                        }
+                        .ignoresSafeArea()
                     TranscriptView(chat: chat)
                         // Measure the content, before the full-pane centering frame.
                         .onGeometryChange(for: CGRect.self) {
@@ -137,13 +146,15 @@ final class AdaptiveChromeTests: XCTestCase {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        Text("New chat")
-                            .onGeometryChange(for: CGRect.self) {
-                                $0.frame(in: .global)
-                            } action: { frame in
-                                if titleFrame == nil { titleMeasured.fulfill() }
-                                titleFrame = frame
-                            }
+                        ChatNavigationTitle {
+                            Text("New chat")
+                                .onGeometryChange(for: CGRect.self) {
+                                    $0.frame(in: .global)
+                                } action: { frame in
+                                    if titleFrame == nil { titleMeasured.fulfill() }
+                                    titleFrame = frame
+                                }
+                        }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Context", systemImage: "circle") {}
@@ -164,7 +175,7 @@ final class AdaptiveChromeTests: XCTestCase {
             defer { window.isHidden = true }
 
             await fulfillment(
-                of: [sidebarMeasured, detailMeasured, columnMeasured, composerMeasured, titleMeasured, canvasMeasured],
+                of: [sidebarMeasured, detailMeasured, columnMeasured, composerMeasured, titleMeasured, canvasMeasured, backgroundMeasured],
                 timeout: 3
             )
             let sidebar = try XCTUnwrap(sidebarFrame)
@@ -173,6 +184,9 @@ final class AdaptiveChromeTests: XCTestCase {
             let composer = try XCTUnwrap(composerFrame)
             let title = try XCTUnwrap(titleFrame)
             let canvas = try XCTUnwrap(canvasFrame)
+            let background = try XCTUnwrap(backgroundFrame)
+            XCTAssertEqual(background.minX, canvas.minX, accuracy: 1, "Chat canvas extends behind Projects")
+            XCTAssertEqual(background.maxX, canvas.maxX, accuracy: 1, "One chat canvas spans the entire window")
             XCTAssertEqual(sidebar.minX - canvas.minX, 16, accuracy: 1)
             XCTAssertEqual(sidebar.width, 320, accuracy: 1)
             XCTAssertGreaterThan(sidebar.minY - canvas.minY, 16, "Fixed header sits above the scroll region")
