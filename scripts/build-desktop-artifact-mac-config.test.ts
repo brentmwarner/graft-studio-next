@@ -32,9 +32,10 @@ describe("createDesktopPlatformBuildConfig", () => {
     assert.deepStrictEqual(mac.target, ["dmg", "zip"]);
     assert.equal(mac.icon, "icon.icns");
     assert.deepStrictEqual(config.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
+    assert.equal(config.npmRebuild, false);
+    assert.equal("releaseInfo" in config, false);
     assert.equal(mac.hardenedRuntime, true);
     assert.equal(mac.minimumSystemVersion, "12.3");
-    assert.deepStrictEqual(config.releaseInfo, { minimumSystemVersion: "21.4.0" });
     assert.equal(mac.notarize, true);
     assert.equal(dmg.sign, true);
     assert.equal(dmg.writeUpdateInfo, false);
@@ -87,6 +88,7 @@ describe("createDesktopPlatformBuildConfig", () => {
     assert.equal(linux.mac, undefined);
     assert.equal(linux.extraFiles, undefined);
     assert.deepStrictEqual(linux.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
+    assert.equal(linux.npmRebuild, false);
     assert.deepStrictEqual(linux.linux, {
       target: ["AppImage"],
       executableName: "graft",
@@ -101,8 +103,9 @@ describe("createDesktopPlatformBuildConfig", () => {
 
     assert.equal(win.mac, undefined);
     assert.equal(win.extraFiles, undefined);
-    assert.deepStrictEqual(win.releaseInfo, { minimumSystemVersion: "10.0.0" });
+    assert.equal("releaseInfo" in win, false);
     assert.deepStrictEqual(win.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
+    assert.equal(win.npmRebuild, false);
     assert.equal(WINDOWS_INSTALLER_GUID, "f67e4f48-bfd9-5024-b23c-0d23fd8d8e4a");
     assert.deepStrictEqual(win.nsis, {
       guid: WINDOWS_INSTALLER_GUID,

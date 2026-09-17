@@ -36,7 +36,7 @@ export interface DesktopPlatformBuildConfig {
   readonly linux?: Record<string, unknown>;
   readonly mac?: Record<string, unknown>;
   readonly nsis?: Record<string, unknown>;
-  readonly releaseInfo?: Record<string, unknown>;
+  readonly npmRebuild?: boolean;
   readonly win?: Record<string, unknown>;
 }
 
@@ -78,7 +78,13 @@ export function validateDesktopNativeBuildHost(input: DesktopNativeBuildHostInpu
 export function createDesktopPlatformBuildConfig(
   input: CreateDesktopPlatformBuildConfigInput,
 ): DesktopPlatformBuildConfig {
-  const nativePackaging = { asarUnpack: [...DESKTOP_ASAR_UNPACK_GLOBS] };
+  const nativePackaging = {
+    asarUnpack: [...DESKTOP_ASAR_UNPACK_GLOBS],
+    // node-pty is compiled and smoke-tested before packaging and uses Node-API.
+    // msgpackr-extract ships a platform-specific Node-API binary. A blanket
+    // Electron rebuild incorrectly compiles its optional V8 accelerator.
+    npmRebuild: false,
+  };
 
   if (input.platform === "mac") {
     const mac = {
@@ -101,7 +107,6 @@ export function createDesktopPlatformBuildConfig(
 
     return {
       ...nativePackaging,
-      releaseInfo: { minimumSystemVersion: MAC_MINIMUM_DARWIN_VERSION },
       dmg: {
         sign: input.signed === true,
         // The signed release flow notarizes and staples the DMG after electron-builder exits.
@@ -143,7 +148,6 @@ export function createDesktopPlatformBuildConfig(
 
   return {
     ...nativePackaging,
-    releaseInfo: { minimumSystemVersion: WINDOWS_MINIMUM_SYSTEM_VERSION },
     // UUIDv5 of legacy com.graft.studio in electron-builder namespace
     // 50e065bc-3134-11e6-9bab-38c9862bdaf3. Keep legacy registration and install UX.
     nsis: {

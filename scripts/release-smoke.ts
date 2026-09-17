@@ -152,6 +152,11 @@ function verifyReleaseWorkflowSafety(): void {
   );
   assertContains(
     workflow,
+    'git reset --hard "$SOURCE_COMMIT"',
+    "Native build jobs must restore the exact reviewed source after dependency setup.",
+  );
+  assertContains(
+    workflow,
     "node scripts/verify-packaged-desktop-startup.ts",
     "Every native build must pass isolated packaged startup.",
   );
