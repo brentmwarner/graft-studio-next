@@ -6,7 +6,7 @@
 
 import type { ProviderListModelsResult } from "@graft/contracts";
 import { Deferred, Effect, Exit, Fiber } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ProviderAdapterRequestError } from "./Errors.ts";
 import {
@@ -84,12 +84,13 @@ describe("makeProviderModelDiscoveryCache", () => {
     await Effect.runPromise(cache.lookup(KEY, discover));
     clock.advance(5_000);
     const stale = await Effect.runPromise(cache.lookup(KEY, discover));
-    await flush();
-    const afterRefresh = await Effect.runPromise(cache.lookup(KEY, discover));
 
     expect(stale.models).toEqual(CATALOG.models);
     expect(stale.cached).toBe(true);
-    expect(afterRefresh.models).toEqual(refreshed.models);
+    await vi.waitFor(async () => {
+      const afterRefresh = await Effect.runPromise(cache.lookup(KEY, discover));
+      expect(afterRefresh.models).toEqual(refreshed.models);
+    });
     expect(calls).toBe(2);
   });
 
