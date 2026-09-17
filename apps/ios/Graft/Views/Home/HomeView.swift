@@ -68,7 +68,6 @@ struct HomeView: View {
     private var splitHome: some View {
         NavigationSplitView(columnVisibility: $splitVisibility) {
             inboxRoot
-                .adaptiveSplitSidebarChrome(.liquidGlass)
                 .navigationSplitViewColumnWidth(
                     min: AdaptiveChrome.sidebarMinWidth,
                     ideal: AdaptiveChrome.sidebarIdealWidth,

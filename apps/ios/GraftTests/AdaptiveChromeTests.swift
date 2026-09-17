@@ -74,17 +74,9 @@ final class AdaptiveChromeTests: XCTestCase {
         )
     }
 
-    func testSplitSidebarUsesLiquidGlassInsteadOfOpaqueFill() {
-        XCTAssertEqual(
-            AdaptiveChrome.sidebarChrome(usesPersistentSidebar: true),
-            .liquidGlass
-        )
+    func testOnlyCompactInboxPaintsOverTheDrawer() {
         XCTAssertFalse(
             AdaptiveChrome.paintsOpaqueInboxBackground(usesPersistentSidebar: true)
-        )
-        XCTAssertEqual(
-            AdaptiveChrome.sidebarChrome(usesPersistentSidebar: false),
-            .opaque
         )
         XCTAssertTrue(
             AdaptiveChrome.paintsOpaqueInboxBackground(usesPersistentSidebar: false)

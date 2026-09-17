@@ -58,28 +58,44 @@ On iPad (regular horizontal size class), paired home uses `NavigationSplitView`
 in **both** orientations:
 
 - **Landscape** (and 13-inch portrait): pinned sidebar + chat. The Projects
-  column uses the system Liquid Glass sidebar (no opaque `systemBackground`
-  fill). Transcript and composer cap at a 720pt readable column instead of
+  column uses `NavigationSplitView`'s system sidebar material, with no opaque
+  inbox fill or navigation-container background overrides. Transcript and
+  composer cap at a 720pt readable column instead of
   stretching edge to edge.
 - **Mini / 11-inch portrait**: automatic overlay split so the sidebar can
   dismiss and chat keeps a usable width. Use the system sidebar control to
   show threads again.
 - **Compact** (iPhone, iPad Slide Over): existing drawer + push stack.
 
+The native appearance depends on the OS. iPadOS 26 uses a floating sidebar;
+iPadOS 27 expands it to the window edges and adjusts Liquid Glass diffusion.
+Apple documents this in [WWDC26's Platforms State of the Union](https://developer.apple.com/videos/play/wwdc2026/102/).
+On iPadOS 27's default appearance, an empty white chat produces a pale,
+full-height sidebar, as it does in a minimal `NavigationSplitView`. This is
+not evidence of an opaque custom background. `backgroundExtensionEffect()`
+extends the detail underneath the system material; it does not create glass.
+The app does not override the user's Liquid Glass or accessibility settings.
+
 ### Simulator verification (portrait and landscape)
 
 Use the **Graft** scheme. Pair first if the welcome screen is showing.
 
-| Destination | Orientation | Expect |
-| ----------- | ----------- | ------ |
-| iPad Pro 13-inch (M4) | Landscape | Persistent Liquid Glass Projects sidebar + chat (translucent, not a flat white column). Composer/transcript stay a readable column, not full pane width. |
-| iPad Pro 13-inch (M4) | Portrait | Still a two-column split (window is 1024pt). Chat remains usable beside the sidebar. Rotate back to landscape; sidebar stays pinned. |
-| iPad Pro 11-inch (M4) or iPad mini | Landscape | Same pinned sidebar + readable chat as 13-inch landscape. |
-| iPad Pro 11-inch (M4) or iPad mini | Portrait | Sidebar overlays / can hide (`automatic`); chat is the primary column. Toggle the sidebar, open a thread, rotate to landscape and confirm both columns pin. |
-| iPhone 17 Pro | Portrait | Hamburger drawer and push navigation unchanged. |
+| Destination                        | Orientation | Expect                                                                                                                                                                                                                       |
+| ---------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| iPad Pro 13-inch (M4)              | Landscape   | Persistent system Projects sidebar + chat. Compare to native apps on the same OS and appearance settings: floating on iPadOS 26, edge-to-edge on iPadOS 27. Composer/transcript stay a readable column, not full pane width. |
+| iPad Pro 13-inch (M4)              | Portrait    | Still a two-column split (window is 1024pt). Chat remains usable beside the sidebar. Rotate back to landscape; sidebar stays pinned.                                                                                         |
+| iPad Pro 11-inch (M4) or iPad mini | Landscape   | Same pinned sidebar + readable chat as 13-inch landscape.                                                                                                                                                                    |
+| iPad Pro 11-inch (M4) or iPad mini | Portrait    | Sidebar overlays / can hide (`automatic`); chat is the primary column. Toggle the sidebar, open a thread, rotate to landscape and confirm both columns pin.                                                                  |
+| iPhone 17 Pro                      | Portrait    | Hamburger drawer and push navigation unchanged.                                                                                                                                                                              |
 
 Hardware → Rotate in the simulator, or `⌘←` / `⌘→`. Confirm New Chat opens in the
 detail column in both orientations, and Settings still presents as a sheet.
+
+For material regressions, compare against a minimal `NavigationSplitView`
+on the same runtime. A temporary contrasting detail background can reveal
+translucency; remove it before capturing the production UI. A sidebar
+`List`, `.automatic` split style, or clearing navigation backgrounds alone
+does not restore iPadOS 26's floating edges on iPadOS 27.
 
 ## Welcome visuals
 
