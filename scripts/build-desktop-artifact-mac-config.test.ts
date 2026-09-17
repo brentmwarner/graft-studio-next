@@ -11,6 +11,10 @@ import {
   MAC_DEVICE_HELPER_STAGE_PATH,
   MAC_ENTITLEMENTS_PATH,
   MAC_INHERITED_ENTITLEMENTS_PATH,
+  MAC_NODE_MODULES_ASAR_UNPACK,
+  MAC_NODE_RUNTIME_BUNDLE_PATH,
+  MAC_NODE_RUNTIME_ASAR_EXCLUSION,
+  MAC_NODE_RUNTIME_STAGE_PATH,
   MICROPHONE_USAGE_DESCRIPTION,
   NODE_PTY_ASAR_UNPACK_GLOBS,
   SERVER_RUNTIME_ASAR_UNPACK,
@@ -32,7 +36,11 @@ describe("createDesktopPlatformBuildConfig", () => {
 
     assert.deepStrictEqual(mac.target, ["dmg", "zip"]);
     assert.equal(mac.icon, "icon.icns");
-    assert.deepStrictEqual(config.asarUnpack, [...DESKTOP_ASAR_UNPACK_GLOBS]);
+    assert.deepStrictEqual(config.asarUnpack, [
+      ...DESKTOP_ASAR_UNPACK_GLOBS,
+      MAC_NODE_MODULES_ASAR_UNPACK,
+    ]);
+    assert.equal(MAC_NODE_MODULES_ASAR_UNPACK, "node_modules/**");
     assert.equal(config.npmRebuild, false);
     assert.equal("releaseInfo" in config, false);
     assert.equal(mac.hardenedRuntime, true);
@@ -43,14 +51,24 @@ describe("createDesktopPlatformBuildConfig", () => {
     assert.equal(mac.entitlements, MAC_ENTITLEMENTS_PATH);
     assert.equal(mac.entitlementsInherit, MAC_INHERITED_ENTITLEMENTS_PATH);
     assert.equal(MAC_APPSNAP_HELPER_BUNDLE_PATH, "Contents/Helpers/graft-appsnap-helper");
-    assert.deepStrictEqual(mac.binaries, ["Contents/Helpers/graft-appsnap-helper"]);
+    assert.deepStrictEqual(mac.binaries, [
+      "Contents/Helpers/graft-appsnap-helper",
+      "Contents/Resources/node-runtime/node",
+    ]);
+    assert.equal(MAC_NODE_RUNTIME_BUNDLE_PATH, "Contents/Resources/node-runtime/node");
+    assert.equal(MAC_NODE_RUNTIME_STAGE_PATH, "apps/desktop/native/node-runtime/node");
     assert.equal(mac.x64ArchFiles, "Contents/Helpers/graft-appsnap-helper");
     assert.equal(
       MAC_APPSNAP_HELPER_STAGE_PATH,
       "apps/desktop/native/appsnap/build/graft-appsnap-helper",
     );
     assert.equal(MAC_APPSNAP_HELPER_ASAR_EXCLUSION, "!apps/desktop/native/appsnap/build/**");
-    assert.deepStrictEqual(config.files, ["**/*", MAC_APPSNAP_HELPER_ASAR_EXCLUSION]);
+    assert.equal(MAC_NODE_RUNTIME_ASAR_EXCLUSION, "!apps/desktop/native/node-runtime/**");
+    assert.deepStrictEqual(config.files, [
+      "**/*",
+      MAC_APPSNAP_HELPER_ASAR_EXCLUSION,
+      MAC_NODE_RUNTIME_ASAR_EXCLUSION,
+    ]);
     assert.deepStrictEqual(config.extraFiles, [
       {
         from: "apps/desktop/native/appsnap/build/graft-appsnap-helper",
@@ -59,6 +77,10 @@ describe("createDesktopPlatformBuildConfig", () => {
       {
         from: MAC_DEVICE_HELPER_STAGE_PATH,
         to: MAC_DEVICE_HELPER_RESOURCE_PATH,
+      },
+      {
+        from: MAC_NODE_RUNTIME_STAGE_PATH,
+        to: "Resources/node-runtime/node",
       },
     ]);
     assert.equal(extendInfo.NSMicrophoneUsageDescription, MICROPHONE_USAGE_DESCRIPTION);
@@ -179,7 +201,17 @@ describe("createDesktopPlatformBuildConfig", () => {
     assert.ok(issue?.includes("Build linux/x64 on a matching Linux host"));
   });
 
-  it("requires a macOS host for the native Swift AppSnap helper", () => {
+  it("requires a matching macOS host for the native Swift and Node runtimes", () => {
+    assert.equal(
+      validateDesktopNativeBuildHost({
+        platform: "mac",
+        arch: "arm64",
+        hostPlatform: "darwin",
+        hostArch: "arm64",
+      }),
+      null,
+    );
+
     assert.equal(
       validateDesktopNativeBuildHost({
         platform: "mac",
@@ -187,16 +219,16 @@ describe("createDesktopPlatformBuildConfig", () => {
         hostPlatform: "darwin",
         hostArch: "arm64",
       }),
-      null,
+      "macOS desktop artifacts require a native arm64 or x64 build so the bundled Node runtime matches the app architecture.",
     );
 
     const issue = validateDesktopNativeBuildHost({
       platform: "mac",
-      arch: "arm64",
-      hostPlatform: "linux",
+      arch: "x64",
+      hostPlatform: "darwin",
       hostArch: "arm64",
     });
-    assert.ok(issue?.includes("Build mac/arm64 on macOS"));
+    assert.ok(issue?.includes("Build mac/x64 on a matching macOS host"));
   });
 
   it("keeps separate macOS sources for solid and rounded icons", () => {

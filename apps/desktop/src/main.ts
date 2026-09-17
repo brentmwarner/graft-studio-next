@@ -266,7 +266,10 @@ import {
 } from "./desktopUserDataProfile";
 import { isBrokenPipeError } from "./desktopProcessErrors";
 import { createDesktopStaticProtocolResolver } from "./desktopStaticProtocol";
-import { resolveDesktopBackendExecutable } from "./desktopBackendExecutable";
+import {
+  resolveDesktopBackendEntry,
+  resolveDesktopBackendExecutable,
+} from "./desktopBackendExecutable";
 import {
   readCustomTitleBarPreference,
   resolveDesktopCustomTitleBarState,
@@ -1211,7 +1214,12 @@ function resolveAboutCommitHash(): string | null {
 }
 
 function resolveBackendEntry(): string {
-  return Path.join(resolveAppRoot(), "apps/server/dist/index.mjs");
+  return resolveDesktopBackendEntry({
+    appIsPackaged: app.isPackaged,
+    appRoot: resolveAppRoot(),
+    platform: process.platform,
+    resourcesPath: process.resourcesPath,
+  });
 }
 
 function resolveBackendCwd(): string {
@@ -4135,10 +4143,11 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
     appIsPackaged: app.isPackaged,
     execPath: process.execPath,
     platform: process.platform,
+    resourcesPath: process.resourcesPath,
   });
   writeDesktopLogHeader("backend spawn inputs ready");
   const backendLaunchMode =
-    app.isPackaged && process.platform === "darwin" ? "macos-helper-handoff" : "direct";
+    app.isPackaged && process.platform === "darwin" ? "macos-bundled-node" : "direct";
   writeDesktopLogHeader(`backend spawn requested mode=${backendLaunchMode}`);
   const child = spawnProcess(backendExecutable, backendRuntimeArgs, {
     platform: process.platform,
@@ -4146,8 +4155,8 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
     requireExecutable: true,
     cwd: backendChildCwd,
     // Electron executables become Node runtimes when ELECTRON_RUN_AS_NODE is set.
-    // Packaged macOS builds use the app's Helper executable because the primary
-    // executable and utilityProcess both stall while loading the server graph.
+    // Packaged macOS builds use a standalone Node runtime because Electron's
+    // embedded runtime stalls while applying SQLite migrations.
     env: backendChildEnv,
     // Keep output piped in every environment so startup blockers and readiness
     // are observable even when packaged log setup is unavailable. The fourth

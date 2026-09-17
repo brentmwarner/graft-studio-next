@@ -24,6 +24,7 @@ import {
   MAC_APPSNAP_HELPER_STAGE_PATH,
   MAC_DEVICE_HELPER_RESOURCE_PATH,
   MAC_MINIMUM_DARWIN_VERSION,
+  MAC_NODE_RUNTIME_STAGE_PATH,
   validateDesktopNativeBuildHost,
   WINDOWS_MINIMUM_SYSTEM_VERSION,
 } from "./lib/desktop-platform-build-config.ts";
@@ -826,7 +827,23 @@ const stageMacAppSnapHelper = Effect.fn("stageMacAppSnapHelper")(function* (
   }
 });
 
-const assertPackagedMacDeviceHelper = Effect.fn("assertPackagedMacDeviceHelper")(function* (
+const stageMacNodeRuntime = Effect.fn("stageMacNodeRuntime")(function* (stageAppDir: string) {
+  const path = yield* Path.Path;
+  const fs = yield* FileSystem.FileSystem;
+  if (process.release.name !== "node") {
+    return yield* new BuildScriptError({
+      message: "macOS desktop artifacts must be built with Node.js so its runtime can be bundled.",
+    });
+  }
+
+  const outputPath = path.join(stageAppDir, MAC_NODE_RUNTIME_STAGE_PATH);
+  yield* fs.makeDirectory(path.dirname(outputPath), { recursive: true });
+  yield* fs.copy(process.execPath, outputPath);
+  yield* fs.chmod(outputPath, 0o755);
+  yield* Effect.log(`[desktop-artifact] Staged standalone Node runtime (${process.version}).`);
+});
+
+const assertPackagedMacRuntimeResources = Effect.fn("assertPackagedMacRuntimeResources")(function* (
   stageDistDir: string,
   productName: string,
 ) {
@@ -846,15 +863,24 @@ const assertPackagedMacDeviceHelper = Effect.fn("assertPackagedMacDeviceHelper")
       "Contents",
       MAC_DEVICE_HELPER_RESOURCE_PATH,
     );
+    const nodeRuntimePath = path.join(
+      packagedEntryPath,
+      `${productName}.app`,
+      "Contents",
+      "Resources",
+      "node-runtime",
+      "node",
+    );
     if (
       (yield* fs.exists(path.join(helperRoot, "build.sh"))) &&
-      (yield* fs.exists(path.join(helperRoot, "Sources/main.swift")))
+      (yield* fs.exists(path.join(helperRoot, "Sources/main.swift"))) &&
+      (yield* fs.exists(nodeRuntimePath))
     ) {
       return;
     }
   }
   return yield* new BuildScriptError({
-    message: `Packaged macOS app is missing physical device helper sources under Contents/${MAC_DEVICE_HELPER_RESOURCE_PATH}`,
+    message: `Packaged macOS app is missing its device helper sources or standalone Node runtime.`,
   });
 });
 
@@ -1099,6 +1125,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
   if (options.platform === "mac") {
     yield* stageMacAppSnapHelper(stageAppDir, options.arch, options.verbose);
+    yield* stageMacNodeRuntime(stageAppDir);
   }
 
   // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
@@ -1197,7 +1224,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   }
 
   if (options.platform === "mac") {
-    yield* assertPackagedMacDeviceHelper(stageDistDir, desktopPackageJson.productName ?? "Graft");
+    yield* assertPackagedMacRuntimeResources(
+      stageDistDir,
+      desktopPackageJson.productName ?? "Graft",
+    );
   }
 
   if (options.platform === "mac" && options.target === "dmg" && options.signed) {
