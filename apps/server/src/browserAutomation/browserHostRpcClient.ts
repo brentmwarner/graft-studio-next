@@ -1,6 +1,5 @@
 import * as FS from "node:fs";
 import * as Net from "node:net";
-import * as OS from "node:os";
 
 import type { BrowserToolName, ProviderKind, ThreadId } from "@graft/contracts";
 
@@ -12,7 +11,10 @@ const MAX_FRAME_BYTES = 12 * 1024 * 1024;
 const CONNECT_TIMEOUT_MS = 5_000;
 const INFO_TIMEOUT_MS = 5_000;
 const MIN_DESKTOP_TIMEOUT_MS = 100;
-const IS_LITTLE_ENDIAN = OS.endianness() === "LE";
+// Typed arrays expose the runtime byte order without entering Node's native OS
+// bindings during module evaluation. Electron utility processes can load this
+// module before the desktop backend has emitted its first startup diagnostic.
+const IS_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 
 interface MonotonicDeadline {
   readonly expiresAt: number;

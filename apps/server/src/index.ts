@@ -1,29 +1,8 @@
-import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
+// Keep this entry intentionally small. The packaged macOS desktop launches it in
+// Electron's utility-process host, where a dependency can otherwise stall during
+// module evaluation before the parent receives any useful diagnostic.
+process.stderr.write("[server] bootstrap started\n");
 
-import { CliConfig, graftCli } from "./main";
-import { OpenLive } from "./open";
-import { Command } from "effect/unstable/cli";
-import { version } from "../package.json" with { type: "json" };
-import { ServerLive } from "./effectServer";
-import { NetService } from "@graft/shared/Net";
-import { FetchHttpClient } from "effect/unstable/http";
-import { consumeDesktopParentInput, withDesktopParentLifetime } from "./desktopParentLifetime";
-
-const desktopParentInput = consumeDesktopParentInput(process.env, () => process.stdin);
-
-const RuntimeLayer = Layer.empty.pipe(
-  Layer.provideMerge(CliConfig.layer),
-  Layer.provideMerge(ServerLive),
-  Layer.provideMerge(OpenLive),
-  Layer.provideMerge(NetService.layer),
-  Layer.provideMerge(NodeServices.layer),
-  Layer.provideMerge(FetchHttpClient.layer),
-);
-
-Command.run(graftCli, { version })
-  .pipe(Effect.provide(RuntimeLayer))
-  .pipe((program) => withDesktopParentLifetime(program, desktopParentInput))
-  .pipe((program) => NodeRuntime.runMain(program as Effect.Effect<void, unknown, never>));
+// This boundary is deliberately dynamic: it lets the startup marker flush before
+// the full server dependency graph evaluates inside the utility process.
+await import("./runtime");
