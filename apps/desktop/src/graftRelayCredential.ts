@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { readRestrictedLegacyCredentialJson } from "./legacyCredentialFile";
 
 export interface RelayCredentialStorage {
   isEncryptionAvailable(): boolean;
@@ -16,8 +17,8 @@ export function readLegacyGraftRelayCredential(options: {
 }): string | null {
   try {
     const userData = options.legacyUserData ?? join(options.appData, "@graft", "desktop");
-    const envelope: unknown = JSON.parse(
-      readFileSync(join(userData, "remote-gateway", "secrets.json"), "utf8"),
+    const envelope = readRestrictedLegacyCredentialJson(
+      join(userData, "remote-gateway", "secrets.json"),
     );
     if (
       !envelope ||
