@@ -23,7 +23,9 @@ import {
   createDesktopPlatformBuildConfig,
   MAC_APPSNAP_HELPER_STAGE_PATH,
   MAC_DEVICE_HELPER_RESOURCE_PATH,
+  MAC_MINIMUM_DARWIN_VERSION,
   validateDesktopNativeBuildHost,
+  WINDOWS_MINIMUM_SYSTEM_VERSION,
 } from "./lib/desktop-platform-build-config.ts";
 import {
   GRAFT_PRODUCTION_BUNDLE_ID,
@@ -38,6 +40,7 @@ import {
   RELEASE_WORKSPACE_MANIFEST_PATHS,
 } from "./lib/release-workspace-manifests.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
+import { applyMinimumSystemVersionToUpdateManifest } from "./lib/update-manifest-system-version.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -855,6 +858,44 @@ const assertPackagedMacDeviceHelper = Effect.fn("assertPackagedMacDeviceHelper")
   });
 });
 
+const applyUpdateManifestSystemVersion = Effect.fn("applyUpdateManifestSystemVersion")(function* (
+  platform: typeof BuildPlatform.Type,
+  stageDistDir: string,
+) {
+  const manifest =
+    platform === "mac"
+      ? { name: "latest-mac.yml", minimumSystemVersion: MAC_MINIMUM_DARWIN_VERSION }
+      : platform === "win"
+        ? { name: "latest.yml", minimumSystemVersion: WINDOWS_MINIMUM_SYSTEM_VERSION }
+        : null;
+  if (manifest === null) return;
+
+  const path = yield* Path.Path;
+  const fs = yield* FileSystem.FileSystem;
+  const manifestPath = path.join(stageDistDir, manifest.name);
+  if (!(yield* fs.exists(manifestPath))) {
+    return yield* new BuildScriptError({
+      message: `Build completed but update manifest was not found at ${manifestPath}`,
+    });
+  }
+
+  const raw = yield* fs.readFileString(manifestPath);
+  const updated = yield* Effect.try({
+    try: () =>
+      applyMinimumSystemVersionToUpdateManifest({
+        raw,
+        sourcePath: manifestPath,
+        minimumSystemVersion: manifest.minimumSystemVersion,
+      }),
+    catch: (cause) =>
+      new BuildScriptError({
+        message: `Could not apply the minimum OS version to ${manifestPath}.`,
+        cause,
+      }),
+  });
+  yield* fs.writeFileString(manifestPath, updated);
+});
+
 const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   options: ResolvedBuildOptions,
 ) {
@@ -1205,6 +1246,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       );
     }
   }
+
+  yield* applyUpdateManifestSystemVersion(options.platform, stageDistDir);
 
   const stageEntries = yield* fs.readDirectory(stageDistDir);
   yield* fs.makeDirectory(options.outputDir, { recursive: true });
