@@ -18,7 +18,6 @@ struct HomeView: View {
     @State private var selectedThread: InboxThreadItem?
     @State private var newChatContext: NewChatContext?
     @State private var splitVisibility = NavigationSplitViewVisibility.automatic
-    @State private var splitContainerWidth: CGFloat = 0
     @FocusState private var searchFieldFocused: Bool
 
     private var usesPersistentSidebar: Bool {
@@ -79,15 +78,13 @@ struct HomeView: View {
                 splitDetail
             }
         }
-        .navigationSplitViewStyle(
-            AdaptiveChrome.prefersPinnedSplit(containerWidth: splitContainerWidth)
-                ? .balanced
-                : .prominentDetail
-        )
+        // One concrete style — `.balanced` / `.prominentDetail` are distinct
+        // types, so a ternary here fails to compile. Portrait vs landscape is
+        // owned by `preferredColumnVisibility` (`.automatic` overlay vs `.all`).
+        .navigationSplitViewStyle(.balanced)
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.width
         } action: { width in
-            splitContainerWidth = width
             let preferred = AdaptiveChrome.preferredColumnVisibility(
                 containerWidth: width
             )
