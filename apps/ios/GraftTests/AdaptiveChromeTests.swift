@@ -11,6 +11,8 @@ final class AdaptiveChromeTests: XCTestCase {
 
     func testReadableColumnWidthCapsWideContainersAndLeavesPhoneWidthsAlone() {
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 1_204), 720)
+        // 720 is below the pin threshold, so overlay policy returns the
+        // container as-is — not a 720 cap applied to a wide pane.
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 720), 720)
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 390), 390)
         XCTAssertEqual(AdaptiveChrome.readableColumnWidth(in: 0), 0)

@@ -53,16 +53,22 @@ enum AdaptiveChrome {
         max(containerWidth - sidebarWidth, 0)
     }
 
+    /// Caps at `readableColumnMaxWidth` only when both columns are pinned.
+    /// Overlay / compact widths keep the full container so Mini and 11-inch
+    /// portrait are not inset to 720 inside an already-narrow pane.
     static func readableColumnWidth(in containerWidth: CGFloat) -> CGFloat {
-        min(max(containerWidth, 0), readableColumnMaxWidth)
+        let width = max(containerWidth, 0)
+        guard prefersPinnedSplit(containerWidth: width) else { return width }
+        return min(width, readableColumnMaxWidth)
     }
 }
 
 extension View {
-    /// Centers chat chrome in a readable column on wide surfaces. Compact
-    /// widths are unchanged because they are already below the cap.
+    /// Centers chat chrome in a readable column on pinned wide surfaces.
+    /// Overlay and compact widths use the full container (no 720 cap).
     func readableChatColumn() -> some View {
-        frame(maxWidth: AdaptiveChrome.readableColumnMaxWidth)
-            .frame(maxWidth: .infinity)
+        containerRelativeFrame(.horizontal, alignment: .center) { length, _ in
+            AdaptiveChrome.readableColumnWidth(in: length)
+        }
     }
 }
