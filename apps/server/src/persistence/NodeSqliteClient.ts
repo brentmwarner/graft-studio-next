@@ -27,6 +27,8 @@ import { tracePackagedStartup } from "../packagedStartupTrace.ts";
 
 const ATTR_DB_SYSTEM_NAME = "db.system.name";
 
+const describeSql = (sql: string): string => sql.replaceAll(/\s+/gu, " ").trim().slice(0, 160);
+
 export const TypeId: TypeId = "~local/sqlite-node/SqliteClient";
 
 export type TypeId = "~local/sqlite-node/SqliteClient";
@@ -100,12 +102,16 @@ const makeWithDatabase = (
       );
 
       const statementReaderCache = new WeakMap<StatementSync, boolean>();
+      const statementSql = new WeakMap<StatementSync, string>();
       const hasRows = (statement: StatementSync): boolean => {
         const cached = statementReaderCache.get(statement);
         if (cached !== undefined) {
           return cached;
         }
+        const sql = statementSql.get(statement) ?? "<unknown>";
+        tracePackagedStartup(`node sqlite columns inspection started sql=${sql}`);
         const value = statement.columns().length > 0;
+        tracePackagedStartup(`node sqlite columns inspection completed sql=${sql}`);
         statementReaderCache.set(statement, value);
         return value;
       };
@@ -115,7 +121,14 @@ const makeWithDatabase = (
         timeToLive: options.prepareCacheTTL ?? Duration.minutes(10),
         lookup: (sql: string) =>
           Effect.try({
-            try: () => db.prepare(sql),
+            try: () => {
+              const description = describeSql(sql);
+              tracePackagedStartup(`node sqlite prepare started sql=${description}`);
+              const statement = db.prepare(sql);
+              statementSql.set(statement, description);
+              tracePackagedStartup(`node sqlite prepare completed sql=${description}`);
+              return statement;
+            },
             catch: (cause) => new SqlError({ cause, message: "Failed to prepare statement" }),
           }),
       });
@@ -140,7 +153,16 @@ const makeWithDatabase = (
         });
 
       const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) =>
-        Effect.flatMap(Cache.get(prepareCache, sql), (s) => runStatement(s, params, raw));
+        Effect.gen(function* () {
+          const description = describeSql(sql);
+          tracePackagedStartup(`node sqlite statement acquisition started sql=${description}`);
+          const statement = yield* Cache.get(prepareCache, sql);
+          tracePackagedStartup(`node sqlite statement acquisition completed sql=${description}`);
+          tracePackagedStartup(`node sqlite statement execution started sql=${description}`);
+          const rows = yield* runStatement(statement, params, raw);
+          tracePackagedStartup(`node sqlite statement execution completed sql=${description}`);
+          return rows;
+        });
 
       const runValues = (sql: string, params: ReadonlyArray<unknown>) =>
         Effect.acquireUseRelease(
@@ -197,8 +219,13 @@ const makeWithDatabase = (
       const fiber = Fiber.getCurrent()!;
       const scope = ServiceMap.getUnsafe(fiber.services, Scope.Scope);
       return Effect.as(
-        Effect.tap(restore(semaphore.take(1)), () =>
-          Scope.addFinalizer(scope, semaphore.release(1)),
+        Effect.sync(() => tracePackagedStartup("node sqlite transaction permit requested")).pipe(
+          Effect.andThen(restore(semaphore.take(1))),
+          Effect.tap(() =>
+            Effect.sync(() => tracePackagedStartup("node sqlite transaction permit acquired")).pipe(
+              Effect.andThen(Scope.addFinalizer(scope, semaphore.release(1))),
+            ),
+          ),
         ),
         connection,
       );
