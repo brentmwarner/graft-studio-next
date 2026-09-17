@@ -398,6 +398,27 @@ export function readPackagedStartupLogTails(logDirectory: string): string {
     .join("\n");
 }
 
+function readMacBackendSample(logDirectory: string): string {
+  try {
+    const serverLog = readFileSync(join(logDirectory, "server-child.log"), "utf8");
+    const sessions = [...serverLog.matchAll(/APP SESSION START[^\n]*\bpid=(\d+)\b/gu)];
+    const pid = sessions.at(-1)?.[1];
+    if (!pid) return "Packaged macOS backend sample: backend PID unavailable.";
+
+    const result = spawnSync("sample", [pid, "3", "1"], {
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 10_000,
+    });
+    const output = (result.stdout || result.stderr || result.error?.message || "No sample output.")
+      .trim()
+      .slice(-STARTUP_DIAGNOSTIC_TAIL_LENGTH);
+    return `Packaged macOS backend sample (pid=${pid}):\n${output}`;
+  } catch (error) {
+    return `Packaged macOS backend sample failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 export function resolveNativePackagedDesktopPlatform(
   platform: NodeJS.Platform,
 ): PackagedDesktopPlatform {
@@ -475,6 +496,9 @@ export async function verifyPackagedDesktopStartup(
     if (logDirectory) {
       console.error(readPackagedStartupLogTails(logDirectory));
       console.error(`Packaged process output tail:\n${outputTail || "No output captured."}`);
+      if (process.platform === "darwin") {
+        console.error(readMacBackendSample(logDirectory));
+      }
     }
     throw error;
   } finally {
