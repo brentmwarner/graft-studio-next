@@ -23,9 +23,13 @@ export const WINDOWS_MINIMUM_SYSTEM_VERSION = "10.0.0";
 const MAC_DMG_ICON_PATH = "icon.icns";
 export const NODE_PTY_ASAR_UNPACK_GLOBS = ["node_modules/node-pty/**"] as const;
 export const GRAFT_HOST_ARCHIVE_ASAR_UNPACK = "apps/server/dist/graft-host-linux-x64.tar.gz";
+// Electron keeps logical app.asar paths working while reading these files from
+// app.asar.unpacked, so Node package resolution stays rooted in app.asar/node_modules.
+export const SERVER_RUNTIME_ASAR_UNPACK = "apps/server/dist/**/*.mjs";
 export const DESKTOP_ASAR_UNPACK_GLOBS = [
   ...NODE_PTY_ASAR_UNPACK_GLOBS,
   GRAFT_HOST_ARCHIVE_ASAR_UNPACK,
+  SERVER_RUNTIME_ASAR_UNPACK,
 ] as const;
 
 export interface DesktopPlatformBuildConfig {
