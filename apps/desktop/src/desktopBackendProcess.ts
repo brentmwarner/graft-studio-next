@@ -7,7 +7,7 @@ import type { BackendShutdownProcess } from "./backendShutdown";
 export interface DesktopBackendProcess extends BackendShutdownProcess {
   readonly stdout: NodeJS.ReadableStream | null;
   readonly stderr: NodeJS.ReadableStream | null;
-  pid: number | undefined;
+  pid?: number | undefined;
   on(event: "error", listener: (error: Error) => void): this;
   on(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
 }

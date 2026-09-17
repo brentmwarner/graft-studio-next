@@ -4127,7 +4127,7 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
   const resolvedBackendEnv = backendEnv();
   writeDesktopLogHeader("backend environment ready");
   const useMacUtilityProcess = app.isPackaged && process.platform === "darwin";
-  const backendChildEnv = {
+  const backendChildEnv: NodeJS.ProcessEnv = {
     ...resolvedBackendEnv,
     ...(useMacUtilityProcess ? {} : { ELECTRON_RUN_AS_NODE: "1" }),
     GRAFT_SERVER_ENTRY: backendEntry,
