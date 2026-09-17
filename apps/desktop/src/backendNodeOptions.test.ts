@@ -66,4 +66,21 @@ describe("resolveBackendNodeArgs", () => {
       }),
     ).toEqual(["--max-old-space-size=6144"]);
   });
+
+  it("uses Node's system-managed default when memory probing is unavailable", () => {
+    expect(
+      resolveBackendNodeArgs({
+        existingNodeOptions: "--enable-source-maps",
+      }),
+    ).toEqual([]);
+  });
+
+  it("honors an explicit override without probing system memory", () => {
+    expect(
+      resolveBackendNodeArgs({
+        configuredMaxOldSpaceMb: "5120",
+        existingNodeOptions: "--enable-source-maps",
+      }),
+    ).toEqual(["--max-old-space-size=5120"]);
+  });
 });
