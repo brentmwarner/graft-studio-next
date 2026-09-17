@@ -76,7 +76,7 @@ final class AdaptiveChromeTests: XCTestCase {
     }
 
     @MainActor
-    func testRenderedPanelIsInsetAndChatNeverExtendsUnderIt() async throws {
+    func testRenderedPanelIsInsetAndChatCentersInRemainingPane() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         for width in [
             AdaptiveChrome.Canvas.iPadMiniPortrait,
@@ -88,9 +88,13 @@ final class AdaptiveChromeTests: XCTestCase {
         ] {
             let sidebarMeasured = expectation(description: "Sidebar laid out at \(width)")
             let detailMeasured = expectation(description: "Chat laid out at \(width)")
+            let columnMeasured = expectation(description: "Readable column laid out at \(width)")
+            let titleMeasured = expectation(description: "Navigation title laid out at \(width)")
             let canvasMeasured = expectation(description: "Canvas laid out at \(width)")
             var sidebarFrame: CGRect?
             var detailFrame: CGRect?
+            var columnFrame: CGRect?
+            var titleFrame: CGRect?
             var canvasFrame: CGRect?
             let view = FloatingSidebarLayout(
                 hostLabel: "Mac",
@@ -105,11 +109,41 @@ final class AdaptiveChromeTests: XCTestCase {
                     sidebarFrame = frame
                 }
             } detail: {
-                Color.clear.onGeometryChange(for: CGRect.self) {
+                ZStack {
+                    Color.clear
+                    ScrollView {
+                        Text("Chat content")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .readableChatColumn()
+                    .onGeometryChange(for: CGRect.self) {
+                        $0.frame(in: .global)
+                    } action: { frame in
+                        if columnFrame == nil { columnMeasured.fulfill() }
+                        columnFrame = frame
+                    }
+                }
+                .onGeometryChange(for: CGRect.self) {
                     $0.frame(in: .global)
                 } action: { frame in
                     if detailFrame == nil { detailMeasured.fulfill() }
                     detailFrame = frame
+                }
+                .navigationTitle("New chat")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text("New chat")
+                            .onGeometryChange(for: CGRect.self) {
+                                $0.frame(in: .global)
+                            } action: { frame in
+                                if titleFrame == nil { titleMeasured.fulfill() }
+                                titleFrame = frame
+                            }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Context", systemImage: "circle") {}
+                    }
                 }
             }
             .frame(width: width, height: 900)
@@ -124,9 +158,14 @@ final class AdaptiveChromeTests: XCTestCase {
             window.isHidden = false
             defer { window.isHidden = true }
 
-            await fulfillment(of: [sidebarMeasured, detailMeasured, canvasMeasured], timeout: 3)
+            await fulfillment(
+                of: [sidebarMeasured, detailMeasured, columnMeasured, titleMeasured, canvasMeasured],
+                timeout: 3
+            )
             let sidebar = try XCTUnwrap(sidebarFrame)
             let detail = try XCTUnwrap(detailFrame)
+            let column = try XCTUnwrap(columnFrame)
+            let title = try XCTUnwrap(titleFrame)
             let canvas = try XCTUnwrap(canvasFrame)
             XCTAssertEqual(sidebar.minX - canvas.minX, 16, accuracy: 1)
             XCTAssertEqual(sidebar.width, 320, accuracy: 1)
@@ -134,6 +173,9 @@ final class AdaptiveChromeTests: XCTestCase {
             XCTAssertEqual(canvas.maxY - sidebar.maxY, 16, accuracy: 1)
             XCTAssertEqual(detail.minX, sidebar.maxX + 16, accuracy: 1)
             XCTAssertEqual(detail.width, width - 352, accuracy: 1)
+            XCTAssertEqual(column.width, AdaptiveChrome.readableColumnWidth(in: width - 352), accuracy: 1)
+            XCTAssertEqual(column.midX, detail.midX, accuracy: 1, "Chat centers beside Projects at \(width)pt")
+            XCTAssertEqual(title.midX, detail.midX, accuracy: 1, "Navigation title centers beside Projects at \(width)pt")
         }
     }
 }

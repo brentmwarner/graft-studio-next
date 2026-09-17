@@ -66,8 +66,10 @@ scroll region. It has no navigation title or principal toolbar duplication,
 and the chat stack no longer applies `backgroundExtensionEffect()` to text.
 
 - **Regular windows**: chat always reserves the visible panel's width plus
-  its margins, in portrait and landscape. Selecting a thread or New Chat keeps
-  Projects open. Use **Hide Projects** to reclaim the full chat width and
+  its margins, in portrait and landscape. The navigation stack fills only the
+  remaining pane, so its title, readable transcript, and composer center beside
+  Projects. Selecting a thread or New Chat keeps Projects open. Use **Hide
+  Projects** to reclaim the full chat width and
   **Show Projects** in the chat toolbar to restore the panel. There is no pin
   toggle or overlay mode; resizing preserves the chosen visibility.
 - **Compact** (iPhone, iPad Slide Over): existing drawer + push stack.
@@ -91,7 +93,8 @@ the panel must preserve the active chat and any composer draft. With Reduce
 Motion enabled, panel transitions fade without sliding or resizing animation.
 
 `AdaptiveChromeTests` covers size-class routing, panel margins and width,
-reserved chat space at all iPad widths, hide/show behavior, and rendered panel/chat separation.
+reserved chat space at all iPad widths, hide/show behavior, rendered panel/chat
+separation, and title/readable-column centering within the remaining pane.
 Visual verification still requires the simulator; policy tests do not prove
 material rendering or header sharpness.
 

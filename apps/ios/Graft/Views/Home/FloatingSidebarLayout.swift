@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Regular-width navigation floats above a full-bleed chat canvas. The panel
-/// geometry is app-owned so OS split-column appearance cannot remove its inset.
+/// Regular-width navigation places an inset floating panel beside the chat stack.
+/// The stack owns only the remaining pane, including its navigation bar.
 struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var presentation = AdaptiveChrome.SidebarPresentation()
@@ -17,25 +17,7 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
         GeometryReader { geometry in
             let width = geometry.size.width
 
-            ZStack(alignment: .leading) {
-                Color(.systemBackground)
-                    .ignoresSafeArea()
-
-                NavigationStack {
-                    detail
-                        .toolbar {
-                            if !presentation.isVisible {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    Button("Show Projects", systemImage: "sidebar.left") {
-                                        presentation.isVisible = true
-                                    }
-                                    .accessibilityIdentifier("show-projects-sidebar")
-                                }
-                            }
-                        }
-                }
-                .padding(.leading, presentation.chatLeadingInset(in: width))
-
+            HStack(spacing: 0) {
                 if presentation.isVisible {
                     FloatingProjectsPanel(
                         hostLabel: hostLabel,
@@ -50,6 +32,25 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
                     .padding(AdaptiveChrome.sidebarMargin)
                     .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
                 }
+
+                NavigationStack {
+                    detail
+                        .toolbar {
+                            if !presentation.isVisible {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button("Show Projects", systemImage: "sidebar.left") {
+                                        presentation.isVisible = true
+                                    }
+                                    .accessibilityIdentifier("show-projects-sidebar")
+                                }
+                            }
+                        }
+                }
+                .frame(width: max(width - presentation.chatLeadingInset(in: width), 0))
+            }
+            .background {
+                Color(.systemBackground)
+                    .ignoresSafeArea()
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: presentation.isVisible)
         }
