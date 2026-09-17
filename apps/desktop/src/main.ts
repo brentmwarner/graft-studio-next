@@ -525,9 +525,12 @@ function startBrowserPerformanceLogging(): void {
   browserPerfInterval.unref();
 }
 
-async function ensureBrowserHostPipeServer(signal?: AbortSignal): Promise<void> {
-  if (browserHostPipeServer || !GRAFT_BROWSER_HOST_PIPE_PATH) {
-    return;
+async function ensureBrowserHostPipeServer(signal?: AbortSignal): Promise<boolean> {
+  if (browserHostPipeServer) {
+    return true;
+  }
+  if (!GRAFT_BROWSER_HOST_PIPE_PATH || isQuitting) {
+    return false;
   }
   const server = new BrowserHostPipeServer(browserManager, {
     vault: browserVault,
@@ -548,7 +551,12 @@ async function ensureBrowserHostPipeServer(signal?: AbortSignal): Promise<void> 
     await server.dispose();
     throw signal.reason;
   }
+  if (isQuitting) {
+    await server.dispose();
+    return false;
+  }
   browserHostPipeServer = server;
+  return true;
 }
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
@@ -5387,13 +5395,22 @@ async function bootstrap(): Promise<void> {
 
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
+  writeDesktopLogHeader("bootstrap browser host pipe start requested");
   try {
-    await withStartupTimeout(
+    const browserHostPipeReady = await withStartupTimeout(
       (signal) => ensureBrowserHostPipeServer(signal),
       5_000,
       "Browser host pipe startup",
     );
+    writeDesktopLogHeader(
+      browserHostPipeReady
+        ? "bootstrap browser host pipe ready"
+        : "bootstrap browser host pipe skipped during shutdown",
+    );
   } catch (error) {
+    writeDesktopLogHeader(
+      `bootstrap browser host pipe warning message=${formatErrorMessage(error)}`,
+    );
     console.warn("[Graft browser] Failed to start browser host pipe", error);
   }
   startBackend();

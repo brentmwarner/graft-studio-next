@@ -177,14 +177,22 @@ function decodeFrames(
   return { messages, remaining: buffer.subarray(offset) };
 }
 
-function ensureUnixPipeParent(pipePath: string): void {
+function throwIfBrowserHostPipeStartupAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw browserHostPipeAbortReason(signal);
+}
+
+async function ensureUnixPipeParent(pipePath: string, signal?: AbortSignal): Promise<void> {
+  // Keep filesystem access asynchronous: this optional bridge must never block
+  // Electron's main thread or prevent the startup deadline from firing.
   const parent = Path.dirname(pipePath);
   try {
-    FS.mkdirSync(parent, { mode: 0o700 });
+    await FS.promises.mkdir(parent, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  const stat = FS.lstatSync(parent);
+  throwIfBrowserHostPipeStartupAborted(signal);
+  const stat = await FS.promises.lstat(parent);
+  throwIfBrowserHostPipeStartupAborted(signal);
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     throw new Error(`Browser host pipe parent is not a private directory: ${parent}`);
   }
@@ -196,16 +204,18 @@ function ensureUnixPipeParent(pipePath: string): void {
   }
 }
 
-function cleanupUnixPipe(pipePath: string): void {
+async function cleanupUnixPipe(pipePath: string, signal?: AbortSignal): Promise<void> {
   try {
-    const stat = FS.lstatSync(pipePath);
+    const stat = await FS.promises.lstat(pipePath);
+    throwIfBrowserHostPipeStartupAborted(signal);
     if (stat.isSymbolicLink() || (!stat.isSocket() && !stat.isFile())) {
       throw new Error(`Refusing to replace unsafe browser host pipe path: ${pipePath}`);
     }
     if (process.getuid && stat.uid !== process.getuid()) {
       throw new Error(`Refusing to replace browser host pipe not owned by this user: ${pipePath}`);
     }
-    FS.unlinkSync(pipePath);
+    await FS.promises.unlink(pipePath);
+    throwIfBrowserHostPipeStartupAborted(signal);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -269,11 +279,12 @@ export class BrowserHostPipeServer {
 
   async start(signal?: AbortSignal): Promise<void> {
     if (this.started) return;
-    if (signal?.aborted) throw browserHostPipeAbortReason(signal);
+    throwIfBrowserHostPipeStartupAborted(signal);
     if (this.platform !== "win32") {
-      ensureUnixPipeParent(this.pipePath);
-      cleanupUnixPipe(this.pipePath);
+      await ensureUnixPipeParent(this.pipePath, signal);
+      await cleanupUnixPipe(this.pipePath, signal);
     }
+    throwIfBrowserHostPipeStartupAborted(signal);
     await new Promise<void>((resolve, reject) => {
       let settled = false;
       const cleanup = () => {
@@ -307,8 +318,14 @@ export class BrowserHostPipeServer {
         () => settle({}),
       );
     });
-    if (this.platform !== "win32") FS.chmodSync(this.pipePath, 0o600);
+    // From this point onward disposal must close the listener if a permission
+    // check or a startup abort rejects before start() returns.
     this.started = true;
+    throwIfBrowserHostPipeStartupAborted(signal);
+    if (this.platform !== "win32") {
+      await FS.promises.chmod(this.pipePath, 0o600);
+      throwIfBrowserHostPipeStartupAborted(signal);
+    }
   }
 
   async dispose(): Promise<void> {
@@ -329,7 +346,7 @@ export class BrowserHostPipeServer {
       await new Promise<void>((resolve) => this.server.close(() => resolve()));
       this.started = false;
     }
-    if (wasStarted && this.platform !== "win32") cleanupUnixPipe(this.pipePath);
+    if (wasStarted && this.platform !== "win32") await cleanupUnixPipe(this.pipePath);
   }
 
   private handleConnection(socket: Net.Socket): void {
