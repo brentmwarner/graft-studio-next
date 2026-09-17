@@ -2,6 +2,8 @@ import type { Readable } from "node:stream";
 
 import { Deferred, Effect } from "effect";
 
+import { tracePackagedStartup } from "./packagedStartupTrace.ts";
+
 /** Consume the desktop-only marker before provider children can inherit it. */
 export function consumeDesktopParentInput(
   env: NodeJS.ProcessEnv,
@@ -20,12 +22,16 @@ export function withDesktopParentLifetime<A, E, R>(
 ): Effect.Effect<A | void, E, R> {
   if (!input) return program;
 
+  tracePackagedStartup("desktop parent lifetime effect construction started");
   return Effect.gen(function* () {
+    tracePackagedStartup("desktop parent lifetime setup started");
     const disconnected = yield* Deferred.make<void>();
+    tracePackagedStartup("desktop parent lifetime deferred ready");
     let shutdownTimer: ReturnType<typeof setTimeout> | undefined;
     let ownerLost = false;
     yield* Effect.acquireRelease(
       Effect.sync(() => {
+        tracePackagedStartup("desktop parent lifetime listeners registering");
         const onDisconnect = () => {
           if (ownerLost) return;
           ownerLost = true;
@@ -41,7 +47,9 @@ export function withDesktopParentLifetime<A, E, R>(
         input.on("end", onDisconnect);
         input.on("close", onDisconnect);
         input.on("error", onDisconnect);
+        tracePackagedStartup("desktop parent lifetime stdin resume started");
         input.resume();
+        tracePackagedStartup("desktop parent lifetime stdin resume completed");
         if (input.readableEnded || input.destroyed) onDisconnect();
         return onDisconnect;
       }),
@@ -54,9 +62,11 @@ export function withDesktopParentLifetime<A, E, R>(
           input.pause();
         }),
     );
+    tracePackagedStartup("desktop parent lifetime watcher ready");
 
     // Install the watcher before startup acquires the database or any children.
     if (ownerLost) return;
+    tracePackagedStartup("desktop parent lifetime program race started");
     return yield* Effect.raceFirst(
       program,
       Deferred.await(disconnected).pipe(
