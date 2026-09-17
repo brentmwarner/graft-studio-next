@@ -23,6 +23,8 @@ import type { Connection } from "effect/unstable/sql/SqlConnection";
 import { SqlError } from "effect/unstable/sql/SqlError";
 import * as Statement from "effect/unstable/sql/Statement";
 
+import { tracePackagedStartup } from "../packagedStartupTrace.ts";
+
 const ATTR_DB_SYSTEM_NAME = "db.system.name";
 
 export const TypeId: TypeId = "~local/sqlite-node/SqliteClient";
@@ -79,6 +81,7 @@ const makeWithDatabase = (
   openDatabase: () => DatabaseSync,
 ): Effect.Effect<Client.SqlClient, never, Scope.Scope | Reactivity.Reactivity> =>
   Effect.gen(function* () {
+    tracePackagedStartup("node sqlite client construction started");
     yield* checkNodeSqliteCompat();
 
     const compiler = Statement.makeCompilerSqlite(options.transformQueryNames);
@@ -88,7 +91,9 @@ const makeWithDatabase = (
 
     const makeConnection = Effect.gen(function* () {
       const scope = yield* Effect.scope;
+      tracePackagedStartup("node sqlite database open started");
       const db = openDatabase();
+      tracePackagedStartup("node sqlite database open completed");
       yield* Scope.addFinalizer(
         scope,
         Effect.sync(() => db.close()),
@@ -114,6 +119,7 @@ const makeWithDatabase = (
             catch: (cause) => new SqlError({ cause, message: "Failed to prepare statement" }),
           }),
       });
+      tracePackagedStartup("node sqlite statement cache ready");
 
       const runStatement = (
         statement: StatementSync,
@@ -184,6 +190,7 @@ const makeWithDatabase = (
 
     const semaphore = yield* Semaphore.make(1);
     const connection = yield* makeConnection;
+    tracePackagedStartup("node sqlite connection ready");
 
     const acquirer = semaphore.withPermits(1)(Effect.succeed(connection));
     const transactionAcquirer = Effect.uninterruptibleMask((restore) => {
@@ -197,7 +204,7 @@ const makeWithDatabase = (
       );
     });
 
-    return yield* Client.make({
+    const client = yield* Client.make({
       acquirer,
       compiler,
       transactionAcquirer,
@@ -207,6 +214,8 @@ const makeWithDatabase = (
       ],
       transformRows,
     });
+    tracePackagedStartup("node sqlite client construction completed");
+    return client;
   });
 
 const make = (

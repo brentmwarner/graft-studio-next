@@ -16,6 +16,7 @@ import { createMigrationSchemaTooNewStartupBlockError } from "../MigrationSchema
 import { ensurePrivateFileSync, repairPrivateFile } from "../../privatePathPermissions.ts";
 import { resolveRuntimeSqliteMemoryBudget } from "../sqliteMemoryBudget.ts";
 import { ServerConfig } from "../../config.ts";
+import { tracePackagedStartup } from "../../packagedStartupTrace.ts";
 import {
   acquireDatabaseLifecycleLock,
   releaseDatabaseLifecycleLock,
@@ -39,7 +40,9 @@ const makeRuntimeSqliteLayer = (
   Effect.gen(function* () {
     const runtime = process.versions.bun !== undefined ? "bun" : "node";
     const loader = defaultSqliteClientLoaders[runtime];
+    tracePackagedStartup(`sqlite client import started runtime=${runtime}`);
     const clientModule = yield* Effect.promise<Loader>(loader);
+    tracePackagedStartup(`sqlite client import completed runtime=${runtime}`);
     return clientModule.layer(config);
   }).pipe(Layer.unwrap);
 
@@ -71,7 +74,9 @@ const makeSetup = ({
 }: SqliteSetupOptions = {}) =>
   Layer.effectDiscard(
     Effect.gen(function* () {
+      tracePackagedStartup("sqlite setup started");
       const sql = yield* SqlClient.SqlClient;
+      tracePackagedStartup("sqlite client acquired");
       if (dbPath) {
         // The runtime owns this database for its entire lifetime (enforced by
         // DatabaseLifecycleLock), so make SQLite enforce the same boundary.
@@ -81,6 +86,7 @@ const makeSetup = ({
         const lockingModeRows = yield* sql<{ readonly locking_mode: string }>`
           PRAGMA locking_mode = EXCLUSIVE;
         `;
+        tracePackagedStartup("sqlite exclusive locking mode configured");
         const lockingMode = lockingModeRows[0]?.locking_mode;
         if (lockingMode?.toLowerCase() !== "exclusive") {
           return yield* Effect.fail(
@@ -91,9 +97,11 @@ const makeSetup = ({
         }
       }
       yield* sql`PRAGMA busy_timeout = 5000;`;
+      tracePackagedStartup("sqlite busy timeout configured");
       const journalModeRows = yield* sql<{ readonly journal_mode: string }>`
         PRAGMA journal_mode = WAL;
       `;
+      tracePackagedStartup("sqlite WAL journal mode configured");
       const journalMode = journalModeRows[0]?.journal_mode;
       if (journalMode?.toLowerCase() !== "wal") {
         yield* Effect.logWarning("SQLite WAL journal mode could not be enabled", {
@@ -109,6 +117,7 @@ const makeSetup = ({
       // power loss is acceptable.
       yield* sql`PRAGMA synchronous = NORMAL;`;
       yield* sql`PRAGMA foreign_keys = ON;`;
+      tracePackagedStartup("sqlite durability and foreign-key pragmas configured");
       // The event log alone can exceed a gigabyte, so the 2MB default page
       // cache thrashes during projector replay and large projection reads.
       // The page cache (negative value = KiB) keeps the hot b-tree interior
@@ -127,6 +136,7 @@ const makeSetup = ({
         readTotalMemory: totalmem,
       });
       yield* sql`PRAGMA cache_size = ${sql.literal(String(memoryBudget.cacheSizePragma))};`;
+      tracePackagedStartup("sqlite cache budget configured");
       if (dbPath) {
         // mmap serves large sequential reads (event replay, VACUUM INTO
         // backups) through the OS page cache without double-buffering into
@@ -137,11 +147,13 @@ const makeSetup = ({
         // lifecycle lock make external mutation effectively impossible, and
         // no internal path truncates the live database.
         yield* sql`PRAGMA mmap_size = ${sql.literal(String(memoryBudget.mmapSizeBytes))};`;
+        tracePackagedStartup("sqlite mmap budget configured");
         // Setting locking_mode changes connection policy; this transaction
         // actually acquires and retains the database lock before startup
         // continues, closing the window where another client could attach.
         yield* sql`BEGIN EXCLUSIVE;`;
         yield* sql`COMMIT;`;
+        tracePackagedStartup("sqlite exclusive database lock acquired");
       }
       // A pending marker means an earlier startup was interrupted mid-migration.
       // Resuming reuses that attempt's snapshot instead of taking a second one,
@@ -151,6 +163,7 @@ const makeSetup = ({
           ? resumeMarkedMigration(dbPath, pendingRecovery, runMigrations())
           : runWithPreMigrationBackup(dbPath, runMigrations(), { divergenceConsent })
         : runMigrations();
+      tracePackagedStartup("sqlite migrations started");
       yield* migrations.pipe(
         Effect.catch((cause) =>
           cause instanceof MigrationSchemaTooNewError && dbPath
@@ -160,6 +173,7 @@ const makeSetup = ({
             : Effect.fail(cause),
         ),
       );
+      tracePackagedStartup("sqlite migrations completed");
     }),
   );
 
@@ -167,26 +181,38 @@ export const makeSqlitePersistenceLive = (
   dbPath: string,
   options: { readonly divergenceConsent?: string | undefined } = {},
 ) =>
-  Effect.acquireRelease(acquireDatabaseLifecycleLock(dbPath), (lock) =>
-    releaseDatabaseLifecycleLock(lock).pipe(Effect.orDie),
+  Effect.acquireRelease(
+    Effect.sync(() => tracePackagedStartup("sqlite lifecycle lock acquisition started")).pipe(
+      Effect.andThen(acquireDatabaseLifecycleLock(dbPath)),
+      Effect.tap(() =>
+        Effect.sync(() => tracePackagedStartup("sqlite lifecycle lock acquisition completed")),
+      ),
+    ),
+    (lock) => releaseDatabaseLifecycleLock(lock).pipe(Effect.orDie),
   ).pipe(
     Effect.flatMap(() =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
+        tracePackagedStartup("sqlite state directory preparation started");
         yield* fs.makeDirectory(path.dirname(dbPath), { recursive: true });
+        tracePackagedStartup("sqlite state directory prepared");
         // Ahead of the guard on purpose: a database that fails closed below
         // never reaches the backup path, so this is the only opportunity to
         // reclaim artifacts stranded by an earlier failed startup or restore.
         yield* reclaimOrphanedMigrationArtifacts(dbPath);
+        tracePackagedStartup("sqlite orphaned migration artifacts reclaimed");
         const pendingRecovery = yield* inspectPendingMigrationRecovery(dbPath);
+        tracePackagedStartup("sqlite pending migration recovery inspected");
         // Set the mode before SQLite opens the database. Never reopen the
         // database, WAL, or SHM merely to chmod them while this connection is
         // live: closing any descriptor for the same inode releases POSIX
         // process locks and can leave a mapped WAL index vulnerable to SIGBUS.
         // SQLite creates its sidecars with the database's private mode.
         yield* Effect.sync(() => ensurePrivateFileSync(dbPath));
+        tracePackagedStartup("sqlite database file permissions initialized");
         yield* repairSqliteFilePermissions(dbPath);
+        tracePackagedStartup("sqlite database file permissions repaired");
 
         return Layer.provideMerge(
           makeSetup({
