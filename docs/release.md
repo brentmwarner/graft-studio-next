@@ -91,6 +91,31 @@ node scripts/publish-graft-release.ts \
 Only adding `--publish` invokes the Blob writer. The workflow supplies that flag
 only in the explicit `promote` operation.
 
+## Updates after the initial cutover
+
+Each later desktop release follows the same process: make the change and commit
+a higher version, merge its reviewed PR, build signed native artifacts, verify
+upgrading from the current production version, then promote those exact bytes.
+Merging a PR or pushing a tag alone does not publish a desktop update through
+this workflow. The release operator chooses when to run promotion.
+
+The new desktop checks for updates shortly after startup, every four hours,
+and on eligible foreground activity. An available update downloads in the
+background. Installation remains user-controlled through the update action;
+the app does not automatically install on quit. Active chats are handled by
+the existing restart confirmation and graceful shutdown path.
+
+The legacy history import is a one-time conversion with a durable completion
+record. Future versions use the new app's existing data and versioned database
+migrations. WorkOS accounts stay in the same hosted environment, with the same
+account IDs; a routine app update does not require an account migration.
+
+The website reads the same promoted platform manifests, so its downloads move
+to the release when the feed is promoted. A bad release can be withdrawn from
+further distribution by restoring the saved manifests. Devices that already
+installed it need a higher-version fix or the documented manual recovery;
+restoring the feed is not an automatic downgrade.
+
 ## Signing and publisher access
 
 The workflow can be installed in the legacy `brentmwarner/graft-studio` repository

@@ -91,9 +91,13 @@ checks real encrypted storage, and writes its result and screenshot to
 an explicit failure; do not enable Chromium's plaintext credential fallback.
 
 Full workspace formatting, lint, and type checks remain pending the user's
-explicit request required by the supplied AGENTS.md. Production signing and
-Blob publication credentials are not available in this local environment.
-The prepared GitHub browser sign-in is needed to finish release access.
+explicit request required by the supplied AGENTS.md. GitHub CLI access is
+verified. The legacy repository has the expected Apple signing/notarization
+and Blob publication secret names; the new repository has no Actions secrets.
+Host the replacement release workflow in the legacy repository to reuse those
+credentials, or provision them in the new repository before building there.
+Only secret names were inspected; their validity still needs a signed build.
+Neither repository currently has the required Windows signing secret names.
 
 ## Promotion
 
