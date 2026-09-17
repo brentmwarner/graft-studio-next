@@ -75,7 +75,6 @@ import {
 } from "@graft/shared/migrationRecovery";
 import { ensureStaticSnapshot, findAsarArchivePath } from "@graft/shared/staticSnapshot";
 import { isBackendReadinessAborted, waitForHttpReady } from "./backendReadiness";
-import { resolveDesktopBackendEntry } from "./backendEntryPath";
 import { readLegacyGraftRelayCredential } from "./graftRelayCredential";
 import { GraftAccountService } from "./graftAccountService";
 import { disconnectGraftAccountConnections } from "./graftAccountConnections";
@@ -1215,7 +1214,7 @@ function resolveAboutCommitHash(): string | null {
 }
 
 function resolveBackendEntry(): string {
-  return resolveDesktopBackendEntry(resolveAppRoot(), app.isPackaged);
+  return Path.join(resolveAppRoot(), "apps/server/dist/index.mjs");
 }
 
 function resolveBackendCwd(): string {
