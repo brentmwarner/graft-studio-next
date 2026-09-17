@@ -336,9 +336,11 @@ let inheritedCapabilityFromFd: string | null | undefined;
 
 export function resolveBrowserHostCapability(env: NodeJS.ProcessEnv = process.env): string | null {
   const direct = env.GRAFT_BROWSER_HOST_CAPABILITY?.trim();
+  delete env.GRAFT_BROWSER_HOST_CAPABILITY;
   if (direct && Buffer.byteLength(direct, "utf8") >= 32) return direct;
 
   const rawFd = env.GRAFT_BROWSER_HOST_CAPABILITY_FD?.trim();
+  delete env.GRAFT_BROWSER_HOST_CAPABILITY_FD;
   if (!rawFd || !/^\d+$/.test(rawFd)) return null;
   const fd = Number(rawFd);
   if (!Number.isSafeInteger(fd) || fd < 3 || fd > 255) return null;

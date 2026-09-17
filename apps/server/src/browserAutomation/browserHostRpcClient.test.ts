@@ -307,15 +307,12 @@ describe("browser host RPC client", () => {
   });
 
   it("accepts only a bounded private desktop capability from direct test environments", () => {
-    expect(
-      resolveBrowserHostCapability({
-        GRAFT_BROWSER_HOST_CAPABILITY: TEST_CAPABILITY,
-      }),
-    ).toBe(TEST_CAPABILITY);
-    expect(
-      resolveBrowserHostCapability({
-        GRAFT_BROWSER_HOST_CAPABILITY: "too-short",
-      }),
-    ).toBeNull();
+    const validEnvironment = { GRAFT_BROWSER_HOST_CAPABILITY: TEST_CAPABILITY };
+    expect(resolveBrowserHostCapability(validEnvironment)).toBe(TEST_CAPABILITY);
+    expect(validEnvironment).not.toHaveProperty("GRAFT_BROWSER_HOST_CAPABILITY");
+
+    const invalidEnvironment = { GRAFT_BROWSER_HOST_CAPABILITY: "too-short" };
+    expect(resolveBrowserHostCapability(invalidEnvironment)).toBeNull();
+    expect(invalidEnvironment).not.toHaveProperty("GRAFT_BROWSER_HOST_CAPABILITY");
   });
 });

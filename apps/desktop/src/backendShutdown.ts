@@ -1,12 +1,14 @@
 import * as Http from "node:http";
-import type { ChildProcess } from "node:child_process";
 
 export const DESKTOP_BACKEND_SHUTDOWN_PATH = "/api/desktop/shutdown";
 
-export type BackendShutdownProcess = Pick<
-  ChildProcess,
-  "exitCode" | "signalCode" | "once" | "off" | "kill"
->;
+export interface BackendShutdownProcess {
+  readonly exitCode: number | null;
+  readonly signalCode: NodeJS.Signals | null;
+  once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
+  off(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
+  kill(signal?: number | NodeJS.Signals): boolean;
+}
 
 export type DesktopBackendShutdownRequestOutcome =
   | { readonly type: "response"; readonly statusCode: number }
