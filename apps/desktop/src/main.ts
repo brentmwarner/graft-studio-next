@@ -3584,10 +3584,14 @@ function backendNodeArgs(): string[] {
     BACKEND_MAX_OLD_SPACE_ENV_KEYS.map((key) => process.env[key]).find(
       (value) => value !== undefined && value.trim().length > 0,
     ) ?? null;
+  const shouldUseSystemManagedHeap = app.isPackaged && process.platform === "darwin";
   return resolveBackendNodeArgs({
     configuredMaxOldSpaceMb,
     existingNodeOptions: process.env.NODE_OPTIONS,
-    totalMemoryBytes: OS.totalmem(),
+    // os.totalmem() can block the packaged Electron main process during macOS
+    // startup. Node already sizes its default heap from the host, so keep that
+    // adaptive default unless the user supplied an explicit override.
+    ...(!shouldUseSystemManagedHeap ? { totalMemoryBytes: OS.totalmem() } : {}),
   });
 }
 
@@ -4115,14 +4119,17 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
 
   writeDesktopLogHeader("backend spawn preparation started");
   const backendRuntimeArgs = [...backendNodeArgs(), backendEntry];
+  writeDesktopLogHeader("backend node args ready");
+  const resolvedBackendEnv = backendEnv();
+  writeDesktopLogHeader("backend environment ready");
   const backendChildEnv = {
-    ...backendEnv(),
+    ...resolvedBackendEnv,
     ELECTRON_RUN_AS_NODE: "1",
     GRAFT_SERVER_ENTRY: backendEntry,
     GRAFT_DESKTOP_PARENT_STDIN: "1",
   };
   const backendChildCwd = resolveBackendCwd();
-  writeDesktopLogHeader("backend spawn environment ready");
+  writeDesktopLogHeader("backend spawn inputs ready");
   const backendLaunchMode = process.platform === "darwin" ? "macos-shell-handoff" : "direct";
   writeDesktopLogHeader(`backend spawn requested mode=${backendLaunchMode}`);
   const child = spawnProcess(process.execPath, backendRuntimeArgs, {

@@ -54,12 +54,19 @@ export function withBackendHeapLimitArg(
 export function resolveBackendNodeArgs(input: {
   readonly configuredMaxOldSpaceMb?: string | null | undefined;
   readonly existingNodeOptions?: string | undefined;
-  readonly totalMemoryBytes: number;
+  readonly totalMemoryBytes?: number;
 }): string[] {
+  const configuredMb = parseConfiguredOldSpaceMb(input.configuredMaxOldSpaceMb);
+  if (configuredMb !== null) {
+    return withBackendHeapLimitArg(input.existingNodeOptions, configuredMb);
+  }
+  if (input.totalMemoryBytes === undefined) {
+    return [];
+  }
   return withBackendHeapLimitArg(
     input.existingNodeOptions,
     resolveBackendMaxOldSpaceMb({
-      configuredMb: input.configuredMaxOldSpaceMb,
+      configuredMb: null,
       totalMemoryBytes: input.totalMemoryBytes,
     }),
   );
