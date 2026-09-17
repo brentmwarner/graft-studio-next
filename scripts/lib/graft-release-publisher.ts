@@ -34,6 +34,33 @@ const INITIAL_CUTOVER_PREVIOUS_ARTIFACTS: Record<ReleasePlatform, string | null>
   "win-x64": "Graft-Setup-x64.exe",
   "linux-x64": "Graft-x64.AppImage",
 };
+
+function previousVersionForPlatform(
+  previousVersions: UpgradeEvidence["previousVersions"],
+  platform: ReleasePlatform,
+): string {
+  return previousVersions[
+    platform.startsWith("mac-")
+      ? "latest-mac.yml"
+      : platform === "win-x64"
+        ? "latest.yml"
+        : "latest-linux.yml"
+  ];
+}
+
+function expectedPreviousArtifact(
+  previousVersions: UpgradeEvidence["previousVersions"],
+  platform: ReleasePlatform,
+): string {
+  const previousVersion = previousVersionForPlatform(previousVersions, platform);
+  return platform === "mac-arm64"
+    ? `Graft-${previousVersion}-arm64.zip`
+    : platform === "mac-x64"
+      ? `Graft-${previousVersion}-x64.zip`
+      : platform === "win-x64"
+        ? `Graft-${previousVersion}-x64.exe`
+        : `Graft-${previousVersion}-x86_64.AppImage`;
+}
 export interface UpgradeEvidence {
   readonly schemaVersion: 2;
   readonly version: string;
@@ -159,12 +186,11 @@ export function validateUpgradeEvidence(
     const isInitialCutover =
       version === "0.9.0" &&
       Object.values(evidence.previousVersions).every((previous) => previous === "0.1.143");
-    if (
-      isInitialCutover &&
-      receipt.previousArtifact !== INITIAL_CUTOVER_PREVIOUS_ARTIFACTS[platform]
-    ) {
-      throw new Error(`Wrong 0.1.143 predecessor artifact for ${platform}.`);
-    }
+    const expectedPredecessor = isInitialCutover
+      ? INITIAL_CUTOVER_PREVIOUS_ARTIFACTS[platform]
+      : expectedPreviousArtifact(evidence.previousVersions, platform);
+    if (receipt.previousArtifact !== expectedPredecessor)
+      throw new Error(`Wrong predecessor artifact for ${platform}.`);
     const hasNoLegacyRelease = receipt.previousArtifact === null;
     if (hasNoLegacyRelease && !(isInitialCutover && platform === "mac-x64")) {
       throw new Error(

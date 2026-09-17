@@ -67,9 +67,13 @@ GitHub release is coupled to this desktop workflow.
    app using isolated state.
 4. Download and test the exact artifacts against real legacy installs. Validate
    the old updater's download/install path, account continuity, history and
-   settings preservation, reconnect behavior, and rollback on every target.
-   Keep evidence tied to the exact artifact hash, source commit, and predecessor
-   version. A successful clean-profile startup alone is insufficient.
+   settings preservation, reconnect behavior, and rollback on every target that
+   had a released predecessor. The 0.1.143 feed had no Intel Mac artifact, so
+   the 0.9.0 Intel receipt uses the documented no-legacy-release status for the
+   impossible update and rollback checks while still requiring all other Intel
+   checks. Keep evidence tied to the exact artifact hash, source commit,
+   predecessor version, and predecessor artifact. A successful clean-profile
+   startup alone is insufficient.
 5. After completing those tests, dispatch **Graft Production Upgrade Evidence**
    in the release-host repository with the same source/version, signed build run
    ID, and the completed `upgrade-evidence.json`. The workflow downloads the

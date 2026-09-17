@@ -24,10 +24,11 @@ afterEach(async () => {
   );
 });
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-const version = "0.8.4";
+const version = "0.9.1";
+const previousVersion = "0.9.0";
 const sourceCommit = "a".repeat(40);
 
-async function fixture(releaseVersion = version) {
+async function fixture(releaseVersion = version, predecessorVersion = previousVersion) {
   const directory = await mkdtemp(join(tmpdir(), "graft-publish-test-"));
   directories.push(directory);
   const receipts: UpgradeEvidence["platforms"][number][] = [];
@@ -91,21 +92,35 @@ async function fixture(releaseVersion = version) {
         artifacts,
       }),
     );
+    const initialCutover = releaseVersion === "0.9.0" && predecessorVersion === "0.1.143";
+    const noLegacyRelease = initialCutover && key === "mac-x64";
     receipts.push({
       platform: key,
       artifact: update.fileName,
       sha256: update.sha256,
       evidenceUrl: `https://github.com/brentmwarner/graft-studio/actions/runs/123#${key}`,
-      previousArtifact:
-        key === "mac-arm64"
-          ? "Graft-0.1.143-arm64-mac.zip"
-          : key === "mac-x64"
-            ? "Graft-0.1.143-x64-mac.zip"
+      previousArtifact: noLegacyRelease
+        ? null
+        : initialCutover
+          ? key === "mac-arm64"
+            ? "Graft-0.1.143-arm64-mac.zip"
             : key === "win-x64"
               ? "Graft-Setup-x64.exe"
-              : "Graft-x64.AppImage",
+              : "Graft-x64.AppImage"
+          : key === "mac-arm64"
+            ? `Graft-${predecessorVersion}-arm64.zip`
+            : key === "mac-x64"
+              ? `Graft-${predecessorVersion}-x64.zip`
+              : key === "win-x64"
+                ? `Graft-${predecessorVersion}-x64.exe`
+                : `Graft-${predecessorVersion}-x86_64.AppImage`,
       checks: Object.fromEntries(
-        UPGRADE_CHECKS.map((check) => [check, "passed"]),
+        UPGRADE_CHECKS.map((check) => [
+          check,
+          noLegacyRelease && (check === "legacy-update" || check === "rollback")
+            ? "not-applicable-no-legacy-release"
+            : "passed",
+        ]),
       ) as UpgradeEvidence["platforms"][number]["checks"],
     });
   }
@@ -114,9 +129,9 @@ async function fixture(releaseVersion = version) {
     version: releaseVersion,
     sourceCommit,
     previousVersions: {
-      "latest-mac.yml": "0.1.143",
-      "latest.yml": "0.1.143",
-      "latest-linux.yml": "0.1.143",
+      "latest-mac.yml": predecessorVersion,
+      "latest.yml": predecessorVersion,
+      "latest-linux.yml": predecessorVersion,
     },
     platforms: receipts,
   };
@@ -132,7 +147,7 @@ class MemoryStore implements ReleaseStore {
       this.objects.set(
         `releases/${name}`,
         Buffer.from(
-          "version: 0.1.143\nfiles:\n  - url: legacy.zip\n    sha512: old\n    size: 3\nreleaseDate: '2026-01-01'\n",
+          `version: ${previousVersion}\nfiles:\n  - url: legacy.zip\n    sha512: old\n    size: 3\nreleaseDate: '2026-01-01'\n`,
         ),
       );
   }
@@ -190,7 +205,7 @@ describe("Graft production feed", () => {
     for (const name of STABLE_MANIFESTS) {
       expect(
         Buffer.from(store.objects.get(`releases/${version}/rollback/${name}`)!).toString(),
-      ).toContain("version: 0.1.143");
+      ).toContain(`version: ${previousVersion}`);
       expect(Buffer.from(store.objects.get(`releases/${name}`)!).toString()).toContain(
         `version: ${version}`,
       );
@@ -223,9 +238,24 @@ describe("Graft production feed", () => {
   });
 
   it("models the exact cutover when the legacy release had no Intel Mac build", async () => {
-    const { directory, evidence } = await fixture("0.9.0");
+    const { directory, evidence } = await fixture("0.9.0", "0.1.143");
+    await expect(prepareGraftRelease(directory, evidence)).resolves.toMatchObject({
+      version: "0.9.0",
+    });
+
+    const stale: UpgradeEvidence = {
+      ...evidence,
+      previousVersions: { ...evidence.previousVersions, "latest.yml": "0.1.142" },
+    };
+    await expect(prepareGraftRelease(directory, stale)).rejects.toThrow(
+      "Wrong predecessor artifact",
+    );
+  });
+
+  it("does not reuse the initial Intel Mac exception for a later release", async () => {
+    const { directory, evidence } = await fixture("0.9.1", "0.1.143");
     const intel = evidence.platforms.find((entry) => entry.platform === "mac-x64")!;
-    const cutover: UpgradeEvidence = {
+    const invalid: UpgradeEvidence = {
       ...evidence,
       platforms: evidence.platforms.map((entry) =>
         entry === intel
@@ -241,16 +271,22 @@ describe("Graft production feed", () => {
           : entry,
       ),
     };
-    await expect(prepareGraftRelease(directory, cutover)).resolves.toMatchObject({
-      version: "0.9.0",
-    });
+    await expect(prepareGraftRelease(directory, invalid)).rejects.toThrow(
+      "Wrong predecessor artifact for mac-x64",
+    );
+  });
 
-    const stale: UpgradeEvidence = {
-      ...cutover,
-      previousVersions: { ...cutover.previousVersions, "latest.yml": "0.1.142" },
+  it("binds later evidence to the predecessor artifact naming contract", async () => {
+    const { directory, evidence } = await fixture();
+    const windows = evidence.platforms.find((entry) => entry.platform === "win-x64")!;
+    const invalid: UpgradeEvidence = {
+      ...evidence,
+      platforms: evidence.platforms.map((entry) =>
+        entry === windows ? { ...entry, previousArtifact: "wrong.exe" } : entry,
+      ),
     };
-    await expect(prepareGraftRelease(directory, stale)).rejects.toThrow(
-      "Only the unreleased Intel Mac",
+    await expect(prepareGraftRelease(directory, invalid)).rejects.toThrow(
+      "Wrong predecessor artifact for win-x64",
     );
   });
 
@@ -312,7 +348,7 @@ describe("Graft production feed", () => {
       `version: ${version}`,
     );
     expect(Buffer.from(store.objects.get("releases/latest.yml")!).toString()).toContain(
-      "version: 0.1.143",
+      `version: ${previousVersion}`,
     );
     expect(store.objects.has(`releases/${version}/rollback/latest-mac.yml`)).toBe(true);
     for (const object of plan.payloads) expect(await store.verify(object)).toBe(true);
@@ -323,7 +359,7 @@ describe("Graft production feed", () => {
     );
     expect(
       Buffer.from(store.objects.get(`releases/${version}/rollback/latest-mac.yml`)!).toString(),
-    ).toContain("version: 0.1.143");
+    ).toContain(`version: ${previousVersion}`);
   });
 
   it("refuses a release that would offer incompatible binaries to old Macs", async () => {
