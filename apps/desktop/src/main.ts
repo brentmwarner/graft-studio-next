@@ -29,7 +29,6 @@ import {
   session,
   shell,
   systemPreferences,
-  utilityProcess,
 } from "electron";
 import type {
   BrowserWindowConstructorOptions,
@@ -255,8 +254,6 @@ import {
 } from "./browserIpc";
 import {
   BrowserHostPipeServer,
-  GRAFT_BROWSER_HOST_CAPABILITY_ENV,
-  GRAFT_BROWSER_HOST_CAPABILITY_FD_ENV,
   GRAFT_BROWSER_HOST_PIPE_PATH,
   resolveBrowserHostPipeBackendEnv,
 } from "./browserUsePipeServer";
@@ -269,7 +266,7 @@ import {
 } from "./desktopUserDataProfile";
 import { isBrokenPipeError } from "./desktopProcessErrors";
 import { createDesktopStaticProtocolResolver } from "./desktopStaticProtocol";
-import { type DesktopBackendProcess, UtilityDesktopBackendProcess } from "./desktopBackendProcess";
+import { resolveDesktopBackendExecutable } from "./desktopBackendExecutable";
 import {
   readCustomTitleBarPreference,
   resolveDesktopCustomTitleBarState,
@@ -403,7 +400,7 @@ type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
 let mainWindow: BrowserWindow | null = null;
 /** Whether the live BrowserWindow was created with `frame: false` (win32/linux). */
 let customTitleBarActive = false;
-let backendProcess: DesktopBackendProcess | null = null;
+let backendProcess: ChildProcess.ChildProcess | null = null;
 let backendPort = 0;
 let backendAuthToken = "";
 let backendHttpUrl = "";
@@ -4123,67 +4120,53 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
   }
 
   writeDesktopLogHeader("backend spawn preparation started");
-  const backendExecArgv = backendNodeArgs();
+  const backendRuntimeArgs = [...backendNodeArgs(), backendEntry];
   writeDesktopLogHeader("backend node args ready");
   const resolvedBackendEnv = backendEnv();
   writeDesktopLogHeader("backend environment ready");
-  const useMacUtilityProcess = app.isPackaged && process.platform === "darwin";
   const backendChildEnv: NodeJS.ProcessEnv = {
     ...resolvedBackendEnv,
-    ...(useMacUtilityProcess ? {} : { ELECTRON_RUN_AS_NODE: "1" }),
+    ELECTRON_RUN_AS_NODE: "1",
     GRAFT_SERVER_ENTRY: backendEntry,
-    GRAFT_DESKTOP_PARENT_STDIN: useMacUtilityProcess ? "0" : "1",
+    GRAFT_DESKTOP_PARENT_STDIN: "1",
   };
-  if (useMacUtilityProcess) {
-    delete backendChildEnv[GRAFT_BROWSER_HOST_CAPABILITY_FD_ENV];
-    if (browserHostPipeServer) {
-      backendChildEnv[GRAFT_BROWSER_HOST_CAPABILITY_ENV] = DESKTOP_BROWSER_HOST_CAPABILITY;
-    }
-  }
   const backendChildCwd = resolveBackendCwd();
+  const backendExecutable = resolveDesktopBackendExecutable({
+    appIsPackaged: app.isPackaged,
+    execPath: process.execPath,
+    platform: process.platform,
+  });
   writeDesktopLogHeader("backend spawn inputs ready");
-  const backendLaunchMode = useMacUtilityProcess ? "macos-utility-process" : "direct";
+  const backendLaunchMode =
+    app.isPackaged && process.platform === "darwin" ? "macos-helper-handoff" : "direct";
   writeDesktopLogHeader(`backend spawn requested mode=${backendLaunchMode}`);
-  let child: DesktopBackendProcess;
-  if (useMacUtilityProcess) {
-    child = new UtilityDesktopBackendProcess(
-      utilityProcess.fork(backendEntry, [], {
-        cwd: backendChildCwd,
-        env: backendChildEnv,
-        execArgv: backendExecArgv,
-        serviceName: "Graft Backend",
-        stdio: "pipe",
-      }),
-    );
-  } else {
-    const spawnedChild = spawnProcess(process.execPath, [...backendExecArgv, backendEntry], {
-      platform: process.platform,
-      macosExecutableHandoff: true,
-      requireExecutable: true,
-      cwd: backendChildCwd,
-      // In Electron main, process.execPath points to the Electron binary.
-      // Run the child in Node mode so this backend process does not become a GUI app instance.
-      env: backendChildEnv,
-      // Keep output piped in every environment so startup blockers and readiness
-      // are observable even when packaged log setup is unavailable. The fourth
-      // pipe carries the browser-host capability and must never be inherited.
-      // Leave stdin open: EOF lets the backend clean up if this main process dies.
-      stdio: ["pipe", "pipe", "pipe", "pipe"],
+  const child = spawnProcess(backendExecutable, backendRuntimeArgs, {
+    platform: process.platform,
+    macosExecutableHandoff: true,
+    requireExecutable: true,
+    cwd: backendChildCwd,
+    // Electron executables become Node runtimes when ELECTRON_RUN_AS_NODE is set.
+    // Packaged macOS builds use the app's Helper executable because the primary
+    // executable and utilityProcess both stall while loading the server graph.
+    env: backendChildEnv,
+    // Keep output piped in every environment so startup blockers and readiness
+    // are observable even when packaged log setup is unavailable. The fourth
+    // pipe carries the browser-host capability and must never be inherited.
+    // Leave stdin open: EOF lets the backend clean up if this main process dies.
+    stdio: ["pipe", "pipe", "pipe", "pipe"],
+  });
+  const capabilityPipe = child.stdio[DESKTOP_BROWSER_HOST_CAPABILITY_FD];
+  if (capabilityPipe && "end" in capabilityPipe) {
+    capabilityPipe.on("error", (error) => {
+      if (!isBrokenPipeError(error)) {
+        safeConsoleError("[desktop] failed to deliver browser host capability", error);
+      }
     });
-    const capabilityPipe = spawnedChild.stdio[DESKTOP_BROWSER_HOST_CAPABILITY_FD];
-    if (capabilityPipe && "end" in capabilityPipe) {
-      capabilityPipe.on("error", (error) => {
-        if (!isBrokenPipeError(error)) {
-          safeConsoleError("[desktop] failed to deliver browser host capability", error);
-        }
-      });
-      capabilityPipe.end(DESKTOP_BROWSER_HOST_CAPABILITY);
-    } else {
-      spawnedChild.kill();
-      scheduleBackendRestart("browser host capability pipe was unavailable");
-      return;
-    }
-    child = spawnedChild;
+    capabilityPipe.end(DESKTOP_BROWSER_HOST_CAPABILITY);
+  } else {
+    child.kill();
+    scheduleBackendRestart("browser host capability pipe was unavailable");
+    return;
   }
   writeDesktopLogHeader(`backend spawn returned mode=${backendLaunchMode}`);
   const listeningDetector = new ServerListeningDetector();
@@ -4269,7 +4252,7 @@ function startBackend(trigger: BackendStartTrigger = "lifecycle"): void {
   });
 }
 
-function takeBackendProcessForShutdown(): DesktopBackendProcess | null {
+function takeBackendProcessForShutdown(): ChildProcess.ChildProcess | null {
   cancelBackendReadinessWait();
   backendListeningDetector = null;
   if (restartTimer) {
