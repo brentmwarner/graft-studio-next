@@ -85,6 +85,16 @@ function assertNotContains(haystack: string, needle: string, message: string): v
 }
 
 function verifyCanonicalIdentity(): void {
+  const rootPackage = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as {
+    engines?: { node?: string };
+  };
+  const pinnedNodeVersion = readFileSync(resolve(repoRoot, ".node-version"), "utf8").trim();
+  if (!/^\d+\.\d+\.\d+$/.test(pinnedNodeVersion)) {
+    throw new Error("Production builds require an exact Node version in .node-version.");
+  }
+  if (rootPackage.engines?.node !== pinnedNodeVersion) {
+    throw new Error("package.json and .node-version must pin the same exact Node version.");
+  }
   const serverPackage = JSON.parse(
     readFileSync(resolve(repoRoot, "apps/server/package.json"), "utf8"),
   ) as { name?: string; bin?: Record<string, string> };

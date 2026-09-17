@@ -113,7 +113,7 @@ jobs:
         if: steps.toolchain.outputs.present == 'true'
         uses: actions/setup-node@v6
         with:
-          node-version-file: package.json
+          node-version-file: .node-version
 
       - name: Install dependencies
         if: steps.toolchain.outputs.present == 'true'

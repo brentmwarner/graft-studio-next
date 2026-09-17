@@ -69,7 +69,7 @@ jobs:
           fi
       - uses: actions/setup-node@v6
         with:
-          node-version-file: package.json
+          node-version-file: .node-version
       - id: meta
         name: Resolve exact source and version
         env:
