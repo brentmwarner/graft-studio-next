@@ -139,6 +139,19 @@ describe("fixPath", () => {
     expect(env.PATH).toBe("/opt/homebrew/bin");
   });
 
+  it("uses the platform fallback without an OS user lookup in packaged desktop", () => {
+    const env: NodeJS.ProcessEnv = {
+      PATH: "/usr/bin",
+      GRAFT_DESKTOP_PACKAGED: "1",
+    };
+    const readPath = vi.fn(() => "/opt/homebrew/bin");
+
+    fixPath({ env, platform: "darwin", readPath, readLaunchctlPath: () => undefined });
+
+    expect(readPath).toHaveBeenCalledWith("/bin/zsh");
+    expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
+  });
+
   it("does nothing on unsupported platforms", () => {
     const env: NodeJS.ProcessEnv = {
       SHELL: "C:/Program Files/Git/bin/bash.exe",

@@ -59,10 +59,13 @@ export function fixPath(
     let shellPath: string | undefined;
     // The desktop child inherits SHELL. Passing it explicitly prevents the shared
     // helper from querying node:os before this packaged backend begins listening.
+    // Other server launches keep the account's OS login-shell fallback.
+    const packagedDesktopUserShell =
+      env.GRAFT_DESKTOP_PACKAGED === "1" ? (env.SHELL ?? "") : undefined;
     for (const shell of listLoginShellCandidates(
       platform,
       env.SHELL,
-      options.userShell ?? env.SHELL ?? "",
+      options.userShell ?? packagedDesktopUserShell,
     )) {
       try {
         shellPath = readPath(shell);

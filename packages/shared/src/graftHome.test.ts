@@ -135,6 +135,6 @@ describe("resolveUserHomeDirectory", () => {
         platform: "win32",
         readHomeDirectory,
       }),
-    ).toBe(Path.resolve("C:\\Users\\tester"));
+    ).toBe(Path.win32.resolve("C:\\Users\\tester"));
   });
 });

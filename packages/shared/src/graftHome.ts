@@ -25,11 +25,12 @@ function fallbackHomeDirectory(options: HomeDirectoryOptions): string {
 export function resolveUserHomeDirectory(options: HomeDirectoryOptions = {}): string {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
+  const pathImplementation = platform === "win32" ? Path.win32 : Path.posix;
   const configured =
     platform === "win32"
       ? env.USERPROFILE?.trim() || env.HOME?.trim()
       : env.HOME?.trim() || env.USERPROFILE?.trim();
-  return configured ? Path.resolve(configured) : fallbackHomeDirectory(options);
+  return configured ? pathImplementation.resolve(configured) : fallbackHomeDirectory(options);
 }
 
 /** Expands a leading `~` against the user's home directory; other inputs pass through. */
