@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { MAC_MINIMUM_DARWIN_VERSION } from "./desktop-platform-build-config.ts";
 import {
   prepareGraftRelease,
   publishGraftRelease,
@@ -54,7 +55,7 @@ async function fixture(releaseVersion = version, predecessorVersion = previousVe
           ? "latest.yml"
           : "latest-linux.yml";
     const manifestBytes = Buffer.from(
-      `version: ${releaseVersion}\nfiles:\n  - url: ${update.fileName}\n    sha512: ${createHash("sha512").update(bytes).digest("base64")}\n    size: ${bytes.length}\n${platform === "linux" ? "    blockMapSize: 12\n" : ""}path: ${update.fileName}\nsha512: ignored-legacy-top-level\n${platform === "mac" ? "minimumSystemVersion: 21.4.0\n" : platform === "win" ? "minimumSystemVersion: 10.0.0\n" : ""}releaseDate: '2026-09-16T00:00:00.000Z'\n`,
+      `version: ${releaseVersion}\nfiles:\n  - url: ${update.fileName}\n    sha512: ${createHash("sha512").update(bytes).digest("base64")}\n    size: ${bytes.length}\n${platform === "linux" ? "    blockMapSize: 12\n" : ""}path: ${update.fileName}\nsha512: ignored-legacy-top-level\n${platform === "mac" ? `minimumSystemVersion: ${MAC_MINIMUM_DARWIN_VERSION}\n` : platform === "win" ? "minimumSystemVersion: 10.0.0\n" : ""}releaseDate: '2026-09-16T00:00:00.000Z'\n`,
     );
     await writeFile(join(directory, manifestName), manifestBytes);
     artifacts.push({
@@ -366,7 +367,10 @@ describe("Graft production feed", () => {
     const { directory, evidence } = await fixture();
     const manifestPath = join(directory, "latest-mac.yml");
     const bytes = Buffer.from(
-      (await readFile(manifestPath, "utf8")).replace("minimumSystemVersion: 21.4.0\n", ""),
+      (await readFile(manifestPath, "utf8")).replace(
+        `minimumSystemVersion: ${MAC_MINIMUM_DARWIN_VERSION}\n`,
+        "",
+      ),
     );
     await writeFile(manifestPath, bytes);
     const path = join(directory, "artifact-mac-arm64.provenance.json");
@@ -380,7 +384,10 @@ describe("Graft production feed", () => {
     // The other architecture still has the gate; remove both to test admission.
     const x64Path = join(directory, "latest-mac-x64.yml");
     const x64Bytes = Buffer.from(
-      (await readFile(x64Path, "utf8")).replace("minimumSystemVersion: 21.4.0\n", ""),
+      (await readFile(x64Path, "utf8")).replace(
+        `minimumSystemVersion: ${MAC_MINIMUM_DARWIN_VERSION}\n`,
+        "",
+      ),
     );
     await writeFile(x64Path, x64Bytes);
     const x64ProvenancePath = join(directory, "artifact-mac-x64.provenance.json");

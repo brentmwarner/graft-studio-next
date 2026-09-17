@@ -44,7 +44,7 @@ describe("createDesktopPlatformBuildConfig", () => {
     assert.equal(config.npmRebuild, false);
     assert.equal("releaseInfo" in config, false);
     assert.equal(mac.hardenedRuntime, true);
-    assert.equal(mac.minimumSystemVersion, "12.3");
+    assert.equal(mac.minimumSystemVersion, "13.5");
     assert.equal(mac.notarize, true);
     assert.equal(dmg.sign, true);
     assert.equal(dmg.writeUpdateInfo, false);

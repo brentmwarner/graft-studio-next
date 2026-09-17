@@ -20,10 +20,11 @@ export const MAC_NODE_RUNTIME_BUNDLE_PATH = `Contents/Resources/${GRAFT_MAC_BACK
 export const MAC_DEVICE_HELPER_STAGE_PATH = "apps/server/dist/device-helper";
 export const MAC_DEVICE_HELPER_RESOURCE_PATH = "Resources/device-helper";
 export const WINDOWS_INSTALLER_GUID = "f67e4f48-bfd9-5024-b23c-0d23fd8d8e4a";
-export const MAC_MINIMUM_SYSTEM_VERSION = "12.3";
-// Apple's macOS 12.3 release pins xnu-8020.101.4, whose MasterVersion is 21.4.0.
+// Node 24 requires macOS 13.5 or newer.
+export const MAC_MINIMUM_SYSTEM_VERSION = "13.5";
+// Apple's macOS 13.5 release reports Darwin 22.6.0.
 // electron-updater compares minimumSystemVersion against os.release(), not macOS marketing version.
-export const MAC_MINIMUM_DARWIN_VERSION = "21.4.0";
+export const MAC_MINIMUM_DARWIN_VERSION = "22.6.0";
 export const WINDOWS_MINIMUM_SYSTEM_VERSION = "10.0.0";
 const MAC_DMG_ICON_PATH = "icon.icns";
 export const NODE_PTY_ASAR_UNPACK_GLOBS = ["node_modules/node-pty/**"] as const;
