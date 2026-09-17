@@ -54,48 +54,49 @@ open Graft.xcodeproj
 
 Select the **Graft** scheme and an iOS 26+ simulator to build and run.
 
-On iPad (regular horizontal size class), paired home uses `NavigationSplitView`
-in **both** orientations:
+On iPad (regular horizontal size class), Projects is a **floating Liquid Glass
+panel**, inset 16pt from the safe-area edges with 28pt continuous corners. It
+uses SwiftUI's `.glassEffect(.regular, in:)` on a background shape above the
+full-bleed chat canvas. This is a floating panel, not another edge-to-edge
+`NavigationSplitView` material tweak; its geometry stays floating on iPadOS 26
+and 27. The system glass material retains its accessibility adaptations.
 
-- **Landscape** (and 13-inch portrait): pinned sidebar + chat. The Projects
-  column uses `NavigationSplitView`'s system sidebar material, with no opaque
-  inbox fill or navigation-container background overrides. Transcript and
-  composer cap at a 720pt readable column instead of
-  stretching edge to edge.
-- **Mini / 11-inch portrait**: automatic overlay split so the sidebar can
-  dismiss and chat keeps a usable width. Use the system sidebar control to
-  show threads again.
+The Projects / host-status header is a fixed foreground view above the clipped
+scroll region. It has no navigation title or principal toolbar duplication,
+and the chat stack no longer applies `backgroundExtensionEffect()` to text.
+
+- **Wide windows (900pt+)**: the panel starts pinned. Chat reserves the panel
+  width plus its margins; existing transcript/composer layout remains intact.
+  Use **Unpin Projects** to overlay instead, or **Hide Projects** to reclaim
+  the full chat width.
+- **Narrow regular windows**: the panel overlays chat and dismisses when a
+  thread or New Chat is selected, or when the area outside the panel is tapped.
+  **Show Projects** in the chat toolbar reopens it. Widening the window restores
+  the panel when its pin preference is enabled.
 - **Compact** (iPhone, iPad Slide Over): existing drawer + push stack.
-
-The native appearance depends on the OS. iPadOS 26 uses a floating sidebar;
-iPadOS 27 expands it to the window edges and adjusts Liquid Glass diffusion.
-Apple documents this in [WWDC26's Platforms State of the Union](https://developer.apple.com/videos/play/wwdc2026/102/).
-On iPadOS 27's default appearance, an empty white chat produces a pale,
-full-height sidebar, as it does in a minimal `NavigationSplitView`. This is
-not evidence of an opaque custom background. `backgroundExtensionEffect()`
-extends the detail underneath the system material; it does not create glass.
-The app does not override the user's Liquid Glass or accessibility settings.
 
 ### Simulator verification (portrait and landscape)
 
 Use the **Graft** scheme. Pair first if the welcome screen is showing.
 
-| Destination                        | Orientation | Expect                                                                                                                                                                                                                       |
-| ---------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| iPad Pro 13-inch (M4)              | Landscape   | Persistent system Projects sidebar + chat. Compare to native apps on the same OS and appearance settings: floating on iPadOS 26, edge-to-edge on iPadOS 27. Composer/transcript stay a readable column, not full pane width. |
-| iPad Pro 13-inch (M4)              | Portrait    | Still a two-column split (window is 1024pt). Chat remains usable beside the sidebar. Rotate back to landscape; sidebar stays pinned.                                                                                         |
-| iPad Pro 11-inch (M4) or iPad mini | Landscape   | Same pinned sidebar + readable chat as 13-inch landscape.                                                                                                                                                                    |
-| iPad Pro 11-inch (M4) or iPad mini | Portrait    | Sidebar overlays / can hide (`automatic`); chat is the primary column. Toggle the sidebar, open a thread, rotate to landscape and confirm both columns pin.                                                                  |
-| iPhone 17 Pro                      | Portrait    | Hamburger drawer and push navigation unchanged.                                                                                                                                                                              |
+| Destination                   | Orientation | Expect                                                                                                             |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
+| iPad Pro 13-inch              | Landscape   | Inset rounded glass Projects panel, crisp Projects / Mac header, chat beside it.                                   |
+| iPad Pro 13-inch              | Portrait    | Floating panel stays pinned. Both the screen margin and rounded top/bottom corners remain visible.                 |
+| iPad Pro 11-inch or iPad mini | Landscape   | Same pinned floating panel and readable chat.                                                                      |
+| iPad Pro 11-inch or iPad mini | Portrait    | Panel overlays; selecting a thread dismisses it. Show Projects reopens it; rotation to landscape restores pinning. |
+| iPhone                        | Portrait    | Hamburger drawer and push navigation unchanged.                                                                    |
 
-Hardware → Rotate in the simulator, or `⌘←` / `⌘→`. Confirm New Chat opens in the
-detail column in both orientations, and Settings still presents as a sheet.
+Check Hide / Show Projects, pin / unpin, thread selection, New Chat, search,
+Settings, and rotation. Scroll the projects while watching the fixed header:
+rows must stay below it and the title must remain sharp. Opening and closing
+the panel must preserve the active chat and any composer draft. With Reduce
+Motion enabled, panel transitions fade without sliding or resizing animation.
 
-For material regressions, compare against a minimal `NavigationSplitView`
-on the same runtime. A temporary contrasting detail background can reveal
-translucency; remove it before capturing the production UI. A sidebar
-`List`, `.automatic` split style, or clearing navigation backgrounds alone
-does not restore iPadOS 26's floating edges on iPadOS 27.
+`AdaptiveChromeTests` covers size-class routing, panel margins and width,
+wide/narrow pinning, hidden/unpinned chat space, and dismissal after selection.
+Visual verification still requires the simulator; policy tests do not prove
+material rendering or header sharpness.
 
 ## Welcome visuals
 
@@ -149,7 +150,7 @@ xcodebuild test -project Graft.xcodeproj -scheme Graft \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
   -quiet
 
-# iPad (regular-width split)
+# iPad (floating sidebar)
 xcodebuild -project Graft.xcodeproj -scheme Graft \
   -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4),OS=26.5' \
   -quiet build
@@ -172,7 +173,7 @@ apps/ios/
     App/
       AppDelegate.swift                # APNs registration callbacks
       RootView.swift                   # Scene root; Welcome vs Home, scenePhase hooks
-      AdaptiveChrome.swift             # Regular-width split vs compact drawer policy
+      AdaptiveChrome.swift             # Floating sidebar vs compact drawer policy
     Core/
       Keychain.swift                   # Generic-password Keychain wrapper
       AppLog.swift                     # os.Logger categories
@@ -199,7 +200,7 @@ apps/ios/
         QRScannerView.swift             # VisionKit QR scanner bridge
         QRScannerHostController.swift   # Camera presentation and lifecycle
       Home/
-        HomeView.swift                 # Adaptive home: compact drawer, regular split + chat
+        HomeView.swift                 # Adaptive home: compact drawer, floating iPad panel
     Resources/
       graft-app-icon.icon              # Icon Composer app icon (iOS home screen)
       Assets.xcassets                  # Raster AppIcon fallback + accent colour

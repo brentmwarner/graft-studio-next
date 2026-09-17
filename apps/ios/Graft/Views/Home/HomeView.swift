@@ -4,9 +4,8 @@ import SwiftUI
 /// (hierarchical remote projects list), not the Fetch chat home.
 ///
 /// Compact horizontal size class keeps the phone drawer under a
-/// `NavigationStack`. Regular width uses `NavigationSplitView` in both
-/// iPad orientations: landscape pins sidebar + chat; narrower portrait
-/// uses an automatic overlay split so chat is not crushed.
+/// `NavigationStack`. Regular width overlays an inset Liquid Glass Projects
+/// panel, reserving chat space while pinned in a sufficiently wide window.
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -17,7 +16,7 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var selectedThread: InboxThreadItem?
     @State private var newChatContext: NewChatContext?
-    @State private var splitVisibility = NavigationSplitViewVisibility.automatic
+    @State private var sidebarSelectionID = UUID()
     @FocusState private var searchFieldFocused: Bool
 
     private var usesPersistentSidebar: Bool {
@@ -27,7 +26,22 @@ struct HomeView: View {
     var body: some View {
         Group {
             if usesPersistentSidebar {
-                splitHome
+                FloatingSidebarLayout(
+                    hostLabel: hostLabel,
+                    isConnected: app.gateway.state == .connected,
+                    selectionID: sidebarSelectionID,
+                    onSettings: { showSettings = true },
+                    onMore: { showOverflow = true }
+                ) {
+                    inboxContent
+                } detail: {
+                    HomeChatDetail(
+                        selectedThread: selectedThread,
+                        newChatContext: newChatContext,
+                        onOpenThread: openThread,
+                        onNewChat: { openNewChat() }
+                    )
+                }
             } else {
                 compactHome
             }
@@ -38,7 +52,7 @@ struct HomeView: View {
     }
 
     /// Phone / compact: drawer under a stack. Selecting a thread or compose
-    /// destination still pushes, same as before this adaptive split.
+    /// destination still pushes, independent of the floating iPad panel.
     private var compactHome: some View {
         NavDrawerLayout(
             isOpen: $showDrawer,
@@ -63,55 +77,7 @@ struct HomeView: View {
         }
     }
 
-    /// Regular width (iPad, and plus-size landscape). Landscape and 13-inch
-    /// portrait pin both columns; Mini / 11-inch portrait overlay the sidebar.
-    private var splitHome: some View {
-        NavigationSplitView(columnVisibility: $splitVisibility) {
-            inboxRoot
-                .navigationSplitViewColumnWidth(
-                    min: AdaptiveChrome.sidebarMinWidth,
-                    ideal: AdaptiveChrome.sidebarIdealWidth,
-                    max: AdaptiveChrome.sidebarMaxWidth
-                )
-        } detail: {
-            NavigationStack {
-                splitDetail
-            }
-            // Lets the system glass sidebar sample / extend the chat column.
-            .backgroundExtensionEffect()
-        }
-        // One concrete style — `.balanced` / `.prominentDetail` are distinct
-        // types, so a ternary here fails to compile. Portrait vs landscape is
-        // owned by `preferredColumnVisibility` (`.automatic` overlay vs `.all`).
-        .navigationSplitViewStyle(.balanced)
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.width
-        } action: { width in
-            let preferred = AdaptiveChrome.preferredColumnVisibility(
-                containerWidth: width
-            )
-            if splitVisibility != preferred {
-                splitVisibility = preferred
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var splitDetail: some View {
-        if let thread = selectedThread {
-            ThreadView(threadId: thread.id, title: thread.title)
-        } else if let context = newChatContext {
-            NewChatView(
-                preselectedProjectId: context.preselectedProjectId,
-                onOpenedThread: openThread
-            )
-            .id(context.id)
-        } else {
-            HomeEmptyChatPlaceholder(onNewChat: { openNewChat() })
-        }
-    }
-
-    private var inboxRoot: some View {
+    private var inboxContent: some View {
         ZStack(alignment: .bottom) {
             RemoteInboxScreen(
                 projects: inboxProjects,
@@ -149,15 +115,6 @@ struct HomeView: View {
                 }
             }
         }
-        // Native bar: the iOS scroll-edge fade only comes from real
-        // toolbar items over scrolling content, not a custom header row.
-        // The title string also gives NavigationSplitView a sidebar label
-        // for the column toggle; InboxTitleLockup remains the visible mark.
-        .navigationTitle(Text("Projects", comment: "Remote inbox navigation title"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            inboxToolbar
-        }
         .confirmationDialog(
             "Environment",
             isPresented: $showOverflow,
@@ -168,6 +125,13 @@ struct HomeView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    private var inboxRoot: some View {
+        inboxContent
+            .navigationTitle(Text("Projects", comment: "Remote inbox navigation title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { inboxToolbar }
     }
 
     @ToolbarContentBuilder
@@ -194,16 +158,6 @@ struct HomeView: View {
                 isConnected: app.gateway.state == .connected
             )
         }
-        if usesPersistentSidebar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel(Text("Settings", comment: "Open settings"))
-            }
-        }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 showOverflow = true
@@ -221,11 +175,13 @@ struct HomeView: View {
     private func openThread(_ thread: InboxThreadItem) {
         newChatContext = nil
         selectedThread = thread
+        sidebarSelectionID = UUID()
     }
 
     private func openNewChat(projectId: String? = nil) {
         selectedThread = nil
         newChatContext = NewChatContext(preselectedProjectId: projectId)
+        sidebarSelectionID = UUID()
     }
 
     private func focusInboxSearch() {
@@ -240,6 +196,29 @@ struct HomeView: View {
             return label
         }
         return "Studio"
+    }
+}
+
+/// Keeps the active chat at one structural location when the panel is toggled,
+/// unpinned, or resized, preserving its composer and session lifecycle.
+private struct HomeChatDetail: View {
+    let selectedThread: InboxThreadItem?
+    let newChatContext: NewChatContext?
+    let onOpenThread: (InboxThreadItem) -> Void
+    let onNewChat: () -> Void
+
+    var body: some View {
+        if let thread = selectedThread {
+            ThreadView(threadId: thread.id, title: thread.title)
+        } else if let context = newChatContext {
+            NewChatView(
+                preselectedProjectId: context.preselectedProjectId,
+                onOpenedThread: onOpenThread
+            )
+            .id(context.id)
+        } else {
+            HomeEmptyChatPlaceholder(onNewChat: onNewChat)
+        }
     }
 }
 
@@ -264,7 +243,7 @@ struct HomeEmptyChatPlaceholder: View {
             }
             .buttonStyle(.borderedProminent)
         }
-        .navigationTitle(Text("Chat", comment: "Empty split-view chat title"))
+        .navigationTitle(Text("Chat", comment: "Empty regular-width chat title"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -280,9 +259,10 @@ struct NewChatContext: Identifiable, Hashable {
 struct InboxTitleLockup: View {
     let hostLabel: String
     let isConnected: Bool
+    var alignment: HorizontalAlignment = .center
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(alignment: alignment, spacing: 2) {
             Text("Projects", comment: "Remote inbox navigation title")
                 .font(.headline.weight(.semibold))
             HStack(spacing: 6) {
@@ -307,7 +287,7 @@ struct RemoteInboxScreen: View {
     @Binding var collapsedProjectIds: Set<String>
     var selectedThreadId: String? = nil
     /// Phone inbox paints `systemBackground` over the drawer. The iPad
-    /// split column must stay clear so Liquid Glass can show through.
+    /// floating panel stays clear so its glass background can show through.
     var fillsOpaqueBackground: Bool = true
     let onToggleProject: (String) -> Void
     let onSelectThread: (InboxThreadItem) -> Void
