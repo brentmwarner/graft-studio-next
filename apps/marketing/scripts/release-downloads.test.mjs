@@ -63,9 +63,7 @@ test("production installers resolve from the trusted GitHub release", async () =
         `${release}/Graft-${version}-arm64.zip`,
         `${release}/Graft-${version}-x64.zip`,
       ]),
-      [`${feed}/latest.yml`]: manifest(version, [
-        `${release}/Graft-${version}-x64.exe`,
-      ]),
+      [`${feed}/latest.yml`]: manifest(version, [`${release}/Graft-${version}-x64.exe`]),
       [`${feed}/latest-linux.yml`]: manifest(version, [
         `${release}/Graft-${version}-x86_64.AppImage`,
       ]),
