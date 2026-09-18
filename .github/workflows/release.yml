@@ -167,7 +167,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
-      contents: read
+      contents: write
       actions: read
     steps:
       - uses: actions/checkout@v6
@@ -238,7 +238,16 @@ jobs:
           '
       - name: Verify all payloads before publication
         run: node scripts/publish-graft-release.ts --assets-dir release-assets --evidence release-evidence/upgrade-evidence.json
-      - name: Upload immutable payloads, then promote existing stable feed
+      - name: Publish the verified public GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RELEASE_REPOSITORY: brentmwarner/graft-studio-next
+          GITHUB_RELEASE_TARGET: ${{ needs.source.outputs.commit }}
+        run: node scripts/publish-graft-release-github.ts --assets-dir release-assets --evidence release-evidence/upgrade-evidence.json --publish
+      - name: Restore the legacy updater bridge when Blob access returns
+        continue-on-error: true
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-        run: node scripts/publish-graft-release.ts --assets-dir release-assets --evidence release-evidence/upgrade-evidence.json --publish
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RELEASE_REPOSITORY: brentmwarner/graft-studio-next
+        run: node scripts/sync-graft-legacy-feed.ts

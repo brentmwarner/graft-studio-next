@@ -191,7 +191,17 @@ function verifyReleaseWorkflowSafety(): void {
   assertContains(
     workflow,
     "node scripts/publish-graft-release.ts",
-    "Promotion must use the verified immutable Blob publisher.",
+    "Promotion must validate the complete release plan before publication.",
+  );
+  assertContains(
+    workflow,
+    "node scripts/publish-graft-release-github.ts",
+    "Promotion must publish the verified plan to the public GitHub release.",
+  );
+  assertContains(
+    workflow,
+    "GITHUB_RELEASE_REPOSITORY: brentmwarner/graft-studio-next",
+    "Promotion must pin the public update repository.",
   );
   assertNotContains(
     workflow,

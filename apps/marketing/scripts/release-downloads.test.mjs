@@ -20,13 +20,11 @@ test("production installers resolve from the public GitHub release", async () =>
   const downloads = await loadReleaseDownloads(
     fetcher({
       [latestAsset("latest-mac.yml")]: manifest(version, [
-        asset(`Graft-${version}-arm64.zip`),
-        asset(`Graft-${version}-x64.zip`),
+        `Graft-${version}-arm64.zip`,
+        `Graft-${version}-x64.zip`,
       ]),
-      [latestAsset("latest.yml")]: manifest(version, [asset(`Graft-${version}-x64.exe`)]),
-      [latestAsset("latest-linux.yml")]: manifest(version, [
-        asset(`Graft-${version}-x86_64.AppImage`),
-      ]),
+      [latestAsset("latest.yml")]: manifest(version, [`Graft-${version}-x64.exe`]),
+      [latestAsset("latest-linux.yml")]: manifest(version, [`Graft-${version}-x86_64.AppImage`]),
       [releaseAsset(version, "release.json")]: JSON.stringify({
         version,
         sourceCommit: "a".repeat(40),
@@ -45,7 +43,7 @@ test("production installers resolve from the public GitHub release", async () =>
   assert.equal(downloads.releasesUrl, `${releases}/tag/v${version}`);
 });
 
-test("mac installers require canonical URLs in the exact release index", async () => {
+test("mac installers resolve from exact release-index pathnames", async () => {
   const version = "0.9.0";
   const asset = (name) => releaseAsset(version, name);
   const downloads = await loadReleaseDownloads(
@@ -67,8 +65,8 @@ test("mac installers require canonical URLs in the exact release index", async (
       }),
     }),
   );
-  assert.equal(downloads.mac.arm64, null);
-  assert.equal(downloads.mac.x64, null);
+  assert.equal(downloads.mac.arm64, asset(`Graft-${version}-arm64.dmg`));
+  assert.equal(downloads.mac.x64, asset(`Graft-${version}-x64.dmg`));
 });
 
 test("GitHub downloads are restricted to the release repository and manifest version", async () => {

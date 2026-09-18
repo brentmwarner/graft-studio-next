@@ -41,7 +41,10 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 function downloadUrl(path: string, expectedVersion?: string): string | null {
-  const url = new URL(path, GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL);
+  const baseUrl = expectedVersion
+    ? releaseAssetUrl(expectedVersion, "")
+    : GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL;
+  const url = new URL(path, baseUrl);
   const githubRelease = url.pathname.match(GITHUB_RELEASE_PATH);
   const isGitHubRelease =
     url.origin === GITHUB_RELEASE_ORIGIN &&
@@ -142,7 +145,12 @@ export async function loadReleaseDownloads(fetchRelease: ReleaseFetch): Promise<
           (entry) => entry.pathname === `releases/${mac.version}/Graft-${mac.version}-${arch}.dmg`,
         );
         if (artifact)
-          downloads.mac[arch] = artifact.url ?? downloadUrl(`/${artifact.pathname}`, mac.version);
+          downloads.mac[arch] =
+            artifact.url ??
+            downloadUrl(
+              releaseAssetUrl(mac.version, `Graft-${mac.version}-${arch}.dmg`),
+              mac.version,
+            );
       }
     }
     if (index)
