@@ -6982,7 +6982,7 @@ export default function Sidebar() {
           onOpenThread={(threadId) => {
             activateThreadFromSidebarIntent(ThreadId.makeUnsafe(threadId));
           }}
-          hiddenProjectIds={studioWorkspaceEnabled ? undefined : studioProjectIdSet}
+          {...(studioWorkspaceEnabled ? {} : { hiddenProjectIds: studioProjectIdSet })}
         />
       ) : null}
     </>
