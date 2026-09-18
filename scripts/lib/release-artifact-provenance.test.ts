@@ -106,6 +106,24 @@ describe("release artifact provenance", () => {
     });
   });
 
+  it("records the unsigned Windows exception during the pre-promotion build", async () => {
+    const result = await writeReleaseArtifactProvenance({
+      assetsDirectory: createWindowsAssets(),
+      platform: "win",
+      arch: "x64",
+      target: "nsis",
+      version: "1.2.3",
+      sourceCommit: "a".repeat(40),
+      sourceTag: null,
+      lockfileSha256: "b".repeat(64),
+      publication: false,
+      signed: false,
+      allowUnsignedWindowsPublication: true,
+    });
+
+    expect(result.manifest.signing.status).toBe("unsigned-explicit-release");
+  });
+
   it("still rejects unsigned Windows publication without the explicit exception", async () => {
     await expect(
       writeReleaseArtifactProvenance({

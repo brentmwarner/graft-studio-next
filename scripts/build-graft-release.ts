@@ -21,6 +21,19 @@ const target = required("TARGET");
 if (process.env.SIGN_ARTIFACTS !== "true" && process.env.SIGN_ARTIFACTS !== "false")
   throw new Error("SIGN_ARTIFACTS must be true or false.");
 const signed = process.env.SIGN_ARTIFACTS === "true" && platform !== "linux";
+const allowUnsignedWindowsPublication = process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION === "true";
+if (
+  process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION !== undefined &&
+  process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION !== "true" &&
+  process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION !== "false"
+) {
+  throw new Error("ALLOW_UNSIGNED_WINDOWS_PUBLICATION must be true or false when set.");
+}
+if (allowUnsignedWindowsPublication && (platform !== "win" || signed)) {
+  throw new Error(
+    "ALLOW_UNSIGNED_WINDOWS_PUBLICATION is valid only for an unsigned Windows build.",
+  );
+}
 if (signed) {
   const credentials =
     platform === "mac"
@@ -74,6 +87,7 @@ await writeReleaseArtifactProvenance({
   lockfileSha256,
   publication: false,
   signed,
+  allowUnsignedWindowsPublication,
   ...(process.env.APPLE_TEAM_ID ? { expectedMacTeamId: process.env.APPLE_TEAM_ID } : {}),
   ...(process.env.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME
     ? { expectedWindowsPublisher: process.env.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }
