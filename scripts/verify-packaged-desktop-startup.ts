@@ -229,7 +229,7 @@ export function resolveMacSmokeKeychainLockDirectory(userHome: string = homedir(
 }
 
 export function readMacSmokeProcessIdentity(pid: number): string | null {
-  const result = spawnSync("ps", ["-p", String(pid), "-o", "lstart=", "-o", "command="], {
+  const result = spawnSync("ps", ["-p", String(pid), "-o", "lstart=", "-o", "pgid="], {
     encoding: "utf8",
     maxBuffer: 1024 * 1024,
     shell: false,
@@ -286,7 +286,7 @@ function parseMacSmokeKeychainRecovery(
     processGroup === null ||
     (processGroup !== undefined &&
       Number.isSafeInteger(processGroup.id) &&
-      (processGroup.id as number) > 0 &&
+      (processGroup.id as number) > 1 &&
       typeof processGroup.identity === "string" &&
       processGroup.identity.length > 0);
   const isSafeKeychainPath =
@@ -327,6 +327,9 @@ function sleepSync(milliseconds: number): void {
 }
 
 function terminateMacSmokeProcessGroup(processGroupId: number): void {
+  if (!Number.isSafeInteger(processGroupId) || processGroupId <= 1) {
+    throw new Error(`Refusing to signal invalid packaged process group ${processGroupId}.`);
+  }
   if (!isPosixProcessGroupAlive(processGroupId)) return;
   for (const [signal, timeoutMs] of [
     ["SIGTERM", 5_000],
@@ -694,7 +697,7 @@ export function createMacSmokeKeychainSession(
   };
 
   const recordProcessGroup = (pid: number, identity: string) => {
-    if (!Number.isSafeInteger(pid) || pid <= 0 || identity.length === 0) {
+    if (!Number.isSafeInteger(pid) || pid <= 1 || identity.length === 0) {
       throw new Error("The packaged macOS startup smoke process group identity is invalid.");
     }
     recovery = { ...recovery, processGroup: { id: pid, identity } };
@@ -737,6 +740,44 @@ interface LaunchCommand {
   readonly args: ReadonlyArray<string>;
   readonly cwd: string;
   readonly runtime: PackagedRuntime;
+}
+
+interface MacPackagedLaunchGate {
+  readonly command: string;
+  readonly args: ReadonlyArray<string>;
+  readonly open: () => void;
+}
+
+const MAC_PACKAGED_LAUNCH_GATE_SCRIPT = [
+  'gate_path="$1"',
+  "shift",
+  "attempt=0",
+  'while [ ! -f "$gate_path" ] && [ "$attempt" -lt 600 ]',
+  "do",
+  "  sleep 0.1",
+  "  attempt=$((attempt + 1))",
+  "done",
+  '[ -f "$gate_path" ] || exit 124',
+  'exec "$@"',
+].join("\n");
+
+export function createMacPackagedLaunchGate(
+  command: string,
+  args: ReadonlyArray<string>,
+  gatePath: string,
+): MacPackagedLaunchGate {
+  return {
+    command: "/bin/sh",
+    args: [
+      "-c",
+      MAC_PACKAGED_LAUNCH_GATE_SCRIPT,
+      "graft-packaged-launch-gate",
+      gatePath,
+      command,
+      ...args,
+    ],
+    open: () => writeFileSync(gatePath, "ready\n", { flag: "wx", mode: 0o600 }),
+  };
 }
 
 interface PackagedRuntime {
@@ -980,7 +1021,9 @@ async function terminateProcessTree(child: ChildProcess): Promise<void> {
       stdio: "ignore",
       windowsHide: true,
     });
-    if (await waitForProcessTreeExit(child, 5_000)) return;
+    if (!result.error && result.status === 0 && (await waitForProcessTreeExit(child, 5_000))) {
+      return;
+    }
     const detail = result.error?.message ?? `exit ${result.status ?? "unknown"}`;
     throw new Error(`Could not terminate the packaged Windows process tree (${detail}).`);
   }
@@ -1151,17 +1194,29 @@ export async function verifyPackagedDesktopStartup(
       throw new Error(`Packaged startup smoke interrupted by ${interruptedSignal}.`);
     logDirectory = join(env.GRAFT_HOME!, "userdata", "logs");
     const logPath = join(logDirectory, "desktop-main.log");
+    const macLaunchGate =
+      macKeychainSession && macKeychainRoot
+        ? createMacPackagedLaunchGate(
+            launch.command,
+            launch.args,
+            join(macKeychainRoot, "launch-ready"),
+          )
+        : null;
     const childOutcome: {
       exited: { code: number | null; signal: NodeJS.Signals | null } | null;
       launchError: Error | null;
     } = { exited: null, launchError: null };
-    child = spawn(launch.command, [...launch.args], {
-      cwd: launch.cwd,
-      env,
-      detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    child = spawn(
+      macLaunchGate?.command ?? launch.command,
+      [...(macLaunchGate?.args ?? launch.args)],
+      {
+        cwd: launch.cwd,
+        env,
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
     child.once("exit", (code, signal) => {
       childOutcome.exited = { code, signal };
     });
@@ -1174,6 +1229,7 @@ export async function verifyPackagedDesktopStartup(
         throw new Error(`Could not identify packaged process group ${child.pid}.`);
       }
       macKeychainSession.recordProcessGroup(child.pid, processIdentity);
+      macLaunchGate?.open();
     }
     const retainOutputTail = (chunk: Buffer) => {
       outputTail = (outputTail + chunk.toString("utf8")).slice(-STARTUP_DIAGNOSTIC_TAIL_LENGTH);

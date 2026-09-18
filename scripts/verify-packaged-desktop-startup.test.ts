@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   acquireMacSmokeKeychainLock,
+  createMacPackagedLaunchGate,
   createMacSmokeKeychainSession,
   createPackagedDesktopSmokeEnvironment,
   parseMacKeychainList,
@@ -37,6 +39,33 @@ describe("packaged desktop startup verification", () => {
     expect(resolveMacSmokeKeychainLockDirectory("/Users/runner")).toBe(
       "/Users/runner/.graft/release-smoke/macos-keychain/state.lock",
     );
+  });
+
+  it("keeps the packaged macOS app behind a gate until recovery is durable", async () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-smoke-launch-gate-test-"));
+    temporaryRoots.push(root);
+    const gatePath = join(root, "launch-ready");
+    const outputPath = join(root, "launched");
+    const gate = createMacPackagedLaunchGate(
+      "/bin/sh",
+      ["-c", 'printf launched > "$1"', "graft-gate-target", outputPath],
+      gatePath,
+    );
+    const child = spawn(gate.command, [...gate.args], { stdio: "ignore" });
+    const childExit = new Promise<void>((resolveExit, rejectExit) => {
+      child.once("error", rejectExit);
+      child.once("exit", (code, signal) => {
+        if (code === 0) resolveExit();
+        else rejectExit(new Error(`Launch gate exited with code=${code}, signal=${signal}.`));
+      });
+    });
+
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
+    expect(existsSync(outputPath)).toBe(false);
+
+    gate.open();
+    await childExit;
+    expect(readFileSync(outputPath, "utf8")).toBe("launched");
   });
 
   it("parses quoted macOS keychain command output", () => {
@@ -344,6 +373,44 @@ describe("packaged desktop startup verification", () => {
       ),
     ).toThrow("Another packaged macOS startup smoke is already running (pid=4242)");
     expect(existsSync(lockDirectory)).toBe(true);
+  });
+
+  it("rejects the POSIX all-process sentinel in a recovery process group", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-invalid-group-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "stale-owner" }),
+    );
+    const keychainRoot = mkdtempSync(join(lockRoot, "keychain-"));
+    const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
+    writeFileSync(keychainPath, "temporary keychain");
+    writeFileSync(
+      join(lockDirectory, "recovery.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        ownerPid: 4242,
+        ownerIdentity: "stale-owner",
+        keychainPath,
+        previousDefault: null,
+        previousSearchList: [],
+        processGroup: { id: 1, identity: "invalid-process-group" },
+      }),
+    );
+
+    expect(() =>
+      acquireMacSmokeKeychainLock(
+        { read: () => "", run: () => undefined },
+        {
+          lockDirectory,
+          isProcessAlive: () => false,
+          getProcessIdentity: () => "current-owner",
+        },
+      ),
+    ).toThrow("recovery record is invalid");
+    expect(existsSync(keychainRoot)).toBe(true);
   });
 
   it("recovers after owner PID reuse without terminating a reused process group", () => {
