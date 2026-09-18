@@ -5,7 +5,6 @@
 import {
   AddPlusIcon,
   ArchiveIcon,
-  BookIcon,
   ChatBubbleIcon,
   CircleQuestionIcon,
   ClockIcon,
@@ -239,7 +238,6 @@ import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useProviderStatusesForLocalConfig } from "../hooks/useProviderStatusesForLocalConfig";
 import { useThreadHandoff } from "../hooks/useThreadHandoff";
 import { useFeedbackDialogStore } from "../feedbackDialogStore";
-import { openExternalLink } from "~/lib/linkChips";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import { toastManager } from "./ui/toast";
 import {
@@ -803,8 +801,6 @@ function ProjectSortMenu({
   );
 }
 
-const GRAFT_DOCS_URL = "https://github.com/brentmwarner/graft-studio-next/tree/main/docs";
-
 // Latest curated releases surfaced directly in the help menu. Static data, so
 // computed once at module scope rather than per render.
 const HELP_MENU_RELEASE_ENTRIES = sortEntriesByVersionDesc(WHATS_NEW_ENTRIES).slice(0, 3);
@@ -886,13 +882,6 @@ function SidebarHelpMenu({
             <MenuItem className={SIDEBAR_CONTEXT_MENU_ITEM_CLASS_NAME} onClick={onOpenFeedback}>
               <SidebarContextMenuIcon icon={ChatBubbleIcon} />
               <span>Send feedback</span>
-            </MenuItem>
-            <MenuItem
-              className={SIDEBAR_CONTEXT_MENU_ITEM_CLASS_NAME}
-              onClick={() => openExternalLink(GRAFT_DOCS_URL)}
-            >
-              <SidebarContextMenuIcon icon={BookIcon} />
-              <span>Docs</span>
             </MenuItem>
           </MenuGroup>
         </ComposerPickerMenuPopup>
