@@ -54,6 +54,58 @@ test("new mac installers resolve from the exact promoted version's immutable ind
   assert.equal(downloads.releasesUrl, `${feed}/${version}/release.json`);
 });
 
+test("production installers resolve from the trusted GitHub release", async () => {
+  const version = "0.9.0";
+  const release = `https://github.com/brentmwarner/graft-studio/releases/download/v${version}`;
+  const downloads = await loadReleaseDownloads(
+    fetcher({
+      [`${feed}/latest-mac.yml`]: manifest(version, [
+        `${release}/Graft-${version}-arm64.zip`,
+        `${release}/Graft-${version}-x64.zip`,
+      ]),
+      [`${feed}/latest.yml`]: manifest(version, [
+        `${release}/Graft-${version}-x64.exe`,
+      ]),
+      [`${feed}/latest-linux.yml`]: manifest(version, [
+        `${release}/Graft-${version}-x86_64.AppImage`,
+      ]),
+      [`${feed}/${version}/release.json`]: JSON.stringify({
+        version,
+        sourceCommit: "a".repeat(40),
+        artifacts: ["arm64", "x64"].map((arch) => ({
+          pathname: `releases/${version}/Graft-${version}-${arch}.dmg`,
+          url: `${release}/Graft-${version}-${arch}.dmg`,
+        })),
+      }),
+    }),
+  );
+  assert.equal(downloads.version, "v0.9.0");
+  assert.equal(downloads.mac.arm64, `${release}/Graft-${version}-arm64.dmg`);
+  assert.equal(downloads.mac.x64, `${release}/Graft-${version}-x64.dmg`);
+  assert.equal(downloads.windows, `${release}/Graft-${version}-x64.exe`);
+  assert.equal(downloads.linux, `${release}/Graft-${version}-x86_64.AppImage`);
+});
+
+test("GitHub downloads are restricted to the release repository and manifest version", async () => {
+  const downloads = await loadReleaseDownloads(
+    fetcher({
+      [`${feed}/latest-mac.yml`]: manifest("0.9.0", [
+        "https://github.com/attacker/graft-studio/releases/download/v0.9.0/Graft-0.9.0-arm64.zip",
+      ]),
+      [`${feed}/latest.yml`]: manifest("0.9.0", [
+        "https://github.com/brentmwarner/graft-studio/releases/download/v9.9.9/Graft-0.9.0-x64.exe",
+      ]),
+      [`${feed}/latest-linux.yml`]: manifest("0.9.0", [
+        "https://github.com/brentmwarner/graft-studio/releases/download/v0.9.0/Graft-0.9.0-x86_64.AppImage?download=1",
+      ]),
+    }),
+  );
+  assert.equal(downloads.version, null);
+  assert.equal(downloads.mac.arm64, null);
+  assert.equal(downloads.windows, null);
+  assert.equal(downloads.linux, null);
+});
+
 test("partial promotion follows each OS pointer without mislabeling one version", async () => {
   const downloads = await loadReleaseDownloads(
     fetcher({

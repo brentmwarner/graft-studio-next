@@ -10,8 +10,16 @@ export type ReleaseDownloads = {
   linux: string | null;
 };
 type Manifest = { version: string; files: { url: string }[] };
-type ReleaseIndex = { version: string; sourceCommit: string; artifacts: { pathname: string }[] };
+type ReleaseIndex = {
+  version: string;
+  sourceCommit: string;
+  artifacts: { pathname: string; url: string | null }[];
+};
 export type ReleaseFetch = (url: string) => Promise<Response>;
+
+const GITHUB_RELEASE_ORIGIN = "https://github.com";
+const GITHUB_RELEASE_PATH =
+  /^\/brentmwarner\/graft-studio\/releases\/download\/v(\d+\.\d+\.\d+)\/(Graft-[A-Za-z0-9._-]+)$/;
 
 export function unavailableDownloads(): ReleaseDownloads {
   return {
@@ -27,12 +35,19 @@ function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function downloadUrl(path: string): string | null {
+function downloadUrl(path: string, expectedVersion?: string): string | null {
   const feed = new URL(GRAFT_DESKTOP_UPDATE_URL + "/");
   const url = new URL(path, feed);
-  return url.origin === feed.origin &&
+  const isFeedObject =
+    url.origin === feed.origin &&
     url.pathname.startsWith(feed.pathname) &&
-    /^\/releases\/[A-Za-z0-9/._-]+$/.test(url.pathname) &&
+    /^\/releases\/[A-Za-z0-9/._-]+$/.test(url.pathname);
+  const githubRelease = url.pathname.match(GITHUB_RELEASE_PATH);
+  const isGitHubRelease =
+    url.origin === GITHUB_RELEASE_ORIGIN &&
+    githubRelease !== null &&
+    (!expectedVersion || githubRelease[1] === expectedVersion);
+  return (isFeedObject || isGitHubRelease) &&
     !url.search &&
     !url.hash &&
     !url.username &&
@@ -55,11 +70,11 @@ async function readManifest(fetchRelease: ReleaseFetch, name: string): Promise<M
       !Array.isArray(value.files)
     )
       return null;
-    const files = value.files.flatMap((file: unknown) =>
-      object(file) && typeof file.url === "string" && downloadUrl(file.url)
-        ? [{ url: downloadUrl(file.url)! }]
-        : [],
-    );
+    const files = value.files.flatMap((file: unknown) => {
+      if (!object(file) || typeof file.url !== "string") return [];
+      const url = downloadUrl(file.url, value.version);
+      return url ? [{ url }] : [];
+    });
     return files.length ? { version: value.version, files } : null;
   } catch {
     return null;
@@ -84,13 +99,16 @@ async function readIndex(
       !Array.isArray(value.artifacts)
     )
       return null;
-    const artifacts = value.artifacts.flatMap((entry: unknown) =>
-      object(entry) &&
-      typeof entry.pathname === "string" &&
-      entry.pathname.startsWith(`releases/${version}/`)
-        ? [{ pathname: entry.pathname }]
-        : [],
-    );
+    const artifacts = value.artifacts.flatMap((entry: unknown) => {
+      if (
+        !object(entry) ||
+        typeof entry.pathname !== "string" ||
+        !entry.pathname.startsWith(`releases/${version}/`)
+      )
+        return [];
+      const url = typeof entry.url === "string" ? downloadUrl(entry.url, version) : null;
+      return [{ pathname: entry.pathname, url }];
+    });
     return { version, sourceCommit: value.sourceCommit, artifacts };
   } catch {
     return null;
@@ -121,7 +139,8 @@ export async function loadReleaseDownloads(fetchRelease: ReleaseFetch): Promise<
         const artifact = index.artifacts.find(
           (entry) => entry.pathname === `releases/${mac.version}/Graft-${mac.version}-${arch}.dmg`,
         );
-        if (artifact) downloads.mac[arch] = downloadUrl(`/${artifact.pathname}`);
+        if (artifact)
+          downloads.mac[arch] = artifact.url ?? downloadUrl(`/${artifact.pathname}`, mac.version);
       }
     }
     if (index) downloads.releasesUrl = `${GRAFT_DESKTOP_UPDATE_URL}/${mac.version}/release.json`;
