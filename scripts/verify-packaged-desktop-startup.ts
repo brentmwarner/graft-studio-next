@@ -137,63 +137,41 @@ const macSmokeKeychainCommands: MacSmokeKeychainCommandRunner = {
   run: (args) => runCommand("security", args),
 };
 
-function isLiveProcess(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 function acquireMacSmokeKeychainLock(): () => void {
   const lockDirectory = join(
     tmpdir(),
     `graft-packaged-smoke-keychain-${process.getuid?.() ?? "user"}.lock`,
   );
   const ownerPath = join(lockDirectory, "owner");
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  try {
+    mkdirSync(lockDirectory, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    let owner = "unknown";
     try {
-      mkdirSync(lockDirectory, { mode: 0o700 });
-      try {
-        writeFileSync(ownerPath, `${process.pid}\n`, { mode: 0o600 });
-      } catch (error) {
-        rmSync(lockDirectory, { recursive: true, force: true });
-        throw error;
-      }
-      return () => {
-        try {
-          const owner = Number(readFileSync(ownerPath, "utf8").trim());
-          if (owner === process.pid) rmSync(lockDirectory, { recursive: true, force: true });
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        }
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      let owner = Number.NaN;
-      try {
-        owner = Number(readFileSync(ownerPath, "utf8").trim());
-      } catch (readError) {
-        if ((readError as NodeJS.ErrnoException).code === "ENOENT") {
-          throw new Error("Another packaged macOS startup smoke owns an incomplete Keychain lock.");
-        }
-        throw readError;
-      }
-      if (!Number.isSafeInteger(owner) || owner <= 0) {
-        throw new Error("Another packaged macOS startup smoke owns an incomplete Keychain lock.");
-      }
-      if (isLiveProcess(owner)) {
-        throw new Error(`Another packaged macOS startup smoke is already running (pid=${owner}).`);
-      }
-      try {
-        rmSync(lockDirectory, { recursive: true, force: true });
-      } catch (removeError) {
-        if ((removeError as NodeJS.ErrnoException).code !== "ENOENT") throw removeError;
-      }
+      const value = readFileSync(ownerPath, "utf8").trim();
+      if (value) owner = value;
+    } catch (readError) {
+      if ((readError as NodeJS.ErrnoException).code !== "ENOENT") throw readError;
     }
+    throw new Error(
+      `A previous packaged macOS startup smoke still owns the Keychain lock (pid=${owner}); refusing to discard its saved Keychain state.`,
+    );
   }
-  throw new Error("Could not acquire the packaged macOS startup smoke Keychain lock.");
+  try {
+    writeFileSync(ownerPath, `${process.pid}\n`, { mode: 0o600 });
+  } catch (error) {
+    rmSync(lockDirectory, { recursive: true, force: true });
+    throw error;
+  }
+  return () => {
+    try {
+      const owner = Number(readFileSync(ownerPath, "utf8").trim());
+      if (owner === process.pid) rmSync(lockDirectory, { recursive: true, force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  };
 }
 
 /**
@@ -853,6 +831,10 @@ export async function verifyPackagedDesktopStartup(
   }
   process.off("SIGINT", handleSigint);
   process.off("SIGTERM", handleSigterm);
+
+  if (!operationError && interruptedSignal) {
+    operationError = new Error(`Packaged startup smoke interrupted by ${interruptedSignal}.`);
+  }
 
   if (operationError && cleanupErrors.length > 0) {
     throw new AggregateError(
