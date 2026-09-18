@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 
 import {
   GRAFT_DESKTOP_UPDATE_CHANNEL,
+  GRAFT_DESKTOP_UPDATE_GITHUB_OWNER,
+  GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY,
   GRAFT_DESKTOP_UPDATE_URL,
   GRAFT_PRODUCTION_BUNDLE_ID,
 } from "@graft/shared/desktopIdentity";
@@ -120,7 +122,13 @@ function verifyCanonicalIdentity(): void {
   if (
     GRAFT_DESKTOP_UPDATE_URL !== "https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases"
   ) {
-    throw new Error("Production must retain the existing installed Graft update feed.");
+    throw new Error("Production must retain the legacy upgrade bridge feed.");
+  }
+  if (
+    GRAFT_DESKTOP_UPDATE_GITHUB_OWNER !== "brentmwarner" ||
+    GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY !== "graft-studio-next"
+  ) {
+    throw new Error("New production builds must use the public Graft GitHub update feed.");
   }
 }
 

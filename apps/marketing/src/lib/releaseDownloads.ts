@@ -1,5 +1,9 @@
 import { parse } from "yaml";
-import { GRAFT_DESKTOP_UPDATE_URL } from "@graft/shared/desktopIdentity";
+import {
+  GRAFT_DESKTOP_UPDATE_GITHUB_OWNER,
+  GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL,
+  GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY,
+} from "@graft/shared/desktopIdentity";
 
 export const RELEASES_URL = "https://www.graftapp.io/changelog";
 export type ReleaseDownloads = {
@@ -18,8 +22,9 @@ type ReleaseIndex = {
 export type ReleaseFetch = (url: string) => Promise<Response>;
 
 const GITHUB_RELEASE_ORIGIN = "https://github.com";
-const GITHUB_RELEASE_PATH =
-  /^\/brentmwarner\/graft-studio\/releases\/download\/v(\d+\.\d+\.\d+)\/(Graft-[A-Za-z0-9._-]+)$/;
+const GITHUB_RELEASE_PATH = new RegExp(
+  `^/${GRAFT_DESKTOP_UPDATE_GITHUB_OWNER}/${GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY}/releases/download/v(\\d+\\.\\d+\\.\\d+)/(Graft-[A-Za-z0-9._-]+)$`,
+);
 
 export function unavailableDownloads(): ReleaseDownloads {
   return {
@@ -36,29 +41,25 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 function downloadUrl(path: string, expectedVersion?: string): string | null {
-  const feed = new URL(GRAFT_DESKTOP_UPDATE_URL + "/");
-  const url = new URL(path, feed);
-  const isFeedObject =
-    url.origin === feed.origin &&
-    url.pathname.startsWith(feed.pathname) &&
-    /^\/releases\/[A-Za-z0-9/._-]+$/.test(url.pathname);
+  const url = new URL(path, GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL);
   const githubRelease = url.pathname.match(GITHUB_RELEASE_PATH);
   const isGitHubRelease =
     url.origin === GITHUB_RELEASE_ORIGIN &&
     githubRelease !== null &&
     (!expectedVersion || githubRelease[1] === expectedVersion);
-  return (isFeedObject || isGitHubRelease) &&
-    !url.search &&
-    !url.hash &&
-    !url.username &&
-    !url.password
+  return isGitHubRelease && !url.search && !url.hash && !url.username && !url.password
     ? url.href
     : null;
 }
 
+function releaseAssetUrl(version: string | "latest", name: string): string {
+  const tag = version === "latest" ? "latest/download" : `download/v${version}`;
+  return `${GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL}/${tag}/${name}`;
+}
+
 async function readManifest(fetchRelease: ReleaseFetch, name: string): Promise<Manifest | null> {
   try {
-    const response = await fetchRelease(`${GRAFT_DESKTOP_UPDATE_URL}/${name}`);
+    const response = await fetchRelease(releaseAssetUrl("latest", name));
     if (!response.ok) return null;
     const text = await response.text();
     if (text.length > 1_048_576) return null;
@@ -87,7 +88,7 @@ async function readIndex(
   version: string,
 ): Promise<ReleaseIndex | null> {
   try {
-    const response = await fetchRelease(`${GRAFT_DESKTOP_UPDATE_URL}/${version}/release.json`);
+    const response = await fetchRelease(releaseAssetUrl(version, "release.json"));
     if (!response.ok) return null;
     const text = await response.text();
     if (text.length > 1_048_576) return null;
@@ -144,7 +145,8 @@ export async function loadReleaseDownloads(fetchRelease: ReleaseFetch): Promise<
           downloads.mac[arch] = artifact.url ?? downloadUrl(`/${artifact.pathname}`, mac.version);
       }
     }
-    if (index) downloads.releasesUrl = `${GRAFT_DESKTOP_UPDATE_URL}/${mac.version}/release.json`;
+    if (index)
+      downloads.releasesUrl = `${GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL}/tag/v${mac.version}`;
   }
   return downloads;
 }

@@ -29,8 +29,10 @@ import {
   WINDOWS_MINIMUM_SYSTEM_VERSION,
 } from "./lib/desktop-platform-build-config.ts";
 import {
+  GRAFT_DESKTOP_UPDATE_CHANNEL,
+  GRAFT_DESKTOP_UPDATE_GITHUB_OWNER,
+  GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY,
   GRAFT_PRODUCTION_BUNDLE_ID,
-  GRAFT_DESKTOP_UPDATE_URL,
 } from "@graft/shared/desktopIdentity";
 import { parseBooleanEnvValue } from "./lib/env-bool.ts";
 import { finalizeSignedMacDmg } from "./lib/mac-dmg-finalize.ts";
@@ -740,16 +742,24 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     },
     forceCodeSigning: signed,
   };
-  buildConfig.publish = [
-    {
-      provider: "generic",
-      url: mockUpdates
-        ? `http://localhost:${mockUpdateServerPort ?? 3000}`
-        : GRAFT_DESKTOP_UPDATE_URL,
-      channel: "latest",
-      useMultipleRangeRequest: false,
-    },
-  ];
+  buildConfig.publish = mockUpdates
+    ? [
+        {
+          provider: "generic",
+          url: `http://localhost:${mockUpdateServerPort ?? 3000}`,
+          channel: GRAFT_DESKTOP_UPDATE_CHANNEL,
+          useMultipleRangeRequest: false,
+        },
+      ]
+    : [
+        {
+          provider: "github",
+          owner: GRAFT_DESKTOP_UPDATE_GITHUB_OWNER,
+          repo: GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY,
+          channel: GRAFT_DESKTOP_UPDATE_CHANNEL,
+          private: false,
+        },
+      ];
 
   const windowsSigningConfig =
     platform === "win" && signed ? yield* AzureTrustedSigningOptionsConfig : undefined;
