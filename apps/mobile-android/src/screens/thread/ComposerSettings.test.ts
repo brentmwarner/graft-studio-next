@@ -71,7 +71,8 @@ it("offers quick effort only for supported choices", async () => {
       }),
     );
   });
-  expect(
-    renderer!.root.findAll(isMenu).map((node) => node.props.initialPage),
-  ).toEqual(["providers", "intelligence"]);
+  expect(renderer!.root.findAll(isMenu).map((node) => node.props.initialPage)).toEqual([
+    "providers",
+    "intelligence",
+  ]);
 });
