@@ -152,22 +152,33 @@ async function requirePublicAssets(
   urls: ReadonlyArray<string>,
 ) {
   for (const [index, url] of urls.entries()) {
+    const object = objects[index]!;
     let ready = false;
     for (let attempt = 1; attempt <= 6; attempt++) {
       const response = await fetch(url, {
-        method: "HEAD",
-        redirect: "manual",
+        headers: { range: "bytes=0-0" },
+        redirect: "follow",
         cache: "no-store",
         signal: AbortSignal.timeout(30_000),
       });
-      if (response.status === 200 || (response.status >= 300 && response.status < 400)) {
+      const finalUrl = new URL(response.url);
+      const isGitHubAssetHost = new Set([
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+      ]).has(finalUrl.hostname);
+      const contentRange = response.headers.get("content-range");
+      const contentLength = Number(response.headers.get("content-length"));
+      const hasExactSize =
+        (response.status === 206 && contentRange?.endsWith(`/${object.size}`)) ||
+        (response.status === 200 && contentLength === object.size);
+      await response.body?.cancel();
+      if (isGitHubAssetHost && hasExactSize) {
         ready = true;
         break;
       }
       if (attempt < 6) await new Promise((resolve) => setTimeout(resolve, 5_000));
     }
-    if (!ready)
-      throw new Error(`Published GitHub asset is not public: ${objects[index]!.pathname}.`);
+    if (!ready) throw new Error(`Published GitHub asset is not public: ${object.pathname}.`);
   }
 }
 
