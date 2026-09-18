@@ -172,6 +172,7 @@ import {
 } from "../nativeApi";
 import { isHomeChatContainerProject, prewarmHomeChatProject } from "../lib/chatProjects";
 import {
+  collectStudioKindProjectIds,
   collectStudioProjectIds,
   isStudioContainerProject,
   prewarmStudioProject,
@@ -1707,9 +1708,20 @@ export default function Sidebar() {
   const sidebarTreeThreads = useStore(selectSidebarTreeThreads);
   const selectProjectLastActivityAt = useMemo(() => createProjectLastActivityAtSelector(), []);
   const projectLastActivityAt = useStore(selectProjectLastActivityAt);
+  const studioKindProjectIdSet = useMemo(() => collectStudioKindProjectIds(projects), [projects]);
   const studioProjectIdSet = useMemo(
-    () => collectStudioProjectIds(projects, { homeDir, chatWorkspaceRoot, studioWorkspaceRoot }),
-    [chatWorkspaceRoot, homeDir, projects, studioWorkspaceRoot],
+    () =>
+      studioWorkspaceEnabled
+        ? collectStudioProjectIds(projects, { homeDir, chatWorkspaceRoot, studioWorkspaceRoot })
+        : studioKindProjectIdSet,
+    [
+      chatWorkspaceRoot,
+      homeDir,
+      projects,
+      studioKindProjectIdSet,
+      studioWorkspaceEnabled,
+      studioWorkspaceRoot,
+    ],
   );
   const { nonStudioThreads: nonStudioSidebarThreads, studioThreads: studioSidebarThreads } =
     useMemo(
@@ -1892,16 +1904,17 @@ export default function Sidebar() {
   const activeRouteProject = activeRouteProjectId
     ? (projectById.get(activeRouteProjectId) ?? null)
     : null;
-  // Same predicate the Studio collectors use — trusting `kind` alone here would let a drifted
-  // studio-kind row (root outside the configured Studio root) activate the Studio segment while
-  // every Studio list excludes it, stranding the active thread in neither segment.
+  // Path-aware classification stays for routing while the flag is on. When the flag is
+  // off, never treat a bookmarked /studio route or studio-kind thread as the Studio surface
+  // — that would still render the Studio block and "New studio chat".
   const isOnStudio =
-    isOnStudioRoute ||
-    isStudioContainerProject(activeRouteProject, {
-      homeDir,
-      chatWorkspaceRoot,
-      studioWorkspaceRoot,
-    });
+    studioWorkspaceEnabled &&
+    (isOnStudioRoute ||
+      isStudioContainerProject(activeRouteProject, {
+        homeDir,
+        chatWorkspaceRoot,
+        studioWorkspaceRoot,
+      }));
   const ordinarySpaceProjects = useMemo(
     () =>
       projects.filter((project) =>
@@ -5569,15 +5582,7 @@ export default function Sidebar() {
   const searchPaletteProjects = useMemo<SidebarSearchProject[]>(
     () =>
       projects
-        .filter(
-          (project) =>
-            studioWorkspaceEnabled ||
-            !isStudioContainerProject(project, {
-              homeDir,
-              chatWorkspaceRoot,
-              studioWorkspaceRoot,
-            }),
-        )
+        .filter((project) => studioWorkspaceEnabled || project.kind !== "studio")
         .map((project) => ({
           id: project.id,
           name: project.name,
@@ -6982,7 +6987,7 @@ export default function Sidebar() {
           onOpenThread={(threadId) => {
             activateThreadFromSidebarIntent(ThreadId.makeUnsafe(threadId));
           }}
-          {...(studioWorkspaceEnabled ? {} : { hiddenProjectIds: studioProjectIdSet })}
+          {...(studioWorkspaceEnabled ? {} : { hiddenProjectIds: studioKindProjectIdSet })}
         />
       ) : null}
     </>

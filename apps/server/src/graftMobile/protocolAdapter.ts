@@ -26,6 +26,7 @@ import {
   type ModelSelection,
   type OrchestrationCheckpointFile,
   type OrchestrationCheckpointSummary,
+  type OrchestrationEvent,
   type OrchestrationProjectShell,
   type OrchestrationSessionStatus,
   type OrchestrationThread,
@@ -83,13 +84,81 @@ export function withoutStudioThreads<T extends { readonly projectId: string }>(
   threads: readonly T[],
   projects: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "kind">>,
 ): T[] {
-  const studioProjectIds = new Set(
+  const studioProjectIds = new Set<string>(
     projects.filter(isStudioProjectKind).map((project) => project.id),
   );
   if (studioProjectIds.size === 0) {
     return [...threads];
   }
   return threads.filter((thread) => !studioProjectIds.has(thread.projectId));
+}
+
+export function rememberHiddenStudioFromShell(
+  projects: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "kind">>,
+  threads: ReadonlyArray<{ readonly id: string; readonly projectId: string }>,
+  hidden: { studioProjectIds: Set<string>; studioThreadIds: Set<string> },
+): void {
+  for (const project of projects) {
+    if (isStudioProjectKind(project)) {
+      hidden.studioProjectIds.add(project.id);
+    }
+  }
+  for (const thread of threads) {
+    if (hidden.studioProjectIds.has(thread.projectId)) {
+      hidden.studioThreadIds.add(thread.id);
+    }
+  }
+}
+
+function eventProjectId(event: Pick<OrchestrationEvent, "payload">): string | undefined {
+  const payload = event.payload;
+  if (payload && typeof payload === "object" && "projectId" in payload) {
+    const projectId = payload.projectId;
+    if (typeof projectId === "string") {
+      return projectId;
+    }
+  }
+  return undefined;
+}
+
+export function rememberHiddenStudioFromEvent(
+  event: OrchestrationEvent,
+  hidden: { studioProjectIds: Set<string>; studioThreadIds: Set<string> },
+): void {
+  if (event.type === "project.created" && event.payload.kind === "studio") {
+    hidden.studioProjectIds.add(event.payload.projectId);
+    return;
+  }
+  if (event.aggregateKind !== "thread") {
+    return;
+  }
+  const projectId = eventProjectId(event);
+  if (projectId && hidden.studioProjectIds.has(projectId)) {
+    hidden.studioThreadIds.add(String(event.aggregateId));
+  }
+}
+
+export function isHiddenStudioMobileEvent(
+  event: OrchestrationEvent,
+  hidden: {
+    readonly studioProjectIds: ReadonlySet<string>;
+    readonly studioThreadIds: ReadonlySet<string>;
+  },
+): boolean {
+  if (event.aggregateKind === "project") {
+    if (hidden.studioProjectIds.has(String(event.aggregateId))) {
+      return true;
+    }
+    return event.type === "project.created" && event.payload.kind === "studio";
+  }
+  if (event.aggregateKind === "thread") {
+    if (hidden.studioThreadIds.has(String(event.aggregateId))) {
+      return true;
+    }
+    const projectId = eventProjectId(event);
+    return projectId !== undefined && hidden.studioProjectIds.has(projectId);
+  }
+  return false;
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -548,7 +617,7 @@ export function toMobileSnapshot(input: {
   const projects = withoutStudioProjects(input.projects);
   const threads = withoutStudioThreads(input.threads, input.projects);
   const details = withoutStudioThreads(input.details, input.projects);
-  const visibleThreadIds = new Set(threads.map((thread) => thread.id));
+  const visibleThreadIds = new Set<string>(threads.map((thread) => thread.id));
   const selected =
     input.selectedThreadId && visibleThreadIds.has(input.selectedThreadId)
       ? details.find((thread) => thread.id === input.selectedThreadId)

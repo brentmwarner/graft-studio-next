@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "../store";
 import type { Project } from "../types";
 import {
+  collectStudioKindProjectIds,
   ensureStudioProject,
   findStudioDraftThreadId,
   findStudioContainerProject,
@@ -135,6 +136,16 @@ describe("studioProjects", () => {
     // Before the welcome delivers the Studio root, the kind alone identifies the container so
     // Studio threads aren't mis-partitioned during boot.
     expect(isStudioContainerProject(makeProject(), { homeDir: "/Users/tester" })).toBe(true);
+  });
+
+  it("collects every studio-kind id, including drifted roots", () => {
+    const drifted = makeProject({ cwd: "/Users/tester/Elsewhere" });
+    const ordinary = makeProject({
+      id: "project-app" as ProjectId,
+      kind: "project",
+      cwd: "/Users/tester/Developer/app",
+    });
+    expect(collectStudioKindProjectIds([drifted, ordinary])).toEqual(new Set([drifted.id]));
   });
 
   it("finds an existing Studio container project", () => {

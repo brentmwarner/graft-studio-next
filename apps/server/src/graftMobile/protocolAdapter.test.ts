@@ -28,6 +28,9 @@ import {
   toMobileThread,
   toMobileTranscript,
   withoutStudioProjects,
+  isHiddenStudioMobileEvent,
+  rememberHiddenStudioFromEvent,
+  rememberHiddenStudioFromShell,
   withMobileEffort,
   withMobileFastMode,
 } from "./protocolAdapter";
@@ -431,6 +434,85 @@ describe("Graft mobile protocol adapter", () => {
     expect(snapshot.projects.map((entry) => entry.id)).toEqual(["project-1"]);
     expect(snapshot.threads.map((entry) => entry.id)).toEqual(["thread-1"]);
     expect(snapshot.selectedTranscript).toBeNull();
+  });
+
+  it("hides live Studio events so reconnect snapshots and the stream share one thread set", () => {
+    const studio = {
+      ...project(),
+      id: ProjectId.makeUnsafe("studio-1"),
+      kind: "studio" as const,
+    };
+    const hidden = { studioProjectIds: new Set<string>(), studioThreadIds: new Set<string>() };
+    rememberHiddenStudioFromShell(
+      [project(), studio],
+      [
+        threadShell(),
+        { ...threadShell(), id: ThreadId.makeUnsafe("studio-thread"), projectId: studio.id },
+      ],
+      hidden,
+    );
+    const studioMessage: OrchestrationEvent = {
+      sequence: 9,
+      eventId: EventId.makeUnsafe("studio-delta"),
+      aggregateKind: "thread",
+      aggregateId: ThreadId.makeUnsafe("studio-thread"),
+      occurredAt: now,
+      commandId: null,
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "thread.message-sent",
+      payload: {
+        threadId: ThreadId.makeUnsafe("studio-thread"),
+        messageId: MessageId.makeUnsafe("studio-message"),
+        role: "assistant",
+        text: "secret studio reply",
+        turnId: null,
+        streaming: true,
+        source: "native",
+        createdAt: now,
+        updatedAt: now,
+      },
+    };
+    expect(isHiddenStudioMobileEvent(studioMessage, hidden)).toBe(true);
+    expect(
+      isHiddenStudioMobileEvent(
+        {
+          ...studioMessage,
+          aggregateId: ThreadId.makeUnsafe("thread-1"),
+          payload: { ...studioMessage.payload, threadId: ThreadId.makeUnsafe("thread-1") },
+        },
+        hidden,
+      ),
+    ).toBe(false);
+
+    const created: OrchestrationEvent = {
+      sequence: 10,
+      eventId: EventId.makeUnsafe("studio-project-created"),
+      aggregateKind: "project",
+      aggregateId: ProjectId.makeUnsafe("studio-2"),
+      occurredAt: now,
+      commandId: null,
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "project.created",
+      payload: {
+        projectId: ProjectId.makeUnsafe("studio-2"),
+        kind: "studio",
+        title: "Studio",
+        workspaceRoot: "/workspace/studio",
+        defaultModelSelection: null,
+        scripts: [],
+        isPinned: false,
+        spaceId: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    };
+    rememberHiddenStudioFromEvent(created, hidden);
+    expect(isHiddenStudioMobileEvent(created, hidden)).toBe(true);
+    expect(hidden.studioProjectIds.has("studio-2")).toBe(true);
   });
 
   it("carries the same completion time as desktop into transcript snapshots", () => {

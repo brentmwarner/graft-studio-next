@@ -67,6 +67,7 @@ import {
   toMobileTranscript,
   withMobileEffort,
   withMobileFastMode,
+  isStudioProjectKind,
   withoutStudioProjects,
   withoutStudioThreads,
 } from "./protocolAdapter";
@@ -375,6 +376,10 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
   const query = yield* ProjectionSnapshotQuery;
   const detail = yield* query.getThreadDetailSnapshotById(ThreadId.makeUnsafe(threadId));
   if (Option.isNone(detail)) {
+    return yield* fail("not_found", "Thread not found.");
+  }
+  const project = yield* query.getProjectShellById(detail.value.thread.projectId);
+  if (Option.isSome(project) && isStudioProjectKind(project.value)) {
     return yield* fail("not_found", "Thread not found.");
   }
   return detail.value;

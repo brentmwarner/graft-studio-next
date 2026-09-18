@@ -221,6 +221,21 @@ function ChatRouteGlobalShortcuts() {
     handleNewThread,
     projects,
   } = useHandleNewThread();
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
+  const hiddenStudioProjectIds = useMemo(
+    () =>
+      studioWorkspaceEnabled
+        ? undefined
+        : new Set(
+            projects.filter((project) => project.kind === "studio").map((project) => project.id),
+          ),
+    [projects, studioWorkspaceEnabled],
+  );
+  const switcherProjects = useMemo(
+    () =>
+      studioWorkspaceEnabled ? projects : projects.filter((project) => project.kind !== "studio"),
+    [projects, studioWorkspaceEnabled],
+  );
   const {
     recentSwitcherState,
     recentViewEntries,
@@ -230,11 +245,11 @@ function ChatRouteGlobalShortcuts() {
   } = useRecentViewSwitcher({
     activeContextThreadId,
     activeDraftThread,
-    projects,
+    projects: switcherProjects,
+    ...(hiddenStudioProjectIds ? { hiddenProjectIds: hiddenStudioProjectIds } : {}),
   });
   const { handleNewChat } = useHandleNewChat();
   const { handleNewStudioChat } = useHandleNewStudioChat();
-  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
   const homeDir = useWorkspacePathsStore((state) => state.homeDir);
   const chatWorkspaceRoot = useWorkspacePathsStore((state) => state.chatWorkspaceRoot);
   const studioWorkspaceRoot = useWorkspacePathsStore((state) => state.studioWorkspaceRoot);
