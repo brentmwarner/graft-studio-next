@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createMacSmokeKeychainSession,
   createPackagedDesktopSmokeEnvironment,
   parseMacKeychainList,
   parsePackagedDesktopStartupArgs,
-  prepareMacSmokeKeychain,
   readLatestPackagedBackendPort,
   readPackagedStartupLogTails,
   retainMacBackendSampleCallGraph,
@@ -37,12 +37,10 @@ describe("packaged desktop startup verification", () => {
     ]);
   });
 
-  it("restores an isolated macOS smoke keychain before terminating on a signal", () => {
+  it("restores an isolated macOS smoke keychain and releases its lock", () => {
     const commands: string[][] = [];
-    const listeners = new Map<NodeJS.Signals, () => void>();
     let lockReleased = false;
-    let exitCode: number | null = null;
-    prepareMacSmokeKeychain("/tmp/graft-smoke", {
+    const session = createMacSmokeKeychainSession("/tmp/graft-smoke", {
       commands: {
         read: (args) =>
           args[0] === "default-keychain"
@@ -51,19 +49,13 @@ describe("packaged desktop startup verification", () => {
         run: (args) => commands.push([...args]),
       },
       password: "test-password",
-      signals: {
-        add: (signal, listener) => listeners.set(signal, listener),
-        remove: (signal) => listeners.delete(signal),
-        exit: (code) => {
-          exitCode = code;
-        },
-      },
       acquireLock: () => () => {
         lockReleased = true;
       },
     });
 
-    listeners.get("SIGTERM")?.();
+    session.prepare();
+    session.restore();
 
     expect(commands).toEqual([
       [
@@ -105,28 +97,25 @@ describe("packaged desktop startup verification", () => {
       ],
       ["delete-keychain", "/tmp/graft-smoke/graft-packaged-smoke.keychain-db"],
     ]);
-    expect(listeners.size).toBe(0);
     expect(lockReleased).toBe(true);
-    expect(exitCode).toBe(143);
   });
 
   it("deletes the temporary keychain when setup fails after creation", () => {
     const commands: string[][] = [];
-    expect(() =>
-      prepareMacSmokeKeychain("/tmp/graft-smoke", {
-        commands: {
-          read: (args) =>
-            args[0] === "default-keychain" ? '"/Users/runner/login.keychain-db"\n' : "",
-          run: (args) => {
-            commands.push([...args]);
-            if (args[0] === "unlock-keychain") throw new Error("unlock failed");
-          },
+    const session = createMacSmokeKeychainSession("/tmp/graft-smoke", {
+      commands: {
+        read: (args) =>
+          args[0] === "default-keychain" ? '"/Users/runner/login.keychain-db"\n' : "",
+        run: (args) => {
+          commands.push([...args]);
+          if (args[0] === "unlock-keychain") throw new Error("unlock failed");
         },
-        password: "test-password",
-        signals: { add: () => undefined, remove: () => undefined, exit: () => undefined },
-        acquireLock: () => () => undefined,
-      }),
-    ).toThrow("unlock failed");
+      },
+      password: "test-password",
+      acquireLock: () => () => undefined,
+    });
+
+    expect(() => session.prepare()).toThrow("unlock failed");
 
     expect(commands).toContainEqual([
       "default-keychain",
@@ -144,30 +133,78 @@ describe("packaged desktop startup verification", () => {
 
   it("restores every keychain reference after setup fails and preserves a referenced keychain", () => {
     const commands: string[][] = [];
+    let defaultRestoreAttempts = 0;
     let lockReleased = false;
-    expect(() =>
-      prepareMacSmokeKeychain("/tmp/graft-smoke", {
-        commands: {
-          read: () => "",
-          run: (args) => {
-            commands.push([...args]);
-            if (args[0] === "unlock-keychain") throw new Error("unlock failed");
-            if (args[0] === "default-keychain" && args.at(-1) === "-s") {
-              throw new Error("default restore failed");
-            }
-          },
+    const session = createMacSmokeKeychainSession("/tmp/graft-smoke", {
+      commands: {
+        read: () => "",
+        run: (args) => {
+          commands.push([...args]);
+          if (args[0] === "unlock-keychain") throw new Error("unlock failed");
+          if (args[0] === "default-keychain" && args.at(-1) === "-s") {
+            defaultRestoreAttempts += 1;
+            if (defaultRestoreAttempts === 1) throw new Error("default restore failed");
+          }
         },
-        password: "test-password",
-        signals: { add: () => undefined, remove: () => undefined, exit: () => undefined },
-        acquireLock: () => () => {
-          lockReleased = true;
-        },
-      }),
-    ).toThrow("Could not prepare or restore the macOS smoke Keychain");
+      },
+      password: "test-password",
+      acquireLock: () => () => {
+        lockReleased = true;
+      },
+    });
+
+    expect(() => session.prepare()).toThrow(
+      "Could not prepare or restore the macOS smoke Keychain",
+    );
 
     expect(commands).toContainEqual(["default-keychain", "-d", "user", "-s"]);
     expect(commands).toContainEqual(["list-keychains", "-d", "user", "-s"]);
     expect(commands.some(([command]) => command === "delete-keychain")).toBe(false);
+    expect(lockReleased).toBe(false);
+
+    expect(() => session.restore()).not.toThrow();
+    expect(commands).toContainEqual([
+      "delete-keychain",
+      "/tmp/graft-smoke/graft-packaged-smoke.keychain-db",
+    ]);
+    expect(lockReleased).toBe(true);
+  });
+
+  it("retries a partial keychain restoration before deleting the keychain or releasing the lock", () => {
+    const commands: string[][] = [];
+    let defaultRestoreAttempts = 0;
+    let lockReleased = false;
+    const session = createMacSmokeKeychainSession("/tmp/graft-smoke", {
+      commands: {
+        read: (args) =>
+          args[0] === "default-keychain"
+            ? '"/Users/runner/login.keychain-db"\n'
+            : '"/Users/runner/login.keychain-db"\n',
+        run: (args) => {
+          commands.push([...args]);
+          if (args[0] === "default-keychain" && args.at(-1) === "/Users/runner/login.keychain-db") {
+            defaultRestoreAttempts += 1;
+            if (defaultRestoreAttempts === 1) throw new Error("transient restore failure");
+          }
+        },
+      },
+      password: "test-password",
+      acquireLock: () => () => {
+        lockReleased = true;
+      },
+    });
+    session.prepare();
+
+    expect(() => session.restore()).toThrow("Could not restore the macOS smoke Keychain state");
+    expect(lockReleased).toBe(false);
+    expect(commands.some(([command]) => command === "delete-keychain")).toBe(false);
+
+    expect(() => session.restore()).not.toThrow();
+    expect(defaultRestoreAttempts).toBe(2);
+    expect(commands).toContainEqual([
+      "delete-keychain",
+      "/tmp/graft-smoke/graft-packaged-smoke.keychain-db",
+    ]);
     expect(lockReleased).toBe(true);
   });
 
