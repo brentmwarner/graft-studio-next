@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   createPackagedDesktopSmokeEnvironment,
+  parseMacKeychainList,
   parsePackagedDesktopStartupArgs,
   readLatestPackagedBackendPort,
   readPackagedStartupLogTails,
@@ -24,6 +25,17 @@ afterEach(() => {
 });
 
 describe("packaged desktop startup verification", () => {
+  it("parses quoted macOS keychain command output", () => {
+    expect(
+      parseMacKeychainList(
+        '    "/Users/runner/Library/Keychains/login.keychain-db"\n    "/tmp/Graft \\\"Smoke\\\".keychain-db"\n',
+      ),
+    ).toEqual([
+      "/Users/runner/Library/Keychains/login.keychain-db",
+      '/tmp/Graft "Smoke".keychain-db',
+    ]);
+  });
+
   it("retains bounded failure diagnostics even when a startup log is missing", () => {
     const root = mkdtempSync(join(tmpdir(), "graft-startup-diagnostics-test-"));
     temporaryRoots.push(root);

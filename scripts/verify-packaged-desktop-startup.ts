@@ -4,6 +4,7 @@
 // Layer: Release verification script
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
@@ -84,6 +85,90 @@ function runCommand(command: string, args: ReadonlyArray<string>, cwd?: string):
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed with exit ${result.status ?? "unknown"}.`);
   }
+}
+
+function readCommand(command: string, args: ReadonlyArray<string>): string {
+  const result = spawnSync(command, [...args], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+    shell: false,
+    windowsHide: true,
+  });
+  if (result.error) {
+    throw new Error(`${command} could not start: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed with exit ${result.status ?? "unknown"}.`);
+  }
+  return result.stdout;
+}
+
+export function parseMacKeychainList(output: string): string[] {
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      if (line.startsWith('"') && line.endsWith('"')) {
+        return line.slice(1, -1).replaceAll('\\"', '"').replaceAll("\\\\", "\\");
+      }
+      return line;
+    });
+}
+
+/**
+ * GitHub's macOS runners do not always have an unlocked default keychain. A
+ * clean Chromium profile creates its encryption key during the first window
+ * load, which otherwise blocks inside native Keychain authorization without a
+ * visible prompt. Give the packaged smoke an isolated, unlocked keychain and
+ * restore the runner state after the app exits.
+ */
+function prepareMacSmokeKeychain(root: string): () => void {
+  const keychainPath = join(root, "graft-packaged-smoke.keychain-db");
+  const password = randomBytes(32).toString("hex");
+  const previousDefault = parseMacKeychainList(
+    readCommand("security", ["default-keychain", "-d", "user"]),
+  )[0];
+  const previousSearchList = parseMacKeychainList(
+    readCommand("security", ["list-keychains", "-d", "user"]),
+  );
+  let created = false;
+
+  const restore = () => {
+    if (previousDefault) {
+      runCommand("security", ["default-keychain", "-d", "user", "-s", previousDefault]);
+    }
+    runCommand("security", ["list-keychains", "-d", "user", "-s", ...previousSearchList]);
+    if (created) {
+      runCommand("security", ["delete-keychain", keychainPath]);
+      created = false;
+    }
+  };
+
+  try {
+    runCommand("security", ["create-keychain", "-p", password, keychainPath]);
+    created = true;
+    runCommand("security", ["unlock-keychain", "-p", password, keychainPath]);
+    runCommand("security", ["set-keychain-settings", "-lut", "21600", keychainPath]);
+    runCommand("security", [
+      "list-keychains",
+      "-d",
+      "user",
+      "-s",
+      keychainPath,
+      ...previousSearchList.filter((path) => path !== keychainPath),
+    ]);
+    runCommand("security", ["default-keychain", "-d", "user", "-s", keychainPath]);
+  } catch (error) {
+    try {
+      restore();
+    } catch {
+      // Preserve the setup failure; the hosted runner is ephemeral.
+    }
+    throw error;
+  }
+
+  return restore;
 }
 
 function findFiles(root: string, predicate: (path: string) => boolean): string[] {
@@ -483,10 +568,14 @@ export async function verifyPackagedDesktopStartup(
   let child: ChildProcess | null = null;
   let logDirectory: string | null = null;
   let outputTail = "";
+  let restoreMacKeychain: (() => void) | null = null;
   try {
     const launch = prepareLaunch(options, extractionRoot);
     const env = createPackagedDesktopSmokeEnvironment(join(temporaryRoot, "state"), options);
     verifyPackagedRuntimeDependencies(launch.runtime, env, options.timeoutMs);
+    if (options.platform === "mac") {
+      restoreMacKeychain = prepareMacSmokeKeychain(temporaryRoot);
+    }
     logDirectory = join(env.GRAFT_HOME!, "userdata", "logs");
     const logPath = join(logDirectory, "desktop-main.log");
     child = spawn(launch.command, [...launch.args], {
@@ -548,6 +637,15 @@ export async function verifyPackagedDesktopStartup(
   } finally {
     if (child) {
       await terminateProcessTree(child);
+    }
+    if (restoreMacKeychain) {
+      try {
+        restoreMacKeychain();
+      } catch (error) {
+        console.warn(
+          `Could not restore the macOS smoke keychain state: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     try {
       rmSync(temporaryRoot, {
