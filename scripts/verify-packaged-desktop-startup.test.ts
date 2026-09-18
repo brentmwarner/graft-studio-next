@@ -1,21 +1,47 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  acquireMacSmokeKeychainLock,
+  createMacPackagedLaunchGate,
+  createMacSmokeKeychainSession,
   createPackagedDesktopSmokeEnvironment,
+  parseMacKeychainList,
   parsePackagedDesktopStartupArgs,
   readLatestPackagedBackendPort,
   readPackagedStartupLogTails,
+  redactMacKeychainCommandArgs,
   retainMacBackendSampleCallGraph,
+  resolveMacSmokeKeychainLockDirectory,
+  resolveMacSmokeKeychainStateDirectory,
   resolvePackagedDependencySmokeLaunch,
   resolveNativePackagedDesktopPlatform,
   verifyPackagedRuntimeDependencies,
 } from "./verify-packaged-desktop-startup.ts";
 
 const temporaryRoots: string[] = [];
+const itPosix = process.platform === "win32" ? it.skip : it;
+
+function createTemporaryMacKeychainRoot(): {
+  readonly root: string;
+  readonly keychainPath: string;
+} {
+  const root = mkdtempSync(join(tmpdir(), "graft-smoke-session-test-"));
+  temporaryRoots.push(root);
+  return { root, keychainPath: join(root, "graft-packaged-smoke.keychain-db") };
+}
 
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) {
@@ -24,6 +50,509 @@ afterEach(() => {
 });
 
 describe("packaged desktop startup verification", () => {
+  itPosix("stores macOS Keychain coordination under a stable user-global path", () => {
+    expect(resolveMacSmokeKeychainStateDirectory("/Users/runner")).toBe(
+      "/Users/runner/.graft/release-smoke/macos-keychain",
+    );
+    expect(resolveMacSmokeKeychainLockDirectory("/Users/runner")).toBe(
+      "/Users/runner/.graft/release-smoke/macos-keychain/state.lock",
+    );
+  });
+
+  itPosix("keeps the packaged macOS app behind a gate until recovery is durable", async () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-smoke-launch-gate-test-"));
+    temporaryRoots.push(root);
+    const outputPath = join(root, "launched");
+    const gate = createMacPackagedLaunchGate("/bin/sh", [
+      "-c",
+      'printf launched > "$1"',
+      "graft-gate-target",
+      outputPath,
+    ]);
+    const child = spawn(gate.command, [...gate.args], { stdio: ["pipe", "ignore", "ignore"] });
+    const childExit = new Promise<void>((resolveExit, rejectExit) => {
+      child.once("error", rejectExit);
+      child.once("exit", (code, signal) => {
+        if (code === 0) resolveExit();
+        else rejectExit(new Error(`Launch gate exited with code=${code}, signal=${signal}.`));
+      });
+    });
+
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
+    expect(existsSync(outputPath)).toBe(false);
+
+    gate.open(child.stdin);
+    await childExit;
+    expect(readFileSync(outputPath, "utf8")).toBe("launched");
+  });
+
+  itPosix("abandons the packaged macOS launch when its recovery owner disappears", async () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-smoke-launch-abandon-test-"));
+    temporaryRoots.push(root);
+    const outputPath = join(root, "launched");
+    const gate = createMacPackagedLaunchGate("/bin/sh", [
+      "-c",
+      'printf launched > "$1"',
+      "graft-gate-target",
+      outputPath,
+    ]);
+    const child = spawn(gate.command, [...gate.args], { stdio: ["pipe", "ignore", "ignore"] });
+    const childExit = new Promise<number | null>((resolveExit, rejectExit) => {
+      child.once("error", rejectExit);
+      child.once("exit", (code) => resolveExit(code));
+    });
+
+    child.stdin.end();
+
+    await expect(childExit).resolves.toBe(125);
+    expect(existsSync(outputPath)).toBe(false);
+  });
+
+  it("parses quoted macOS keychain command output", () => {
+    expect(
+      parseMacKeychainList(
+        '    "/Users/runner/Library/Keychains/login.keychain-db"\n    "/tmp/Graft \\\"Smoke\\\".keychain-db"\n',
+      ),
+    ).toEqual([
+      "/Users/runner/Library/Keychains/login.keychain-db",
+      '/tmp/Graft "Smoke".keychain-db',
+    ]);
+  });
+
+  it("redacts macOS keychain passwords from command diagnostics", () => {
+    expect(
+      redactMacKeychainCommandArgs([
+        "create-keychain",
+        "-p",
+        "super-secret",
+        "/tmp/graft-smoke.keychain-db",
+      ]),
+    ).toBe("create-keychain -p <redacted> /tmp/graft-smoke.keychain-db");
+  });
+
+  it("restores an isolated macOS smoke keychain and releases its lock", () => {
+    const { root, keychainPath } = createTemporaryMacKeychainRoot();
+    const commands: string[][] = [];
+    let persistedRecovery: unknown;
+    let lockReleased = false;
+    const session = createMacSmokeKeychainSession(root, {
+      commands: {
+        read: (args) =>
+          args[0] === "default-keychain"
+            ? '"/Users/runner/login.keychain-db"\n'
+            : '"/Users/runner/login.keychain-db"\n"/Library/Keychains/System.keychain"\n',
+        run: (args) => commands.push([...args]),
+      },
+      password: "test-password",
+      acquireLock: () => ({
+        ownerIdentity: "test-owner",
+        persistRecovery: (recovery) => {
+          persistedRecovery = recovery;
+        },
+        release: () => {
+          lockReleased = true;
+        },
+      }),
+    });
+
+    session.prepare();
+    session.recordProcessGroup(9_001, "test-process-group");
+    session.restore();
+
+    expect(persistedRecovery).toMatchObject({
+      schemaVersion: 2,
+      ownerPid: process.pid,
+      ownerIdentity: "test-owner",
+      keychainPath,
+      previousDefault: "/Users/runner/login.keychain-db",
+      previousSearchList: ["/Users/runner/login.keychain-db", "/Library/Keychains/System.keychain"],
+      processGroup: { id: 9_001, identity: "test-process-group" },
+    });
+    expect(commands).toEqual([
+      ["create-keychain", "-p", "test-password", keychainPath],
+      ["unlock-keychain", "-p", "test-password", keychainPath],
+      ["set-keychain-settings", "-lut", "21600", keychainPath],
+      ["list-keychains", "-d", "user", "-s", keychainPath],
+      ["default-keychain", "-d", "user", "-s", keychainPath],
+      ["default-keychain", "-d", "user", "-s", "/Users/runner/login.keychain-db"],
+      [
+        "list-keychains",
+        "-d",
+        "user",
+        "-s",
+        "/Users/runner/login.keychain-db",
+        "/Library/Keychains/System.keychain",
+      ],
+      ["delete-keychain", keychainPath],
+    ]);
+    expect(lockReleased).toBe(true);
+  });
+
+  it("deletes the temporary keychain when setup fails after creation", () => {
+    const { root, keychainPath } = createTemporaryMacKeychainRoot();
+    const commands: string[][] = [];
+    const session = createMacSmokeKeychainSession(root, {
+      commands: {
+        read: (args) =>
+          args[0] === "default-keychain" ? '"/Users/runner/login.keychain-db"\n' : "",
+        run: (args) => {
+          commands.push([...args]);
+          if (args[0] === "unlock-keychain") throw new Error("unlock failed");
+        },
+      },
+      password: "test-password",
+      acquireLock: () => ({
+        ownerIdentity: "test-owner",
+        persistRecovery: () => undefined,
+        release: () => undefined,
+      }),
+    });
+
+    expect(() => session.prepare()).toThrow("unlock failed");
+
+    expect(commands).toContainEqual([
+      "default-keychain",
+      "-d",
+      "user",
+      "-s",
+      "/Users/runner/login.keychain-db",
+    ]);
+    expect(commands).toContainEqual(["list-keychains", "-d", "user", "-s"]);
+    expect(commands).toContainEqual(["delete-keychain", keychainPath]);
+  });
+
+  it("refuses an empty default Keychain before changing Keychain state", () => {
+    const { root } = createTemporaryMacKeychainRoot();
+    const commands: string[][] = [];
+    let lockReleased = false;
+
+    expect(() =>
+      createMacSmokeKeychainSession(root, {
+        commands: {
+          read: () => "",
+          run: (args) => commands.push([...args]),
+        },
+        acquireLock: () => ({
+          ownerIdentity: "test-owner",
+          persistRecovery: () => undefined,
+          release: () => {
+            lockReleased = true;
+          },
+        }),
+      }),
+    ).toThrow("cannot preserve an empty default Keychain");
+
+    expect(commands).toEqual([]);
+    expect(lockReleased).toBe(true);
+  });
+
+  it("restores every keychain reference after setup fails and preserves a referenced keychain", () => {
+    const { root, keychainPath } = createTemporaryMacKeychainRoot();
+    const commands: string[][] = [];
+    let defaultRestoreAttempts = 0;
+    let lockReleased = false;
+    const session = createMacSmokeKeychainSession(root, {
+      commands: {
+        read: (args) =>
+          args[0] === "default-keychain" ? '"/Users/runner/login.keychain-db"\n' : "",
+        run: (args) => {
+          commands.push([...args]);
+          if (args[0] === "unlock-keychain") throw new Error("unlock failed");
+          if (args[0] === "default-keychain" && args.at(-1) === "/Users/runner/login.keychain-db") {
+            defaultRestoreAttempts += 1;
+            if (defaultRestoreAttempts === 1) throw new Error("default restore failed");
+          }
+        },
+      },
+      password: "test-password",
+      acquireLock: () => ({
+        ownerIdentity: "test-owner",
+        persistRecovery: () => undefined,
+        release: () => {
+          lockReleased = true;
+        },
+      }),
+    });
+
+    expect(() => session.prepare()).toThrow(
+      "Could not prepare or restore the macOS smoke Keychain",
+    );
+
+    expect(commands).toContainEqual([
+      "default-keychain",
+      "-d",
+      "user",
+      "-s",
+      "/Users/runner/login.keychain-db",
+    ]);
+    expect(commands).toContainEqual(["list-keychains", "-d", "user", "-s"]);
+    expect(commands.some(([command]) => command === "delete-keychain")).toBe(false);
+    expect(lockReleased).toBe(false);
+
+    expect(() => session.restore()).not.toThrow();
+    expect(commands).toContainEqual(["delete-keychain", keychainPath]);
+    expect(lockReleased).toBe(true);
+  });
+
+  it("retries a partial keychain restoration before deleting the keychain or releasing the lock", () => {
+    const { root, keychainPath } = createTemporaryMacKeychainRoot();
+    const commands: string[][] = [];
+    let defaultRestoreAttempts = 0;
+    let lockReleased = false;
+    const session = createMacSmokeKeychainSession(root, {
+      commands: {
+        read: (args) =>
+          args[0] === "default-keychain"
+            ? '"/Users/runner/login.keychain-db"\n'
+            : '"/Users/runner/login.keychain-db"\n',
+        run: (args) => {
+          commands.push([...args]);
+          if (args[0] === "default-keychain" && args.at(-1) === "/Users/runner/login.keychain-db") {
+            defaultRestoreAttempts += 1;
+            if (defaultRestoreAttempts === 1) throw new Error("transient restore failure");
+          }
+        },
+      },
+      password: "test-password",
+      acquireLock: () => ({
+        ownerIdentity: "test-owner",
+        persistRecovery: () => undefined,
+        release: () => {
+          lockReleased = true;
+        },
+      }),
+    });
+    session.prepare();
+
+    expect(() => session.restore()).toThrow("Could not restore the macOS smoke Keychain state");
+    expect(lockReleased).toBe(false);
+    expect(commands.some(([command]) => command === "delete-keychain")).toBe(false);
+
+    expect(() => session.restore()).not.toThrow();
+    expect(defaultRestoreAttempts).toBe(2);
+    expect(commands).toContainEqual(["delete-keychain", keychainPath]);
+    expect(lockReleased).toBe(true);
+  });
+
+  it("recovers a stale macOS smoke lock from its persisted keychain snapshot", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-lock-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "stale-owner" }),
+    );
+
+    const keychainRoot = mkdtempSync(join(lockRoot, "keychain-"));
+    const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
+    writeFileSync(keychainPath, "temporary keychain");
+    writeFileSync(
+      join(lockDirectory, "recovery.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        ownerPid: 4242,
+        ownerIdentity: "stale-owner",
+        keychainPath,
+        previousDefault: "/Users/runner/login.keychain-db",
+        previousSearchList: [
+          "/Users/runner/login.keychain-db",
+          "/Library/Keychains/System.keychain",
+        ],
+        processGroup: { id: 5252, identity: "stale-process-group" },
+      }),
+    );
+
+    const commands: string[][] = [];
+    const terminatedProcessGroups: number[] = [];
+    let processGroupAlive = true;
+    const lock = acquireMacSmokeKeychainLock(
+      { read: () => "", run: (args) => commands.push([...args]) },
+      {
+        lockDirectory,
+        isProcessAlive: () => false,
+        isProcessGroupAlive: () => processGroupAlive,
+        getProcessIdentity: (pid) => (pid === process.pid ? "current-owner" : null),
+        terminateProcessGroup: (pid) => {
+          terminatedProcessGroups.push(pid);
+          processGroupAlive = false;
+        },
+      },
+    );
+
+    expect(terminatedProcessGroups).toEqual([5252]);
+    expect(commands).toEqual([
+      ["default-keychain", "-d", "user", "-s", "/Users/runner/login.keychain-db"],
+      [
+        "list-keychains",
+        "-d",
+        "user",
+        "-s",
+        "/Users/runner/login.keychain-db",
+        "/Library/Keychains/System.keychain",
+      ],
+      ["delete-keychain", keychainPath],
+    ]);
+    expect(existsSync(keychainRoot)).toBe(false);
+    expect(JSON.parse(readFileSync(join(lockDirectory, "owner"), "utf8"))).toEqual({
+      schemaVersion: 1,
+      pid: process.pid,
+      identity: "current-owner",
+    });
+
+    lock.release();
+    expect(existsSync(lockDirectory)).toBe(false);
+  });
+
+  it("refuses to recover a macOS smoke lock while its owner is alive", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-live-lock-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "live-owner" }),
+    );
+
+    expect(() =>
+      acquireMacSmokeKeychainLock(
+        { read: () => "", run: () => undefined },
+        {
+          lockDirectory,
+          isProcessAlive: () => true,
+          getProcessIdentity: (pid) => (pid === process.pid ? "current-owner" : "live-owner"),
+        },
+      ),
+    ).toThrow("Another packaged macOS startup smoke is already running (pid=4242)");
+    expect(existsSync(lockDirectory)).toBe(true);
+  });
+
+  it("rejects the POSIX all-process sentinel in a recovery process group", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-invalid-group-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "stale-owner" }),
+    );
+    const keychainRoot = mkdtempSync(join(lockRoot, "keychain-"));
+    const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
+    writeFileSync(keychainPath, "temporary keychain");
+    writeFileSync(
+      join(lockDirectory, "recovery.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        ownerPid: 4242,
+        ownerIdentity: "stale-owner",
+        keychainPath,
+        previousDefault: "/Users/runner/login.keychain-db",
+        previousSearchList: [],
+        processGroup: { id: 1, identity: "invalid-process-group" },
+      }),
+    );
+
+    expect(() =>
+      acquireMacSmokeKeychainLock(
+        { read: () => "", run: () => undefined },
+        {
+          lockDirectory,
+          isProcessAlive: () => false,
+          getProcessIdentity: () => "current-owner",
+        },
+      ),
+    ).toThrow("recovery record is invalid");
+    expect(existsSync(keychainRoot)).toBe(true);
+  });
+
+  it("refuses recovery when a live process group no longer matches its identity", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-reused-pid-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "old-owner" }),
+    );
+    const keychainRoot = mkdtempSync(join(lockRoot, "keychain-"));
+    const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
+    writeFileSync(keychainPath, "temporary keychain");
+    writeFileSync(
+      join(lockDirectory, "recovery.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        ownerPid: 4242,
+        ownerIdentity: "old-owner",
+        keychainPath,
+        previousDefault: "/Users/runner/login.keychain-db",
+        previousSearchList: [],
+        processGroup: { id: 5252, identity: "old-process-group" },
+      }),
+    );
+
+    const terminatedProcessGroups: number[] = [];
+    expect(() =>
+      acquireMacSmokeKeychainLock(
+        { read: () => "", run: () => undefined },
+        {
+          lockDirectory,
+          isProcessAlive: (pid) => pid === 4242 || pid === 5252,
+          isProcessGroupAlive: () => true,
+          getProcessIdentity: (pid) => {
+            if (pid === process.pid) return "current-owner";
+            if (pid === 4242) return "reused-owner";
+            return "reused-process-group";
+          },
+          terminateProcessGroup: (pid) => terminatedProcessGroups.push(pid),
+        },
+      ),
+    ).toThrow("no longer matches its recorded identity");
+
+    expect(terminatedProcessGroups).toEqual([]);
+    expect(existsSync(keychainRoot)).toBe(true);
+  });
+
+  itPosix("refuses a symlinked stale keychain recovery root", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-symlink-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "stale-owner" }),
+    );
+    const outsideRoot = mkdtempSync(join(tmpdir(), "graft-smoke-outside-test-"));
+    temporaryRoots.push(outsideRoot);
+    const keychainRoot = join(lockRoot, "keychain-symlink");
+    symlinkSync(outsideRoot, keychainRoot, "dir");
+    const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
+    writeFileSync(join(outsideRoot, "graft-packaged-smoke.keychain-db"), "temporary keychain");
+    writeFileSync(
+      join(lockDirectory, "recovery.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        ownerPid: 4242,
+        ownerIdentity: "stale-owner",
+        keychainPath,
+        previousDefault: "/Users/runner/login.keychain-db",
+        previousSearchList: [],
+        processGroup: null,
+      }),
+    );
+
+    expect(() =>
+      acquireMacSmokeKeychainLock(
+        { read: () => "", run: () => undefined },
+        {
+          lockDirectory,
+          isProcessAlive: () => false,
+          getProcessIdentity: () => "current-owner",
+        },
+      ),
+    ).toThrow("recovery root is unsafe");
+    expect(existsSync(join(outsideRoot, "graft-packaged-smoke.keychain-db"))).toBe(true);
+  });
+
   it("retains bounded failure diagnostics even when a startup log is missing", () => {
     const root = mkdtempSync(join(tmpdir(), "graft-startup-diagnostics-test-"));
     temporaryRoots.push(root);

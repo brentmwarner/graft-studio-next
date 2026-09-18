@@ -4,20 +4,25 @@
 // Layer: Release verification script
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import type { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH } from "@graft/shared/desktopIdentity";
@@ -86,6 +91,642 @@ function runCommand(command: string, args: ReadonlyArray<string>, cwd?: string):
   }
 }
 
+const MAC_KEYCHAIN_COMMAND_TIMEOUT_MS = 15_000;
+
+export function redactMacKeychainCommandArgs(args: ReadonlyArray<string>): string {
+  return args
+    .map((argument, index) => (args[index - 1] === "-p" ? "<redacted>" : argument))
+    .join(" ");
+}
+
+function macKeychainFailureDetail(stderr: string, args: ReadonlyArray<string>): string {
+  let detail = stderr.trim().slice(-4_096);
+  for (let index = 1; index < args.length; index += 1) {
+    if (args[index - 1] === "-p" && args[index]) {
+      detail = detail.replaceAll(args[index]!, "<redacted>");
+    }
+  }
+  return detail ? ` stderr=${detail}` : "";
+}
+
+function runMacKeychainCommand(args: ReadonlyArray<string>): void {
+  const result = spawnSync("security", [...args], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+    shell: false,
+    timeout: MAC_KEYCHAIN_COMMAND_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (result.error) {
+    throw new Error(
+      `security ${redactMacKeychainCommandArgs(args)} could not complete: ${result.error.message}`,
+    );
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `security ${redactMacKeychainCommandArgs(args)} failed with exit ${result.status ?? "unknown"}.${macKeychainFailureDetail(result.stderr, args)}`,
+    );
+  }
+}
+
+function readMacKeychainCommand(args: ReadonlyArray<string>): string {
+  const result = spawnSync("security", [...args], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+    shell: false,
+    timeout: MAC_KEYCHAIN_COMMAND_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (result.error) {
+    throw new Error(
+      `security ${redactMacKeychainCommandArgs(args)} could not complete: ${result.error.message}`,
+    );
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `security ${redactMacKeychainCommandArgs(args)} failed with exit ${result.status ?? "unknown"}.${macKeychainFailureDetail(result.stderr, args)}`,
+    );
+  }
+  return result.stdout;
+}
+
+export function parseMacKeychainList(output: string): string[] {
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      if (line.startsWith('"') && line.endsWith('"')) {
+        return line.slice(1, -1).replaceAll('\\"', '"').replaceAll("\\\\", "\\");
+      }
+      return line;
+    });
+}
+
+export interface MacSmokeKeychainCommandRunner {
+  readonly read: (args: ReadonlyArray<string>) => string;
+  readonly run: (args: ReadonlyArray<string>) => void;
+}
+
+interface MacSmokeProcessGroupRecovery {
+  readonly id: number;
+  readonly identity: string;
+}
+
+interface MacSmokeKeychainRecovery {
+  readonly schemaVersion: 2;
+  readonly ownerPid: number;
+  readonly ownerIdentity: string;
+  readonly keychainPath: string;
+  readonly previousDefault: string;
+  readonly previousSearchList: string[];
+  readonly processGroup: MacSmokeProcessGroupRecovery | null;
+}
+
+export interface MacSmokeKeychainLock {
+  readonly ownerIdentity: string;
+  readonly persistRecovery: (recovery: MacSmokeKeychainRecovery) => void;
+  readonly release: () => void;
+}
+
+interface AcquireMacSmokeKeychainLockOptions {
+  readonly lockDirectory?: string;
+  readonly isProcessAlive?: (pid: number) => boolean;
+  readonly isProcessGroupAlive?: (pid: number) => boolean;
+  readonly getProcessIdentity?: (pid: number) => string | null;
+  readonly terminateProcessGroup?: (pid: number) => void;
+}
+
+interface PrepareMacSmokeKeychainOptions {
+  readonly commands?: MacSmokeKeychainCommandRunner;
+  readonly password?: string;
+  readonly acquireLock?: (commands: MacSmokeKeychainCommandRunner) => MacSmokeKeychainLock;
+}
+
+export interface MacSmokeKeychainSession {
+  readonly prepare: () => void;
+  readonly recordProcessGroup: (pid: number, identity: string) => void;
+  readonly restore: () => void;
+}
+
+const macSmokeKeychainCommands: MacSmokeKeychainCommandRunner = {
+  read: readMacKeychainCommand,
+  run: runMacKeychainCommand,
+};
+
+function isLiveProcess(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+export function resolveMacSmokeKeychainStateDirectory(userHome: string = homedir()): string {
+  return join(resolve(userHome), ".graft", "release-smoke", "macos-keychain");
+}
+
+export function resolveMacSmokeKeychainLockDirectory(userHome: string = homedir()): string {
+  return join(resolveMacSmokeKeychainStateDirectory(userHome), "state.lock");
+}
+
+export function readMacSmokeProcessIdentity(pid: number): string | null {
+  const result = spawnSync("ps", ["-p", String(pid), "-o", "lstart=", "-o", "pgid="], {
+    encoding: "utf8",
+    env: { ...process.env, LANG: "C", LC_ALL: "C", TZ: "UTC" },
+    maxBuffer: 1024 * 1024,
+    shell: false,
+    timeout: MAC_KEYCHAIN_COMMAND_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) return null;
+  const identity = result.stdout.trim();
+  return identity.length > 0 ? identity : null;
+}
+
+interface MacSmokeLockOwner {
+  readonly schemaVersion: 1;
+  readonly pid: number;
+  readonly identity: string;
+}
+
+function parseMacSmokeLockOwner(value: string): MacSmokeLockOwner {
+  const parsed: unknown = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("The packaged macOS startup smoke lock owner is invalid.");
+  }
+  const record = parsed as Record<string, unknown>;
+  if (
+    record.schemaVersion !== 1 ||
+    !Number.isSafeInteger(record.pid) ||
+    (record.pid as number) <= 0 ||
+    typeof record.identity !== "string" ||
+    record.identity.length === 0
+  ) {
+    throw new Error("The packaged macOS startup smoke lock owner is invalid.");
+  }
+  return {
+    schemaVersion: 1,
+    pid: record.pid as number,
+    identity: record.identity,
+  };
+}
+
+function parseMacSmokeKeychainRecovery(
+  value: string,
+  allowedStateDirectory: string,
+): MacSmokeKeychainRecovery {
+  const parsed: unknown = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("The packaged macOS startup smoke recovery record is invalid.");
+  }
+  const record = parsed as Record<string, unknown>;
+  const keychainPath = record.keychainPath;
+  const keychainRoot = typeof keychainPath === "string" ? resolve(dirname(keychainPath)) : "";
+  const resolvedStateDirectory = resolve(allowedStateDirectory);
+  const processGroup = record.processGroup as Record<string, unknown> | null;
+  const isValidProcessGroup =
+    processGroup === null ||
+    (processGroup !== undefined &&
+      Number.isSafeInteger(processGroup.id) &&
+      (processGroup.id as number) > 1 &&
+      typeof processGroup.identity === "string" &&
+      processGroup.identity.length > 0);
+  const isSafeKeychainPath =
+    typeof keychainPath === "string" &&
+    basename(keychainPath) === "graft-packaged-smoke.keychain-db" &&
+    basename(keychainRoot).startsWith("keychain-") &&
+    keychainRoot.startsWith(`${resolvedStateDirectory}${sep}`);
+  if (
+    record.schemaVersion !== 2 ||
+    !Number.isSafeInteger(record.ownerPid) ||
+    (record.ownerPid as number) <= 0 ||
+    typeof record.ownerIdentity !== "string" ||
+    record.ownerIdentity.length === 0 ||
+    !isSafeKeychainPath ||
+    typeof record.previousDefault !== "string" ||
+    record.previousDefault.length === 0 ||
+    !Array.isArray(record.previousSearchList) ||
+    !record.previousSearchList.every((entry) => typeof entry === "string") ||
+    !isValidProcessGroup
+  ) {
+    throw new Error("The packaged macOS startup smoke recovery record is invalid.");
+  }
+  if (existsSync(keychainRoot)) {
+    const stateDirectoryPath = realpathSync(resolvedStateDirectory);
+    const keychainRootMetadata = lstatSync(keychainRoot);
+    if (keychainRootMetadata.isSymbolicLink() || !keychainRootMetadata.isDirectory()) {
+      throw new Error("The packaged macOS startup smoke recovery root is unsafe.");
+    }
+    const keychainRootPath = realpathSync(keychainRoot);
+    if (!keychainRootPath.startsWith(`${stateDirectoryPath}${sep}`)) {
+      throw new Error("The packaged macOS startup smoke recovery root is unsafe.");
+    }
+    if (existsSync(keychainPath)) {
+      const keychainMetadata = lstatSync(keychainPath);
+      if (keychainMetadata.isSymbolicLink() || !keychainMetadata.isFile()) {
+        throw new Error("The packaged macOS startup smoke keychain path is unsafe.");
+      }
+      if (dirname(realpathSync(keychainPath)) !== keychainRootPath) {
+        throw new Error("The packaged macOS startup smoke keychain path is unsafe.");
+      }
+    }
+  }
+  return {
+    schemaVersion: 2,
+    ownerPid: record.ownerPid as number,
+    ownerIdentity: record.ownerIdentity,
+    keychainPath: keychainPath as string,
+    previousDefault: record.previousDefault,
+    previousSearchList: record.previousSearchList as string[],
+    processGroup:
+      processGroup === null
+        ? null
+        : { id: processGroup.id as number, identity: processGroup.identity as string },
+  };
+}
+
+function sleepSync(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function terminateMacSmokeProcessGroup(processGroupId: number): void {
+  if (!Number.isSafeInteger(processGroupId) || processGroupId <= 1) {
+    throw new Error(`Refusing to signal invalid packaged process group ${processGroupId}.`);
+  }
+  if (!isPosixProcessGroupAlive(processGroupId)) return;
+  for (const [signal, timeoutMs] of [
+    ["SIGTERM", 5_000],
+    ["SIGKILL", 2_000],
+  ] as const) {
+    try {
+      process.kill(-processGroupId, signal);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+      throw error;
+    }
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline && isPosixProcessGroupAlive(processGroupId)) {
+      sleepSync(50);
+    }
+    if (!isPosixProcessGroupAlive(processGroupId)) return;
+  }
+  throw new Error(`Could not prove stale packaged process group ${processGroupId} exited.`);
+}
+
+function stopMacSmokeRecoveryProcessGroup(
+  recovery: MacSmokeKeychainRecovery,
+  isProcessAlive: (pid: number) => boolean,
+  isProcessGroupAlive: (pid: number) => boolean,
+  getProcessIdentity: (pid: number) => string | null,
+  terminateProcessGroup: (pid: number) => void,
+): void {
+  const processGroup = recovery.processGroup;
+  if (!processGroup || !isProcessGroupAlive(processGroup.id)) return;
+  if (isProcessAlive(processGroup.id)) {
+    const currentIdentity = getProcessIdentity(processGroup.id);
+    if (!currentIdentity) {
+      throw new Error(
+        `Could not validate stale packaged process group ${processGroup.id} before recovery.`,
+      );
+    }
+    if (currentIdentity !== processGroup.identity) {
+      throw new Error(
+        `Stale packaged process group ${processGroup.id} no longer matches its recorded identity.`,
+      );
+    }
+  }
+  terminateProcessGroup(processGroup.id);
+  if (isProcessGroupAlive(processGroup.id)) {
+    throw new Error(`Stale packaged process group ${processGroup.id} is still running.`);
+  }
+}
+
+function restoreMacSmokeKeychainRecovery(
+  commands: MacSmokeKeychainCommandRunner,
+  recovery: MacSmokeKeychainRecovery,
+): void {
+  const failures: unknown[] = [];
+  let referencesRestored = true;
+  try {
+    commands.run(["default-keychain", "-d", "user", "-s", recovery.previousDefault]);
+  } catch (error) {
+    referencesRestored = false;
+    failures.push(error);
+  }
+  try {
+    commands.run(["list-keychains", "-d", "user", "-s", ...recovery.previousSearchList]);
+  } catch (error) {
+    referencesRestored = false;
+    failures.push(error);
+  }
+  if (referencesRestored && existsSync(recovery.keychainPath)) {
+    try {
+      commands.run(["delete-keychain", recovery.keychainPath]);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      "Could not recover the previous macOS smoke Keychain state.",
+    );
+  }
+  rmSync(dirname(recovery.keychainPath), { recursive: true, force: true });
+}
+
+function acquireMacSmokeKeychainGuard(
+  guardDirectory: string,
+  isProcessAlive: (pid: number) => boolean,
+  getProcessIdentity: (pid: number) => string | null,
+): () => void {
+  const ownerIdentity = getProcessIdentity(process.pid);
+  if (!ownerIdentity) {
+    throw new Error("Could not identify the macOS startup smoke recovery guard owner.");
+  }
+  const ownerRecord: MacSmokeLockOwner = {
+    schemaVersion: 1,
+    pid: process.pid,
+    identity: ownerIdentity,
+  };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidateDirectory = `${guardDirectory}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+    try {
+      mkdirSync(candidateDirectory, { mode: 0o700 });
+      writeFileSync(join(candidateDirectory, "owner"), `${JSON.stringify(ownerRecord)}\n`, {
+        mode: 0o600,
+      });
+      renameSync(candidateDirectory, guardDirectory);
+      return () => {
+        try {
+          const owner = parseMacSmokeLockOwner(readFileSync(join(guardDirectory, "owner"), "utf8"));
+          if (owner.pid === process.pid && owner.identity === ownerIdentity) {
+            rmSync(guardDirectory, { recursive: true, force: true });
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      };
+    } catch (error) {
+      rmSync(candidateDirectory, { recursive: true, force: true });
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST" && code !== "ENOTEMPTY") throw error;
+      let owner: MacSmokeLockOwner;
+      try {
+        owner = parseMacSmokeLockOwner(readFileSync(join(guardDirectory, "owner"), "utf8"));
+      } catch (readError) {
+        if ((readError as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw readError;
+      }
+      if (isProcessAlive(owner.pid)) {
+        const currentIdentity = getProcessIdentity(owner.pid);
+        if (!currentIdentity || currentIdentity === owner.identity) {
+          throw new Error(`Another macOS smoke is changing the Keychain lock (pid=${owner.pid}).`);
+        }
+      }
+      const staleDirectory = `${guardDirectory}.stale-${process.pid}-${randomBytes(6).toString("hex")}`;
+      try {
+        renameSync(guardDirectory, staleDirectory);
+        rmSync(staleDirectory, { recursive: true, force: true });
+      } catch (renameError) {
+        if ((renameError as NodeJS.ErrnoException).code !== "ENOENT") throw renameError;
+      }
+    }
+  }
+  throw new Error("Could not acquire the packaged macOS startup smoke recovery guard.");
+}
+
+export function acquireMacSmokeKeychainLock(
+  commands: MacSmokeKeychainCommandRunner,
+  options: AcquireMacSmokeKeychainLockOptions = {},
+): MacSmokeKeychainLock {
+  const lockDirectory = options.lockDirectory ?? resolveMacSmokeKeychainLockDirectory();
+  const isProcessAlive = options.isProcessAlive ?? isLiveProcess;
+  const isProcessGroupAlive = options.isProcessGroupAlive ?? isPosixProcessGroupAlive;
+  const getProcessIdentity = options.getProcessIdentity ?? readMacSmokeProcessIdentity;
+  const terminateProcessGroup = options.terminateProcessGroup ?? terminateMacSmokeProcessGroup;
+  const ownerIdentity = getProcessIdentity(process.pid);
+  if (!ownerIdentity) {
+    throw new Error("Could not identify the packaged macOS startup smoke lock owner.");
+  }
+  const ownerRecord: MacSmokeLockOwner = {
+    schemaVersion: 1,
+    pid: process.pid,
+    identity: ownerIdentity,
+  };
+  mkdirSync(dirname(lockDirectory), { recursive: true, mode: 0o700 });
+  const ownerPath = join(lockDirectory, "owner");
+  const recoveryPath = join(lockDirectory, "recovery.json");
+  const releaseGuard = acquireMacSmokeKeychainGuard(
+    `${lockDirectory}.guard`,
+    isProcessAlive,
+    getProcessIdentity,
+  );
+  try {
+    if (existsSync(lockDirectory)) {
+      const owner = parseMacSmokeLockOwner(readFileSync(ownerPath, "utf8"));
+      if (isProcessAlive(owner.pid)) {
+        const currentIdentity = getProcessIdentity(owner.pid);
+        if (!currentIdentity || currentIdentity === owner.identity) {
+          throw new Error(
+            `Another packaged macOS startup smoke is already running (pid=${owner.pid}).`,
+          );
+        }
+      }
+      let recovery: MacSmokeKeychainRecovery | null = null;
+      try {
+        recovery = parseMacSmokeKeychainRecovery(
+          readFileSync(recoveryPath, "utf8"),
+          dirname(lockDirectory),
+        );
+      } catch (recoveryError) {
+        if ((recoveryError as NodeJS.ErrnoException).code !== "ENOENT") throw recoveryError;
+      }
+      if (
+        recovery &&
+        (recovery.ownerPid !== owner.pid || recovery.ownerIdentity !== owner.identity)
+      ) {
+        throw new Error("The packaged macOS startup smoke recovery owner does not match its lock.");
+      }
+      if (recovery) {
+        stopMacSmokeRecoveryProcessGroup(
+          recovery,
+          isProcessAlive,
+          isProcessGroupAlive,
+          getProcessIdentity,
+          terminateProcessGroup,
+        );
+        restoreMacSmokeKeychainRecovery(commands, recovery);
+      }
+      rmSync(lockDirectory, { recursive: true, force: true });
+    }
+
+    const candidateDirectory = `${lockDirectory}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+    try {
+      mkdirSync(candidateDirectory, { mode: 0o700 });
+      writeFileSync(join(candidateDirectory, "owner"), `${JSON.stringify(ownerRecord)}\n`, {
+        mode: 0o600,
+      });
+      renameSync(candidateDirectory, lockDirectory);
+    } catch (error) {
+      rmSync(candidateDirectory, { recursive: true, force: true });
+      throw error;
+    }
+    return {
+      ownerIdentity,
+      persistRecovery: (recovery) => {
+        if (recovery.ownerPid !== process.pid || recovery.ownerIdentity !== ownerIdentity) {
+          throw new Error("The macOS smoke recovery record does not match the lock owner.");
+        }
+        const temporaryRecoveryPath = join(lockDirectory, `recovery-${process.pid}.tmp`);
+        writeFileSync(temporaryRecoveryPath, `${JSON.stringify(recovery)}\n`, { mode: 0o600 });
+        renameSync(temporaryRecoveryPath, recoveryPath);
+      },
+      release: () => {
+        try {
+          const owner = parseMacSmokeLockOwner(readFileSync(ownerPath, "utf8"));
+          if (owner.pid === process.pid && owner.identity === ownerIdentity) {
+            rmSync(lockDirectory, { recursive: true, force: true });
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      },
+    };
+  } finally {
+    releaseGuard();
+  }
+}
+
+/**
+ * GitHub's macOS runners do not always have an unlocked default keychain. A
+ * clean Chromium profile creates its encryption key during the first window
+ * load, which otherwise blocks inside native Keychain authorization without a
+ * visible prompt. Give the packaged smoke an isolated, unlocked keychain and
+ * restore the runner state after the app exits.
+ */
+export function createMacSmokeKeychainSession(
+  root: string,
+  options: PrepareMacSmokeKeychainOptions = {},
+): MacSmokeKeychainSession {
+  const keychainPath = join(root, "graft-packaged-smoke.keychain-db");
+  const password = options.password ?? randomBytes(32).toString("hex");
+  const commands = options.commands ?? macSmokeKeychainCommands;
+  const keychainLock = (options.acquireLock ?? acquireMacSmokeKeychainLock)(commands);
+  let previousDefault: string | undefined;
+  let previousSearchList: string[];
+  let recovery: MacSmokeKeychainRecovery;
+  try {
+    previousDefault = parseMacKeychainList(commands.read(["default-keychain", "-d", "user"]))[0];
+    if (!previousDefault) {
+      throw new Error("The macOS startup smoke cannot preserve an empty default Keychain.");
+    }
+    previousSearchList = parseMacKeychainList(commands.read(["list-keychains", "-d", "user"]));
+    recovery = {
+      schemaVersion: 2,
+      ownerPid: process.pid,
+      ownerIdentity: keychainLock.ownerIdentity,
+      keychainPath,
+      previousDefault,
+      previousSearchList,
+      processGroup: null,
+    };
+    keychainLock.persistRecovery(recovery);
+  } catch (error) {
+    try {
+      keychainLock.release();
+    } catch (releaseError) {
+      throw new AggregateError(
+        [error, releaseError],
+        "Could not inspect the macOS Keychain or release its smoke lock.",
+      );
+    }
+    throw error;
+  }
+  let created = false;
+  let restored = false;
+  let restoring = false;
+  let lockReleased = false;
+
+  const restore = () => {
+    if (restored) return;
+    if (restoring) throw new Error("macOS smoke Keychain restoration is already running.");
+    restoring = true;
+    const failures: unknown[] = [];
+    let referencesRestored = true;
+    try {
+      try {
+        commands.run(["default-keychain", "-d", "user", "-s", previousDefault]);
+      } catch (error) {
+        referencesRestored = false;
+        failures.push(error);
+      }
+      try {
+        commands.run(["list-keychains", "-d", "user", "-s", ...previousSearchList]);
+      } catch (error) {
+        referencesRestored = false;
+        failures.push(error);
+      }
+      if (created && referencesRestored) {
+        try {
+          commands.run(["delete-keychain", keychainPath]);
+          created = false;
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (failures.length === 0 && !lockReleased) {
+        try {
+          keychainLock.release();
+          lockReleased = true;
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (failures.length === 0) {
+        restored = true;
+      } else {
+        throw new AggregateError(failures, "Could not restore the macOS smoke Keychain state.");
+      }
+    } finally {
+      restoring = false;
+    }
+  };
+
+  const prepare = () => {
+    try {
+      commands.run(["create-keychain", "-p", password, keychainPath]);
+      created = true;
+      commands.run(["unlock-keychain", "-p", password, keychainPath]);
+      commands.run(["set-keychain-settings", "-lut", "21600", keychainPath]);
+      commands.run(["list-keychains", "-d", "user", "-s", keychainPath]);
+      commands.run(["default-keychain", "-d", "user", "-s", keychainPath]);
+    } catch (error) {
+      try {
+        restore();
+      } catch (restoreError) {
+        throw new AggregateError(
+          [error, restoreError],
+          "Could not prepare or restore the macOS smoke Keychain.",
+        );
+      }
+      throw error;
+    }
+  };
+
+  const recordProcessGroup = (pid: number, identity: string) => {
+    if (!Number.isSafeInteger(pid) || pid <= 1 || identity.length === 0) {
+      throw new Error("The packaged macOS startup smoke process group identity is invalid.");
+    }
+    recovery = { ...recovery, processGroup: { id: pid, identity } };
+    keychainLock.persistRecovery(recovery);
+  };
+
+  return { prepare, recordProcessGroup, restore };
+}
+
 function findFiles(root: string, predicate: (path: string) => boolean): string[] {
   const matches: string[] = [];
   const pending = [root];
@@ -119,6 +760,34 @@ interface LaunchCommand {
   readonly args: ReadonlyArray<string>;
   readonly cwd: string;
   readonly runtime: PackagedRuntime;
+}
+
+interface MacPackagedLaunchGate {
+  readonly command: string;
+  readonly args: ReadonlyArray<string>;
+  readonly open: (input: Writable | null) => void;
+}
+
+const MAC_PACKAGED_LAUNCH_GATE_SCRIPT = [
+  "IFS= read -r gate_token || exit 125",
+  '[ "$gate_token" = "ready" ] || exit 126',
+  'exec "$@"',
+].join("\n");
+
+export function createMacPackagedLaunchGate(
+  command: string,
+  args: ReadonlyArray<string>,
+): MacPackagedLaunchGate {
+  return {
+    command: "/bin/sh",
+    args: ["-c", MAC_PACKAGED_LAUNCH_GATE_SCRIPT, "graft-packaged-launch-gate", command, ...args],
+    open: (input) => {
+      if (!input || input.destroyed) {
+        throw new Error("The packaged macOS launch gate input is unavailable.");
+      }
+      input.end("ready\n");
+    },
+  };
 }
 
 interface PackagedRuntime {
@@ -330,28 +999,53 @@ export function createPackagedDesktopSmokeEnvironment(
   return env;
 }
 
-function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
-  return new Promise((resolveExit) => {
-    const finish = (exited: boolean) => {
-      clearTimeout(timer);
-      child.off("exit", onExit);
-      resolveExit(exited);
-    };
-    const onExit = () => finish(true);
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    child.once("exit", onExit);
-  });
+function isPosixProcessGroupAlive(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+async function waitForProcessTreeExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const childExited = child.exitCode !== null || child.signalCode !== null;
+    const groupExited =
+      process.platform === "win32" || !child.pid || !isPosixProcessGroupAlive(child.pid);
+    if (childExited && groupExited) return true;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+  const childExited = child.exitCode !== null || child.signalCode !== null;
+  return (
+    childExited &&
+    (process.platform === "win32" || !child.pid || !isPosixProcessGroupAlive(child.pid))
+  );
 }
 
 async function terminateProcessTree(child: ChildProcess): Promise<void> {
-  if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (!child.pid) return;
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(
+        "Cannot prove the packaged Windows descendants exited after their owned root exited.",
+      );
+    }
+    const result = spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
       stdio: "ignore",
       windowsHide: true,
     });
-    await waitForExit(child, 5_000);
+    if (!result.error && result.status === 0 && (await waitForProcessTreeExit(child, 5_000))) {
+      return;
+    }
+    const detail = result.error?.message ?? `exit ${result.status ?? "unknown"}`;
+    throw new Error(`Could not terminate the packaged Windows process tree (${detail}).`);
+  }
+  if (
+    (child.exitCode !== null || child.signalCode !== null) &&
+    !isPosixProcessGroupAlive(child.pid)
+  ) {
     return;
   }
   try {
@@ -359,13 +1053,15 @@ async function terminateProcessTree(child: ChildProcess): Promise<void> {
   } catch {
     child.kill("SIGTERM");
   }
-  if (await waitForExit(child, 5_000)) return;
+  if (await waitForProcessTreeExit(child, 5_000)) return;
   try {
     process.kill(-child.pid, "SIGKILL");
   } catch {
     child.kill("SIGKILL");
   }
-  await waitForExit(child, 2_000);
+  if (!(await waitForProcessTreeExit(child, 2_000))) {
+    throw new Error(`Could not prove the packaged process group ${child.pid} exited.`);
+  }
 }
 
 function hasStartupProof(logPath: string): boolean {
@@ -479,34 +1175,76 @@ export async function verifyPackagedDesktopStartup(
   const temporaryRoot = mkdtempSync(join(tmpdir(), `graft-packaged-smoke-${options.platform}-`));
   const extractionRoot = join(temporaryRoot, "payload");
   mkdirSync(extractionRoot, { recursive: true });
+  let macKeychainRoot: string | null = null;
+  if (options.platform === "mac") {
+    const macKeychainStateDirectory = resolveMacSmokeKeychainStateDirectory();
+    mkdirSync(macKeychainStateDirectory, { recursive: true, mode: 0o700 });
+    macKeychainRoot = mkdtempSync(join(macKeychainStateDirectory, "keychain-"));
+  }
 
   let child: ChildProcess | null = null;
   let logDirectory: string | null = null;
   let outputTail = "";
+  let macKeychainSession: MacSmokeKeychainSession | null = null;
+  let interruptedSignal: NodeJS.Signals | null = null;
+  const handleSigint = () => {
+    interruptedSignal ??= "SIGINT";
+  };
+  const handleSigterm = () => {
+    interruptedSignal ??= "SIGTERM";
+  };
+  process.on("SIGINT", handleSigint);
+  process.on("SIGTERM", handleSigterm);
+
+  let operationError: unknown;
   try {
     const launch = prepareLaunch(options, extractionRoot);
     const env = createPackagedDesktopSmokeEnvironment(join(temporaryRoot, "state"), options);
     verifyPackagedRuntimeDependencies(launch.runtime, env, options.timeoutMs);
+    if (macKeychainRoot) {
+      macKeychainSession = createMacSmokeKeychainSession(macKeychainRoot);
+      macKeychainSession.prepare();
+    }
+    if (interruptedSignal)
+      throw new Error(`Packaged startup smoke interrupted by ${interruptedSignal}.`);
     logDirectory = join(env.GRAFT_HOME!, "userdata", "logs");
     const logPath = join(logDirectory, "desktop-main.log");
-    child = spawn(launch.command, [...launch.args], {
-      cwd: launch.cwd,
-      env,
-      detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-
+    const macLaunchGate =
+      macKeychainSession && macKeychainRoot
+        ? createMacPackagedLaunchGate(launch.command, launch.args)
+        : null;
     const childOutcome: {
       exited: { code: number | null; signal: NodeJS.Signals | null } | null;
       launchError: Error | null;
     } = { exited: null, launchError: null };
+    child = spawn(
+      macLaunchGate?.command ?? launch.command,
+      [...(macLaunchGate?.args ?? launch.args)],
+      {
+        cwd: launch.cwd,
+        env,
+        detached: process.platform !== "win32",
+        stdio: [macLaunchGate ? "pipe" : "ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
     child.once("exit", (code, signal) => {
       childOutcome.exited = { code, signal };
     });
     child.once("error", (error) => {
       childOutcome.launchError = error;
     });
+    child.stdin?.once("error", (error) => {
+      childOutcome.launchError ??= error;
+    });
+    if (macKeychainSession && child.pid) {
+      const processIdentity = readMacSmokeProcessIdentity(child.pid);
+      if (!processIdentity) {
+        throw new Error(`Could not identify packaged process group ${child.pid}.`);
+      }
+      macKeychainSession.recordProcessGroup(child.pid, processIdentity);
+      macLaunchGate?.open(child.stdin);
+    }
     const retainOutputTail = (chunk: Buffer) => {
       outputTail = (outputTail + chunk.toString("utf8")).slice(-STARTUP_DIAGNOSTIC_TAIL_LENGTH);
     };
@@ -514,12 +1252,17 @@ export async function verifyPackagedDesktopStartup(
     child.stderr?.on("data", retainOutputTail);
 
     const deadline = Date.now() + options.timeoutMs;
+    let startupProven = false;
     while (Date.now() < deadline) {
+      if (interruptedSignal) {
+        throw new Error(`Packaged startup smoke interrupted by ${interruptedSignal}.`);
+      }
       if (hasStartupProof(logPath)) {
         console.log(
           `Packaged ${options.platform}/${options.arch} startup smoke passed from isolated state.`,
         );
-        return;
+        startupProven = true;
+        break;
       }
       if (childOutcome.launchError) {
         throw new Error(`Packaged app could not start: ${childOutcome.launchError.message}`);
@@ -531,8 +1274,11 @@ export async function verifyPackagedDesktopStartup(
       }
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
     }
-    throw new Error(`Packaged startup proof timed out after ${options.timeoutMs}ms.`);
+    if (!startupProven) {
+      throw new Error(`Packaged startup proof timed out after ${options.timeoutMs}ms.`);
+    }
   } catch (error) {
+    operationError = error;
     if (logDirectory) {
       console.error(readPackagedStartupLogTails(logDirectory));
       console.error(`Packaged process output tail:\n${outputTail || "No output captured."}`);
@@ -544,11 +1290,46 @@ export async function verifyPackagedDesktopStartup(
         }
       }
     }
-    throw error;
-  } finally {
-    if (child) {
+  }
+
+  const cleanupErrors: unknown[] = [];
+  let processTreeStopped = child === null;
+  if (child) {
+    try {
       await terminateProcessTree(child);
+      processTreeStopped = true;
+    } catch (error) {
+      cleanupErrors.push(error);
     }
+  }
+
+  let macKeychainRestored = macKeychainSession === null;
+  if (macKeychainSession && processTreeStopped) {
+    let finalRestoreError: unknown;
+    for (let attempt = 0; attempt < 3 && !macKeychainRestored; attempt += 1) {
+      try {
+        macKeychainSession.restore();
+        macKeychainRestored = true;
+      } catch (error) {
+        finalRestoreError = error;
+        if (attempt < 2) {
+          await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+        }
+      }
+    }
+    if (!macKeychainRestored) {
+      cleanupErrors.push(finalRestoreError);
+      console.error(finalRestoreError);
+    }
+  }
+  if (macKeychainRoot && macKeychainRestored) {
+    try {
+      rmSync(macKeychainRoot, { recursive: true, force: true });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  if (processTreeStopped) {
     try {
       rmSync(temporaryRoot, {
         recursive: true,
@@ -558,15 +1339,36 @@ export async function verifyPackagedDesktopStartup(
       });
     } catch (error) {
       if (
-        process.platform !== "win32" ||
-        !(error instanceof Error && "code" in error && error.code === "EPERM")
+        process.platform === "win32" &&
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "EPERM"
       ) {
-        throw error;
+        console.warn(
+          `Could not remove Windows smoke temp directory; leaving it for runner cleanup: ${temporaryRoot}`,
+        );
+      } else {
+        cleanupErrors.push(error);
       }
-      console.warn(
-        `Could not remove Windows smoke temp directory; leaving it for runner cleanup: ${temporaryRoot}`,
-      );
     }
+  }
+  await new Promise<void>((resolveTurn) => setImmediate(resolveTurn));
+  process.off("SIGINT", handleSigint);
+  process.off("SIGTERM", handleSigterm);
+
+  if (!operationError && interruptedSignal) {
+    operationError = new Error(`Packaged startup smoke interrupted by ${interruptedSignal}.`);
+  }
+
+  if (operationError && cleanupErrors.length > 0) {
+    throw new AggregateError(
+      [operationError, ...cleanupErrors],
+      "Packaged startup verification and cleanup failed.",
+    );
+  }
+  if (operationError) throw operationError;
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, "Packaged startup cleanup failed.");
   }
 }
 
