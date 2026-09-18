@@ -47,6 +47,29 @@ afterEach(async () => {
 });
 
 describe("SQLite persistence", () => {
+  it("finishes a fresh exclusive schema upgrade without hanging", async () => {
+    const dbPath = await makeDbPath();
+    const startedAt = Date.now();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const [lockingMode] = yield* sql<{ readonly locking_mode: string }>`
+          PRAGMA locking_mode;
+        `;
+        const [journalMode] = yield* sql<{ readonly journal_mode: string }>`
+          PRAGMA journal_mode;
+        `;
+        expect(lockingMode?.locking_mode).toBe("exclusive");
+        expect(journalMode?.journal_mode).toBe("wal");
+      }).pipe(
+        Effect.provide(makeSqlitePersistenceLive(dbPath).pipe(Layer.provide(NodeServices.layer))),
+      ),
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(15_000);
+  });
+
   it("owns the live WAL exclusively without exposing a shared-memory sidecar", async () => {
     const dbPath = await makeDbPath();
 

@@ -98,23 +98,11 @@ const makeSetup = ({
       }
       yield* sql`PRAGMA busy_timeout = 5000;`;
       tracePackagedStartup("sqlite busy timeout configured");
-      const journalModeRows = yield* sql<{ readonly journal_mode: string }>`
-        PRAGMA journal_mode = WAL;
-      `;
-      tracePackagedStartup("sqlite WAL journal mode configured");
-      const journalMode = journalModeRows[0]?.journal_mode;
-      if (journalMode?.toLowerCase() !== "wal") {
-        yield* Effect.logWarning("SQLite WAL journal mode could not be enabled", {
-          resultingJournalMode: journalMode ?? "unknown",
-        });
-      }
-      // synchronous = NORMAL under WAL preserves database consistency and is
-      // safe across application crashes (no corruption, no torn writes). The
-      // only accepted risk is that an OS crash or power loss may lose the most
-      // recent committed transaction(s) that had not yet been checkpointed.
-      // That tradeoff is deliberate: at our per-event write rate, FULL's fsync
-      // on every commit is too costly, and losing the last few events on a hard
-      // power loss is acceptable.
+      // synchronous = NORMAL is the runtime durability target once WAL is on.
+      // Fresh packaged databases still use the default DELETE journal through
+      // the first-run migration storm: Effect's migrator applies every pending
+      // migration in one transaction, and exclusive WAL + mmap during that
+      // transaction is what stalled Intel macOS startup after migration 17.
       yield* sql`PRAGMA synchronous = NORMAL;`;
       yield* sql`PRAGMA foreign_keys = ON;`;
       tracePackagedStartup("sqlite durability and foreign-key pragmas configured");
@@ -138,16 +126,6 @@ const makeSetup = ({
       yield* sql`PRAGMA cache_size = ${sql.literal(String(memoryBudget.cacheSizePragma))};`;
       tracePackagedStartup("sqlite cache budget configured");
       if (dbPath) {
-        // mmap serves large sequential reads (event replay, VACUUM INTO
-        // backups) through the OS page cache without double-buffering into
-        // the SQLite heap cache. In-memory databases have nothing to map.
-        // Accepted tradeoff: with mmap, a device I/O error or an external
-        // process truncating the file surfaces as a signal (SIGBUS) instead
-        // of a recoverable SQLite error. locking_mode=EXCLUSIVE plus the
-        // lifecycle lock make external mutation effectively impossible, and
-        // no internal path truncates the live database.
-        yield* sql`PRAGMA mmap_size = ${sql.literal(String(memoryBudget.mmapSizeBytes))};`;
-        tracePackagedStartup("sqlite mmap budget configured");
         // Setting locking_mode changes connection policy; this transaction
         // actually acquires and retains the database lock before startup
         // continues, closing the window where another client could attach.
@@ -155,6 +133,7 @@ const makeSetup = ({
         yield* sql`COMMIT;`;
         tracePackagedStartup("sqlite exclusive database lock acquired");
       }
+      tracePackagedStartup("sqlite journal and mmap deferred until after migrations");
       // A pending marker means an earlier startup was interrupted mid-migration.
       // Resuming reuses that attempt's snapshot instead of taking a second one,
       // so the fallback stays the last known-good database.
@@ -174,6 +153,30 @@ const makeSetup = ({
         ),
       );
       tracePackagedStartup("sqlite migrations completed");
+      const journalModeRows = yield* sql<{ readonly journal_mode: string }>`
+        PRAGMA journal_mode = WAL;
+      `;
+      tracePackagedStartup("sqlite WAL journal mode configured");
+      const journalMode = journalModeRows[0]?.journal_mode;
+      if (journalMode?.toLowerCase() !== "wal") {
+        yield* Effect.logWarning("SQLite WAL journal mode could not be enabled", {
+          resultingJournalMode: journalMode ?? "unknown",
+        });
+      }
+      yield* sql`PRAGMA synchronous = NORMAL;`;
+      if (dbPath) {
+        // mmap serves large sequential reads (event replay, VACUUM INTO
+        // backups) through the OS page cache without double-buffering into
+        // the SQLite heap cache. In-memory databases have nothing to map.
+        // Accepted tradeoff: with mmap, a device I/O error or an external
+        // process truncating the file surfaces as a signal (SIGBUS) instead
+        // of a recoverable SQLite error. locking_mode=EXCLUSIVE plus the
+        // lifecycle lock make external mutation effectively impossible, and
+        // no internal path truncates the live database. Applied after
+        // migrations so first-run schema work does not fault a 256 MB map.
+        yield* sql`PRAGMA mmap_size = ${sql.literal(String(memoryBudget.mmapSizeBytes))};`;
+        tracePackagedStartup("sqlite mmap budget configured");
+      }
     }),
   );
 
