@@ -12,6 +12,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  GRAFT_DESKTOP_SMOKE_USER_DATA_ENV,
+  GRAFT_SOURCE_DESKTOP_BUILD_MARKER,
+} from "@graft/shared/desktopIdentity";
 
 import {
   acquireMacSmokeKeychainLock,
@@ -661,6 +665,49 @@ describe("packaged desktop startup verification", () => {
       expect(env[name]?.startsWith(root)).toBe(true);
       expect(existsSync(env[name]!)).toBe(true);
     }
+  });
+
+  it("keeps the macOS Keychain home while isolating every Graft data path", () => {
+    const root = mkdtempSync(join(tmpdir(), "graft-packaged-smoke-mac-env-test-"));
+    temporaryRoots.push(root);
+
+    const env = createPackagedDesktopSmokeEnvironment(
+      root,
+      { platform: "mac", version: "1.2.3" },
+      {
+        PATH: process.env.PATH,
+        HOME: "/Users/runner",
+        GRAFT_AUTH_TOKEN: "must-not-leak",
+      },
+    );
+
+    expect(env.HOME).toBe("/Users/runner");
+    expect(env.GRAFT_AUTH_TOKEN).toBeUndefined();
+    expect(env.GRAFT_SOURCE_DESKTOP_BUILD_MARKER).toBe(GRAFT_SOURCE_DESKTOP_BUILD_MARKER);
+    expect(env[GRAFT_DESKTOP_SMOKE_USER_DATA_ENV]).toBe(join(root, "electron-user-data"));
+    expect(env.GRAFT_LEGACY_USER_DATA).toBe(join(root, "legacy-user-data"));
+    for (const name of [
+      "USERPROFILE",
+      "APPDATA",
+      "LOCALAPPDATA",
+      "XDG_CONFIG_HOME",
+      "XDG_CACHE_HOME",
+      "XDG_DATA_HOME",
+      "GRAFT_HOME",
+      "GRAFT_LEGACY_USER_DATA",
+      GRAFT_DESKTOP_SMOKE_USER_DATA_ENV,
+    ] as const) {
+      expect(env[name]?.startsWith(root)).toBe(true);
+      expect(existsSync(env[name]!)).toBe(true);
+    }
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(env[GRAFT_DESKTOP_SMOKE_USER_DATA_ENV]!, "last-launch-version.json"),
+          "utf8",
+        ),
+      ),
+    ).toEqual({ version: "1.2.3" });
   });
 
   it("maps Node host platforms to release platform names", () => {

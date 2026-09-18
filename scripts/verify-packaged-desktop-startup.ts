@@ -25,7 +25,11 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import type { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH } from "@graft/shared/desktopIdentity";
+import {
+  GRAFT_DESKTOP_SMOKE_USER_DATA_ENV,
+  GRAFT_MAC_BACKEND_NODE_RUNTIME_RELATIVE_PATH,
+  GRAFT_SOURCE_DESKTOP_BUILD_MARKER,
+} from "@graft/shared/desktopIdentity";
 
 export type PackagedDesktopPlatform = "linux" | "mac" | "win";
 
@@ -962,38 +966,49 @@ export function createPackagedDesktopSmokeEnvironment(
   options: Pick<PackagedDesktopStartupOptions, "platform" | "version">,
   inheritedEnvironment: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
+  const isolatedHome = join(root, "home");
+  const smokeUserData = join(root, "electron-user-data");
+  const legacyUserData = join(root, "legacy-user-data");
   const env: NodeJS.ProcessEnv = {
     ...inheritedEnvironment,
-    HOME: join(root, "home"),
-    USERPROFILE: join(root, "home"),
+    // Security.framework resolves the user's default Keychain in the HOME
+    // preference domain. Keep that domain aligned with the `security` process
+    // that prepared the temporary Keychain on macOS, while isolating all Graft
+    // state through explicit paths below.
+    HOME:
+      options.platform === "mac" ? inheritedEnvironment.HOME?.trim() || homedir() : isolatedHome,
+    USERPROFILE: isolatedHome,
     APPDATA: join(root, "appdata"),
     LOCALAPPDATA: join(root, "localappdata"),
     XDG_CONFIG_HOME: join(root, "xdg-config"),
     XDG_CACHE_HOME: join(root, "xdg-cache"),
     XDG_DATA_HOME: join(root, "xdg-data"),
     GRAFT_HOME: join(root, "graft-home"),
+    GRAFT_LEGACY_USER_DATA: legacyUserData,
+    GRAFT_SOURCE_DESKTOP_BUILD_MARKER,
+    [GRAFT_DESKTOP_SMOKE_USER_DATA_ENV]: smokeUserData,
     GRAFT_DISABLE_AUTO_UPDATE: "1",
     ELECTRON_ENABLE_LOGGING: "1",
   };
   delete env.GRAFT_AUTH_TOKEN;
   delete env.ELECTRON_RUN_AS_NODE;
   for (const path of [
-    env.HOME,
+    isolatedHome,
     env.APPDATA,
     env.LOCALAPPDATA,
     env.XDG_CONFIG_HOME,
     env.XDG_CACHE_HOME,
     env.XDG_DATA_HOME,
     env.GRAFT_HOME,
+    legacyUserData,
+    smokeUserData,
   ]) {
     if (path) mkdirSync(path, { recursive: true });
   }
   if (options.platform === "mac") {
-    const userDataPath = join(env.HOME!, "Library", "Application Support", "graft-studio-next");
-    mkdirSync(userDataPath, { recursive: true });
     // Prevent the packaged app's update-only icon repair from registering this
     // temporary bundle in the runner's normal Launch Services database.
-    const launchVersionPath = join(userDataPath, "last-launch-version.json");
+    const launchVersionPath = join(smokeUserData, "last-launch-version.json");
     writeFileSync(launchVersionPath, `${JSON.stringify({ version: options.version }, null, 2)}\n`);
   }
   return env;
