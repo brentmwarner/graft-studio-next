@@ -98,8 +98,9 @@ it("renders folded assistant commentary as Markdown", async () => {
   });
   const toggle = renderer.root.find((node) => node.props.accessibilityRole === "button");
   await act(() => toggle.props.onPress());
+  const isType = (node: { type: unknown }, name: string) => node.type === name;
   expect(
-    renderer.root.findAll((node) => node.type === "Markdown").map((node) => node.props.children),
+    renderer.root.findAll((node) => isType(node, "Markdown")).map((node) => node.props.children),
   ).toEqual(["See [docs](https://example.com).", "Fixed."]);
   expect(JSON.stringify(renderer.toJSON())).toContain("private thought");
 });
