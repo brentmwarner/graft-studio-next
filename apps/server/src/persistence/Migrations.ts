@@ -1,7 +1,7 @@
 /**
  * MigrationsLive - Migration runner with inline loader
  *
- * Uses Migrator.make with fromRecord to define migrations inline.
+ * Pending migrations are applied one transaction at a time.
  * All migrations are statically imported - no dynamic file system loading.
  *
  * Migrations run automatically when the MigrationLayer is provided,
@@ -542,16 +542,75 @@ export const reconcileMigrationLineage = Effect.gen(function* () {
   yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id >= ${firstDivergedId}`;
 });
 
+const ensureMigrationsTable = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  yield* sql`
+    CREATE TABLE IF NOT EXISTS effect_sql_migrations (
+      migration_id integer PRIMARY KEY NOT NULL,
+      created_at datetime NOT NULL DEFAULT current_timestamp,
+      name VARCHAR(255) NOT NULL
+    )
+  `;
+});
+
+const latestRecordedMigrationId = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* sql<{ readonly migration_id: number | null }>`
+    SELECT migration_id FROM effect_sql_migrations ORDER BY migration_id DESC LIMIT 1
+  `.withoutTransform;
+  return rows[0]?.migration_id ?? 0;
+});
+
 /**
- * Migrator run function - no schema dumping needed
- * Uses the base Migrator.make without platform dependencies.
+ * Apply each pending migration in its own write transaction.
  *
- * `Migrator.make` wraps pending work in one `sql.withTransaction`: it inserts
- * every pending tracker row, runs each migration body, then commits. Packaged
- * first-run startup therefore applies migrations 1-N in a single write
- * transaction. Exclusive WAL/mmap stay off that path (see Sqlite.ts).
+ * Effect's stock `Migrator.make` inserts every pending tracker row, then runs
+ * every body, then commits once. Packaged first-run startup applies 100+ DDL
+ * statements inside that transaction. After #53 deferred WAL/mmap, Intel and
+ * ARM CI still died after `33_ProjectionThreadsSidechatSource started` with an
+ * idle Node event loop — a wait, not a busy sqlite C frame. Holding one
+ * connection permit / schema transaction across the whole suite is what made
+ * that wait fatal.
+ *
+ * Committing after each body+tracker insert releases the permit, records
+ * durable progress, and keeps a failed migration retryable without rolling
+ * back earlier work.
  */
-const run = Migrator.make({});
+const runPendingMigrations = ({ toMigrationInclusive }: RunMigrationsOptions) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* ensureMigrationsTable;
+    const latestId = yield* latestRecordedMigrationId;
+    const pending = migrationEntries.filter(
+      ([id]) => id > latestId && (toMigrationInclusive === undefined || id <= toMigrationInclusive),
+    );
+    const executed: Array<readonly [number, string]> = [];
+
+    for (const [id, name, migration] of pending) {
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          yield* traceMigrationBoundary(id, name, migration).pipe(
+            Effect.catch((error) =>
+              Effect.die(
+                new Migrator.MigrationError({
+                  cause: error,
+                  kind: "Failed",
+                  message: `Migration "${id}_${name}" failed`,
+                }),
+              ),
+            ),
+          );
+          yield* sql`
+            INSERT INTO effect_sql_migrations (migration_id, name)
+            VALUES (${id}, ${name})
+          `.withoutTransform;
+        }),
+      );
+      executed.push([id, name]);
+    }
+
+    return executed;
+  });
 
 export interface RunMigrationsOptions {
   readonly toMigrationInclusive?: number | undefined;
@@ -575,7 +634,7 @@ export const runMigrations = ({ toMigrationInclusive }: RunMigrationsOptions = {
         ? "Running all migrations..."
         : `Running migrations 1 through ${toMigrationInclusive}...`,
     );
-    const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
+    const executedMigrations = yield* runPendingMigrations({ toMigrationInclusive });
     yield* Effect.log("Migrations ran successfully").pipe(
       Effect.annotateLogs({ migrations: executedMigrations.map(([id, name]) => `${id}_${name}`) }),
     );
