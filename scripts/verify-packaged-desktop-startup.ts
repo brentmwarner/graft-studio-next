@@ -96,6 +96,16 @@ export function redactMacKeychainCommandArgs(args: ReadonlyArray<string>): strin
     .join(" ");
 }
 
+function macKeychainFailureDetail(stderr: string, args: ReadonlyArray<string>): string {
+  let detail = stderr.trim().slice(-4_096);
+  for (let index = 1; index < args.length; index += 1) {
+    if (args[index - 1] === "-p" && args[index]) {
+      detail = detail.replaceAll(args[index]!, "<redacted>");
+    }
+  }
+  return detail ? ` stderr=${detail}` : "";
+}
+
 function runMacKeychainCommand(args: ReadonlyArray<string>): void {
   const result = spawnSync("security", [...args], {
     encoding: "utf8",
@@ -111,7 +121,7 @@ function runMacKeychainCommand(args: ReadonlyArray<string>): void {
   }
   if (result.status !== 0) {
     throw new Error(
-      `security ${redactMacKeychainCommandArgs(args)} failed with exit ${result.status ?? "unknown"}.`,
+      `security ${redactMacKeychainCommandArgs(args)} failed with exit ${result.status ?? "unknown"}.${macKeychainFailureDetail(result.stderr, args)}`,
     );
   }
 }
@@ -131,7 +141,7 @@ function readMacKeychainCommand(args: ReadonlyArray<string>): string {
   }
   if (result.status !== 0) {
     throw new Error(
-      `security ${redactMacKeychainCommandArgs(args)} failed with exit ${result.status ?? "unknown"}.`,
+      `security ${redactMacKeychainCommandArgs(args)} failed with exit ${result.status ?? "unknown"}.${macKeychainFailureDetail(result.stderr, args)}`,
     );
   }
   return result.stdout;
@@ -150,7 +160,7 @@ export function parseMacKeychainList(output: string): string[] {
     });
 }
 
-interface MacSmokeKeychainCommandRunner {
+export interface MacSmokeKeychainCommandRunner {
   readonly read: (args: ReadonlyArray<string>) => string;
   readonly run: (args: ReadonlyArray<string>) => void;
 }
@@ -163,9 +173,14 @@ interface MacSmokeKeychainRecovery {
   readonly previousSearchList: string[];
 }
 
-interface MacSmokeKeychainLock {
+export interface MacSmokeKeychainLock {
   readonly persistRecovery: (recovery: MacSmokeKeychainRecovery) => void;
   readonly release: () => void;
+}
+
+interface AcquireMacSmokeKeychainLockOptions {
+  readonly lockDirectory?: string;
+  readonly isProcessAlive?: (pid: number) => boolean;
 }
 
 interface PrepareMacSmokeKeychainOptions {
@@ -266,13 +281,14 @@ function restoreMacSmokeKeychainRecovery(
   rmSync(dirname(recovery.keychainPath), { recursive: true, force: true });
 }
 
-function acquireMacSmokeKeychainLock(
+export function acquireMacSmokeKeychainLock(
   commands: MacSmokeKeychainCommandRunner,
+  options: AcquireMacSmokeKeychainLockOptions = {},
 ): MacSmokeKeychainLock {
-  const lockDirectory = join(
-    tmpdir(),
-    `graft-packaged-smoke-keychain-${process.getuid?.() ?? "user"}.lock`,
-  );
+  const lockDirectory =
+    options.lockDirectory ??
+    join(tmpdir(), `graft-packaged-smoke-keychain-${process.getuid?.() ?? "user"}.lock`);
+  const isProcessAlive = options.isProcessAlive ?? isLiveProcess;
   const ownerPath = join(lockDirectory, "owner");
   const recoveryPath = join(lockDirectory, "recovery.json");
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -297,7 +313,7 @@ function acquireMacSmokeKeychainLock(
       if (!Number.isSafeInteger(owner) || owner <= 0) {
         throw new Error("Another packaged macOS startup smoke owns an invalid Keychain lock.");
       }
-      if (isLiveProcess(owner)) {
+      if (isProcessAlive(owner)) {
         throw new Error(`Another packaged macOS startup smoke is already running (pid=${owner}).`);
       }
       let recovery: MacSmokeKeychainRecovery | null = null;
@@ -703,28 +719,46 @@ export function createPackagedDesktopSmokeEnvironment(
   return env;
 }
 
-function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
-  return new Promise((resolveExit) => {
-    const finish = (exited: boolean) => {
-      clearTimeout(timer);
-      child.off("exit", onExit);
-      resolveExit(exited);
-    };
-    const onExit = () => finish(true);
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    child.once("exit", onExit);
-  });
+function isPosixProcessGroupAlive(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+async function waitForProcessTreeExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const childExited = child.exitCode !== null || child.signalCode !== null;
+    const groupExited =
+      process.platform === "win32" || !child.pid || !isPosixProcessGroupAlive(child.pid);
+    if (childExited && groupExited) return true;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+  const childExited = child.exitCode !== null || child.signalCode !== null;
+  return (
+    childExited &&
+    (process.platform === "win32" || !child.pid || !isPosixProcessGroupAlive(child.pid))
+  );
 }
 
 async function terminateProcessTree(child: ChildProcess): Promise<void> {
-  if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (!child.pid) return;
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+    const result = spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
       stdio: "ignore",
       windowsHide: true,
     });
-    await waitForExit(child, 5_000);
+    if (await waitForProcessTreeExit(child, 5_000)) return;
+    const detail = result.error?.message ?? `exit ${result.status ?? "unknown"}`;
+    throw new Error(`Could not terminate the packaged Windows process tree (${detail}).`);
+  }
+  if (
+    (child.exitCode !== null || child.signalCode !== null) &&
+    !isPosixProcessGroupAlive(child.pid)
+  ) {
     return;
   }
   try {
@@ -732,13 +766,15 @@ async function terminateProcessTree(child: ChildProcess): Promise<void> {
   } catch {
     child.kill("SIGTERM");
   }
-  if (await waitForExit(child, 5_000)) return;
+  if (await waitForProcessTreeExit(child, 5_000)) return;
   try {
     process.kill(-child.pid, "SIGKILL");
   } catch {
     child.kill("SIGKILL");
   }
-  await waitForExit(child, 2_000);
+  if (!(await waitForProcessTreeExit(child, 2_000))) {
+    throw new Error(`Could not prove the packaged process group ${child.pid} exited.`);
+  }
 }
 
 function hasStartupProof(logPath: string): boolean {
@@ -950,16 +986,18 @@ export async function verifyPackagedDesktopStartup(
   }
 
   const cleanupErrors: unknown[] = [];
+  let processTreeStopped = child === null;
   if (child) {
     try {
       await terminateProcessTree(child);
+      processTreeStopped = true;
     } catch (error) {
       cleanupErrors.push(error);
     }
   }
 
   let macKeychainRestored = macKeychainSession === null;
-  if (macKeychainSession) {
+  if (macKeychainSession && processTreeStopped) {
     let finalRestoreError: unknown;
     for (let attempt = 0; attempt < 3 && !macKeychainRestored; attempt += 1) {
       try {
@@ -984,25 +1022,27 @@ export async function verifyPackagedDesktopStartup(
       cleanupErrors.push(error);
     }
   }
-  try {
-    rmSync(temporaryRoot, {
-      recursive: true,
-      force: true,
-      maxRetries: process.platform === "win32" ? 20 : 0,
-      retryDelay: process.platform === "win32" ? 250 : 100,
-    });
-  } catch (error) {
-    if (
-      process.platform === "win32" &&
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "EPERM"
-    ) {
-      console.warn(
-        `Could not remove Windows smoke temp directory; leaving it for runner cleanup: ${temporaryRoot}`,
-      );
-    } else {
-      cleanupErrors.push(error);
+  if (processTreeStopped) {
+    try {
+      rmSync(temporaryRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: process.platform === "win32" ? 20 : 0,
+        retryDelay: process.platform === "win32" ? 250 : 100,
+      });
+    } catch (error) {
+      if (
+        process.platform === "win32" &&
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "EPERM"
+      ) {
+        console.warn(
+          `Could not remove Windows smoke temp directory; leaving it for runner cleanup: ${temporaryRoot}`,
+        );
+      } else {
+        cleanupErrors.push(error);
+      }
     }
   }
   await new Promise<void>((resolveTurn) => setImmediate(resolveTurn));
