@@ -6,7 +6,6 @@
  */
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 
-import * as Cache from "effect/Cache";
 import * as Config from "effect/Config";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -35,6 +34,58 @@ const traceSqliteStatement = (event: string, sql: string): void => {
   if (!traceSqliteStatements) return;
   tracePackagedStartup(`node sqlite ${event} sql=${describeSql(sql)}`);
 };
+
+const LEADING_SQL_NOISE = /^(?:\s|--[^\n]*\n|\/\*[\s\S]*?\*\/)*/u;
+const RESULT_ROW_KEYWORDS = new Set(["select", "values", "explain", "pragma", "with"]);
+const NON_RESULT_ROW_KEYWORDS = new Set([
+  "alter",
+  "create",
+  "drop",
+  "insert",
+  "update",
+  "delete",
+  "replace",
+  "begin",
+  "commit",
+  "end",
+  "rollback",
+  "savepoint",
+  "release",
+  "vacuum",
+  "reindex",
+  "analyze",
+  "attach",
+  "detach",
+]);
+
+export function sqliteLeadingKeyword(sql: string): string {
+  return sql.replace(LEADING_SQL_NOISE, "").match(/^([A-Za-z]+)/u)?.[1]?.toLowerCase() ?? "";
+}
+
+/**
+ * Classifies whether a statement produces a result set without calling
+ * `StatementSync.columns()`. That native inspection can block inside a long
+ * exclusive WAL transaction after repeated schema changes — the packaged Intel
+ * macOS startup path that applies every fresh-schema migration in one Effect
+ * Migrator transaction.
+ *
+ * `null` means the SQL shape is unknown and callers may fall back to `columns()`.
+ */
+export function sqliteStatementHasResultRows(sql: string): boolean | null {
+  const keyword = sqliteLeadingKeyword(sql);
+  if (RESULT_ROW_KEYWORDS.has(keyword) || /\breturning\b/iu.test(sql)) {
+    return true;
+  }
+  if (NON_RESULT_ROW_KEYWORDS.has(keyword)) {
+    return false;
+  }
+  return null;
+}
+
+export function sqliteStatementChangesSchema(sql: string): boolean {
+  const keyword = sqliteLeadingKeyword(sql);
+  return keyword === "alter" || keyword === "create" || keyword === "drop";
+}
 
 export const TypeId: TypeId = "~local/sqlite-node/SqliteClient";
 
@@ -110,7 +161,7 @@ const makeWithDatabase = (
 
       const statementReaderCache = new WeakMap<StatementSync, boolean>();
       const statementSql = new WeakMap<StatementSync, string>();
-      const hasRows = (statement: StatementSync): boolean => {
+      const inspectColumns = (statement: StatementSync): boolean => {
         const cached = statementReaderCache.get(statement);
         if (cached !== undefined) {
           return cached;
@@ -131,36 +182,61 @@ const makeWithDatabase = (
         statementReaderCache.set(statement, value);
         return value;
       };
+      const statementHasRows = (sql: string, statement: StatementSync): boolean => {
+        const classified = sqliteStatementHasResultRows(sql);
+        return classified === null ? inspectColumns(statement) : classified;
+      };
 
-      const prepareCache = yield* Cache.make({
-        capacity: options.prepareCacheSize ?? 200,
-        timeToLive: options.prepareCacheTTL ?? Duration.minutes(10),
-        lookup: (sql: string) =>
-          Effect.try({
-            try: () => {
-              traceSqliteStatement("prepare started", sql);
-              const statement = db.prepare(sql);
-              if (traceSqliteStatements) statementSql.set(statement, sql);
-              traceSqliteStatement("prepare completed", sql);
-              return statement;
-            },
-            catch: (cause) => new SqlError({ cause, message: "Failed to prepare statement" }),
-          }),
-      });
+      const prepareCache = new Map<string, StatementSync>();
+      const prepareCacheCapacity = options.prepareCacheSize ?? 200;
+      const invalidatePrepareCache = () => {
+        if (prepareCache.size === 0) return;
+        if (traceSqliteStatements) {
+          tracePackagedStartup(`node sqlite prepare cache invalidated size=${prepareCache.size}`);
+        }
+        prepareCache.clear();
+      };
+      const prepareStatement = (sql: string): StatementSync => {
+        const cached = prepareCache.get(sql);
+        if (cached) return cached;
+        traceSqliteStatement("prepare started", sql);
+        const statement = db.prepare(sql);
+        if (traceSqliteStatements) statementSql.set(statement, sql);
+        if (prepareCache.size >= prepareCacheCapacity) {
+          const oldest = prepareCache.keys().next().value;
+          if (oldest !== undefined) prepareCache.delete(oldest);
+        }
+        prepareCache.set(sql, statement);
+        traceSqliteStatement("prepare completed", sql);
+        return statement;
+      };
+      const executeUnparameterizedNonQuery = (sql: string): ReadonlyArray<any> => {
+        traceSqliteStatement("exec started", sql);
+        db.exec(sql);
+        if (sqliteStatementChangesSchema(sql)) {
+          invalidatePrepareCache();
+        }
+        traceSqliteStatement("exec completed", sql);
+        return [];
+      };
       tracePackagedStartup("node sqlite statement cache ready");
 
-      const runStatement = (
-        statement: StatementSync,
+      const runPreparedStatement = (
+        sql: string,
         params: ReadonlyArray<unknown>,
         raw: boolean,
       ) =>
         Effect.withFiber<ReadonlyArray<any>, SqlError>((fiber) => {
-          statement.setReadBigInts(Boolean(ServiceMap.get(fiber.services, Client.SafeIntegers)));
           try {
-            if (hasRows(statement)) {
+            const statement = prepareStatement(sql);
+            statement.setReadBigInts(Boolean(ServiceMap.get(fiber.services, Client.SafeIntegers)));
+            if (statementHasRows(sql, statement)) {
               return Effect.succeed(statement.all(...(params as any)));
             }
             const result = statement.run(...(params as any));
+            if (sqliteStatementChangesSchema(sql)) {
+              invalidatePrepareCache();
+            }
             return Effect.succeed(raw ? (result as unknown as ReadonlyArray<any>) : []);
           } catch (cause) {
             return Effect.fail(new SqlError({ cause, message: "Failed to execute statement" }));
@@ -168,47 +244,55 @@ const makeWithDatabase = (
         });
 
       const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) => {
+        if (params.length === 0 && sqliteStatementHasResultRows(sql) === false) {
+          return Effect.try({
+            try: () => executeUnparameterizedNonQuery(sql),
+            catch: (cause) => new SqlError({ cause, message: "Failed to execute statement" }),
+          });
+        }
         if (!traceSqliteStatements) {
-          return Effect.flatMap(Cache.get(prepareCache, sql), (statement) =>
-            runStatement(statement, params, raw),
-          );
+          return runPreparedStatement(sql, params, raw);
         }
         return Effect.gen(function* () {
           traceSqliteStatement("statement acquisition started", sql);
-          const statement = yield* Cache.get(prepareCache, sql);
-          traceSqliteStatement("statement acquisition completed", sql);
           traceSqliteStatement("statement execution started", sql);
-          const rows = yield* runStatement(statement, params, raw);
+          const rows = yield* runPreparedStatement(sql, params, raw);
           traceSqliteStatement("statement execution completed", sql);
           return rows;
         });
       };
 
       const runValues = (sql: string, params: ReadonlyArray<unknown>) => {
-        const effect = Effect.acquireUseRelease(
-          Cache.get(prepareCache, sql),
-          (statement) =>
-            Effect.try({
-              try: () => {
-                if (hasRows(statement)) {
-                  statement.setReturnArrays(true);
-                  // Safe to cast to array after we've setReturnArrays(true)
-                  return statement.all(...(params as any)) as unknown as ReadonlyArray<
-                    ReadonlyArray<unknown>
-                  >;
-                }
-                statement.run(...(params as any));
-                return [];
-              },
-              catch: (cause) => new SqlError({ cause, message: "Failed to execute statement" }),
-            }),
-          (statement) =>
-            Effect.sync(() => {
-              if (hasRows(statement)) {
+        if (params.length === 0 && sqliteStatementHasResultRows(sql) === false) {
+          return Effect.try({
+            try: () => {
+              executeUnparameterizedNonQuery(sql);
+              return [] as ReadonlyArray<ReadonlyArray<unknown>>;
+            },
+            catch: (cause) => new SqlError({ cause, message: "Failed to execute statement" }),
+          });
+        }
+        const effect = Effect.try({
+          try: () => {
+            const statement = prepareStatement(sql);
+            if (statementHasRows(sql, statement)) {
+              statement.setReturnArrays(true);
+              try {
+                return statement.all(...(params as any)) as unknown as ReadonlyArray<
+                  ReadonlyArray<unknown>
+                >;
+              } finally {
                 statement.setReturnArrays(false);
               }
-            }),
-        );
+            }
+            statement.run(...(params as any));
+            if (sqliteStatementChangesSchema(sql)) {
+              invalidatePrepareCache();
+            }
+            return [];
+          },
+          catch: (cause) => new SqlError({ cause, message: "Failed to execute statement" }),
+        });
         if (!traceSqliteStatements) return effect;
         return Effect.sync(() => traceSqliteStatement("values execution started", sql)).pipe(
           Effect.andThen(effect),

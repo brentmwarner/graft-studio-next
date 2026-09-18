@@ -544,7 +544,12 @@ export const reconcileMigrationLineage = Effect.gen(function* () {
 
 /**
  * Migrator run function - no schema dumping needed
- * Uses the base Migrator.make without platform dependencies
+ * Uses the base Migrator.make without platform dependencies.
+ *
+ * `Migrator.make` wraps pending work in one `sql.withTransaction`: it inserts
+ * every pending tracker row, runs each migration body, then commits. Packaged
+ * first-run startup therefore applies migrations 1-N in a single write
+ * transaction. Exclusive WAL/mmap stay off that path (see Sqlite.ts).
  */
 const run = Migrator.make({});
 
