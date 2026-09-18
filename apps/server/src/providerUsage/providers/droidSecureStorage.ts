@@ -46,6 +46,9 @@ public static class FactoryKeyReader {
 [Console]::Write([FactoryKeyReader]::Get())
 `;
 
+// Cold PowerShell + Add-Type has to start csc. Windows CI regularly exceeds 10s.
+const WINDOWS_KEY_READER_TIMEOUT_MS = 30_000;
+
 export function readDroidSecureKey(
   ctx: Pick<ProviderUsageContext, "platform" | "homeDir" | "env">,
   source: "keyring" | "login-keychain",
@@ -82,10 +85,18 @@ export function readDroidSecureKey(
       "powershell.exe",
     );
     args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_KEY_READER];
+    const system32 = nodePath.win32.join(systemRoot, "System32");
+    const framework64 = nodePath.win32.join(
+      systemRoot,
+      "Microsoft.NET",
+      "Framework64",
+      "v4.0.30319",
+    );
     env.SystemRoot = systemRoot;
+    env.WINDIR = systemRoot;
     env.TEMP = tmpdir();
     env.TMP = tmpdir();
-    env.PATH = nodePath.win32.join(systemRoot, "System32");
+    env.PATH = `${system32};${framework64}`;
   } else {
     return Promise.resolve(null);
   }
@@ -98,7 +109,7 @@ export function readDroidSecureKey(
         cwd: nodePath.parse(executable).root || undefined,
         encoding: "utf8",
         // Windows must start PowerShell and compile the fixed interop declaration on a cold run.
-        timeout: ctx.platform === "win32" ? 10_000 : 3_000,
+        timeout: ctx.platform === "win32" ? WINDOWS_KEY_READER_TIMEOUT_MS : 3_000,
         killSignal: "SIGKILL",
         maxBuffer: 4_096,
         windowsHide: true,
