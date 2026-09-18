@@ -1,6 +1,7 @@
 {
   "id": "d1",
   "threadId": "t1",
+  "source": "checkpoint",
   "runId": "r1",
   "title": "Pairing fixes",
   "files": [

@@ -36,9 +36,10 @@ import { FloatingSurface } from "../components/FloatingSurface";
 import { LiveStatusLine } from "../components/LiveStatusLine";
 import { PressScale } from "../components/PressScale";
 import { transcriptLiveStatus } from "../state/liveStatus";
+import type { ModelCatalogStatus } from "../state/useModelCatalog";
 import { TaskProgressPill } from "../components/TaskProgressPill";
 import { useGraftPalette } from "../theme/tokens";
-import type { ComposerSendOptions } from "./thread/composerAttachmentSend";
+import { attachmentHostError, type ComposerSendOptions } from "./thread/composerAttachmentSend";
 import { useComposerAttachments } from "./thread/useComposerAttachments";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
@@ -73,7 +74,8 @@ interface ThreadScreenProps {
   readonly onLoadDiff: (threadId: string, diffId?: string) => Promise<void>;
   readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
   readonly onLoadComposerCommands: (threadId: string) => Promise<readonly GraftComposerCommand[]>;
-  readonly onLoadModels: () => Promise<void>;
+  readonly onLoadModels: (force?: boolean) => Promise<void>;
+  readonly modelCatalog: ModelCatalogStatus;
   readonly onRefresh: () => Promise<void>;
   readonly onResolveApproval: (
     approvalId: string,
@@ -112,6 +114,7 @@ export function ThreadScreen({
   onLoadDiffFile,
   onLoadComposerCommands,
   onLoadModels,
+  modelCatalog,
   onLoadUsage,
   onRefresh,
   onResolveApproval,
@@ -164,6 +167,7 @@ export function ThreadScreen({
     model.currentModel?.supportsFastMode && (selectedFastMode ?? model.currentThread.fastMode),
   );
   const composerFeatures = snapshot?.environment.composerFeatures;
+  const attachmentBlocked = attachmentHostError(attachments.attachments, composerFeatures);
   const isConnected = connectionState === "connected";
   // Dictation is local to the phone; a permission Activity can temporarily
   // disconnect the gateway without invalidating the microphone request.
@@ -176,6 +180,7 @@ export function ThreadScreen({
     (draft.trim() || attachments.attachments.length) &&
     isConnected &&
     !isSending &&
+    !attachmentBlocked &&
     !attachments.isPicking &&
     !voice.isActive,
   );
@@ -189,9 +194,12 @@ export function ThreadScreen({
   });
 
   useEffect(() => {
-    void onLoadModels();
+    if (isConnected) void onLoadModels();
+  }, [isConnected, onLoadModels]);
+
+  useEffect(() => {
     void onLoadDiff(thread.id);
-  }, [onLoadDiff, onLoadModels, thread.id]);
+  }, [onLoadDiff, thread.id]);
 
   useEffect(() => {
     if (model.latestDiffEvent) {
@@ -206,6 +214,7 @@ export function ThreadScreen({
       !isConnected ||
       sendInFlight.current ||
       attachments.isPicking ||
+      attachmentBlocked ||
       (voice.isActive && !fromDictation)
     )
       return;
@@ -472,19 +481,15 @@ export function ThreadScreen({
         ) : null}
         <Composer
           attachments={attachments.attachments}
-          attachmentError={attachments.error}
+          attachmentError={attachments.error ?? attachmentBlocked}
           onRemoveAttachment={(id) => attachments.remove([id])}
           voice={voice}
           activeRunId={model.activeRunId}
           approvalIsElevated={model.approvalIsElevated}
-          availableModels={availableModels}
           canSend={canSend}
           currentApprovalLabel={model.currentApprovalLabel}
-          currentModel={model.currentModel}
           currentModelName={model.currentThread.modelName}
           draft={draft}
-          canChangeApproval={model.canChangeApproval}
-          hasApprovalOptions={model.approvalOptions.length > 0}
           hostLabel={hostLabel}
           isConnected={isConnected}
           isSending={isSending}
@@ -494,6 +499,10 @@ export function ThreadScreen({
           onDraftChange={setDraft}
           modelMenuRequest={modelMenuRequest}
           menuConfig={{
+            catalog: modelCatalog,
+            onReloadModels: () => {
+              void onLoadModels(true);
+            },
             extras: {
               attachmentsEnabled: composerFeatures?.attachments === true,
               modesEnabled: composerFeatures?.interactionModes === true,
@@ -513,7 +522,7 @@ export function ThreadScreen({
             models: model.selectableModels,
             efforts: model.efforts,
             resolvedEffort: model.resolvedEffort,
-            enabled: isConnected,
+            enabled: isConnected && !isSending,
             onSelectApproval: (policy) => onSetApproval(thread.id, policy),
             onSelectModel: (selected) => {
               if (model.lockedProviderId && selected.providerId !== model.lockedProviderId)
@@ -524,7 +533,6 @@ export function ThreadScreen({
           }}
           onSend={() => void send()}
           onSendDictation={() => void sendDictation()}
-          resolvedEffort={model.resolvedEffort}
         />
       </View>
 

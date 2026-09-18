@@ -22,6 +22,7 @@ describe("mobile working changes", () => {
     ]);
     expect(diff.files).toHaveLength(4);
     expect(diff.runId).toBeUndefined();
+    expect(diff.source).toBe("working-tree");
   });
   it("returns an empty summary once the working tree is clean", () => {
     expect(

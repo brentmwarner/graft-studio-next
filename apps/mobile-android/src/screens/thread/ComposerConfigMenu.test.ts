@@ -97,8 +97,10 @@ describe("composer quick menus", () => {
     expect(close).toHaveBeenCalledOnce();
   });
   it("distinguishes identical model IDs from different providers", async () => {
-    await mount("models");
-    expect(item("Codex").props.selected).toBe(true);
+    await mount("providers");
+    expect(item("codex").props.selected).toBe(true);
+    await act(() => item("other").props.onPress());
+    expect(items().some((node) => node.props.label === "Codex")).toBe(false);
     expect(item("Other Codex").props.selected).toBe(false);
     await act(async () => item("Other Codex").props.onPress());
     expect(config.onSelectModel).toHaveBeenCalledWith(config.models[1]);
@@ -171,4 +173,40 @@ it("selects Plan and Fast from the plus menu", async () => {
   await act(() => item("Speed").props.onPress());
   await act(() => item("Fast").props.onPress());
   expect(config.extras!.onSelectFastMode).toHaveBeenCalledWith(true);
+});
+
+it("allows local attachments before host support arrives and explains the send requirement", async () => {
+  config = {
+    ...config,
+    enabled: false,
+    extras: {
+      attachmentsEnabled: false,
+      modesEnabled: false,
+      fastModeEnabled: false,
+      interactionMode: "default",
+      fastMode: false,
+      busy: false,
+      onAttach: vi.fn(),
+      onSelectMode: vi.fn(),
+      onSelectFastMode: vi.fn(),
+    },
+  };
+  await mount("options");
+  expect(item("Add files").props.enabled).toBe(true);
+  await act(() => item("Add files").props.onPress());
+  expect(config.extras!.onAttach).toHaveBeenCalledWith("files");
+  expect(JSON.stringify(renderer!.toJSON())).toContain("Reconnect to an updated Studio");
+});
+
+it("exposes catalog recovery even when no models have loaded", async () => {
+  config = {
+    ...config,
+    models: [],
+    catalog: { loading: false, error: "Couldn’t load models." },
+    onReloadModels: vi.fn(),
+  };
+  await mount("providers");
+  expect(JSON.stringify(renderer!.toJSON())).toContain("Couldn’t load models.");
+  await act(() => item("Retry loading models").props.onPress());
+  expect(config.onReloadModels).toHaveBeenCalledOnce();
 });

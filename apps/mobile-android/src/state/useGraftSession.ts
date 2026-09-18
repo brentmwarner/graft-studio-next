@@ -41,6 +41,8 @@ import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
 import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
 
+import { useModelCatalog } from "./useModelCatalog";
+
 interface LoadingState {
   readonly status: "loading";
 }
@@ -62,7 +64,6 @@ export interface PairedState {
   readonly session: GraftSessionCredential;
   readonly snapshot: GraftEnvironmentSnapshot | null;
   readonly liveEvents: readonly GraftTimelineEvent[];
-  readonly availableModels: readonly GraftModelOption[];
   readonly diffs: Readonly<Record<string, GraftDiffSummary>>;
   readonly connectionState: GatewayConnectionState;
   readonly isRefreshing: boolean;
@@ -347,7 +348,6 @@ export function useGraftSession() {
           session,
           snapshot: null,
           liveEvents: [],
-          availableModels: [],
           diffs: {},
           connectionState: "connecting",
           isRefreshing: true,
@@ -412,7 +412,6 @@ export function useGraftSession() {
           session,
           snapshot: null,
           liveEvents: [],
-          availableModels: [],
           diffs: {},
           connectionState: "connecting",
           isRefreshing: true,
@@ -469,22 +468,19 @@ export function useGraftSession() {
     return usage;
   }, []);
 
-  const loadModels = useCallback(async () => {
-    try {
-      const result = await runSocketCommand(
-        socketRef.current,
-        { type: "models.list" },
-        "models.list.result",
-      );
-      updatePaired(setState, (current) => ({
-        ...current,
-        availableModels: result.models,
-      }));
-    } catch {
-      // The catalog is optional UI enrichment. A thread remains usable with
-      // the host-reported model if an older gateway does not expose it.
-    }
+  const requestModels = useCallback(async () => {
+    const result = await runSocketCommand(
+      socketRef.current,
+      { type: "models.list" },
+      "models.list.result",
+    );
+    return result.models;
   }, []);
+  const modelCatalog = useModelCatalog(
+    state.status === "paired" ? state.session.sessionId : undefined,
+    requestModels,
+  );
+  const loadModels = modelCatalog.load;
 
   const loadComposerCommands = useCallback(async (threadId: string) => {
     const result = await runSocketCommand(
@@ -814,6 +810,7 @@ export function useGraftSession() {
     loadDiff,
     loadDiffFile,
     loadModels,
+    modelCatalog,
     loadUsage,
     loadComposerCommands,
     openThread,

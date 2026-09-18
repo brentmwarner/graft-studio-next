@@ -3,10 +3,20 @@ import {
   GraftAttachmentSchema,
   type GraftAttachment,
   type GraftInteractionMode,
+  type GraftEnvironmentSummary,
 } from "@graft/mobile-contract";
 
 export type ComposerAttachment = GraftAttachment & { readonly uri: string };
 export type AttachmentSource = "files" | "photos" | "camera";
+
+export function attachmentHostError(
+  attachments: readonly ComposerAttachment[],
+  features: GraftEnvironmentSummary["composerFeatures"],
+): string | undefined {
+  return attachments.length && features?.attachments !== true
+    ? "Your files are ready. Reconnect to an updated Graft Studio to send attachments, or remove them to send text."
+    : undefined;
+}
 export interface ComposerSendOptions {
   readonly attachments?: readonly ComposerAttachment[];
   readonly interactionMode?: GraftInteractionMode;

@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { GraftModelOption } from "@graft/mobile-contract";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +16,7 @@ import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
+import { ComposerSettings } from "./ComposerSettings";
 import { ComposerAttachments } from "./ComposerAttachments";
 import type { ComposerAttachment } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
@@ -114,14 +114,10 @@ export function Composer({
   onRemoveAttachment,
   activeRunId,
   approvalIsElevated,
-  availableModels,
   canSend,
   currentApprovalLabel,
-  currentModel,
   currentModelName,
   draft,
-  canChangeApproval,
-  hasApprovalOptions,
   hostLabel,
   isConnected,
   isSending,
@@ -131,7 +127,6 @@ export function Composer({
   modelMenuRequest,
   onSend,
   onSendDictation,
-  resolvedEffort,
   voice,
 }: {
   readonly attachments: readonly ComposerAttachment[];
@@ -139,14 +134,10 @@ export function Composer({
   readonly onRemoveAttachment: (id: string) => void;
   readonly activeRunId: string | undefined;
   readonly approvalIsElevated: boolean;
-  readonly availableModels: readonly GraftModelOption[];
   readonly canSend: boolean;
   readonly currentApprovalLabel: string;
-  readonly currentModel: GraftModelOption | undefined;
   readonly currentModelName: string | undefined;
   readonly draft: string;
-  readonly canChangeApproval: boolean;
-  readonly hasApprovalOptions: boolean;
   readonly hostLabel: string;
   readonly isConnected: boolean;
   readonly isSending: boolean;
@@ -156,7 +147,6 @@ export function Composer({
   readonly modelMenuRequest?: number;
   readonly onSend: () => void;
   readonly onSendDictation: () => void;
-  readonly resolvedEffort: string | undefined;
   readonly voice: ReturnType<typeof useVoiceInput>;
 }) {
   const palette = useGraftPalette();
@@ -219,17 +209,6 @@ export function Composer({
       )}
     />
   );
-  const approvalLabel = (
-    <Text
-      numberOfLines={1}
-      style={[
-        styles.toolbarText,
-        { color: approvalIsElevated ? palette.warning : palette.foreground },
-      ]}
-    >
-      {currentApprovalLabel}
-    </Text>
-  );
 
   return (
     <View style={styles.dock}>
@@ -248,6 +227,15 @@ export function Composer({
         >
           {voice.error}
         </Text>
+      ) : null}
+      {!voice.isActive ? (
+        <ComposerSettings
+          config={menuConfig}
+          modelName={currentModelName}
+          modelMenuRequest={modelMenuRequest}
+          approvalLabel={currentApprovalLabel}
+          approvalIsElevated={approvalIsElevated}
+        />
       ) : null}
       <View style={styles.composerRow}>
         {voice.isActive ? (
@@ -356,62 +344,7 @@ export function Composer({
             {expanded ? (
               <View style={styles.toolbar}>
                 {options}
-                {hasApprovalOptions ? (
-                  <View style={styles.permissions}>
-                    {canChangeApproval ? (
-                      <ComposerConfigMenu
-                        config={menuConfig}
-                        initialPage="permissions"
-                        trigger={(open) => (
-                          <PressScale
-                            accessibilityLabel="Permissions"
-                            onPress={open}
-                            style={styles.toolbarButton}
-                          >
-                            {approvalLabel}
-                          </PressScale>
-                        )}
-                      />
-                    ) : (
-                      <View style={styles.toolbarButton}>{approvalLabel}</View>
-                    )}
-                  </View>
-                ) : null}
-                <View style={styles.model}>
-                  {currentModel || availableModels.length > 0 ? (
-                    <ComposerConfigMenu
-                      config={menuConfig}
-                      initialPage="intelligence"
-                      openRequest={modelMenuRequest}
-                      trigger={(open) => (
-                        <PressScale
-                          accessibilityLabel="Model and reasoning effort"
-                          onPress={open}
-                          style={styles.toolbarButton}
-                        >
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.toolbarText,
-                              styles.modelText,
-                              { color: palette.foreground },
-                            ]}
-                          >
-                            {currentModel?.label ??
-                              currentModelName?.replace("[1m]", "") ??
-                              "Model"}
-                            {resolvedEffort ? (
-                              <Text style={{ color: palette.foregroundMuted }}>
-                                {" "}
-                                {displayName(resolvedEffort)}
-                              </Text>
-                            ) : null}
-                          </Text>
-                        </PressScale>
-                      )}
-                    />
-                  ) : null}
-                </View>
+                <View style={styles.toolbarSpacer} />
                 {trailing}
               </View>
             ) : null}
@@ -454,11 +387,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   toolbar: { alignItems: "center", flexDirection: "row", paddingHorizontal: 7, paddingBottom: 7 },
-  toolbarButton: { minHeight: 32, paddingHorizontal: 8, justifyContent: "center" },
   toolbarText: { fontSize: 12, fontWeight: "500" },
-  permissions: { maxWidth: 104, flexShrink: 1 },
-  model: { flex: 1, minWidth: 0, marginLeft: 8 },
-  modelText: { textAlign: "right" },
+  toolbarSpacer: { flex: 1 },
   iconButton: { alignItems: "center", height: 32, justifyContent: "center", width: 32 },
   recordingRow: {
     flexDirection: "row",

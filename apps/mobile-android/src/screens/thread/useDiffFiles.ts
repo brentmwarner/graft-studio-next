@@ -7,7 +7,30 @@ export interface DiffFileState {
   readonly failed?: boolean;
 }
 
-/** Cache expanded files only for the current checkpoint; ignore responses after close or refresh. */
+function isWorkingTree(diff: GraftDiffSummary): boolean {
+  // PR 25 hosts predate the explicit source field.
+  return (
+    diff.source === "working-tree" ||
+    (diff.source === undefined && diff.runId === undefined && diff.title === "Working changes")
+  );
+}
+
+/** Live working files may have a later read time; immutable checkpoints must match exactly. */
+export function matchesDiffResponse(
+  summary: GraftDiffSummary,
+  response: GraftDiffSummary,
+): boolean {
+  if (summary.id !== response.id || summary.threadId !== response.threadId) return false;
+  if (isWorkingTree(summary))
+    return isWorkingTree(response) && response.updatedAt >= summary.updatedAt;
+  return (
+    !isWorkingTree(response) &&
+    response.runId === summary.runId &&
+    response.updatedAt === summary.updatedAt
+  );
+}
+
+/** Cache files until summary refresh; ignore responses after close, refresh, or switching threads. */
 export function useDiffFiles(
   diff: GraftDiffSummary | undefined,
   visible: boolean,
@@ -21,7 +44,9 @@ export function useDiffFiles(
   diffRef.current = diff;
   const loadRef = useRef(load);
   loadRef.current = load;
-  const revision = diff ? `${diff.id}:${diff.runId ?? ""}:${diff.updatedAt}` : "";
+  const revision = diff
+    ? JSON.stringify([diff.threadId, diff.id, diff.source, diff.runId, diff.updatedAt])
+    : "";
 
   const request = useCallback(async (path: string, retry = false) => {
     const diff = diffRef.current;
@@ -33,8 +58,7 @@ export function useDiffFiles(
       const response = await loadRef.current(diff.threadId, path);
       if (active !== generation.current) return;
       const file = response?.files.find((entry) => entry.path === path);
-      // A checkpoint that advanced during the request must not be mixed with this sheet's totals.
-      const matches = response?.runId === diff.runId && response?.updatedAt === diff.updatedAt;
+      const matches = response && matchesDiffResponse(diff, response);
       setFiles((current) => ({
         ...current,
         [path]:

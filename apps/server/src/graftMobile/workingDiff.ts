@@ -29,6 +29,7 @@ export function mobileWorkingDiff(
   return {
     id: threadId,
     threadId,
+    source: "working-tree",
     title: "Working changes",
     files: workingTree.files.map((file) => ({
       path: file.path,

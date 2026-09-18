@@ -132,7 +132,8 @@ function GraftApp() {
               <NewChatScreen
                 composerFeatures={paired.snapshot?.environment.composerFeatures}
                 error={paired.error}
-                availableModels={paired.availableModels}
+                availableModels={session.modelCatalog.models}
+                modelCatalog={session.modelCatalog}
                 hostLabel={paired.session.environmentLabel}
                 initialProjectId={route.initialProjectId}
                 isConnected={paired.connectionState === "connected"}
@@ -177,7 +178,8 @@ function GraftApp() {
             ) : (
               <ThreadScreen
                 key={route.thread.id}
-                availableModels={paired.availableModels}
+                availableModels={session.modelCatalog.models}
+                modelCatalog={session.modelCatalog}
                 connectionState={paired.connectionState}
                 diffSummary={paired.diffs[route.thread.id]}
                 error={paired.error}
