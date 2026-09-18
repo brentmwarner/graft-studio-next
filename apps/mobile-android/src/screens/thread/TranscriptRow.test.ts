@@ -19,8 +19,8 @@ vi.mock("@expo/ui/jetpack-compose", () => ({
   Host: "ComposeHost",
   Text: "ComposeText",
 }));
-vi.mock("../../components/HelixG4Orb", () => ({
-  HelixG4Orb: "HelixG4Orb",
+vi.mock("../../components/RunStatusDotMatrix", () => ({
+  RunStatusDotMatrix: "DotMatrix",
 }));
 vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => false }));
 vi.mock("../../components/ActivityCard", () => ({ ActivityCard: "ActivityCard" }));
@@ -53,24 +53,24 @@ it("renders running reasoning and tools without another live indicator", async (
     );
   });
   const isType = (node: { type: unknown }, name: string) => node.type === name;
-  const orbs = renderer.root.findAll((node) => isType(node, "HelixG4Orb"));
-  expect(orbs).toHaveLength(1);
+  const dotLoaders = renderer.root.findAll((node) => isType(node, "DotMatrix"));
+  expect(dotLoaders).toHaveLength(1);
   expect(
     renderer.root.findAll((node) => node.props.accessibilityLiveRegion === "polite"),
   ).toHaveLength(1);
   expect(JSON.stringify(renderer.toJSON())).not.toContain("Looking into it");
 });
 
-it("updates a status phrase without remounting its G4 orb", async () => {
+it("updates a status phrase without remounting its dot loader", async () => {
   const isType = (node: { type: unknown }, name: string) => node.type === name;
   await act(() => {
     renderer = create(createElement(LiveStatusLine, { phrase: "Thinking" }));
   });
-  const indicator = renderer.root.find((node) => isType(node, "HelixG4Orb"));
+  const indicator = renderer.root.find((node) => isType(node, "DotMatrix"));
   await act(() => renderer.update(createElement(LiveStatusLine, { phrase: "Reading files" })));
-  expect(renderer.root.find((node) => isType(node, "HelixG4Orb"))).toBe(indicator);
+  expect(renderer.root.find((node) => isType(node, "DotMatrix"))).toBe(indicator);
   await act(() =>
     renderer.update(createElement(LiveStatusLine, { phrase: "Waiting for you", animating: false })),
   );
-  expect(renderer.root.findAll((node) => isType(node, "HelixG4Orb"))).toHaveLength(0);
+  expect(renderer.root.findAll((node) => isType(node, "DotMatrix"))).toHaveLength(0);
 });

@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
+import { ProviderLogo } from "../../components/ProviderLogo";
 import { useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
@@ -22,6 +23,7 @@ export function ComposerSettings({
 }) {
   const palette = useGraftPalette();
   const effort = config.resolvedEffort;
+  const modelLabel = config.currentModel?.label ?? modelName?.replace("[1m]", "") ?? "Choose model";
   return (
     <View style={styles.row}>
       <View style={styles.model}>
@@ -32,9 +34,20 @@ export function ComposerSettings({
           trigger={(open) => (
             <PressScale accessibilityLabel="Provider and model" onPress={open}>
               <FloatingSurface style={styles.pill}>
-                <Text numberOfLines={1} style={[styles.label, { color: palette.foreground }]}>
-                  {config.currentModel?.label ?? modelName?.replace("[1m]", "") ?? "Choose model"}
-                </Text>
+                <View style={styles.pillRow}>
+                  <ProviderLogo
+                    color={palette.foregroundMuted}
+                    label={config.currentModel?.providerLabel}
+                    providerId={config.currentModel?.providerId}
+                    size={18}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.label, styles.modelLabel, { color: palette.foreground }]}
+                  >
+                    {modelLabel}
+                  </Text>
+                </View>
               </FloatingSurface>
             </PressScale>
           )}
@@ -90,5 +103,7 @@ const styles = StyleSheet.create({
   model: { flex: 1, minWidth: 0 },
   permissions: { maxWidth: 112 },
   pill: { borderRadius: 22, minHeight: 44, justifyContent: "center", paddingHorizontal: 12 },
+  pillRow: { alignItems: "center", flexDirection: "row", gap: 8, minWidth: 0 },
+  modelLabel: { flexShrink: 1 },
   label: { fontSize: 12, fontWeight: "500" },
 });

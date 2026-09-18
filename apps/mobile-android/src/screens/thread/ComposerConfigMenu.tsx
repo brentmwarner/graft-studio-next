@@ -6,6 +6,7 @@ import type {
 import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { AnchoredMenu, MenuCaption, MenuItem } from "../../components/AnchoredMenu";
+import { ProviderLogo } from "../../components/ProviderLogo";
 import type { ModelCatalogStatus } from "../../state/useModelCatalog";
 import type { AttachmentSource } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
@@ -216,6 +217,7 @@ export function ComposerConfigMenu({
               <MenuItem
                 key={provider.id}
                 label={provider.label}
+                leading={<ProviderLogo label={provider.label} providerId={provider.id} size={18} />}
                 disclosure
                 selected={provider.id === config.currentModel?.providerId}
                 enabled={enabled}
@@ -238,6 +240,13 @@ export function ComposerConfigMenu({
                   key={`${model.providerId}:${model.id}`}
                   label={model.label}
                   detail={model.providerLabel ?? displayName(model.providerId)}
+                  leading={
+                    <ProviderLogo
+                      label={model.providerLabel ?? displayName(model.providerId)}
+                      providerId={model.providerId}
+                      size={18}
+                    />
+                  }
                   enabled={enabled}
                   selected={
                     model.id === config.currentModel?.id &&
@@ -251,13 +260,6 @@ export function ComposerConfigMenu({
       case "intelligence":
         return (
           <>
-            <MenuItem
-              label="Model"
-              detail={config.currentModel?.label ?? "Choose model"}
-              disclosure
-              enabled={!pending}
-              onPress={() => setPage("providers")}
-            />
             {config.efforts.length > 0 ? <MenuCaption>Reasoning effort</MenuCaption> : null}
             {[...config.efforts]
               .sort((a, b) => {

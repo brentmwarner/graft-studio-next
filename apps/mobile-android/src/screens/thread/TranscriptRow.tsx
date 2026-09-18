@@ -85,7 +85,7 @@ export const TranscriptRow = memo(function TranscriptRow({
     case "assistant":
       return (
         <View style={styles.assistantRow}>
-          <ReasoningBlock foldedActivity={item.foldedActivity} reasoning={item.reasoning} />
+          <ReasoningBlock reasoning={item.reasoning} />
           {item.text ? (
             <StreamingMarkdownMessage content={item.text} streaming={item.streaming} />
           ) : null}

@@ -10,6 +10,7 @@ vi.mock("react-native", () => ({
   Text: "Text",
   View: "View",
 }));
+vi.mock("../../components/ProviderLogo", () => ({ ProviderLogo: "ProviderLogo" }));
 vi.mock("../../components/FloatingSurface", () => ({ FloatingSurface: "Surface" }));
 vi.mock("../../components/PressScale", () => ({ PressScale: "Press" }));
 vi.mock("../../theme/tokens", () => ({

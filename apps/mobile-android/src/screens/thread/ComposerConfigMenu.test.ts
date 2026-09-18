@@ -14,6 +14,7 @@ vi.mock("../../components/AnchoredMenu", () => ({
   MenuCaption: "Caption",
   MenuItem: "Item",
 }));
+vi.mock("../../components/ProviderLogo", () => ({ ProviderLogo: "ProviderLogo" }));
 const model = { id: "codex", providerId: "codex", label: "Codex" };
 let renderer: ReactTestRenderer | undefined;
 let config: ComposerMenuConfig;
@@ -59,6 +60,7 @@ afterEach(async () => {
 describe("composer quick menus", () => {
   it("selects an effort and closes without opening a sheet", async () => {
     await mount("intelligence");
+    expect(items().some((node) => node.props.label === "Model")).toBe(false);
     expect(item("High").props.selected).toBe(true);
     await act(async () => item("Low").props.onPress());
     expect(config.onSelectEffort).toHaveBeenCalledWith("low");
@@ -99,8 +101,10 @@ describe("composer quick menus", () => {
   it("distinguishes identical model IDs from different providers", async () => {
     await mount("providers");
     expect(item("codex").props.selected).toBe(true);
+    expect(item("codex").props.leading).toBeTruthy();
     await act(() => item("other").props.onPress());
     expect(items().some((node) => node.props.label === "Codex")).toBe(false);
+    expect(item("Other Codex").props.leading).toBeTruthy();
     expect(item("Other Codex").props.selected).toBe(false);
     await act(async () => item("Other Codex").props.onPress());
     expect(config.onSelectModel).toHaveBeenCalledWith(config.models[1]);
