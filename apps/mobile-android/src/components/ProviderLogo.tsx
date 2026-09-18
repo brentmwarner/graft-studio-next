@@ -112,7 +112,11 @@ const BRANDED_LOGOS: Readonly<Record<string, ProviderGlyph & { color: string }>>
   anthropic: {
     viewBox: "0 0 24 24",
     color: "#191919",
-    paths: [{ d: "M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z" }],
+    paths: [
+      {
+        d: "M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z",
+      },
+    ],
   },
   openai: {
     viewBox: "0 0 24 24",
@@ -205,7 +209,9 @@ export const ProviderLogo = memo(function ProviderLogo({
         },
       ]}
     >
-      <Text style={[styles.monogram, { color: tint, fontSize: size * 0.5, lineHeight: size * 0.55 }]}>
+      <Text
+        style={[styles.monogram, { color: tint, fontSize: size * 0.5, lineHeight: size * 0.55 }]}
+      >
         {monogram}
       </Text>
     </View>

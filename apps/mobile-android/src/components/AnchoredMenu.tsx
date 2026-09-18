@@ -217,7 +217,8 @@ export function MenuItem({
         },
       ]}
     >
-      {leading ?? (icon ? <Ionicons color={palette.foregroundMuted} name={icon} size={20} /> : null)}
+      {leading ??
+        (icon ? <Ionicons color={palette.foregroundMuted} name={icon} size={20} /> : null)}
       <View style={styles.copy}>
         <Text style={[styles.label, { color: palette.foreground }]}>{label}</Text>
         {detail ? (
