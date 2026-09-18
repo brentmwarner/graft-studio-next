@@ -1,4 +1,4 @@
-// Download links follow the same stable Blob pointers as installed Graft apps.
+// Download links follow the latest public GitHub release assets.
 import "server-only";
 
 import storedLatestReleaseDownloads from "@/data/latest-release-downloads.json";
@@ -12,7 +12,7 @@ export async function getReleaseDownloads(): Promise<ReleaseDownloads> {
     fetch(url, {
       next: { revalidate: 60 },
       signal: AbortSignal.timeout(10_000),
-      redirect: "error",
+      redirect: "follow",
     }),
   );
 }

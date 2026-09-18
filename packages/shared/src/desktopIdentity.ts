@@ -7,11 +7,15 @@ export const GRAFT_PRODUCT_NAME = "Graft";
 export const GRAFT_DESKTOP_SCHEME = "graft";
 export const GRAFT_DESKTOP_ORIGIN = `${GRAFT_DESKTOP_SCHEME}://app`;
 export const GRAFT_DESKTOP_ENTRY_URL = `${GRAFT_DESKTOP_ORIGIN}/index.html`;
-// Stable replaces the installed legacy app through its existing updater feed.
-// Storage remains separate so migration can preserve the original database.
+// The legacy feed remains available for the one-time upgrade bridge. New builds
+// use the public GitHub release provider so updates do not depend on paid blob
+// storage. Storage remains separate so migration can preserve the original database.
 export const GRAFT_DESKTOP_UPDATE_CHANNEL = "latest";
 export const GRAFT_DESKTOP_UPDATE_URL =
   "https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases";
+export const GRAFT_DESKTOP_UPDATE_GITHUB_OWNER = "brentmwarner";
+export const GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY = "graft-studio-next";
+export const GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL = `https://github.com/${GRAFT_DESKTOP_UPDATE_GITHUB_OWNER}/${GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY}/releases`;
 export const GRAFT_PRODUCTION_BUNDLE_ID = "com.graft.studio";
 export const GRAFT_DEVELOPMENT_BUNDLE_ID = "com.graft.studio.next.dev";
 export const GRAFT_CANARY_BUNDLE_ID = "com.graft.studio.next.canary";
