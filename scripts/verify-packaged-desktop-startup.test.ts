@@ -14,6 +14,8 @@ import {
   readPackagedStartupLogTails,
   redactMacKeychainCommandArgs,
   retainMacBackendSampleCallGraph,
+  resolveMacSmokeKeychainLockDirectory,
+  resolveMacSmokeKeychainStateDirectory,
   resolvePackagedDependencySmokeLaunch,
   resolveNativePackagedDesktopPlatform,
   verifyPackagedRuntimeDependencies,
@@ -28,6 +30,15 @@ afterEach(() => {
 });
 
 describe("packaged desktop startup verification", () => {
+  it("stores macOS Keychain coordination under a stable user-global path", () => {
+    expect(resolveMacSmokeKeychainStateDirectory("/Users/runner")).toBe(
+      "/Users/runner/.graft/release-smoke/macos-keychain",
+    );
+    expect(resolveMacSmokeKeychainLockDirectory("/Users/runner")).toBe(
+      "/Users/runner/.graft/release-smoke/macos-keychain/state.lock",
+    );
+  });
+
   it("parses quoted macOS keychain command output", () => {
     expect(
       parseMacKeychainList(
@@ -64,6 +75,7 @@ describe("packaged desktop startup verification", () => {
       },
       password: "test-password",
       acquireLock: () => ({
+        ownerIdentity: "test-owner",
         persistRecovery: (recovery) => {
           persistedRecovery = recovery;
         },
@@ -74,14 +86,17 @@ describe("packaged desktop startup verification", () => {
     });
 
     session.prepare();
+    session.recordProcessGroup(9_001, "test-process-group");
     session.restore();
 
     expect(persistedRecovery).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       ownerPid: process.pid,
+      ownerIdentity: "test-owner",
       keychainPath: "/tmp/graft-smoke/graft-packaged-smoke.keychain-db",
       previousDefault: "/Users/runner/login.keychain-db",
       previousSearchList: ["/Users/runner/login.keychain-db", "/Library/Keychains/System.keychain"],
+      processGroup: { id: 9_001, identity: "test-process-group" },
     });
     expect(commands).toEqual([
       [
@@ -130,7 +145,11 @@ describe("packaged desktop startup verification", () => {
         },
       },
       password: "test-password",
-      acquireLock: () => ({ persistRecovery: () => undefined, release: () => undefined }),
+      acquireLock: () => ({
+        ownerIdentity: "test-owner",
+        persistRecovery: () => undefined,
+        release: () => undefined,
+      }),
     });
 
     expect(() => session.prepare()).toThrow("unlock failed");
@@ -167,6 +186,7 @@ describe("packaged desktop startup verification", () => {
       },
       password: "test-password",
       acquireLock: () => ({
+        ownerIdentity: "test-owner",
         persistRecovery: () => undefined,
         release: () => {
           lockReleased = true;
@@ -211,6 +231,7 @@ describe("packaged desktop startup verification", () => {
       },
       password: "test-password",
       acquireLock: () => ({
+        ownerIdentity: "test-owner",
         persistRecovery: () => undefined,
         release: () => {
           lockReleased = true;
@@ -237,32 +258,48 @@ describe("packaged desktop startup verification", () => {
     temporaryRoots.push(lockRoot);
     const lockDirectory = join(lockRoot, "keychain.lock");
     mkdirSync(lockDirectory);
-    writeFileSync(join(lockDirectory, "owner"), "4242\n");
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "stale-owner" }),
+    );
 
-    const keychainRoot = mkdtempSync(join(tmpdir(), "graft-packaged-smoke-keychain-test-"));
-    temporaryRoots.push(keychainRoot);
+    const keychainRoot = mkdtempSync(join(lockRoot, "keychain-"));
     const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
     writeFileSync(keychainPath, "temporary keychain");
     writeFileSync(
       join(lockDirectory, "recovery.json"),
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         ownerPid: 4242,
+        ownerIdentity: "stale-owner",
         keychainPath,
         previousDefault: "/Users/runner/login.keychain-db",
         previousSearchList: [
           "/Users/runner/login.keychain-db",
           "/Library/Keychains/System.keychain",
         ],
+        processGroup: { id: 5252, identity: "stale-process-group" },
       }),
     );
 
     const commands: string[][] = [];
+    const terminatedProcessGroups: number[] = [];
+    let processGroupAlive = true;
     const lock = acquireMacSmokeKeychainLock(
       { read: () => "", run: (args) => commands.push([...args]) },
-      { lockDirectory, isProcessAlive: () => false },
+      {
+        lockDirectory,
+        isProcessAlive: () => false,
+        isProcessGroupAlive: () => processGroupAlive,
+        getProcessIdentity: (pid) => (pid === process.pid ? "current-owner" : null),
+        terminateProcessGroup: (pid) => {
+          terminatedProcessGroups.push(pid);
+          processGroupAlive = false;
+        },
+      },
     );
 
+    expect(terminatedProcessGroups).toEqual([5252]);
     expect(commands).toEqual([
       ["default-keychain", "-d", "user", "-s", "/Users/runner/login.keychain-db"],
       [
@@ -276,7 +313,11 @@ describe("packaged desktop startup verification", () => {
       ["delete-keychain", keychainPath],
     ]);
     expect(existsSync(keychainRoot)).toBe(false);
-    expect(readFileSync(join(lockDirectory, "owner"), "utf8").trim()).toBe(String(process.pid));
+    expect(JSON.parse(readFileSync(join(lockDirectory, "owner"), "utf8"))).toEqual({
+      schemaVersion: 1,
+      pid: process.pid,
+      identity: "current-owner",
+    });
 
     lock.release();
     expect(existsSync(lockDirectory)).toBe(false);
@@ -287,15 +328,68 @@ describe("packaged desktop startup verification", () => {
     temporaryRoots.push(lockRoot);
     const lockDirectory = join(lockRoot, "keychain.lock");
     mkdirSync(lockDirectory);
-    writeFileSync(join(lockDirectory, "owner"), "4242\n");
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "live-owner" }),
+    );
 
     expect(() =>
       acquireMacSmokeKeychainLock(
         { read: () => "", run: () => undefined },
-        { lockDirectory, isProcessAlive: () => true },
+        {
+          lockDirectory,
+          isProcessAlive: () => true,
+          getProcessIdentity: (pid) => (pid === process.pid ? "current-owner" : "live-owner"),
+        },
       ),
     ).toThrow("Another packaged macOS startup smoke is already running (pid=4242)");
     expect(existsSync(lockDirectory)).toBe(true);
+  });
+
+  it("recovers after owner PID reuse without terminating a reused process group", () => {
+    const lockRoot = mkdtempSync(join(tmpdir(), "graft-smoke-reused-pid-test-"));
+    temporaryRoots.push(lockRoot);
+    const lockDirectory = join(lockRoot, "keychain.lock");
+    mkdirSync(lockDirectory);
+    writeFileSync(
+      join(lockDirectory, "owner"),
+      JSON.stringify({ schemaVersion: 1, pid: 4242, identity: "old-owner" }),
+    );
+    const keychainRoot = mkdtempSync(join(lockRoot, "keychain-"));
+    const keychainPath = join(keychainRoot, "graft-packaged-smoke.keychain-db");
+    writeFileSync(keychainPath, "temporary keychain");
+    writeFileSync(
+      join(lockDirectory, "recovery.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        ownerPid: 4242,
+        ownerIdentity: "old-owner",
+        keychainPath,
+        previousDefault: null,
+        previousSearchList: [],
+        processGroup: { id: 5252, identity: "old-process-group" },
+      }),
+    );
+
+    const terminatedProcessGroups: number[] = [];
+    const lock = acquireMacSmokeKeychainLock(
+      { read: () => "", run: () => undefined },
+      {
+        lockDirectory,
+        isProcessAlive: (pid) => pid === 4242 || pid === 5252,
+        isProcessGroupAlive: () => true,
+        getProcessIdentity: (pid) => {
+          if (pid === process.pid) return "current-owner";
+          if (pid === 4242) return "reused-owner";
+          return "reused-process-group";
+        },
+        terminateProcessGroup: (pid) => terminatedProcessGroups.push(pid),
+      },
+    );
+
+    expect(terminatedProcessGroups).toEqual([]);
+    expect(existsSync(keychainRoot)).toBe(false);
+    lock.release();
   });
 
   it("retains bounded failure diagnostics even when a startup log is missing", () => {
