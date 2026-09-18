@@ -117,22 +117,29 @@ const PROJECTED_POSES: HelixG4Dot[][][] = HELIX_G4_LATITUDES.map((_, ring) =>
   ),
 );
 
+export function helixG4DotPoses(ring: number, spoke: number): readonly HelixG4Dot[] {
+  return PROJECTED_POSES[ring]?.[spoke] ?? [];
+}
+
+export function helixG4InterpolateDot(poses: readonly HelixG4Dot[], progress: number): HelixG4Dot {
+  const { from, to, fraction } = keyframeSpan(wrapProgress(progress));
+  const a = poses[from];
+  const b = poses[to] ?? a;
+  if (!a) return { x: 0, y: 0, z: 0, opacity: 0 };
+  if (!b) return a;
+  return {
+    x: a.x + (b.x - a.x) * fraction,
+    y: a.y + (b.y - a.y) * fraction,
+    z: a.z + (b.z - a.z) * fraction,
+    opacity: a.opacity + (b.opacity - a.opacity) * fraction,
+  };
+}
+
 export function helixG4Dots(progress: number): HelixG4Dot[] {
-  const wrapped = wrapProgress(progress);
-  const { from, to, fraction } = keyframeSpan(wrapped);
   const dots: HelixG4Dot[] = [];
   for (let ring = 0; ring < HELIX_G4_LATITUDES.length; ring += 1) {
     for (let spoke = 0; spoke < HELIX_G4_DOTS_PER_RING; spoke += 1) {
-      const poses = PROJECTED_POSES[ring]?.[spoke];
-      const a = poses?.[from];
-      const b = poses?.[to];
-      if (!a || !b) continue;
-      dots.push({
-        x: a.x + (b.x - a.x) * fraction,
-        y: a.y + (b.y - a.y) * fraction,
-        z: a.z + (b.z - a.z) * fraction,
-        opacity: a.opacity + (b.opacity - a.opacity) * fraction,
-      });
+      dots.push(helixG4InterpolateDot(helixG4DotPoses(ring, spoke), progress));
     }
   }
   return dots;

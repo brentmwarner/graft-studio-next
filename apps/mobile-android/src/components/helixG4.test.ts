@@ -9,7 +9,9 @@ import {
   HELIX_G4_POSE_COUNT,
   helixG4ActiveRing,
   helixG4DotIndex,
+  helixG4DotPoses,
   helixG4Dots,
+  helixG4InterpolateDot,
   helixG4RingDirection,
   type HelixG4Dot,
 } from "./helixG4";
@@ -127,6 +129,16 @@ describe("Helix G4 orb", () => {
     const wrapped = helixG4Dots(1);
     for (const [index, dot] of rest.entries()) {
       assertNear(dot, wrapped[index]!);
+    }
+  });
+
+  it("interpolates a single spoke the same way as the full pose", () => {
+    for (const progress of [0, 0.05, 0.2, 0.99]) {
+      const dots = helixG4Dots(progress);
+      assertNear(
+        helixG4InterpolateDot(helixG4DotPoses(2, 0), progress),
+        dots[helixG4DotIndex(2, 0)]!,
+      );
     }
   });
 });

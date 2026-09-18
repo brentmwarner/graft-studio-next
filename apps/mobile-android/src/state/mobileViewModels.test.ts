@@ -282,6 +282,39 @@ describe("mobile view models", () => {
     expect(foldedActivityCounts(settled)).toEqual([0, 0, 0, 1]);
   });
 
+  it("reuses prior folded answers while a later turn streams", () => {
+    const firstTurn: TranscriptItem[] = [
+      { id: "u1", kind: "user", text: "First request" },
+      { id: "c1", kind: "assistant", text: "Checking.", reasoning: "", streaming: false },
+      tool("read"),
+      { id: "a1", kind: "assistant", text: "First answer", reasoning: "", streaming: false },
+    ];
+    const prior = presentTranscriptRows(firstTurn, false);
+    const live: TranscriptItem[] = [
+      ...firstTurn,
+      { id: "u2", kind: "user", text: "Follow-up" },
+      { id: "a2", kind: "assistant", text: "New", reasoning: "", streaming: true },
+    ];
+    const presented = presentTranscriptRows(live, true);
+    const firstPass = reconcileTranscriptItems(prior, presented);
+    const secondPass = reconcileTranscriptItems(
+      firstPass,
+      presentTranscriptRows(
+        [
+          ...firstTurn,
+          { id: "u2", kind: "user", text: "Follow-up" },
+          { id: "a2", kind: "assistant", text: "New token", reasoning: "", streaming: true },
+        ],
+        true,
+      ),
+    );
+
+    expect(firstPass[1]).toBe(prior[1]);
+    expect(secondPass[1]).toBe(firstPass[1]);
+    expect(secondPass[1]).toMatchObject({ kind: "assistant", text: "First answer" });
+    expect(secondPass.at(-1)).toMatchObject({ text: "New token", streaming: true });
+  });
+
   it("hides Hermes session notices from the transcript", () => {
     const items: TranscriptItem[] = [
       {

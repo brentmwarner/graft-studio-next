@@ -566,6 +566,18 @@ function sameActivityData(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function sameFoldedActivity(
+  left: readonly TranscriptItem[] | undefined,
+  right: readonly TranscriptItem[] | undefined,
+): boolean {
+  if (left === right) return true;
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every((item, index) => {
+    const counterpart = right[index];
+    return counterpart !== undefined && sameTranscriptItem(item, counterpart);
+  });
+}
+
 function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolean {
   if (left.id !== right.id || left.kind !== right.kind) return false;
   switch (left.kind) {
@@ -581,7 +593,8 @@ function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolea
       return (
         left.text === other.text &&
         left.reasoning === other.reasoning &&
-        left.streaming === other.streaming
+        left.streaming === other.streaming &&
+        sameFoldedActivity(left.foldedActivity, other.foldedActivity)
       );
     }
     case "tool": {

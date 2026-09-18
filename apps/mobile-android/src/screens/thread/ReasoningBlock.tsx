@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MarkdownMessage } from "../../components/MarkdownMessage";
 import type { TranscriptItem } from "../../state/mobileViewModels";
 import { useGraftPalette } from "../../theme/tokens";
 import { ToolRow } from "./ToolActivity";
@@ -71,11 +72,7 @@ function FoldedTurnWork({ item }: { readonly item: TranscriptItem }) {
   const palette = useGraftPalette();
   if (item.kind === "tool") return <ToolRow item={item} />;
   if (item.kind === "assistant" && item.text.trim()) {
-    return (
-      <Text selectable style={[styles.foldedCommentary, { color: palette.foregroundSubtle }]}>
-        {item.text}
-      </Text>
-    );
+    return <MarkdownMessage>{item.text}</MarkdownMessage>;
   }
   if (item.kind === "assistant" && item.reasoning.trim()) {
     return (

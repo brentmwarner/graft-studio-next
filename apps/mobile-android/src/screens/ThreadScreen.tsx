@@ -152,7 +152,7 @@ export function ThreadScreen({
   });
   const follow = useTranscriptFollow(
     thread.id,
-    model.items,
+    model.followItems,
     Boolean(model.activeRunId) &&
       connectionState === "connected" &&
       !model.approval &&

@@ -24,6 +24,7 @@ vi.mock("../../components/HelixG4Orb", () => ({
 }));
 vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => false }));
 vi.mock("../../components/ActivityCard", () => ({ ActivityCard: "ActivityCard" }));
+vi.mock("../../components/MarkdownMessage", () => ({ MarkdownMessage: "Markdown" }));
 
 let renderer: ReactTestRenderer;
 beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
@@ -73,4 +74,32 @@ it("updates a status phrase without remounting its G4 orb", async () => {
     renderer.update(createElement(LiveStatusLine, { phrase: "Waiting for you", animating: false })),
   );
   expect(renderer.root.findAll((node) => isType(node, "HelixG4Orb"))).toHaveLength(0);
+});
+
+it("renders folded assistant commentary as Markdown", async () => {
+  const item: TranscriptItem = {
+    id: "final",
+    kind: "assistant",
+    text: "Fixed.",
+    reasoning: "private thought",
+    streaming: false,
+    foldedActivity: [
+      {
+        id: "note",
+        kind: "assistant",
+        text: "See [docs](https://example.com).",
+        reasoning: "",
+        streaming: false,
+      },
+    ],
+  };
+  await act(() => {
+    renderer = create(createElement(TranscriptRow, { item }));
+  });
+  const toggle = renderer.root.find((node) => node.props.accessibilityRole === "button");
+  await act(() => toggle.props.onPress());
+  expect(
+    renderer.root.findAll((node) => node.type === "Markdown").map((node) => node.props.children),
+  ).toEqual(["See [docs](https://example.com).", "Fixed."]);
+  expect(JSON.stringify(renderer.toJSON())).toContain("private thought");
 });
