@@ -378,7 +378,9 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
   if (Option.isNone(detail)) {
     return yield* fail("not_found", "Thread not found.");
   }
-  const project = yield* query.getProjectShellById(detail.value.thread.projectId);
+  const project = yield* query
+    .getProjectShellById(detail.value.thread.projectId)
+    .pipe(Effect.catch(() => Effect.succeed(Option.none())));
   if (Option.isSome(project) && isStudioProjectKind(project.value)) {
     return yield* fail("not_found", "Thread not found.");
   }
