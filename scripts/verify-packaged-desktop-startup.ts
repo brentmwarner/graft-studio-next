@@ -231,6 +231,7 @@ export function resolveMacSmokeKeychainLockDirectory(userHome: string = homedir(
 export function readMacSmokeProcessIdentity(pid: number): string | null {
   const result = spawnSync("ps", ["-p", String(pid), "-o", "lstart=", "-o", "pgid="], {
     encoding: "utf8",
+    env: { ...process.env, LANG: "C", LC_ALL: "C", TZ: "UTC" },
     maxBuffer: 1024 * 1024,
     shell: false,
     timeout: MAC_KEYCHAIN_COMMAND_TIMEOUT_MS,
