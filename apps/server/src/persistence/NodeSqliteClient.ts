@@ -59,7 +59,12 @@ const NON_RESULT_ROW_KEYWORDS = new Set([
 ]);
 
 export function sqliteLeadingKeyword(sql: string): string {
-  return sql.replace(LEADING_SQL_NOISE, "").match(/^([A-Za-z]+)/u)?.[1]?.toLowerCase() ?? "";
+  return (
+    sql
+      .replace(LEADING_SQL_NOISE, "")
+      .match(/^([A-Za-z]+)/u)?.[1]
+      ?.toLowerCase() ?? ""
+  );
 }
 
 /**
@@ -221,11 +226,7 @@ const makeWithDatabase = (
       };
       tracePackagedStartup("node sqlite statement cache ready");
 
-      const runPreparedStatement = (
-        sql: string,
-        params: ReadonlyArray<unknown>,
-        raw: boolean,
-      ) =>
+      const runPreparedStatement = (sql: string, params: ReadonlyArray<unknown>, raw: boolean) =>
         Effect.withFiber<ReadonlyArray<any>, SqlError>((fiber) => {
           try {
             const statement = prepareStatement(sql);

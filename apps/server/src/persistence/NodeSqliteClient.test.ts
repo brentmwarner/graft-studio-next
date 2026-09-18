@@ -27,9 +27,9 @@ describe("sqlite statement classification", () => {
     expect(
       SqliteClient.sqliteStatementHasResultRows("INSERT INTO t(id) VALUES (1) RETURNING id"),
     ).toBe(true);
-    expect(SqliteClient.sqliteStatementHasResultRows("/* comment */ CREATE TABLE t(id INTEGER)")).toBe(
-      false,
-    );
+    expect(
+      SqliteClient.sqliteStatementHasResultRows("/* comment */ CREATE TABLE t(id INTEGER)"),
+    ).toBe(false);
   });
 });
 
