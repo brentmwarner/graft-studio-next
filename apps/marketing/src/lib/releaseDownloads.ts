@@ -70,12 +70,13 @@ async function readManifest(fetchRelease: ReleaseFetch, name: string): Promise<M
       !Array.isArray(value.files)
     )
       return null;
+    const version = value.version;
     const files = value.files.flatMap((file: unknown) => {
       if (!object(file) || typeof file.url !== "string") return [];
-      const url = downloadUrl(file.url, value.version);
+      const url = downloadUrl(file.url, version);
       return url ? [{ url }] : [];
     });
-    return files.length ? { version: value.version, files } : null;
+    return files.length ? { version, files } : null;
   } catch {
     return null;
   }
