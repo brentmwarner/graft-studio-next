@@ -102,15 +102,7 @@ describe("packaged desktop startup verification", () => {
         "21600",
         "/tmp/graft-smoke/graft-packaged-smoke.keychain-db",
       ],
-      [
-        "list-keychains",
-        "-d",
-        "user",
-        "-s",
-        "/tmp/graft-smoke/graft-packaged-smoke.keychain-db",
-        "/Users/runner/login.keychain-db",
-        "/Library/Keychains/System.keychain",
-      ],
+      ["list-keychains", "-d", "user", "-s", "/tmp/graft-smoke/graft-packaged-smoke.keychain-db"],
       ["default-keychain", "-d", "user", "-s", "/tmp/graft-smoke/graft-packaged-smoke.keychain-db"],
       ["default-keychain", "-d", "user", "-s", "/Users/runner/login.keychain-db"],
       [

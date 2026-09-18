@@ -281,6 +281,49 @@ function restoreMacSmokeKeychainRecovery(
   rmSync(dirname(recovery.keychainPath), { recursive: true, force: true });
 }
 
+function acquireMacSmokeKeychainGuard(
+  guardDirectory: string,
+  isProcessAlive: (pid: number) => boolean,
+): () => void {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidateDirectory = `${guardDirectory}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+    try {
+      mkdirSync(candidateDirectory, { mode: 0o700 });
+      writeFileSync(join(candidateDirectory, "owner"), `${process.pid}\n`, { mode: 0o600 });
+      renameSync(candidateDirectory, guardDirectory);
+      return () => {
+        try {
+          const owner = Number(readFileSync(join(guardDirectory, "owner"), "utf8").trim());
+          if (owner === process.pid) rmSync(guardDirectory, { recursive: true, force: true });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      };
+    } catch (error) {
+      rmSync(candidateDirectory, { recursive: true, force: true });
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST" && code !== "ENOTEMPTY") throw error;
+      let owner = Number.NaN;
+      try {
+        owner = Number(readFileSync(join(guardDirectory, "owner"), "utf8").trim());
+      } catch (readError) {
+        if ((readError as NodeJS.ErrnoException).code !== "ENOENT") throw readError;
+      }
+      if (Number.isSafeInteger(owner) && owner > 0 && isProcessAlive(owner)) {
+        throw new Error(`Another macOS smoke is changing the Keychain lock (pid=${owner}).`);
+      }
+      const staleDirectory = `${guardDirectory}.stale-${process.pid}-${randomBytes(6).toString("hex")}`;
+      try {
+        renameSync(guardDirectory, staleDirectory);
+        rmSync(staleDirectory, { recursive: true, force: true });
+      } catch (renameError) {
+        if ((renameError as NodeJS.ErrnoException).code !== "ENOENT") throw renameError;
+      }
+    }
+  }
+  throw new Error("Could not acquire the packaged macOS startup smoke recovery guard.");
+}
+
 export function acquireMacSmokeKeychainLock(
   commands: MacSmokeKeychainCommandRunner,
   options: AcquireMacSmokeKeychainLockOptions = {},
@@ -291,25 +334,10 @@ export function acquireMacSmokeKeychainLock(
   const isProcessAlive = options.isProcessAlive ?? isLiveProcess;
   const ownerPath = join(lockDirectory, "owner");
   const recoveryPath = join(lockDirectory, "recovery.json");
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const candidateDirectory = `${lockDirectory}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
-    try {
-      mkdirSync(candidateDirectory, { mode: 0o700 });
-      writeFileSync(join(candidateDirectory, "owner"), `${process.pid}\n`, { mode: 0o600 });
-      renameSync(candidateDirectory, lockDirectory);
-    } catch (error) {
-      rmSync(candidateDirectory, { recursive: true, force: true });
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "EEXIST" && code !== "ENOTEMPTY") throw error;
-      let owner: number;
-      try {
-        owner = Number(readFileSync(ownerPath, "utf8").trim());
-      } catch (readError) {
-        if ((readError as NodeJS.ErrnoException).code === "ENOENT") {
-          throw new Error("Another packaged macOS startup smoke owns an incomplete Keychain lock.");
-        }
-        throw readError;
-      }
+  const releaseGuard = acquireMacSmokeKeychainGuard(`${lockDirectory}.guard`, isProcessAlive);
+  try {
+    if (existsSync(lockDirectory)) {
+      const owner = Number(readFileSync(ownerPath, "utf8").trim());
       if (!Number.isSafeInteger(owner) || owner <= 0) {
         throw new Error("Another packaged macOS startup smoke owns an invalid Keychain lock.");
       }
@@ -329,7 +357,16 @@ export function acquireMacSmokeKeychainLock(
         restoreMacSmokeKeychainRecovery(commands, recovery);
       }
       rmSync(lockDirectory, { recursive: true, force: true });
-      continue;
+    }
+
+    const candidateDirectory = `${lockDirectory}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+    try {
+      mkdirSync(candidateDirectory, { mode: 0o700 });
+      writeFileSync(join(candidateDirectory, "owner"), `${process.pid}\n`, { mode: 0o600 });
+      renameSync(candidateDirectory, lockDirectory);
+    } catch (error) {
+      rmSync(candidateDirectory, { recursive: true, force: true });
+      throw error;
     }
     return {
       persistRecovery: (recovery) => {
@@ -346,8 +383,9 @@ export function acquireMacSmokeKeychainLock(
         }
       },
     };
+  } finally {
+    releaseGuard();
   }
-  throw new Error("Could not acquire the packaged macOS startup smoke Keychain lock.");
 }
 
 /**
@@ -450,14 +488,7 @@ export function createMacSmokeKeychainSession(
       created = true;
       commands.run(["unlock-keychain", "-p", password, keychainPath]);
       commands.run(["set-keychain-settings", "-lut", "21600", keychainPath]);
-      commands.run([
-        "list-keychains",
-        "-d",
-        "user",
-        "-s",
-        keychainPath,
-        ...previousSearchList.filter((path) => path !== keychainPath),
-      ]);
+      commands.run(["list-keychains", "-d", "user", "-s", keychainPath]);
       commands.run(["default-keychain", "-d", "user", "-s", keychainPath]);
     } catch (error) {
       try {
