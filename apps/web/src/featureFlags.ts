@@ -18,7 +18,8 @@ export type FeatureFlag =
 export type ToggleFeatureFlagId =
   | "persist-action-failed-debug-toasts"
   | "pin-git-progress-toast-preview"
-  | "show-debug-task-banner";
+  | "show-debug-task-banner"
+  | "studio-workspace";
 
 type FeatureFlagState = Record<ToggleFeatureFlagId, boolean>;
 
@@ -28,6 +29,7 @@ const DEFAULT_FEATURE_FLAG_STATE: FeatureFlagState = {
   "persist-action-failed-debug-toasts": false,
   "pin-git-progress-toast-preview": false,
   "show-debug-task-banner": false,
+  "studio-workspace": false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
@@ -57,6 +59,14 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
     label: "Show debug task banner",
     description: "Render a local sample active task banner for UI testing.",
     defaultEnabled: DEFAULT_FEATURE_FLAG_STATE["show-debug-task-banner"],
+  },
+  {
+    id: "studio-workspace",
+    kind: "toggle",
+    label: "Studio workspace",
+    description:
+      "Show the Graft/Studio switcher and create the Studio workspace tree. Off by default.",
+    defaultEnabled: DEFAULT_FEATURE_FLAG_STATE["studio-workspace"],
   },
 ];
 
@@ -88,6 +98,10 @@ function normalizeFeatureFlagState(value: unknown): FeatureFlagState {
       typeof record["show-debug-task-banner"] === "boolean"
         ? record["show-debug-task-banner"]
         : DEFAULT_FEATURE_FLAG_STATE["show-debug-task-banner"],
+    "studio-workspace":
+      typeof record["studio-workspace"] === "boolean"
+        ? record["studio-workspace"]
+        : DEFAULT_FEATURE_FLAG_STATE["studio-workspace"],
   };
 }
 

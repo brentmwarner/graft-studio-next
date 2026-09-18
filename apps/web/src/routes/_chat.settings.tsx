@@ -30,6 +30,7 @@ import {
   useAppSettings,
 } from "../appSettings";
 import { APP_VERSION } from "../branding";
+import { useFeatureFlags } from "../featureFlags";
 import { AdvancedSettingsPanel } from "~/components/settings/AdvancedSettingsPanel";
 import { AppIconPicker } from "~/components/settings/AppIconPicker";
 import {
@@ -217,6 +218,7 @@ function SettingsRouteView() {
   } = useTheme();
   const { settings, defaults, updateSettings, updateSettingsAndWait, resetSettings } =
     useAppSettings();
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
   const desktopTopBarTrafficLightGutterClassName = useDesktopTopBarTrafficLightGutterClassName();
   const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(false);
   const [resetEpoch, setResetEpoch] = useState(0);
@@ -321,7 +323,9 @@ function SettingsRouteView() {
       ? ["Thread sort order"]
       : []),
     ...(settings.showChatsSection !== defaults.showChatsSection ? ["Chats section"] : []),
-    ...(settings.showStudioSection !== defaults.showStudioSection ? ["Studio section"] : []),
+    ...(studioWorkspaceEnabled && settings.showStudioSection !== defaults.showStudioSection
+      ? ["Studio section"]
+      : []),
     ...(settings.showAutomationRunThreads !== defaults.showAutomationRunThreads
       ? ["Automation runs"]
       : []),
@@ -635,13 +639,15 @@ function SettingsRouteView() {
           ariaLabel: "Show the Chats section in the sidebar",
         })}
 
-        {renderBooleanSettingRow({
-          settingKey: "showStudioSection",
-          title: "Studio",
-          description: "Show the Studio tab in the sidebar switcher.",
-          resetLabel: "studio section",
-          ariaLabel: "Show the Studio section in the sidebar",
-        })}
+        {studioWorkspaceEnabled
+          ? renderBooleanSettingRow({
+              settingKey: "showStudioSection",
+              title: "Studio",
+              description: "Show the Studio tab in the sidebar switcher.",
+              resetLabel: "studio section",
+              ariaLabel: "Show the Studio section in the sidebar",
+            })
+          : null}
 
         {renderBooleanSettingRow({
           settingKey: "showAutomationRunThreads",

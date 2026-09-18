@@ -69,6 +69,29 @@ function timestamp(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function isStudioProjectKind(project: Pick<OrchestrationProjectShell, "kind">): boolean {
+  return project.kind === "studio";
+}
+
+export function withoutStudioProjects<T extends Pick<OrchestrationProjectShell, "kind">>(
+  projects: readonly T[],
+): T[] {
+  return projects.filter((project) => !isStudioProjectKind(project));
+}
+
+export function withoutStudioThreads<T extends { readonly projectId: string }>(
+  threads: readonly T[],
+  projects: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "kind">>,
+): T[] {
+  const studioProjectIds = new Set(
+    projects.filter(isStudioProjectKind).map((project) => project.id),
+  );
+  if (studioProjectIds.size === 0) {
+    return [...threads];
+  }
+  return threads.filter((thread) => !studioProjectIds.has(thread.projectId));
+}
+
 function objectValue(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -522,25 +545,30 @@ export function toMobileSnapshot(input: {
   readonly details: ReadonlyArray<OrchestrationThread>;
   readonly selectedThreadId?: string;
 }): GraftEnvironmentSnapshot {
-  const selected = input.selectedThreadId
-    ? input.details.find((thread) => thread.id === input.selectedThreadId)
-    : undefined;
+  const projects = withoutStudioProjects(input.projects);
+  const threads = withoutStudioThreads(input.threads, input.projects);
+  const details = withoutStudioThreads(input.details, input.projects);
+  const visibleThreadIds = new Set(threads.map((thread) => thread.id));
+  const selected =
+    input.selectedThreadId && visibleThreadIds.has(input.selectedThreadId)
+      ? details.find((thread) => thread.id === input.selectedThreadId)
+      : undefined;
   return {
     environment: toMobileEnvironmentSummary(input.descriptor, input.cursor, input.capabilities),
-    projects: input.projects.map(toMobileProject),
-    threads: input.threads.map((thread) => {
-      const detail = input.details.find((candidate) => candidate.id === thread.id);
+    projects: projects.map(toMobileProject),
+    threads: threads.map((thread) => {
+      const detail = details.find((candidate) => candidate.id === thread.id);
       const contextUsage = detail ? toMobileContextUsage(detail.activities) : undefined;
       return { ...toMobileThread(thread), ...(contextUsage ? { contextUsage } : {}) };
     }),
-    activeRuns: input.threads
+    activeRuns: threads
       .map(toMobileRun)
       .filter(
         (run): run is GraftRunSummary =>
           run !== null && ["queued", "running", "waiting"].includes(run.status),
       ),
-    pendingApprovals: input.details.flatMap(toMobilePendingApprovals),
-    pendingQuestions: input.details.flatMap(toMobilePendingQuestions),
+    pendingApprovals: details.flatMap(toMobilePendingApprovals),
+    pendingQuestions: details.flatMap(toMobilePendingQuestions),
     selectedTranscript: selected ? toMobileTranscript(selected, input.cursor) : null,
     cursor: input.cursor,
   };

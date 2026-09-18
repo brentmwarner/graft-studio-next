@@ -23,12 +23,14 @@ type StartFreshContainerChat = (options?: { fresh?: boolean }) => Promise<StartC
 export function startFreshChatForActiveSurface(input: {
   readonly activeProject: Pick<Project, "cwd" | "kind"> | null;
   readonly isStudioRoute: boolean;
+  readonly studioWorkspaceEnabled: boolean;
   readonly paths: ServerWorkspacePaths;
   readonly handleNewChat: StartFreshContainerChat;
   readonly handleNewStudioChat: StartFreshContainerChat;
 }): Promise<StartContainerChatResult> {
   const isStudio =
-    input.isStudioRoute || isStudioContainerProject(input.activeProject, input.paths);
+    input.studioWorkspaceEnabled &&
+    (input.isStudioRoute || isStudioContainerProject(input.activeProject, input.paths));
   const handler = isStudio ? input.handleNewStudioChat : input.handleNewChat;
   // Studio always mints a fresh draft; home chat reuses the stored draft thread
   // when one exists (so a draft typed in a new chat survives switching threads),

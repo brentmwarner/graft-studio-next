@@ -13,6 +13,7 @@ import { RecentViewSwitcher } from "../components/RecentViewSwitcher";
 import { shouldRenderTerminalWorkspace } from "../components/ChatView.logic";
 import ThreadSidebar from "../components/Sidebar";
 import { isElectron } from "../env";
+import { useFeatureFlags } from "../featureFlags";
 import { useHandleNewChat } from "../hooks/useHandleNewChat";
 import { useHandleNewStudioChat } from "../hooks/useHandleNewStudioChat";
 import { useTemporaryThreadLifecycle } from "../hooks/useTemporaryThreadLifecycle";
@@ -233,6 +234,7 @@ function ChatRouteGlobalShortcuts() {
   });
   const { handleNewChat } = useHandleNewChat();
   const { handleNewStudioChat } = useHandleNewStudioChat();
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
   const homeDir = useWorkspacePathsStore((state) => state.homeDir);
   const chatWorkspaceRoot = useWorkspacePathsStore((state) => state.chatWorkspaceRoot);
   const studioWorkspaceRoot = useWorkspacePathsStore((state) => state.studioWorkspaceRoot);
@@ -297,6 +299,7 @@ function ChatRouteGlobalShortcuts() {
       startFreshChatForActiveSurface({
         activeProject,
         isStudioRoute,
+        studioWorkspaceEnabled,
         paths: { homeDir, chatWorkspaceRoot, studioWorkspaceRoot },
         handleNewChat,
         handleNewStudioChat,
@@ -308,6 +311,7 @@ function ChatRouteGlobalShortcuts() {
       handleNewStudioChat,
       homeDir,
       isStudioRoute,
+      studioWorkspaceEnabled,
       studioWorkspaceRoot,
     ],
   );

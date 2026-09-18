@@ -27,6 +27,7 @@ import {
   toMobileSnapshot,
   toMobileThread,
   toMobileTranscript,
+  withoutStudioProjects,
   withMobileEffort,
   withMobileFastMode,
 } from "./protocolAdapter";
@@ -395,6 +396,41 @@ describe("Graft mobile protocol adapter", () => {
       }),
     );
     expect(toMobileTranscript(thread(), 12).events).toHaveLength(2);
+  });
+
+  it("omits studio-kind projects and their threads from mobile lists", () => {
+    const studio = {
+      ...project(),
+      id: ProjectId.makeUnsafe("studio-1"),
+      kind: "studio" as const,
+      title: "Studio",
+    };
+    const studioThread = {
+      ...threadShell(),
+      id: ThreadId.makeUnsafe("studio-thread"),
+      projectId: studio.id,
+    };
+    expect(withoutStudioProjects([project(), studio]).map((entry) => entry.id)).toEqual([
+      "project-1",
+    ]);
+    const snapshot = toMobileSnapshot({
+      descriptor: {
+        environmentId: EnvironmentId.makeUnsafe("environment-1"),
+        label: "Brent's Mac",
+        platform: { os: "darwin", arch: "arm64" },
+        serverVersion: "0.8.1",
+        capabilities: { repositoryIdentity: true },
+      },
+      capabilities: ["projects", "threads"],
+      cursor: 1,
+      projects: [project(), studio],
+      threads: [threadShell(), studioThread],
+      details: [],
+      selectedThreadId: "studio-thread",
+    });
+    expect(snapshot.projects.map((entry) => entry.id)).toEqual(["project-1"]);
+    expect(snapshot.threads.map((entry) => entry.id)).toEqual(["thread-1"]);
+    expect(snapshot.selectedTranscript).toBeNull();
   });
 
   it("carries the same completion time as desktop into transcript snapshots", () => {
