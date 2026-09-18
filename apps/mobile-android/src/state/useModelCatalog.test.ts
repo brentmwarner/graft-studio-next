@@ -1,4 +1,11 @@
-import { createElement, StrictMode, useEffect } from "react";
+import {
+  createElement,
+  startTransition,
+  StrictMode,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { GraftModelOption } from "@graft/mobile-contract";
@@ -82,6 +89,42 @@ it("does not let a previous host overwrite the current host catalog", async () =
   await act(async () => finish(models));
   expect(catalog.models[0]?.providerId).toBe("claudeAgent");
   expect(catalog.loading).toBe(false);
+});
+
+it("keeps the committed host usable when a new session render suspends", async () => {
+  request.mockResolvedValue(models);
+  let committedCatalog!: ReturnType<typeof useModelCatalog>;
+  const suspended = new Promise<void>(() => {});
+  let attemptedSession: string | undefined;
+  function SuspendedSession({ sessionId }: { sessionId: string }) {
+    const current = useModelCatalog(sessionId, request);
+    useLayoutEffect(() => {
+      committedCatalog = current;
+    });
+    attemptedSession = sessionId;
+    if (sessionId === "b") throw suspended;
+    return createElement("span", null, sessionId);
+  }
+  const view = (sessionId: string) =>
+    createElement(
+      Suspense,
+      { fallback: "Loading session" },
+      createElement(SuspendedSession, { sessionId }),
+    );
+  await act(() => {
+    renderer = create(view("a"));
+  });
+  const loadCommittedSession = committedCatalog.load;
+  await act(() => {
+    startTransition(() => renderer!.update(view("b")));
+  });
+  expect(attemptedSession).toBe("b");
+  expect(renderer!.toJSON()).toEqual({ type: "span", props: {}, children: ["a"] });
+
+  await act(() => loadCommittedSession());
+  expect(request).toHaveBeenCalledOnce();
+  expect(committedCatalog.models).toEqual(models);
+  expect(committedCatalog.loading).toBe(false);
 });
 
 it("reports an empty catalog and allows discovery again", async () => {

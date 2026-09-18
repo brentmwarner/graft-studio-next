@@ -1,5 +1,5 @@
 import type { GraftModelOption } from "@graft/mobile-contract";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 export interface ModelCatalogStatus {
   readonly loading: boolean;
@@ -20,28 +20,28 @@ export function useModelCatalog(
     error?: string;
   }>({ models: EMPTY_MODELS, loading: false });
   const generation = useRef(0);
-  const currentSession = useRef(sessionId);
+  const currentSession = useRef<string | undefined>(undefined);
   const loadedSession = useRef<string | undefined>(undefined);
   const inFlight = useRef<{ sessionId: string; promise: Promise<void> } | undefined>(undefined);
 
-  if (currentSession.current !== sessionId) {
+  // Commit before the composers' passive discovery effects. A speculative
+  // render for another session must not invalidate the currently mounted host.
+  useLayoutEffect(() => {
     currentSession.current = sessionId;
     generation.current += 1;
     loadedSession.current = undefined;
     inFlight.current = undefined;
-  }
-  useEffect(
-    () => () => {
+    return () => {
+      currentSession.current = undefined;
       generation.current += 1;
       inFlight.current = undefined;
       loadedSession.current = undefined;
-    },
-    [],
-  );
+    };
+  }, [sessionId]);
 
   const load = useCallback(
     (force = false): Promise<void> => {
-      if (!sessionId) return Promise.resolve();
+      if (!sessionId || currentSession.current !== sessionId) return Promise.resolve();
       if (inFlight.current?.sessionId === sessionId) return inFlight.current.promise;
       if (!force && loadedSession.current === sessionId) return Promise.resolve();
       const active = generation.current;
