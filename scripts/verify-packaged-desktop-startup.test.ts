@@ -11,6 +11,7 @@ import {
   parsePackagedDesktopStartupArgs,
   readLatestPackagedBackendPort,
   readPackagedStartupLogTails,
+  redactMacKeychainCommandArgs,
   retainMacBackendSampleCallGraph,
   resolvePackagedDependencySmokeLaunch,
   resolveNativePackagedDesktopPlatform,
@@ -37,8 +38,20 @@ describe("packaged desktop startup verification", () => {
     ]);
   });
 
+  it("redacts macOS keychain passwords from command diagnostics", () => {
+    expect(
+      redactMacKeychainCommandArgs([
+        "create-keychain",
+        "-p",
+        "super-secret",
+        "/tmp/graft-smoke.keychain-db",
+      ]),
+    ).toBe("create-keychain -p <redacted> /tmp/graft-smoke.keychain-db");
+  });
+
   it("restores an isolated macOS smoke keychain and releases its lock", () => {
     const commands: string[][] = [];
+    let persistedRecovery: unknown;
     let lockReleased = false;
     const session = createMacSmokeKeychainSession("/tmp/graft-smoke", {
       commands: {
@@ -49,14 +62,26 @@ describe("packaged desktop startup verification", () => {
         run: (args) => commands.push([...args]),
       },
       password: "test-password",
-      acquireLock: () => () => {
-        lockReleased = true;
-      },
+      acquireLock: () => ({
+        persistRecovery: (recovery) => {
+          persistedRecovery = recovery;
+        },
+        release: () => {
+          lockReleased = true;
+        },
+      }),
     });
 
     session.prepare();
     session.restore();
 
+    expect(persistedRecovery).toMatchObject({
+      schemaVersion: 1,
+      ownerPid: process.pid,
+      keychainPath: "/tmp/graft-smoke/graft-packaged-smoke.keychain-db",
+      previousDefault: "/Users/runner/login.keychain-db",
+      previousSearchList: ["/Users/runner/login.keychain-db", "/Library/Keychains/System.keychain"],
+    });
     expect(commands).toEqual([
       [
         "create-keychain",
@@ -112,7 +137,7 @@ describe("packaged desktop startup verification", () => {
         },
       },
       password: "test-password",
-      acquireLock: () => () => undefined,
+      acquireLock: () => ({ persistRecovery: () => undefined, release: () => undefined }),
     });
 
     expect(() => session.prepare()).toThrow("unlock failed");
@@ -148,9 +173,12 @@ describe("packaged desktop startup verification", () => {
         },
       },
       password: "test-password",
-      acquireLock: () => () => {
-        lockReleased = true;
-      },
+      acquireLock: () => ({
+        persistRecovery: () => undefined,
+        release: () => {
+          lockReleased = true;
+        },
+      }),
     });
 
     expect(() => session.prepare()).toThrow(
@@ -189,9 +217,12 @@ describe("packaged desktop startup verification", () => {
         },
       },
       password: "test-password",
-      acquireLock: () => () => {
-        lockReleased = true;
-      },
+      acquireLock: () => ({
+        persistRecovery: () => undefined,
+        release: () => {
+          lockReleased = true;
+        },
+      }),
     });
     session.prepare();
 
