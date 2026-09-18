@@ -227,11 +227,24 @@ describe("Graft production feed", () => {
     }
   });
 
-  it("rejects unsigned native artifacts even when upgrade evidence claims success", async () => {
+  it("accepts the explicit unsigned Windows release provenance", async () => {
     const { directory, evidence } = await fixture();
     const path = join(directory, "artifact-win-x64.provenance.json");
     const provenance = JSON.parse(await readFile(path, "utf8"));
     provenance.signing.status = "unsigned-explicit-release";
+    provenance.signing.scheme = "none";
+    provenance.signing.identity = null;
+    await writeFile(path, JSON.stringify(provenance));
+    await expect(prepareGraftRelease(directory, evidence)).resolves.toMatchObject({ version });
+  });
+
+  it("rejects an unsigned Windows build without the explicit release exception", async () => {
+    const { directory, evidence } = await fixture();
+    const path = join(directory, "artifact-win-x64.provenance.json");
+    const provenance = JSON.parse(await readFile(path, "utf8"));
+    provenance.signing.status = "unsigned-build-only";
+    provenance.signing.scheme = "none";
+    provenance.signing.identity = null;
     await writeFile(path, JSON.stringify(provenance));
     await expect(prepareGraftRelease(directory, evidence)).rejects.toThrow(
       "verified native signatures",

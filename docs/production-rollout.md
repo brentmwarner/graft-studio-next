@@ -54,6 +54,11 @@ cannot include later writes from an independently running legacy app.
 ## Release validation
 
 The native build matrix is macOS arm64, macOS x64, Windows x64, and Linux x64.
+macOS production artifacts remain signed and notarized. The initial Windows cutover
+uses the same unsigned distribution model as the live `0.1.143` installer and records
+an explicit version-scoped release exception in artifact provenance. Windows validates
+the updater manifest SHA-512 before installation but may show Unknown Publisher or
+SmartScreen warnings because the installer has no Authenticode identity.
 These targets need separate installation, keychain, sign-in, updater, migration,
 and recovery evidence. Windows/Linux ARM and mobile store releases are not
 implied by the desktop matrix. See [release.md](release.md) for packaging,
