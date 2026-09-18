@@ -21,8 +21,7 @@ const target = required("TARGET");
 if (process.env.SIGN_ARTIFACTS !== "true" && process.env.SIGN_ARTIFACTS !== "false")
   throw new Error("SIGN_ARTIFACTS must be true or false.");
 const signed = process.env.SIGN_ARTIFACTS === "true" && platform !== "linux";
-const allowUnsignedWindowsPublication =
-  process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION === "true";
+const allowUnsignedWindowsPublication = process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION === "true";
 if (
   process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION !== undefined &&
   process.env.ALLOW_UNSIGNED_WINDOWS_PUBLICATION !== "true" &&
