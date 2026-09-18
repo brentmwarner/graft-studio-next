@@ -100,9 +100,10 @@ const makeSetup = ({
       tracePackagedStartup("sqlite busy timeout configured");
       // synchronous = NORMAL is the runtime durability target once WAL is on.
       // Fresh packaged databases still use the default DELETE journal through
-      // the first-run migration storm: Effect's migrator applies every pending
-      // migration in one transaction, and exclusive WAL + mmap during that
-      // transaction is what stalled Intel macOS startup after migration 17.
+      // the first-run migration storm. Exclusive WAL + mmap during a long
+      // first-run schema upgrade is what stalled Intel macOS startup after
+      // migration 17 (#53). Migrations now commit one-at-a-time; WAL/mmap
+      // still wait until that upgrade finishes.
       yield* sql`PRAGMA synchronous = NORMAL;`;
       yield* sql`PRAGMA foreign_keys = ON;`;
       tracePackagedStartup("sqlite durability and foreign-key pragmas configured");

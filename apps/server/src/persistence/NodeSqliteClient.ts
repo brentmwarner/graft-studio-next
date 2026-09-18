@@ -327,18 +327,30 @@ const makeWithDatabase = (
     const connection = yield* makeConnection;
     tracePackagedStartup("node sqlite connection ready");
 
-    const acquirer = semaphore.withPermits(1)(Effect.succeed(connection));
+    // `transactionAcquirer` holds the permit for the whole `withTransaction`
+    // scope. Effect's `SqlClient.make` reuses `TransactionConnection` for
+    // inner SQL — but `withSpan` / `provideServices` can drop that service.
+    // When that happens, `getConnection` falls back to `acquirer`, which
+    // would wait forever on the same semaphore (idle `uv_run`/`kevent`,
+    // packaged startup after `33_ProjectionThreadsSidechatSource started`).
+    let transactionHeld = false;
+    const reservedTransactionConnection = Effect.map(
+      Effect.serviceOption(Client.TransactionConnection),
+      (reserved) => (reserved._tag === "Some" ? reserved.value[0] : undefined),
+    );
+    const acquirer = reservedTransactionConnection.pipe(
+      Effect.flatMap((reserved) =>
+        reserved !== undefined || transactionHeld
+          ? Effect.succeed(reserved ?? connection)
+          : semaphore.withPermits(1)(Effect.succeed(connection)),
+      ),
+    );
+    const releaseTransactionPermit = Effect.sync(() => {
+      transactionHeld = false;
+    }).pipe(Effect.andThen(semaphore.release(1)));
     const transactionAcquirer = Effect.uninterruptibleMask((restore) => {
       const fiber = Fiber.getCurrent()!;
       const scope = ServiceMap.getUnsafe(fiber.services, Scope.Scope);
-      if (!traceSqliteStatements) {
-        return Effect.as(
-          Effect.tap(restore(semaphore.take(1)), () =>
-            Scope.addFinalizer(scope, semaphore.release(1)),
-          ),
-          connection,
-        );
-      }
       return Effect.as(
         Effect.sync(() => {
           if (traceSqliteStatements) {
@@ -348,10 +360,11 @@ const makeWithDatabase = (
           Effect.andThen(restore(semaphore.take(1))),
           Effect.tap(() =>
             Effect.sync(() => {
+              transactionHeld = true;
               if (traceSqliteStatements) {
                 tracePackagedStartup("node sqlite transaction permit acquired");
               }
-            }).pipe(Effect.andThen(Scope.addFinalizer(scope, semaphore.release(1)))),
+            }).pipe(Effect.andThen(Scope.addFinalizer(scope, releaseTransactionPermit))),
           ),
         ),
         connection,

@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 
 import { assert, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Duration, Effect, ServiceMap } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import { describe, expect, it as test, vi } from "vitest";
 
@@ -53,6 +53,67 @@ layer("NodeSqliteClient", (it) => {
       assert.equal(values[0]?.[1], "alpha");
       assert.equal(values[1]?.[1], "beta");
     }),
+  );
+
+  it.effect("runs pragma inspection and ALTER inside one write transaction", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`CREATE TABLE projection_probe(id INTEGER PRIMARY KEY, name TEXT NOT NULL)`;
+
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const columns = yield* sql<{ readonly name: string }>`
+            SELECT name
+            FROM pragma_table_info('projection_probe')
+            WHERE name = 'sidechat_source_thread_id'
+          `;
+          assert.equal(columns.length, 0);
+          yield* sql`
+            ALTER TABLE projection_probe
+            ADD COLUMN sidechat_source_thread_id TEXT
+          `;
+        }),
+      );
+
+      const added = yield* sql<{ readonly name: string }>`
+        SELECT name
+        FROM pragma_table_info('projection_probe')
+        WHERE name = 'sidechat_source_thread_id'
+      `;
+      assert.equal(added.length, 1);
+    }),
+  );
+
+  it.effect("does not park on the connection semaphore when TransactionConnection is dropped", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`CREATE TABLE txn_probe(id INTEGER PRIMARY KEY, name TEXT NOT NULL)`;
+
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const withoutReservedConnection = <A, E, R>(
+            effect: Effect.Effect<A, E, R>,
+          ): Effect.Effect<A, E, R> =>
+            effect.pipe(
+              Effect.updateServices((services) =>
+                ServiceMap.omit(SqlClient.TransactionConnection)(services),
+              ),
+            );
+
+          yield* withoutReservedConnection(sql`INSERT INTO txn_probe(name) VALUES (${"held"})`);
+          const columns = yield* withoutReservedConnection(
+            sql<{ readonly name: string }>`
+              SELECT name FROM pragma_table_info('txn_probe') WHERE name = 'id'
+            `,
+          );
+          assert.equal(columns.length, 1);
+          yield* withoutReservedConnection(sql`ALTER TABLE txn_probe ADD COLUMN extra TEXT`);
+        }),
+      );
+
+      const rows = yield* sql<{ readonly name: string }>`SELECT name FROM txn_probe`;
+      assert.deepStrictEqual(rows, [{ name: "held" }]);
+    }).pipe(Effect.timeout(Duration.seconds(2))),
   );
 });
 

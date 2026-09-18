@@ -1028,3 +1028,32 @@ divergedBeyondAliasLayer("tracker that diverges beyond a known alias", (it) => {
     }),
   );
 });
+
+const perMigrationCommitLayer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
+
+perMigrationCommitLayer("per-migration commits", (it) => {
+  it.effect("records 32 before applying 33 in a later startup", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      const through32 = yield* runMigrations({ toMigrationInclusive: 32 });
+      assert.strictEqual(through32.at(-1)?.[0], 32);
+      const recordedThrough32 = yield* trackerRows(sql);
+      assert.strictEqual(recordedThrough32.at(-1)?.migration_id, 32);
+
+      const only33 = yield* runMigrations({ toMigrationInclusive: 33 });
+      assert.deepStrictEqual(
+        only33.map(([id, name]) => [id, name]),
+        [[33, "ProjectionThreadsSidechatSource"]],
+      );
+      const recordedThrough33 = yield* trackerRows(sql);
+      assert.strictEqual(recordedThrough33.at(-1)?.migration_id, 33);
+      assert.strictEqual(
+        recordedThrough33.find((row) => row.migration_id === 32)?.name,
+        "ReconcileImportedSchemaLineage",
+      );
+      const columns = yield* projectionThreadsColumnNames(sql);
+      assert.include(columns, "sidechat_source_thread_id");
+    }),
+  );
+});
