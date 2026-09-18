@@ -95,8 +95,9 @@ layer("NodeSqliteClient", (it) => {
             effect: Effect.Effect<A, E, R>,
           ): Effect.Effect<A, E, R> =>
             effect.pipe(
-              Effect.updateServices((services) =>
-                ServiceMap.omit(SqlClient.TransactionConnection)(services),
+              Effect.updateServices(
+                (services) =>
+                  ServiceMap.omit(SqlClient.TransactionConnection)(services) as typeof services,
               ),
             );
 

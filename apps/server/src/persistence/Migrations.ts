@@ -589,7 +589,17 @@ const runPendingMigrations = ({ toMigrationInclusive }: RunMigrationsOptions) =>
     for (const [id, name, migration] of pending) {
       yield* sql.withTransaction(
         Effect.gen(function* () {
-          yield* traceMigrationBoundary(id, name, migration);
+          yield* traceMigrationBoundary(id, name, migration).pipe(
+            Effect.catch((error) =>
+              Effect.die(
+                new Migrator.MigrationError({
+                  cause: error,
+                  kind: "Failed",
+                  message: `Migration "${id}_${name}" failed`,
+                }),
+              ),
+            ),
+          );
           yield* sql`
             INSERT INTO effect_sql_migrations (migration_id, name)
             VALUES (${id}, ${name})
