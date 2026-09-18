@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StreamingMarkdownMessage } from "./StreamingMarkdownMessage";
+import { readableMarkdownTail } from "./streamingReveal";
 
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => motion.reduced }));
@@ -100,6 +101,15 @@ describe("streaming text delivery", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("hides a partial link destination until the URL closes", async () => {
+    await act(() => {
+      renderer = create(frame("Read [the guide](https://example.com/pa"));
+    });
+    expect(visible()).toBe("Read the guide");
+    await act(() => renderer!.update(frame("Read [the guide](https://example.com)", false)));
+    expect(visible()).toBe("Read [the guide](https://example.com)");
+  });
+
   it("cancels the pending commit when the row unmounts", async () => {
     await act(() => {
       renderer = create(frame("A"));
@@ -108,5 +118,27 @@ describe("streaming text delivery", () => {
     await act(() => renderer!.unmount());
     renderer = undefined;
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("readableMarkdownTail", () => {
+  it("does not flash a partial link destination into prose", () => {
+    expect(readableMarkdownTail("Read [the guide](https://example.com/pa")).toBe("Read the guide");
+    expect(readableMarkdownTail("Read [the guide](https://example.com)")).toBe(
+      "Read [the guide](https://example.com)",
+    );
+  });
+
+  it("leaves partial links inside code or escaped labels literal", () => {
+    for (const source of [
+      "`[label](https://example.com",
+      "``[label](https://example.com",
+      "\\[label](https://example.com",
+    ]) {
+      expect(readableMarkdownTail(source)).toBe(source);
+    }
+    expect(readableMarkdownTail("`code` then [guide](https://example.com")).toBe(
+      "`code` then guide",
+    );
   });
 });

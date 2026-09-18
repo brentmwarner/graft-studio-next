@@ -9,7 +9,7 @@ import type {
 } from "@graft/mobile-contract";
 import { useMemo, useState } from "react";
 
-import type { TranscriptItem } from "../../state/mobileViewModels";
+import { presentTranscriptRows, type TranscriptItem } from "../../state/mobileViewModels";
 import { deriveTaskProgress, type TaskProgress } from "../../state/taskProgress";
 import { useReconciledTranscript } from "./TranscriptRow";
 import { modelSelectionId, resolveModelEffort, threadModelChoices } from "./threadModels";
@@ -89,15 +89,6 @@ export function useThreadModel({
     [threadLiveEvents],
   );
   const transcriptItems = useReconciledTranscript(transcript, threadLiveEvents, transcriptCursor);
-  const items = useMemo(
-    () =>
-      transcriptItems.filter(
-        (item) =>
-          item.kind !== "activity" ||
-          (item.data?.type !== "plan" && item.data?.type !== "todo_update"),
-      ),
-    [transcriptItems],
-  );
   const taskProgress = useMemo(
     () =>
       deriveTaskProgress([
@@ -120,6 +111,18 @@ export function useThreadModel({
   );
   const activeRunId =
     activeRun && (!latestRunStatus || RUN_IS_ACTIVE[latestRunStatus]) ? activeRun.id : undefined;
+  const items = useMemo(
+    () =>
+      presentTranscriptRows(
+        transcriptItems.filter(
+          (item) =>
+            item.kind !== "activity" ||
+            (item.data?.type !== "plan" && item.data?.type !== "todo_update"),
+        ),
+        Boolean(activeRunId || hasPendingSend),
+      ),
+    [activeRunId, hasPendingSend, transcriptItems],
+  );
   const approval = snapshot?.pendingApprovals.find((item) => item.threadId === thread.id);
   const question = snapshot?.pendingQuestions.find((item) => item.threadId === thread.id);
   const { currentModel, lockedProviderId, selectableModels } = threadModelChoices(
