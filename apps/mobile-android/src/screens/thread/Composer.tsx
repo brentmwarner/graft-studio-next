@@ -16,7 +16,7 @@ import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
-import { ComposerSettings } from "./ComposerSettings";
+import { ComposerPermissions, ComposerSettings } from "./ComposerSettings";
 import { ComposerAttachments } from "./ComposerAttachments";
 import type { ComposerAttachment } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
@@ -58,7 +58,12 @@ function ComposerTrailingControls({
   if (mode === "idle") return microphone;
 
   const sendButton = (
-    <PressScale accessibilityLabel="Send message" disabled={!canSend} onPress={onSend}>
+    <PressScale
+      accessibilityLabel="Send message"
+      disabled={!canSend}
+      onPress={onSend}
+      style={styles.iconButton}
+    >
       <View
         style={[
           styles.sendButton,
@@ -87,7 +92,7 @@ function ComposerTrailingControls({
   }
 
   const stopButton = (
-    <PressScale accessibilityLabel="Stop response" onPress={onCancel}>
+    <PressScale accessibilityLabel="Stop response" onPress={onCancel} style={styles.iconButton}>
       <View style={[styles.sendButton, { backgroundColor: palette.foreground }]}>
         <View style={[styles.stopGlyph, { backgroundColor: palette.background }]} />
       </View>
@@ -98,7 +103,7 @@ function ComposerTrailingControls({
 
   return (
     <View style={styles.trailingControls}>
-      <PressScale accessibilityLabel="Stop response" onPress={onCancel}>
+      <PressScale accessibilityLabel="Stop response" onPress={onCancel} style={styles.iconButton}>
         <View style={styles.secondaryStopButton}>
           <View style={[styles.stopGlyph, { backgroundColor: palette.foregroundMuted }]} />
         </View>
@@ -153,6 +158,7 @@ export function Composer({
   const inputRef = useRef<TextInput>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
+  const [toolbarHeight, setToolbarHeight] = useState(55);
   const heightTransition = useDisclosureHeightTransition();
   const { height: windowHeight, fontScale } = useWindowDimensions();
   const hasDraft = Boolean(draft.trim() || attachments.length);
@@ -162,8 +168,8 @@ export function Composer({
   const editorHeight = expanded
     ? Math.min(editorMaxHeight, Math.max(editorMinHeight, contentHeight))
     : Math.max(32, 20 * fontScale);
-  // Expanded: editor padding (13 + 6) plus toolbar (32 + 7). Idle: 7 on each edge.
-  const typingHeight = voice.isActive ? 0 : editorHeight + (expanded ? 58 : 14);
+  // Keep the toolbar mounted inside the surface across focus and draft changes.
+  const typingHeight = voice.isActive ? 0 : editorHeight + (expanded ? 19 : 14) + toolbarHeight;
   const extras = menuConfig.extras;
 
   useEffect(() => {
@@ -227,15 +233,6 @@ export function Composer({
         >
           {voice.error}
         </Text>
-      ) : null}
-      {!voice.isActive ? (
-        <ComposerSettings
-          config={menuConfig}
-          modelName={currentModelName}
-          modelMenuRequest={modelMenuRequest}
-          approvalLabel={currentApprovalLabel}
-          approvalIsElevated={approvalIsElevated}
-        />
       ) : null}
       <View style={styles.composerRow}>
         {voice.isActive ? (
@@ -311,7 +308,6 @@ export function Composer({
             ]}
           >
             <View style={[styles.typingRow, expanded ? styles.typingRowExpanded : null]}>
-              <View>{!expanded && !voice.isActive ? options : null}</View>
               {/* Keep the same editor mounted through focus and recording transitions. */}
               <TextInput
                 ref={inputRef}
@@ -339,15 +335,24 @@ export function Composer({
                 ]}
                 value={draft}
               />
-              <View>{!expanded && !voice.isActive ? trailing : null}</View>
             </View>
-            {expanded ? (
-              <View style={styles.toolbar}>
-                {options}
-                <View style={styles.toolbarSpacer} />
-                {trailing}
-              </View>
-            ) : null}
+            <View
+              style={styles.toolbar}
+              onLayout={({ nativeEvent }) => setToolbarHeight(Math.ceil(nativeEvent.layout.height))}
+            >
+              {options}
+              <ComposerPermissions
+                config={menuConfig}
+                label={currentApprovalLabel}
+                elevated={approvalIsElevated}
+              />
+              <ComposerSettings
+                config={menuConfig}
+                modelName={currentModelName}
+                modelMenuRequest={modelMenuRequest}
+              />
+              {trailing}
+            </View>
           </Animated.View>
           {voice.isActive ? (
             <View style={styles.recordingRow}>
@@ -376,7 +381,13 @@ const styles = StyleSheet.create({
   modeButton: { minHeight: 28, justifyContent: "center" },
   typingContent: { overflow: "hidden", borderRadius: 23 },
   typingContentHidden: { position: "absolute", width: "100%", opacity: 0 },
-  typingRow: { alignItems: "center", flexDirection: "row", gap: 5, padding: 7 },
+  typingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+  },
   typingRowExpanded: { gap: 0, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 6 },
   composerInput: {
     flex: 1,
@@ -388,8 +399,7 @@ const styles = StyleSheet.create({
   },
   toolbar: { alignItems: "center", flexDirection: "row", paddingHorizontal: 7, paddingBottom: 7 },
   toolbarText: { fontSize: 12, fontWeight: "500" },
-  toolbarSpacer: { flex: 1 },
-  iconButton: { alignItems: "center", height: 32, justifyContent: "center", width: 32 },
+  iconButton: { alignItems: "center", height: 48, justifyContent: "center", width: 48 },
   recordingRow: {
     flexDirection: "row",
     alignItems: "center",

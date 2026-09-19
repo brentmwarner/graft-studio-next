@@ -501,7 +501,7 @@ describe("live status phrases", () => {
     ).toBe("Thinking");
   });
 
-  it("shows one status only while working without visible reply text", () => {
+  it("keeps one status throughout a working turn, including after visible reply text", () => {
     const input = { items: [], isWorking: true, isConnected: true, needsInput: false };
     expect(transcriptLiveStatus(input)).toEqual({ phrase: "Thinking", animating: true });
     expect(transcriptLiveStatus({ ...input, isWorking: false })).toBeNull();
@@ -519,7 +519,7 @@ describe("live status phrases", () => {
           ...input,
           items: [{ id: "a", kind: "assistant", text: "Answer", reasoning: "", streaming }],
         }),
-      ).toBeNull();
+      ).toEqual({ phrase: "Thinking", animating: true });
     }
   });
 });

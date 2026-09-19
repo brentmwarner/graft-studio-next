@@ -36,9 +36,5 @@ export function transcriptLiveStatus({
   if (!isWorking) return null;
   if (!isConnected) return { phrase: "Reconnecting…", animating: false };
   if (needsInput) return { phrase: "Waiting for you", animating: false };
-  const tail = items.at(-1);
-  // The answer is its own progress indicator. Do not put "Thinking" below
-  // visible output, including the gap before a terminal snapshot arrives.
-  if (tail?.kind === "assistant" && tail.text.trim()) return null;
   return { phrase: livePhraseFromItems(items), animating: true };
 }

@@ -1,94 +1,93 @@
+import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
-import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
 
-/** The same controls remain reachable before typing, during a draft, and after /model. */
+/** One compact model/effort control inside the composer, including before catalog loading. */
 export function ComposerSettings({
   config,
   modelName,
   modelMenuRequest,
-  approvalLabel,
-  approvalIsElevated,
 }: {
   readonly config: ComposerMenuConfig;
   readonly modelName?: string;
   readonly modelMenuRequest?: number;
-  readonly approvalLabel: string;
-  readonly approvalIsElevated: boolean;
 }) {
   const palette = useGraftPalette();
-  const effort = config.resolvedEffort;
+  const label = config.currentModel?.label ?? modelName?.replace("[1m]", "") ?? "Choose model";
+  const effort = config.resolvedEffort ? displayName(config.resolvedEffort) : undefined;
   return (
-    <View style={styles.row}>
-      <View style={styles.model}>
-        <ComposerConfigMenu
-          config={config}
-          initialPage="providers"
-          openRequest={modelMenuRequest}
-          trigger={(open) => (
-            <PressScale accessibilityLabel="Provider and model" onPress={open}>
-              <FloatingSurface style={styles.pill}>
-                <Text numberOfLines={1} style={[styles.label, { color: palette.foreground }]}>
-                  {config.currentModel?.label ?? modelName?.replace("[1m]", "") ?? "Choose model"}
-                </Text>
-              </FloatingSurface>
-            </PressScale>
-          )}
-        />
-      </View>
-      {effort ? (
-        <ComposerConfigMenu
-          config={config}
-          initialPage="intelligence"
-          trigger={(open) => (
-            <PressScale accessibilityLabel="Reasoning effort" onPress={open}>
-              <FloatingSurface style={styles.pill}>
-                <Text style={[styles.label, { color: palette.foregroundMuted }]}>
-                  {displayName(effort)}
-                </Text>
-              </FloatingSurface>
-            </PressScale>
-          )}
-        />
-      ) : null}
-      {config.approvalOptions.length ? (
-        <ComposerConfigMenu
-          config={config}
-          initialPage="permissions"
-          trigger={(open) => (
-            <PressScale
-              accessibilityLabel="Permissions"
-              disabled={config.approvalOptions.length < 2}
-              onPress={open}
-              style={styles.permissions}
+    <View style={styles.model}>
+      <ComposerConfigMenu
+        config={config}
+        initialPage="intelligence"
+        openRequest={modelMenuRequest}
+        trigger={(open) => (
+          <PressScale
+            accessibilityLabel={`Model and reasoning effort: ${[label, effort].filter(Boolean).join(", ")}`}
+            onPress={open}
+            style={styles.modelButton}
+          >
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="middle"
+              style={[styles.label, { color: palette.foreground }]}
             >
-              <FloatingSurface style={styles.pill}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.label,
-                    { color: approvalIsElevated ? palette.warning : palette.foregroundMuted },
-                  ]}
-                >
-                  {approvalLabel}
-                </Text>
-              </FloatingSurface>
-            </PressScale>
-          )}
-        />
-      ) : null}
+              {label}
+              {effort ? <Text style={{ color: palette.foregroundMuted }}> {effort}</Text> : null}
+            </Text>
+          </PressScale>
+        )}
+      />
     </View>
   );
 }
 
+export function ComposerPermissions({
+  config,
+  label,
+  elevated,
+}: {
+  readonly config: ComposerMenuConfig;
+  readonly label: string;
+  readonly elevated: boolean;
+}) {
+  const palette = useGraftPalette();
+  if (!config.approvalOptions.length) return null;
+  return (
+    <ComposerConfigMenu
+      config={config}
+      initialPage="permissions"
+      trigger={(open) => (
+        <PressScale
+          accessibilityLabel={`Permissions: ${label}`}
+          disabled={config.approvalOptions.length < 2}
+          onPress={open}
+          style={styles.permissions}
+        >
+          <Ionicons
+            color={elevated ? palette.warning : palette.foregroundMuted}
+            name="shield-checkmark-outline"
+            size={18}
+          />
+        </PressScale>
+      )}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 6 },
   model: { flex: 1, minWidth: 0 },
-  permissions: { maxWidth: 112 },
-  pill: { borderRadius: 22, minHeight: 44, justifyContent: "center", paddingHorizontal: 12 },
-  label: { fontSize: 12, fontWeight: "500" },
+  modelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minHeight: 48,
+    paddingHorizontal: 6,
+  },
+  permissions: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  label: { flexShrink: 1, minWidth: 0, fontSize: 13, fontWeight: "500" },
 });
