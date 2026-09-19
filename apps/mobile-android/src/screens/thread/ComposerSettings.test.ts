@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ComposerSettings } from "./ComposerSettings";
 import type { ComposerMenuConfig } from "./ComposerConfigMenu";
 
+vi.mock("@expo/vector-icons", () => ({ Ionicons: "Icon" }));
 vi.mock("react-native", () => ({
   StyleSheet: { create: (styles: unknown) => styles },
   Text: "Text",
@@ -50,29 +51,24 @@ it("keeps a model picker mounted without a draft or loaded catalog and receives 
       createElement(ComposerSettings, {
         config,
         modelMenuRequest: 2,
-        approvalLabel: "Permissions",
-        approvalIsElevated: false,
       }),
     );
   });
   const menu = renderer!.root.find(isMenu);
-  expect(menu.props.initialPage).toBe("providers");
+  expect(menu.props.initialPage).toBe("intelligence");
   expect(menu.props.openRequest).toBe(2);
   expect(JSON.stringify(renderer!.toJSON())).toContain("Choose model");
 });
 
-it("offers quick effort only for supported choices", async () => {
+it("combines the current model and effort in one compact control", async () => {
   await act(() => {
     renderer = create(
       createElement(ComposerSettings, {
         config: { ...config, efforts: ["low", "high"], resolvedEffort: "high" },
-        approvalLabel: "Permissions",
-        approvalIsElevated: false,
       }),
     );
   });
   expect(renderer!.root.findAll(isMenu).map((node) => node.props.initialPage)).toEqual([
-    "providers",
     "intelligence",
   ]);
 });

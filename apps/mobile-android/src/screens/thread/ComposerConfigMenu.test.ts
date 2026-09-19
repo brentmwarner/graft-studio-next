@@ -57,6 +57,19 @@ afterEach(async () => {
 });
 
 describe("composer quick menus", () => {
+  it("opens models directly for an existing chat and omits provider navigation", async () => {
+    config = { ...config, lockedProviderId: "codex" };
+    await mount("providers");
+    expect(items().map((node) => node.props.label)).toContain("Codex");
+    expect(items().map((node) => node.props.label)).not.toContain("‹ Providers");
+    expect(items().map((node) => node.props.label)).not.toContain("Other Codex");
+  });
+  it("goes straight from effort to models when the provider is locked", async () => {
+    config = { ...config, lockedProviderId: "codex" };
+    await mount("intelligence");
+    await act(() => item("Model").props.onPress());
+    expect(items().map((node) => node.props.label)).toEqual(["Codex"]);
+  });
   it("selects an effort and closes without opening a sheet", async () => {
     await mount("intelligence");
     expect(item("High").props.selected).toBe(true);

@@ -14,6 +14,7 @@ import * as Crypto from "expo-crypto";
 const COMMAND_TIMEOUT_MS = 20_000;
 const CONNECT_TIMEOUT_MS = 15_000;
 const PING_INTERVAL_MS = 25_000;
+const PONG_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_DELAY_MS = 15_000;
 
 export type GatewayConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -78,11 +79,16 @@ export class GatewaySocket {
   private socket: WebSocket | null = null;
   private session: GraftSessionCredential | null = null;
   private desired = false;
+  private networkAvailable = true;
   private state: GatewayConnectionState = "disconnected";
   private afterCursor: number | undefined;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private pingTimer: ReturnType<typeof setInterval> | undefined;
+  private handshakeTimer: ReturnType<typeof setTimeout> | undefined;
+  private pongTimer: ReturnType<typeof setTimeout> | undefined;
+  private pendingPing: number | undefined;
+  private lastPing = 0;
   private readonly pendingCommands = new Map<string, PendingCommand>();
   private readonly connectionWaiters = new Set<ConnectionWaiter>();
 
@@ -95,10 +101,25 @@ export class GatewaySocket {
     this.desired = true;
 
     if (!changedSession && (this.state === "connecting" || this.state === "connected")) {
+      if (this.state === "connected") this.ping();
       return;
     }
     if (changedSession) this.closeSocket();
     this.open(false);
+  }
+
+  /** A socket belongs to its old network route even if native still calls it OPEN. */
+  networkChanged(available: boolean): void {
+    this.networkAvailable = available;
+    if (!this.desired) return;
+    this.clearReconnectTimer();
+    this.closeSocket();
+    const error = new GatewaySocketError("The network changed. Reconnecting to Graft Studio.");
+    this.rejectPending(error);
+    this.rejectConnectionWaiters(error);
+    this.reconnectAttempt = 0;
+    this.setState("reconnecting");
+    if (available) this.open(true);
   }
 
   updateCursor(cursor: number): void {
@@ -177,25 +198,45 @@ export class GatewaySocket {
   private open(isReconnect: boolean): void {
     const session = this.session;
     if (!this.desired || !session || this.socket) return;
+    if (!this.networkAvailable) {
+      this.setState("reconnecting");
+      return;
+    }
 
     this.clearReconnectTimer();
     this.setState(isReconnect ? "reconnecting" : "connecting");
 
     const WebSocketConstructor = WebSocket as unknown as ReactNativeWebSocketConstructor;
-    const socket = new WebSocketConstructor(buildWebSocketUrl(session), null, {
-      headers: { Authorization: `Bearer ${session.bearerToken}` },
-    });
+    let socket: WebSocket;
+    try {
+      socket = new WebSocketConstructor(buildWebSocketUrl(session), null, {
+        headers: { Authorization: `Bearer ${session.bearerToken}` },
+      });
+    } catch {
+      this.scheduleReconnect();
+      return;
+    }
     this.socket = socket;
+    this.handshakeTimer = setTimeout(() => {
+      this.drop(
+        socket,
+        new GatewaySocketError("Graft Studio did not complete the handshake.", "timeout"),
+      );
+    }, CONNECT_TIMEOUT_MS);
 
     socket.onopen = () => {
       if (this.socket !== socket) return;
-      this.send({
-        envelope: "hello",
-        protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
-        sessionId: session.sessionId,
-        afterCursor: this.afterCursor,
-        capabilities: [...DEFAULT_MOBILE_CAPABILITIES],
-      });
+      try {
+        this.send({
+          envelope: "hello",
+          protocolVersion: GRAFT_MOBILE_PROTOCOL_VERSION,
+          sessionId: session.sessionId,
+          afterCursor: this.afterCursor,
+          capabilities: [...DEFAULT_MOBILE_CAPABILITIES],
+        });
+      } catch {
+        this.drop(socket, new GatewaySocketError("Could not connect to Graft Studio."));
+      }
     };
 
     socket.onmessage = (event) => {
@@ -203,22 +244,23 @@ export class GatewaySocket {
       this.receive(event.data);
     };
 
-    // RN often fires `onerror` then `onclose`. Let `onclose` own the state
-    // transition so we don't report `disconnected` while `this.state` is still
-    // `connecting` / `reconnecting` — that desync left `ensureConnected()`
-    // waiters hanging until the 15s timeout after unpair/background.
-    socket.onerror = () => {};
+    // Some network failures never deliver a close callback. Both callbacks
+    // use the same identity-guarded teardown, so a later close is harmless.
+    socket.onerror = () =>
+      this.drop(socket, new GatewaySocketError("The connection to Graft Studio failed."));
 
     socket.onclose = () => {
-      if (this.socket !== socket) return;
-      this.socket = null;
-      this.stopPing();
-      this.setState("disconnected");
-      const error = new GatewaySocketError("The connection to Graft Studio closed.");
-      this.rejectPending(error);
-      this.rejectConnectionWaiters(error);
-      if (this.desired) this.scheduleReconnect();
+      this.drop(socket, new GatewaySocketError("The connection to Graft Studio closed."));
     };
+  }
+
+  private drop(socket: WebSocket, error: GatewaySocketError): void {
+    if (this.socket !== socket) return;
+    this.closeSocket();
+    this.rejectPending(error);
+    this.rejectConnectionWaiters(error);
+    this.setState("disconnected");
+    this.scheduleReconnect();
   }
 
   private receive(raw: unknown): void {
@@ -235,8 +277,11 @@ export class GatewaySocket {
 
     switch (message.envelope) {
       case "welcome":
+        clearTimeout(this.handshakeTimer);
+        this.handshakeTimer = undefined;
         this.reconnectAttempt = 0;
-        this.afterCursor = Math.max(this.afterCursor ?? 0, message.cursor);
+        // Welcome advertises the host's latest cursor, not data we received.
+        // Only snapshots and actual events may advance the resume cursor.
         this.setState("connected");
         this.resolveConnectionWaiters();
         this.startPing();
@@ -274,6 +319,12 @@ export class GatewaySocket {
         }
         break;
       case "pong":
+        if (message.at === this.pendingPing) {
+          clearTimeout(this.pongTimer);
+          this.pongTimer = undefined;
+          this.pendingPing = undefined;
+        }
+        break;
       case "snapshot_required":
         break;
       default:
@@ -291,7 +342,7 @@ export class GatewaySocket {
   }
 
   private scheduleReconnect(): void {
-    if (!this.desired || this.reconnectTimer) return;
+    if (!this.desired || !this.networkAvailable || this.reconnectTimer) return;
     const baseDelay = Math.min(MAX_RECONNECT_DELAY_MS, 1_000 * 2 ** this.reconnectAttempt);
     const delay = Math.round(baseDelay * (0.75 + Math.random() * 0.5));
     this.reconnectAttempt += 1;
@@ -304,15 +355,34 @@ export class GatewaySocket {
 
   private startPing(): void {
     this.stopPing();
-    this.pingTimer = setInterval(() => {
-      if (this.socket?.readyState !== WebSocket.OPEN) return;
-      this.send({ envelope: "ping", at: Math.floor(Date.now() / 1_000) });
-    }, PING_INTERVAL_MS);
+    this.pingTimer = setInterval(() => this.ping(), PING_INTERVAL_MS);
+  }
+
+  private ping(): void {
+    const socket = this.socket;
+    if (!socket || this.state !== "connected" || this.pendingPing !== undefined) return;
+    const at = Math.max(Math.floor(Date.now() / 1_000), this.lastPing + 1);
+    this.lastPing = at;
+    this.pendingPing = at;
+    this.pongTimer = setTimeout(() => {
+      this.drop(
+        socket,
+        new GatewaySocketError("Graft Studio stopped responding. Reconnecting.", "timeout"),
+      );
+    }, PONG_TIMEOUT_MS);
+    try {
+      this.send({ envelope: "ping", at });
+    } catch {
+      this.drop(socket, new GatewaySocketError("Could not reach Graft Studio."));
+    }
   }
 
   private stopPing(): void {
     if (this.pingTimer) clearInterval(this.pingTimer);
+    clearTimeout(this.pongTimer);
     this.pingTimer = undefined;
+    this.pongTimer = undefined;
+    this.pendingPing = undefined;
   }
 
   private clearReconnectTimer(): void {
@@ -323,6 +393,8 @@ export class GatewaySocket {
   private closeSocket(): void {
     const socket = this.socket;
     this.socket = null;
+    clearTimeout(this.handshakeTimer);
+    this.handshakeTimer = undefined;
     this.stopPing();
     if (socket && socket.readyState < WebSocket.CLOSING) {
       socket.close(1000, "client_disconnect");
