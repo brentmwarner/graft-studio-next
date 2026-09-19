@@ -182,6 +182,7 @@ export function MenuCaption({ children }: { readonly children: string }) {
 }
 
 export function MenuItem({
+  leading,
   icon,
   label,
   detail,
@@ -190,6 +191,7 @@ export function MenuItem({
   enabled = true,
   onPress,
 }: {
+  readonly leading?: ReactNode;
   readonly icon?: ComponentProps<typeof Ionicons>["name"];
   readonly label: string;
   readonly detail?: string;
@@ -215,7 +217,8 @@ export function MenuItem({
         },
       ]}
     >
-      {icon ? <Ionicons color={palette.foregroundMuted} name={icon} size={20} /> : null}
+      {leading ??
+        (icon ? <Ionicons color={palette.foregroundMuted} name={icon} size={20} /> : null)}
       <View style={styles.copy}>
         <Text style={[styles.label, { color: palette.foreground }]}>{label}</Text>
         {detail ? (

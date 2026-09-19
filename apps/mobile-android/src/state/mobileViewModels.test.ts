@@ -4,11 +4,9 @@ import { describe, expect, it } from "vitest";
 import { livePhraseFromItems, transcriptLiveStatus } from "./liveStatus";
 import {
   buildTranscriptItems,
-  foldedActivityCounts,
   groupProjects,
   groupToolRuns,
   mergeTimelineEvents,
-  presentTranscriptRows,
   reconcileTranscriptItems,
   type TranscriptItem,
   type TranscriptToolItem,
@@ -212,125 +210,6 @@ describe("mobile view models", () => {
         (row) => row.kind,
       ),
     ).toEqual(["toolGroup", "assistant", "toolGroup"]);
-  });
-
-  it("folds settled-turn commentary and trailing tools above the final answer", () => {
-    const items: TranscriptItem[] = [
-      { id: "u", kind: "user", text: "Fix it" },
-      {
-        id: "a1",
-        kind: "assistant",
-        text: "Inspecting the code.",
-        reasoning: "",
-        streaming: false,
-      },
-      tool("read"),
-      {
-        id: "a2",
-        kind: "assistant",
-        text: "Applying the fix.",
-        reasoning: "",
-        streaming: false,
-      },
-      {
-        id: "a3",
-        kind: "assistant",
-        text: "Fixed and verified.",
-        reasoning: "",
-        streaming: false,
-      },
-      tool("late"),
-    ];
-
-    const settled = presentTranscriptRows(items, false);
-    expect(settled.map((row) => row.kind)).toEqual(["user", "assistant"]);
-    expect(foldedActivityCounts(settled)).toEqual([0, 4]);
-    expect(settled[1]).toMatchObject({ kind: "assistant", text: "Fixed and verified." });
-
-    const live = presentTranscriptRows(items, true);
-    expect(live).toHaveLength(6);
-    expect(foldedActivityCounts(live)).toEqual([0, 0, 0, 0, 0, 0]);
-  });
-
-  it("keeps prior-turn folds while a new turn streams", () => {
-    const items: TranscriptItem[] = [
-      { id: "u1", kind: "user", text: "First request" },
-      { id: "a1", kind: "assistant", text: "First answer", reasoning: "", streaming: false },
-      { id: "u2", kind: "user", text: "Follow-up" },
-      { id: "a2", kind: "assistant", text: "Checking that now.", reasoning: "", streaming: false },
-      { id: "a3", kind: "assistant", text: "New answer", reasoning: "", streaming: true },
-    ];
-
-    const live = presentTranscriptRows(items, true);
-    expect(live.map((row) => row.kind)).toEqual([
-      "user",
-      "assistant",
-      "user",
-      "assistant",
-      "assistant",
-    ]);
-    expect(live[1]).toMatchObject({ kind: "assistant", text: "First answer" });
-    expect(foldedActivityCounts(live)).toEqual([0, 0, 0, 0, 0]);
-
-    const settled = presentTranscriptRows(items, false);
-    expect(settled.map((row) => (row.kind === "assistant" ? row.text : row.kind))).toEqual([
-      "user",
-      "First answer",
-      "user",
-      "New answer",
-    ]);
-    expect(foldedActivityCounts(settled)).toEqual([0, 0, 0, 1]);
-  });
-
-  it("reuses prior folded answers while a later turn streams", () => {
-    const firstTurn: TranscriptItem[] = [
-      { id: "u1", kind: "user", text: "First request" },
-      { id: "c1", kind: "assistant", text: "Checking.", reasoning: "", streaming: false },
-      tool("read"),
-      { id: "a1", kind: "assistant", text: "First answer", reasoning: "", streaming: false },
-    ];
-    const prior = presentTranscriptRows(firstTurn, false);
-    const live: TranscriptItem[] = [
-      ...firstTurn,
-      { id: "u2", kind: "user", text: "Follow-up" },
-      { id: "a2", kind: "assistant", text: "New", reasoning: "", streaming: true },
-    ];
-    const presented = presentTranscriptRows(live, true);
-    const firstPass = reconcileTranscriptItems(prior, presented);
-    const secondPass = reconcileTranscriptItems(
-      firstPass,
-      presentTranscriptRows(
-        [
-          ...firstTurn,
-          { id: "u2", kind: "user", text: "Follow-up" },
-          { id: "a2", kind: "assistant", text: "New token", reasoning: "", streaming: true },
-        ],
-        true,
-      ),
-    );
-
-    expect(firstPass[1]).toBe(prior[1]);
-    expect(secondPass[1]).toBe(firstPass[1]);
-    expect(secondPass[1]).toMatchObject({ kind: "assistant", text: "First answer" });
-    expect(secondPass.at(-1)).toMatchObject({ text: "New token", streaming: true });
-  });
-
-  it("hides Hermes session notices from the transcript", () => {
-    const items: TranscriptItem[] = [
-      {
-        id: "notice",
-        kind: "assistant",
-        text: "◆ Model: gpt\n◆ Context: 128k",
-        reasoning: "",
-        streaming: false,
-      },
-      { id: "u", kind: "user", text: "Hello" },
-      { id: "a", kind: "assistant", text: "Hi", reasoning: "", streaming: false },
-    ];
-    expect(presentTranscriptRows(items, false).map((row) => row.kind)).toEqual([
-      "user",
-      "assistant",
-    ]);
   });
 
   it("keeps the folded group pointing at the live tool objects", () => {

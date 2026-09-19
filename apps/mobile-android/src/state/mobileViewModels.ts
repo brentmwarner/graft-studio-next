@@ -53,9 +53,6 @@ export type TranscriptItem =
       text: string;
       reasoning: string;
       streaming: boolean;
-      /// Settled-turn tools and commentary folded above the final answer.
-      /// Presentation-only — live turns keep those rows visible.
-      foldedActivity?: readonly TranscriptItem[];
     }
   | TranscriptToolItem
   | TranscriptActivityItem
@@ -104,74 +101,6 @@ export function groupToolRuns(items: readonly TranscriptItem[]): readonly Transc
   }
   flushRun();
   return grouped;
-}
-
-function isSessionNotice(item: TranscriptItem): boolean {
-  if (item.kind !== "assistant" || item.streaming) return false;
-  const trimmed = item.text.trim();
-  if (trimmed.includes("◆ Model:") && trimmed.includes("◆ Context:")) return true;
-  return trimmed.codePointAt(0) === 0x2139;
-}
-
-function isFoldableRow(item: TranscriptItem): boolean {
-  return item.kind === "assistant" || item.kind === "tool" || item.kind === "toolGroup";
-}
-
-function flattenedFoldedActivity(item: TranscriptItem): readonly TranscriptItem[] {
-  return item.kind === "toolGroup" ? item.tools : [item];
-}
-
-/// Port of iOS `TranscriptView.groupRows`. Live turns keep commentary and
-/// tools as their own rows; completed turns fold that work above the final
-/// answer. Prior turns stay folded while a new turn streams.
-export function presentTranscriptRows(
-  items: readonly TranscriptItem[],
-  isTurnActive: boolean,
-): readonly TranscriptItem[] {
-  const result: TranscriptItem[] = [];
-  let turnStart = 0;
-  let finalAssistantIndex: number | undefined;
-
-  function finishTurn(showActions: boolean): void {
-    if (finalAssistantIndex !== undefined && showActions) {
-      const foldIndices: number[] = [];
-      for (let index = turnStart; index < result.length; index += 1) {
-        const candidate = result[index];
-        if (index !== finalAssistantIndex && candidate && isFoldableRow(candidate)) {
-          foldIndices.push(index);
-        }
-      }
-      const assistant = result[finalAssistantIndex];
-      if (assistant?.kind === "assistant" && foldIndices.length > 0) {
-        result[finalAssistantIndex] = {
-          ...assistant,
-          foldedActivity: foldIndices.flatMap((index) => {
-            const item = result[index];
-            return item ? flattenedFoldedActivity(item) : [];
-          }),
-        };
-        for (const index of foldIndices.toReversed()) result.splice(index, 1);
-      }
-    }
-    finalAssistantIndex = undefined;
-    turnStart = result.length;
-  }
-
-  for (const item of items) {
-    if (isSessionNotice(item)) continue;
-    if (item.kind === "user") finishTurn(true);
-    result.push(item);
-    if (item.kind === "user") turnStart = result.length;
-    if (item.kind === "assistant" && item.text.trim()) {
-      finalAssistantIndex = result.length - 1;
-    }
-  }
-  finishTurn(!isTurnActive);
-  return result;
-}
-
-export function foldedActivityCounts(items: readonly TranscriptItem[]): readonly number[] {
-  return items.map((item) => (item.kind === "assistant" ? (item.foldedActivity?.length ?? 0) : 0));
 }
 
 function isQuietToolRunRow(item: TranscriptItem): boolean {
@@ -566,18 +495,6 @@ function sameActivityData(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function sameFoldedActivity(
-  left: readonly TranscriptItem[] | undefined,
-  right: readonly TranscriptItem[] | undefined,
-): boolean {
-  if (left === right) return true;
-  if (!left || !right || left.length !== right.length) return false;
-  return left.every((item, index) => {
-    const counterpart = right[index];
-    return counterpart !== undefined && sameTranscriptItem(item, counterpart);
-  });
-}
-
 function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolean {
   if (left.id !== right.id || left.kind !== right.kind) return false;
   switch (left.kind) {
@@ -593,8 +510,7 @@ function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolea
       return (
         left.text === other.text &&
         left.reasoning === other.reasoning &&
-        left.streaming === other.streaming &&
-        sameFoldedActivity(left.foldedActivity, other.foldedActivity)
+        left.streaming === other.streaming
       );
     }
     case "tool": {

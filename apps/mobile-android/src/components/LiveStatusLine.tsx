@@ -3,10 +3,10 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { useGraftPalette } from "../theme/tokens";
-import { HelixG4Orb } from "./HelixG4Orb";
+import { RunStatusDotMatrix } from "./RunStatusDotMatrix";
 
 // Only the transcript footer owns live status. Phrase changes leave the
-// original G4 orb mounted and update a single native text element.
+// original dot animation mounted and update a single native text element.
 export const LiveStatusLine = memo(function LiveStatusLine({
   phrase,
   animating = true,
@@ -22,7 +22,7 @@ export const LiveStatusLine = memo(function LiveStatusLine({
       accessibilityLiveRegion="polite"
       style={styles.row}
     >
-      {animating ? <HelixG4Orb /> : null}
+      {animating ? <RunStatusDotMatrix /> : null}
       <Host ignoreSafeAreaKeyboardInsets matchContents={{ vertical: true }} style={styles.phrase}>
         <Text
           color={palette.foregroundSubtle}
@@ -38,6 +38,6 @@ export const LiveStatusLine = memo(function LiveStatusLine({
 });
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 26 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24 },
   phrase: { flex: 1, minWidth: 0 },
 });

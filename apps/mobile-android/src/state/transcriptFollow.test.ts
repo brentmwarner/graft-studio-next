@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { presentTranscriptRows, type TranscriptItem } from "./mobileViewModels";
 import {
   AWAY_FROM_BOTTOM_DISTANCE,
   NEAR_BOTTOM_DISTANCE,
   nextFollowLatch,
-  transcriptFollowContent,
 } from "./transcriptFollow";
 
 describe("nextFollowLatch", () => {
@@ -80,31 +78,5 @@ describe("nextFollowLatch", () => {
 
   it("keeps the disarm threshold below the arm threshold", () => {
     expect(NEAR_BOTTOM_DISTANCE).toBeLessThan(AWAY_FROM_BOTTOM_DISTANCE);
-  });
-});
-
-describe("transcriptFollowContent", () => {
-  it("keeps message identity stable when commentary folds out of the presented list", () => {
-    const unfurled: TranscriptItem[] = [
-      { id: "u", kind: "user", text: "Fix it" },
-      { id: "c", kind: "assistant", text: "Inspecting the code.", reasoning: "", streaming: false },
-      { id: "t", kind: "tool", toolId: "t", name: "Read", detail: "", running: false },
-      { id: "a", kind: "assistant", text: "Fixed.", reasoning: "", streaming: false },
-    ];
-    const folded = presentTranscriptRows(unfurled, false);
-
-    expect(transcriptFollowContent(unfurled)).toEqual({
-      messageCount: 3,
-      lastMessageId: "a",
-      lastMessageText: "Fixed.",
-      streaming: false,
-    });
-    expect(transcriptFollowContent(folded)).not.toEqual(transcriptFollowContent(unfurled));
-    expect(transcriptFollowContent(folded)).toEqual({
-      messageCount: 2,
-      lastMessageId: "a",
-      lastMessageText: "Fixed.",
-      streaming: false,
-    });
   });
 });
