@@ -173,4 +173,41 @@ describe("recent view MRU logic", () => {
       },
     });
   });
+
+  it("omits threads whose project is in the hidden set", () => {
+    const studioProjectId = projectId("studio-1");
+    const homeProjectId = projectId("home-1");
+    const studioThreadId = threadId("studio-thread");
+    const homeThreadId = threadId("home-thread");
+    const entries = buildRecentViewDisplayEntries({
+      recentViews: [
+        { kind: "thread", threadId: studioThreadId },
+        { kind: "thread", threadId: homeThreadId },
+        { kind: "settings" },
+      ],
+      currentView: null,
+      threadsById: {
+        [studioThreadId]: {
+          id: studioThreadId,
+          projectId: studioProjectId,
+          title: "Studio draft",
+          modelSelection: { provider: "codex", model: "gpt-5" },
+        } as SidebarThreadSummary,
+        [homeThreadId]: {
+          id: homeThreadId,
+          projectId: homeProjectId,
+          title: "Home chat",
+          modelSelection: { provider: "codex", model: "gpt-5" },
+        } as SidebarThreadSummary,
+      },
+      projects: [
+        { id: studioProjectId, name: "Studio" } as Project,
+        { id: homeProjectId, name: "Graft" } as Project,
+      ],
+      pinnedThreadIds: [],
+      hiddenProjectIds: new Set([studioProjectId]),
+    });
+
+    expect(entries.map((entry) => entry.title)).toEqual(["Home chat", "Settings"]);
+  });
 });

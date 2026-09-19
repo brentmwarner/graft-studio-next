@@ -13,6 +13,7 @@ import { RecentViewSwitcher } from "../components/RecentViewSwitcher";
 import { shouldRenderTerminalWorkspace } from "../components/ChatView.logic";
 import ThreadSidebar from "../components/Sidebar";
 import { isElectron } from "../env";
+import { useFeatureFlags } from "../featureFlags";
 import { useHandleNewChat } from "../hooks/useHandleNewChat";
 import { useHandleNewStudioChat } from "../hooks/useHandleNewStudioChat";
 import { useTemporaryThreadLifecycle } from "../hooks/useTemporaryThreadLifecycle";
@@ -220,6 +221,21 @@ function ChatRouteGlobalShortcuts() {
     handleNewThread,
     projects,
   } = useHandleNewThread();
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
+  const hiddenStudioProjectIds = useMemo(
+    () =>
+      studioWorkspaceEnabled
+        ? undefined
+        : new Set(
+            projects.filter((project) => project.kind === "studio").map((project) => project.id),
+          ),
+    [projects, studioWorkspaceEnabled],
+  );
+  const switcherProjects = useMemo(
+    () =>
+      studioWorkspaceEnabled ? projects : projects.filter((project) => project.kind !== "studio"),
+    [projects, studioWorkspaceEnabled],
+  );
   const {
     recentSwitcherState,
     recentViewEntries,
@@ -229,7 +245,8 @@ function ChatRouteGlobalShortcuts() {
   } = useRecentViewSwitcher({
     activeContextThreadId,
     activeDraftThread,
-    projects,
+    projects: switcherProjects,
+    ...(hiddenStudioProjectIds ? { hiddenProjectIds: hiddenStudioProjectIds } : {}),
   });
   const { handleNewChat } = useHandleNewChat();
   const { handleNewStudioChat } = useHandleNewStudioChat();
@@ -297,6 +314,7 @@ function ChatRouteGlobalShortcuts() {
       startFreshChatForActiveSurface({
         activeProject,
         isStudioRoute,
+        studioWorkspaceEnabled,
         paths: { homeDir, chatWorkspaceRoot, studioWorkspaceRoot },
         handleNewChat,
         handleNewStudioChat,
@@ -308,6 +326,7 @@ function ChatRouteGlobalShortcuts() {
       handleNewStudioChat,
       homeDir,
       isStudioRoute,
+      studioWorkspaceEnabled,
       studioWorkspaceRoot,
     ],
   );

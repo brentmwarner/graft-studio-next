@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { ThreadId, type OrchestrationEvent } from "@graft/contracts";
 import {
   DEFAULT_MOBILE_CAPABILITIES,
   GRAFT_MOBILE_PROTOCOL_VERSION,
@@ -46,6 +47,12 @@ import {
 } from "./gateway";
 import { makeMobileCommandDispatcher } from "./commandDispatch";
 import { getMobileLanGatewayPort, mobileLanGatewayAdvertisesIpv6 } from "./lanGateway";
+import {
+  isHiddenStudioMobileEvent,
+  isStudioProjectKind,
+  rememberHiddenStudioFromEvent,
+  rememberHiddenStudioFromShell,
+} from "./protocolAdapter";
 import {
   makeGraftMobileLiveEventState,
   seedGraftMobileLiveEventState,
@@ -495,6 +502,10 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
         const outboundLock = yield* Semaphore.make(1);
         const liveState = makeGraftMobileLiveEventState();
         const dispatchCommand = makeMobileCommandDispatcher();
+        const hiddenStudio = {
+          studioProjectIds: new Set<string>(),
+          studioThreadIds: new Set<string>(),
+        };
         let welcomed = false;
 
         const send = (message: GraftMobileHostMessage) =>
@@ -502,11 +513,54 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
 
         yield* Stream.fromQueue(outbound).pipe(Stream.runForEach(writer), Effect.forkScoped);
 
+        const refreshHiddenStudio = Effect.gen(function* () {
+          const shell = yield* query
+            .getShellSnapshot()
+            .pipe(Effect.catch(() => Effect.succeed(null)));
+          if (!shell) return;
+          rememberHiddenStudioFromShell(shell.projects, shell.threads, hiddenStudio);
+        });
+        yield* refreshHiddenStudio;
+
+        const shouldHideStudioEvent = (event: OrchestrationEvent) =>
+          Effect.gen(function* () {
+            rememberHiddenStudioFromEvent(event, hiddenStudio);
+            if (isHiddenStudioMobileEvent(event, hiddenStudio)) {
+              return true;
+            }
+            if (event.aggregateKind !== "thread") {
+              return false;
+            }
+            const threadId = String(event.aggregateId);
+            const thread = yield* query
+              .getThreadShellById(ThreadId.makeUnsafe(threadId))
+              .pipe(Effect.catch(() => Effect.succeed(Option.none())));
+            if (Option.isNone(thread)) {
+              return false;
+            }
+            if (hiddenStudio.studioProjectIds.has(thread.value.projectId)) {
+              hiddenStudio.studioThreadIds.add(thread.value.id);
+              return true;
+            }
+            const project = yield* query
+              .getProjectShellById(thread.value.projectId)
+              .pipe(Effect.catch(() => Effect.succeed(Option.none())));
+            if (Option.isSome(project) && isStudioProjectKind(project.value)) {
+              hiddenStudio.studioProjectIds.add(project.value.id);
+              hiddenStudio.studioThreadIds.add(thread.value.id);
+              return true;
+            }
+            return false;
+          });
+
         const domainEvents = yield* engine.subscribeDomainEvents;
         yield* domainEvents.pipe(
           Stream.runForEach((event) =>
             Effect.gen(function* () {
               if (!welcomed) return;
+              if (yield* shouldHideStudioEvent(event)) {
+                return;
+              }
               if (
                 event.type === "thread.message-sent" &&
                 event.payload.role === "assistant" &&
@@ -593,6 +647,7 @@ const graftMobileWebSocketRouteLayer = HttpRouter.add(
               }
               const descriptor = yield* environment.getDescriptor;
               const cursor = yield* engine.getEventHighWaterSequence;
+              yield* refreshHiddenStudio;
               welcomed = true;
               yield* send({
                 envelope: "welcome",

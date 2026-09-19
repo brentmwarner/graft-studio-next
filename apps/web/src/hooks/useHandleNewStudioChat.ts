@@ -3,6 +3,7 @@
 // Layer: Web hook
 // Exports: useHandleNewStudioChat
 
+import { useFeatureFlags } from "../featureFlags";
 import { ensureStudioProject } from "../lib/studioProjects";
 import { startContainerChat, type StartContainerChatResult } from "../lib/startContainerChat";
 import { useComposerDraftStore } from "../composerDraftStore";
@@ -10,6 +11,7 @@ import { useWorkspacePathsStore } from "../workspacePathsStore";
 import { useHandleNewThread } from "./useHandleNewThread";
 
 export function useHandleNewStudioChat() {
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
   const homeDir = useWorkspacePathsStore((state) => state.homeDir);
   const chatWorkspaceRoot = useWorkspacePathsStore((state) => state.chatWorkspaceRoot);
   const studioWorkspaceRoot = useWorkspacePathsStore((state) => state.studioWorkspaceRoot);
@@ -17,8 +19,11 @@ export function useHandleNewStudioChat() {
 
   const handleNewStudioChat = async (options?: {
     fresh?: boolean;
-  }): Promise<StartContainerChatResult> =>
-    startContainerChat({
+  }): Promise<StartContainerChatResult> => {
+    if (!studioWorkspaceEnabled) {
+      return { ok: false, error: "Studio workspace is turned off." };
+    }
+    return startContainerChat({
       ensureProjectId: () =>
         ensureStudioProject({ homeDir, chatWorkspaceRoot, studioWorkspaceRoot }),
       handleNewThread: (projectId, threadOptions) => {
@@ -41,6 +46,7 @@ export function useHandleNewStudioChat() {
       forceLocalWorkspace: true,
       errorLabel: "Unable to prepare a new Studio chat.",
     });
+  };
 
   return { handleNewStudioChat };
 }

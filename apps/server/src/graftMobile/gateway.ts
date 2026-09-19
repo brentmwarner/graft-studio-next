@@ -67,6 +67,9 @@ import {
   toMobileTranscript,
   withMobileEffort,
   withMobileFastMode,
+  isStudioProjectKind,
+  withoutStudioProjects,
+  withoutStudioThreads,
 } from "./protocolAdapter";
 import { mobilePatchFile } from "./diff";
 import { toMobileAllowance, toMobileContextUsage } from "./usage";
@@ -375,6 +378,12 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
   if (Option.isNone(detail)) {
     return yield* fail("not_found", "Thread not found.");
   }
+  const project = yield* query
+    .getProjectShellById(detail.value.thread.projectId)
+    .pipe(Effect.catch(() => Effect.succeed(Option.none())));
+  if (Option.isSome(project) && isStudioProjectKind(project.value)) {
+    return yield* fail("not_found", "Thread not found.");
+  }
   return detail.value;
 });
 
@@ -558,12 +567,15 @@ export const executeMobileCommand = Effect.fn(function* (
   switch (command.type) {
     case "project.list": {
       const shell = yield* query.getShellSnapshot();
-      return { type: "project.list.result", projects: shell.projects.map(toMobileProject) };
+      return {
+        type: "project.list.result",
+        projects: withoutStudioProjects(shell.projects).map(toMobileProject),
+      };
     }
     case "thread.list": {
       const shell = yield* query.getShellSnapshot();
       const normalizedQuery = command.query?.trim().toLowerCase();
-      const threads = shell.threads.filter(
+      const threads = withoutStudioThreads(shell.threads, shell.projects).filter(
         (thread) =>
           (!command.projectId || thread.projectId === command.projectId) &&
           (!normalizedQuery || thread.title.toLowerCase().includes(normalizedQuery)),

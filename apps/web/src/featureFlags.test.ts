@@ -39,4 +39,11 @@ describe("feature flag storage recovery", () => {
     expect(useFeatureFlags()["show-debug-task-banner"]).toBe(false);
     expect(useFeatureFlags()["show-debug-task-banner"]).toBe(false);
   });
+
+  it("defaults the Studio workspace flag off", () => {
+    const localStorage = createLocalStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    expect(useFeatureFlags()["studio-workspace"]).toBe(false);
+  });
 });

@@ -55,6 +55,7 @@ import { extractTrailingBrowserAnnotations } from "../lib/browserAnnotations";
 import { isMacNavigatorPlatform } from "../lib/utils";
 import { readNativeApi } from "../nativeApi";
 import { setThreadDetailResumeCursor } from "../threadDetailResumeCursors";
+import { setFeatureFlagEnabled } from "../featureFlags";
 import { resetHomeChatProjectPrewarmStateForTests } from "../lib/chatProjects";
 import { resetStudioProjectPrewarmStateForTests } from "../lib/studioProjects";
 import { hasReconciledServerProviderStatuses } from "../lib/serverReactQuery";
@@ -7022,6 +7023,7 @@ describe("ChatView transcript geometry (full app)", () => {
   });
 
   it("coalesces repeated Studio new-chat clicks and stays in Studio after navigation settles", async () => {
+    setFeatureFlagEnabled("studio-workspace", true);
     useComposerDraftStore.setState({
       draftThreadsByThreadId: {
         [STUDIO_DRAFT_THREAD_ID]: {
