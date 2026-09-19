@@ -15,6 +15,10 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Browse the same project and thread hierarchy as the iOS client
 - Create threads and send, stream, or cancel turns through the authenticated gateway socket
 - Render assistant Markdown, reasoning, tool activity, questions, and approval requests
+- Use the AICSS Helix G4 orb as the live-status thinking indicator
+- Fold settled-turn tools and commentary above the final answer, matching iOS
+- Hide unfinished Markdown link destinations while a reply is still streaming
+- Show the official Graft mark on splash and pairing, then Pair with Studio
 - Select the thread model, reasoning effort, and approval policy offered by the host
 - Keep established chats on their provider while allowing model changes
 - Dictate a message with native Android speech recognition, then review or send the transcript

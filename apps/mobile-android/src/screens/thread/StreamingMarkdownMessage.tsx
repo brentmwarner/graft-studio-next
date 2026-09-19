@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "react-native-reanimated";
 
 import { MarkdownMessage } from "../../components/MarkdownMessage";
-import { STREAM_REVEAL_COMMIT_MS } from "./streamingReveal";
+import { STREAM_REVEAL_COMMIT_MS, readableMarkdownTail } from "./streamingReveal";
 
 interface StreamingMarkdownMessageProps {
   readonly content: string;
@@ -48,5 +48,6 @@ export const StreamingMarkdownMessage = memo(function StreamingMarkdownMessage({
   );
 
   const visibleContent = showImmediately ? content : displayedContent;
-  return visibleContent ? <MarkdownMessage>{visibleContent}</MarkdownMessage> : null;
+  const source = streaming ? readableMarkdownTail(visibleContent) : visibleContent;
+  return source ? <MarkdownMessage>{source}</MarkdownMessage> : null;
 });

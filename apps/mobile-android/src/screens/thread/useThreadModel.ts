@@ -7,9 +7,13 @@ import type {
   GraftThreadSummary,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import type { TranscriptItem } from "../../state/mobileViewModels";
+import {
+  presentTranscriptRows,
+  reconcileTranscriptItems,
+  type TranscriptItem,
+} from "../../state/mobileViewModels";
 import { deriveTaskProgress, type TaskProgress } from "../../state/taskProgress";
 import { useReconciledTranscript } from "./TranscriptRow";
 import { modelSelectionId, resolveModelEffort, threadModelChoices } from "./threadModels";
@@ -42,6 +46,7 @@ export interface ThreadModel {
   readonly diffDeletions: number;
   readonly efforts: readonly string[];
   readonly hasDiffChip: boolean;
+  readonly followItems: readonly TranscriptItem[];
   readonly items: readonly TranscriptItem[];
   readonly taskProgress: TaskProgress | undefined;
   readonly latestDiffEvent: GraftTimelineEvent | undefined;
@@ -89,15 +94,6 @@ export function useThreadModel({
     [threadLiveEvents],
   );
   const transcriptItems = useReconciledTranscript(transcript, threadLiveEvents, transcriptCursor);
-  const items = useMemo(
-    () =>
-      transcriptItems.filter(
-        (item) =>
-          item.kind !== "activity" ||
-          (item.data?.type !== "plan" && item.data?.type !== "todo_update"),
-      ),
-    [transcriptItems],
-  );
   const taskProgress = useMemo(
     () =>
       deriveTaskProgress([
@@ -120,6 +116,22 @@ export function useThreadModel({
   );
   const activeRunId =
     activeRun && (!latestRunStatus || RUN_IS_ACTIVE[latestRunStatus]) ? activeRun.id : undefined;
+  const followItems = useMemo(
+    () =>
+      transcriptItems.filter(
+        (item) =>
+          item.kind !== "activity" ||
+          (item.data?.type !== "plan" && item.data?.type !== "todo_update"),
+      ),
+    [transcriptItems],
+  );
+  const previousPresentedRef = useRef<readonly TranscriptItem[]>([]);
+  const items = useMemo(() => {
+    const presented = presentTranscriptRows(followItems, Boolean(activeRunId || hasPendingSend));
+    const reconciled = reconcileTranscriptItems(previousPresentedRef.current, presented);
+    previousPresentedRef.current = reconciled;
+    return reconciled;
+  }, [activeRunId, followItems, hasPendingSend]);
   const approval = snapshot?.pendingApprovals.find((item) => item.threadId === thread.id);
   const question = snapshot?.pendingQuestions.find((item) => item.threadId === thread.id);
   const { currentModel, lockedProviderId, selectableModels } = threadModelChoices(
@@ -162,6 +174,7 @@ export function useThreadModel({
     diffDeletions,
     efforts,
     hasDiffChip,
+    followItems,
     items,
     taskProgress,
     latestDiffEvent,
