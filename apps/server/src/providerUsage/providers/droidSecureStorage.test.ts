@@ -110,6 +110,17 @@ describe("bounded Droid secure storage reads", () => {
     expect(args.slice(0, 4)).toEqual(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"]);
     expect(args[4]).toContain("Factory CLI/auth-encryption-key");
     expect(args[4]).toContain("finally { Free(pointer); }");
+    expect(fake.spy.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({
+        timeout: 30_000,
+        killSignal: "SIGKILL",
+        env: expect.objectContaining({
+          SystemRoot: "C:\\Windows",
+          WINDIR: "C:\\Windows",
+          PATH: "C:\\Windows\\System32;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319",
+        }),
+      }),
+    );
   });
 });
 
@@ -147,5 +158,5 @@ it.skipIf(process.platform !== "win32")(
     expect(compilationError).toBeNull();
     expect(result).toBe("compiled");
   },
-  15_000,
+  45_000,
 );

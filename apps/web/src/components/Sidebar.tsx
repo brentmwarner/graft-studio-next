@@ -5,7 +5,6 @@
 import {
   AddPlusIcon,
   ArchiveIcon,
-  BookIcon,
   ChatBubbleIcon,
   CircleQuestionIcon,
   ClockIcon,
@@ -172,6 +171,7 @@ import {
 } from "../nativeApi";
 import { isHomeChatContainerProject, prewarmHomeChatProject } from "../lib/chatProjects";
 import {
+  collectStudioKindProjectIds,
   collectStudioProjectIds,
   isStudioContainerProject,
   prewarmStudioProject,
@@ -233,13 +233,13 @@ import {
   type ImportProviderKind,
   type SidebarSearchPaletteMode,
 } from "./SidebarSearchPalette";
+import { useFeatureFlags } from "../featureFlags";
 import { useHandleNewChat } from "../hooks/useHandleNewChat";
 import { useHandleNewStudioChat } from "../hooks/useHandleNewStudioChat";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useProviderStatusesForLocalConfig } from "../hooks/useProviderStatusesForLocalConfig";
 import { useThreadHandoff } from "../hooks/useThreadHandoff";
 import { useFeedbackDialogStore } from "../feedbackDialogStore";
-import { openExternalLink } from "~/lib/linkChips";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import { toastManager } from "./ui/toast";
 import {
@@ -386,7 +386,10 @@ import {
   ComposerPickerMenuPopup,
   ComposerPickerMenuSubPopup,
 } from "./chat/ComposerPickerMenuPopup";
-import { ENVIRONMENT_PANEL_SURFACE_CLASS_NAME } from "./chat/composerPickerStyles";
+import {
+  COMPOSER_COMMAND_MENU_SURFACE_CLASS_NAME,
+  ENVIRONMENT_PANEL_SURFACE_CLASS_NAME,
+} from "./chat/composerPickerStyles";
 import { selectSplitView, useSplitViewStore } from "../splitViewStore";
 import { useRightDockStore } from "../rightDockStore";
 import { THREAD_DRAG_MIME } from "./chat-drop-overlay/ChatPaneDropOverlay";
@@ -803,8 +806,6 @@ function ProjectSortMenu({
   );
 }
 
-const GRAFT_DOCS_URL = "https://github.com/brentmwarner/graft-studio-next/tree/main/docs";
-
 // Latest curated releases surfaced directly in the help menu. Static data, so
 // computed once at module scope rather than per render.
 const HELP_MENU_RELEASE_ENTRIES = sortEntriesByVersionDesc(WHATS_NEW_ENTRIES).slice(0, 3);
@@ -886,13 +887,6 @@ function SidebarHelpMenu({
             <MenuItem className={SIDEBAR_CONTEXT_MENU_ITEM_CLASS_NAME} onClick={onOpenFeedback}>
               <SidebarContextMenuIcon icon={ChatBubbleIcon} />
               <span>Send feedback</span>
-            </MenuItem>
-            <MenuItem
-              className={SIDEBAR_CONTEXT_MENU_ITEM_CLASS_NAME}
-              onClick={() => openExternalLink(GRAFT_DOCS_URL)}
-            >
-              <SidebarContextMenuIcon icon={BookIcon} />
-              <span>Docs</span>
             </MenuItem>
           </MenuGroup>
         </ComposerPickerMenuPopup>
@@ -1318,7 +1312,11 @@ export function SidebarSurfacePicker({
       <ComposerPickerMenuPopup
         align="start"
         side="bottom"
-        className="sidebar-surface-picker-menu min-w-64"
+        className={cn(
+          "sidebar-surface-picker-menu min-w-64",
+          COMPOSER_COMMAND_MENU_SURFACE_CLASS_NAME,
+          "before:hidden",
+        )}
       >
         <MenuRadioGroup
           className="flex flex-col gap-0.5"
@@ -1460,10 +1458,12 @@ export default function Sidebar() {
     [automationListQuery.data],
   );
   const { settings: appSettings, serverSettings, updateSettings } = useAppSettings();
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
   // Projects is always available; Studio and the standalone Chats footer can be hidden
-  // independently from Settings.
+  // independently from Settings. The Studio workspace flag (default off) also has to
+  // be on — showStudioSection alone only hid the tab, not scaffolding.
   const chatsSectionVisible = appSettings.showChatsSection;
-  const studioSectionVisible = appSettings.showStudioSection;
+  const studioSectionVisible = studioWorkspaceEnabled && appSettings.showStudioSection;
   const { handleNewThread } = useHandleNewThread();
   const { handleNewChat } = useHandleNewChat();
   const { handleNewStudioChat } = useHandleNewStudioChat();
@@ -1697,9 +1697,20 @@ export default function Sidebar() {
   const sidebarTreeThreads = useStore(selectSidebarTreeThreads);
   const selectProjectLastActivityAt = useMemo(() => createProjectLastActivityAtSelector(), []);
   const projectLastActivityAt = useStore(selectProjectLastActivityAt);
+  const studioKindProjectIdSet = useMemo(() => collectStudioKindProjectIds(projects), [projects]);
   const studioProjectIdSet = useMemo(
-    () => collectStudioProjectIds(projects, { homeDir, chatWorkspaceRoot, studioWorkspaceRoot }),
-    [chatWorkspaceRoot, homeDir, projects, studioWorkspaceRoot],
+    () =>
+      studioWorkspaceEnabled
+        ? collectStudioProjectIds(projects, { homeDir, chatWorkspaceRoot, studioWorkspaceRoot })
+        : studioKindProjectIdSet,
+    [
+      chatWorkspaceRoot,
+      homeDir,
+      projects,
+      studioKindProjectIdSet,
+      studioWorkspaceEnabled,
+      studioWorkspaceRoot,
+    ],
   );
   const { nonStudioThreads: nonStudioSidebarThreads, studioThreads: studioSidebarThreads } =
     useMemo(
@@ -1882,16 +1893,17 @@ export default function Sidebar() {
   const activeRouteProject = activeRouteProjectId
     ? (projectById.get(activeRouteProjectId) ?? null)
     : null;
-  // Same predicate the Studio collectors use — trusting `kind` alone here would let a drifted
-  // studio-kind row (root outside the configured Studio root) activate the Studio segment while
-  // every Studio list excludes it, stranding the active thread in neither segment.
+  // Path-aware classification stays for routing while the flag is on. When the flag is
+  // off, never treat a bookmarked /studio route or studio-kind thread as the Studio surface
+  // — that would still render the Studio block and "New studio chat".
   const isOnStudio =
-    isOnStudioRoute ||
-    isStudioContainerProject(activeRouteProject, {
-      homeDir,
-      chatWorkspaceRoot,
-      studioWorkspaceRoot,
-    });
+    studioWorkspaceEnabled &&
+    (isOnStudioRoute ||
+      isStudioContainerProject(activeRouteProject, {
+        homeDir,
+        chatWorkspaceRoot,
+        studioWorkspaceRoot,
+      }));
   const ordinarySpaceProjects = useMemo(
     () =>
       projects.filter((project) =>
@@ -2504,11 +2516,11 @@ export default function Sidebar() {
     prewarmHomeChatProject({ homeDir, chatWorkspaceRoot });
   }, [chatWorkspaceRoot, homeDir, threadsHydrated]);
   useEffect(() => {
-    if (!threadsHydrated || !studioSectionVisible || !studioWorkspaceRoot) {
+    if (!threadsHydrated || !studioWorkspaceEnabled || !studioWorkspaceRoot) {
       return;
     }
     prewarmStudioProject({ homeDir, chatWorkspaceRoot, studioWorkspaceRoot });
-  }, [chatWorkspaceRoot, homeDir, studioSectionVisible, studioWorkspaceRoot, threadsHydrated]);
+  }, [chatWorkspaceRoot, homeDir, studioWorkspaceEnabled, studioWorkspaceRoot, threadsHydrated]);
 
   // Opens a fresh home-chat draft directly on the draft thread route so the first send
   // does not need a second route swap from "/" to "/$threadId".
@@ -5558,25 +5570,35 @@ export default function Sidebar() {
   );
   const searchPaletteProjects = useMemo<SidebarSearchProject[]>(
     () =>
-      projects.map((project) => ({
-        id: project.id,
-        name: project.name,
-        remoteName: project.remoteName,
-        folderName: project.folderName,
-        localName: project.localName,
-        cwd: project.cwd,
-        // Containers (Chats, Studio) are reachable from every Space, so they search as "Global".
-        spaceName: isOrdinarySpaceProject(project, {
-          homeDir,
-          chatWorkspaceRoot,
-          studioWorkspaceRoot,
-        })
-          ? spaceDisplayName(project.spaceId, spaces, voidSpace)
-          : "Global",
-        createdAt: project.createdAt,
-        updatedAt: project.updatedAt,
-      })),
-    [chatWorkspaceRoot, homeDir, projects, spaces, studioWorkspaceRoot, voidSpace],
+      projects
+        .filter((project) => studioWorkspaceEnabled || project.kind !== "studio")
+        .map((project) => ({
+          id: project.id,
+          name: project.name,
+          remoteName: project.remoteName,
+          folderName: project.folderName,
+          localName: project.localName,
+          cwd: project.cwd,
+          // Containers (Chats, Studio) are reachable from every Space, so they search as "Global".
+          spaceName: isOrdinarySpaceProject(project, {
+            homeDir,
+            chatWorkspaceRoot,
+            studioWorkspaceRoot,
+          })
+            ? spaceDisplayName(project.spaceId, spaces, voidSpace)
+            : "Global",
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+        })),
+    [
+      chatWorkspaceRoot,
+      homeDir,
+      projects,
+      spaces,
+      studioWorkspaceEnabled,
+      studioWorkspaceRoot,
+      voidSpace,
+    ],
   );
   const searchPaletteActions = useMemo<SidebarSearchAction[]>(
     () => [
@@ -6006,12 +6028,20 @@ export default function Sidebar() {
         ) : (
           <>
             <div className="flex items-center gap-1 pt-0 pb-1 pr-2.5 pl-1.5">
-              <SidebarSurfacePicker
-                views={["threads", ...(studioSectionVisible ? (["studio"] as const) : [])]}
-                activeView={isOnStudio ? "studio" : "threads"}
-                onSelectView={handleSidebarViewChange}
-                onPrewarmView={prewarmSidebarViewTarget}
-              />
+              {studioSectionVisible ? (
+                <SidebarSurfacePicker
+                  views={["threads", "studio"]}
+                  activeView={isOnStudio ? "studio" : "threads"}
+                  onSelectView={handleSidebarViewChange}
+                  onPrewarmView={prewarmSidebarViewTarget}
+                />
+              ) : (
+                <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2.5">
+                  <span className="font-display flex min-w-0 items-center truncate text-[17px] text-foreground">
+                    <GraftLockup />
+                  </span>
+                </div>
+              )}
               <div className="ml-auto flex items-center gap-1.5">
                 <SidebarIconButton
                   icon={SearchIcon}
@@ -6946,6 +6976,7 @@ export default function Sidebar() {
           onOpenThread={(threadId) => {
             activateThreadFromSidebarIntent(ThreadId.makeUnsafe(threadId));
           }}
+          {...(studioWorkspaceEnabled ? {} : { hiddenProjectIds: studioKindProjectIdSet })}
         />
       ) : null}
     </>
@@ -6970,6 +7001,7 @@ function SidebarSearchPaletteController(props: {
   onOpenProject: (projectId: string) => void;
   onImportThread: (provider: ImportProviderKind, externalId: string) => Promise<void>;
   onOpenThread: (threadId: string) => void;
+  hiddenProjectIds?: ReadonlySet<string>;
 }) {
   const selectAllThreads = useMemo(() => createAllThreadsSelector(), []);
   // Search keeps automation-run threads as an intent-driven escape hatch, while
@@ -6992,7 +7024,7 @@ function SidebarSearchPaletteController(props: {
     );
     return sidebarDisplayThreads.flatMap((threadSummary) => {
       const thread = threadById.get(threadSummary.id);
-      if (!thread) {
+      if (!thread || props.hiddenProjectIds?.has(thread.projectId)) {
         return [];
       }
 
@@ -7014,7 +7046,7 @@ function SidebarSearchPaletteController(props: {
         },
       ];
     });
-  }, [props.projectById, props.projects, sidebarDisplayThreads, threads]);
+  }, [props.hiddenProjectIds, props.projectById, props.projects, sidebarDisplayThreads, threads]);
 
   return (
     <SidebarSearchPalette

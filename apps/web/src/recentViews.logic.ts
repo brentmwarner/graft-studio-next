@@ -221,12 +221,13 @@ export function buildRecentViewDisplayEntries(input: {
   projects: readonly Project[];
   pinnedThreadIds: readonly ThreadId[];
   terminalVisualIdentityByThreadId?: ReadonlyMap<ThreadId, ResolvedTerminalVisualIdentity>;
+  hiddenProjectIds?: ReadonlySet<string>;
 }): RecentViewDisplayEntry[] {
   const currentKey = input.currentView ? recentViewKey(input.currentView) : null;
   const projectNameById = new Map(input.projects.map((project) => [project.id, project.name]));
   const pinnedThreadIds = new Set(input.pinnedThreadIds);
 
-  return input.recentViews.map((view) => {
+  return input.recentViews.flatMap((view): RecentViewDisplayEntry[] => {
     const key = recentViewKey(view);
     const terminalVisualIdentity =
       view.kind === "thread" ? input.terminalVisualIdentityByThreadId?.get(view.threadId) : null;
@@ -245,6 +246,9 @@ export function buildRecentViewDisplayEntries(input: {
       case "thread": {
         const summary = input.threadsById[view.threadId];
         const thread = summary ?? input.draftThreadsById?.[view.threadId];
+        if (thread && input.hiddenProjectIds?.has(thread.projectId)) {
+          return [];
+        }
         const projectName = thread ? projectNameById.get(thread.projectId) : null;
         const provider = summary?.modelSelection.provider;
         const title = normalizeOptionalId(thread?.title) ?? "New chat";
@@ -253,29 +257,41 @@ export function buildRecentViewDisplayEntries(input: {
           base.isTerminal ? "Terminal" : "Chat",
           base.isSplit ? "Split" : null,
         ].filter((part): part is string => Boolean(part));
-        return {
-          ...base,
-          icon: resolveThreadDisplayIcon({ provider, terminalVisualIdentity }),
-          provider,
-          title,
-          subtitle: subtitleParts.join(" · "),
-          isPinned: pinnedThreadIds.has(view.threadId) || Boolean(thread?.isPinned),
-        };
+        return [
+          {
+            ...base,
+            icon: resolveThreadDisplayIcon({ provider, terminalVisualIdentity }),
+            provider,
+            title,
+            subtitle: subtitleParts.join(" · "),
+            isPinned: pinnedThreadIds.has(view.threadId) || Boolean(thread?.isPinned),
+          },
+        ];
       }
       case "settings":
-        return {
-          ...base,
-          icon: { kind: "settings" },
-          title: "Settings",
-          subtitle: view.section ? (SETTINGS_LABELS[view.section] ?? view.section) : "App settings",
-        };
+        return [
+          {
+            ...base,
+            icon: { kind: "settings" },
+            title: "Settings",
+            subtitle: view.section
+              ? (SETTINGS_LABELS[view.section] ?? view.section)
+              : "App settings",
+          },
+        ];
       case "plugins":
-        return {
-          ...base,
-          icon: { kind: "plugins" },
-          title: "Plugins",
-          subtitle: "Extensions and integrations",
-        };
+        return [
+          {
+            ...base,
+            icon: { kind: "plugins" },
+            title: "Plugins",
+            subtitle: "Extensions and integrations",
+          },
+        ];
+      default: {
+        const _exhaustive: never = view;
+        return _exhaustive;
+      }
     }
   });
 }

@@ -247,18 +247,18 @@ export async function prepareGraftRelease(
       throw new Error(`Unsupported publication platform: ${key}.`);
     if (provenances.some((entry) => `${entry.platform}-${entry.arch}` === key))
       throw new Error(`Duplicate native provenance: ${key}.`);
-    if (
+    const hasAcceptedSigning =
       provenance.platform === "linux"
-        ? provenance.signing.status !== "not-applicable"
-        : provenance.signing.status !== "verified"
-    ) {
+        ? provenance.signing.status === "not-applicable" && provenance.signing.scheme === "none"
+        : provenance.platform === "mac"
+          ? provenance.signing.status === "verified" &&
+            provenance.signing.scheme === "apple-developer-id"
+          : (provenance.signing.status === "verified" &&
+              provenance.signing.scheme === "windows-authenticode") ||
+            (provenance.signing.status === "unsigned-explicit-release" &&
+              provenance.signing.scheme === "none");
+    if (!hasAcceptedSigning) {
       throw new Error(`Publication requires verified native signatures: ${key}.`);
-    }
-    if (
-      (provenance.platform === "mac" && provenance.signing.scheme !== "apple-developer-id") ||
-      (provenance.platform === "win" && provenance.signing.scheme !== "windows-authenticode")
-    ) {
-      throw new Error(`Wrong signature scheme for ${key}.`);
     }
     for (const artifact of provenance.artifacts) {
       if (artifact.fileName !== basename(artifact.fileName))

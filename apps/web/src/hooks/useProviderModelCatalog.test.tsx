@@ -273,17 +273,22 @@ describe("useProviderModelCatalog", () => {
     expect(readModelQueryEnabled("antigravity")).toBe(false);
   });
 
-  it("warms droid discovery only when a surface explicitly prefetches it", () => {
+  it("does not start Droid from unrelated settings or picker prefetch", () => {
     readCatalogRenders({
       selectedProvider: "codex",
       discoveryEnabled: true,
       prefetchProviders: ["codex", "droid", "opencode"],
     });
-    expect(readModelQueryEnabled("droid")).toBe(true);
+    expect(readModelQueryEnabled("droid")).toBe(false);
 
     mocks.useQuery.mockClear();
     readCatalogRenders({ selectedProvider: "codex", discoveryEnabled: true });
     expect(readModelQueryEnabled("droid")).toBe(false);
+  });
+
+  it("discovers Droid when it is selected", () => {
+    readCatalogRenders({ selectedProvider: "droid", discoveryEnabled: false });
+    expect(readModelQueryEnabled("droid")).toBe(true);
   });
 
   it("keeps droid cold when the surface is inactive even if it prefetches droid", () => {

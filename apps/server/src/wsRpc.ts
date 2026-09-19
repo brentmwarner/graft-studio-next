@@ -1365,14 +1365,16 @@ const makeWsRpcHandlersLayer = () =>
         [WS_METHODS.studioListThreadOutputs]: (input) =>
           rpcEffect(
             Effect.gen(function* () {
-              // Self-heal the Studio folder tree: an accepted create whose deferred scaffold
-              // failed (crash, transient FS error) must not leave Studio without its Outbox
-              // forever. mkdir -p is idempotent and cheap, and this endpoint only fires while
-              // a Studio chat's environment panel is actually open. Failures degrade to the
-              // empty-list behavior.
-              yield* prepareStudioWorkspaceRoot(config.studioWorkspaceRoot).pipe(
-                Effect.catch(() => Effect.void),
-              );
+              // Self-heal only when the Studio root already exists. Do not create Inbox /
+              // Context / Logs / Skills / Outbox on a machine that never turned Studio on.
+              const studioRootExists = yield* fileSystem
+                .exists(config.studioWorkspaceRoot)
+                .pipe(Effect.orElseSucceed(() => false));
+              if (studioRootExists) {
+                yield* prepareStudioWorkspaceRoot(config.studioWorkspaceRoot).pipe(
+                  Effect.catch(() => Effect.void),
+                );
+              }
               // Checkpoints cover Git workspaces; file-change activities preserve the same
               // attribution in the default non-Git Studio root. Unknown/non-Studio ids stay empty.
               const context = yield* projectionReadModelQuery.getThreadCheckpointContext(

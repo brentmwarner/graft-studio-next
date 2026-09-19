@@ -41,6 +41,7 @@ it("authenticates thread usage, selects its provider, and returns only public me
       id === "thread-usage"
         ? Option.some({
             thread: {
+              projectId: "project-usage",
               modelSelection: { provider: "claudeAgent", model: "stale-model" },
               session: { providerName: "codex", status: "ready" },
               activities: [
@@ -52,7 +53,23 @@ it("authenticates thread usage, selects its provider, and returns only public me
               ],
             },
           })
-        : Option.none(),
+        : id === "studio-thread"
+          ? Option.some({
+              thread: {
+                projectId: "studio-project",
+                modelSelection: { provider: "codex", model: "gpt-5" },
+                session: { providerName: "codex", status: "ready" },
+                activities: [],
+              },
+            })
+          : Option.none(),
+    ),
+  );
+  const getProject = vi.fn((id: string) =>
+    Effect.succeed(
+      id === "studio-project"
+        ? Option.some({ id, kind: "studio" })
+        : Option.some({ id: "project-usage", kind: "project" }),
     ),
   );
   const scope = await Effect.runPromise(Scope.make("sequential"));
@@ -85,6 +102,7 @@ it("authenticates thread usage, selects its provider, and returns only public me
               Layer.succeed(OrchestrationEngineService, {} as never),
               Layer.succeed(ProjectionSnapshotQuery, {
                 getThreadDetailSnapshotById: getDetail,
+                getProjectShellById: getProject,
               } as never),
               Layer.succeed(CheckpointDiffQuery, {
                 getTurnDiff: () => Effect.succeed({ diff: "" }),
@@ -111,6 +129,7 @@ it("authenticates thread usage, selects its provider, and returns only public me
     const headers = { authorization: "Bearer usage-test" };
     expect((await fetch(base, { headers })).status).toBe(400);
     expect((await fetch(`${base}?threadId=missing`, { headers })).status).toBe(404);
+    expect((await fetch(`${base}?threadId=studio-thread`, { headers })).status).toBe(404);
     expect(listProviderUsage).not.toHaveBeenCalled();
     const response = await fetch(`${base}?threadId=thread-usage`, { headers });
     expect(response.status).toBe(200);

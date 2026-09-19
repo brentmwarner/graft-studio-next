@@ -2956,6 +2956,18 @@ diffs-container {
   --picker-option-py: 0.5625rem;
 }
 
+/* Opaque popover fill so sidebar rows (Kanban, PRs, Automations) cannot show through. */
+.sidebar-surface-picker-menu[data-slot="menu-popup"] {
+  background: var(--popover);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.sidebar-surface-picker-menu[data-slot="menu-popup"]::before {
+  content: none;
+  display: none;
+}
+
 .runtime-mode-menu-item {
   align-items: stretch;
 }

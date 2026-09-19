@@ -15,7 +15,11 @@ const harness = vi.hoisted(() => ({
     },
   ],
   threadShells: [] as Array<Record<string, unknown>>,
-  projects: [{ id: "project-1", name: "Project One" }],
+  projects: [{ id: "project-1", name: "Project One", kind: "project" }] as Array<{
+    id: string;
+    name: string;
+    kind?: string;
+  }>,
   removeDeletedThreadFromClientState: vi.fn(),
   mutateAsync: vi.fn(),
   invalidateQueries: vi.fn(),
@@ -68,6 +72,7 @@ describe("ConversationStorageSettingsPanels", () => {
   afterEach(() => {
     document.body.innerHTML = "";
     harness.threadShells = [];
+    harness.projects = [{ id: "project-1", name: "Project One", kind: "project" }];
   });
 
   it("uses one association rule for direct and associated worktree paths", async () => {
@@ -148,5 +153,32 @@ describe("ConversationStorageSettingsPanels", () => {
     expect(text).toContain("Recoverable archived child");
     expect(text).toContain("Archived parent");
     expect(text).not.toContain("Represented archived child");
+  });
+
+  it("hides studio-kind archived conversations when the Studio flag is off", async () => {
+    harness.projects = [
+      { id: "project-1", name: "Project One", kind: "project" },
+      { id: "studio-1", name: "Studio", kind: "studio" },
+    ];
+    harness.threadShells = [
+      thread({
+        id: "keep",
+        title: "Ordinary archived",
+        archivedAt: "2026-01-02T00:00:00.000Z",
+      }),
+      thread({
+        id: "studio-archived",
+        title: "Studio archived",
+        projectId: "studio-1",
+        archivedAt: "2026-01-03T00:00:00.000Z",
+      }),
+    ];
+
+    await render(<ArchivedSettingsPanel active />);
+
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Ordinary archived");
+    expect(text).not.toContain("Studio archived");
+    expect(text).not.toContain("Studio");
   });
 });

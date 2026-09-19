@@ -8,6 +8,9 @@ import {
   GRAFT_DESKTOP_ENTRY_URL,
   GRAFT_DESKTOP_ORIGIN,
   GRAFT_DESKTOP_UPDATE_CHANNEL,
+  GRAFT_DESKTOP_UPDATE_GITHUB_OWNER,
+  GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL,
+  GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY,
   GRAFT_DESKTOP_UPDATE_URL,
   GRAFT_DEVELOPMENT_BUNDLE_ID,
   GRAFT_PRODUCTION_BUNDLE_ID,
@@ -43,10 +46,15 @@ describe("desktopIdentity", () => {
     expect(GRAFT_DESKTOP_ENTRY_URL).toBe("graft://app/index.html");
   });
 
-  it("keeps the installed legacy application's stable updater feed", () => {
+  it("keeps the legacy bridge and pins new builds to the public GitHub updater", () => {
     expect(GRAFT_DESKTOP_UPDATE_CHANNEL).toBe("latest");
     expect(GRAFT_DESKTOP_UPDATE_URL).toBe(
       "https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases",
+    );
+    expect(GRAFT_DESKTOP_UPDATE_GITHUB_OWNER).toBe("brentmwarner");
+    expect(GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY).toBe("graft-studio-next");
+    expect(GRAFT_DESKTOP_UPDATE_GITHUB_RELEASES_URL).toBe(
+      "https://github.com/brentmwarner/graft-studio-next/releases",
     );
   });
 
