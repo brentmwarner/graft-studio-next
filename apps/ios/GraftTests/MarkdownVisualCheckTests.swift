@@ -1,11 +1,71 @@
 import SwiftUI
 import UIKit
+import Vision
 import XCTest
 
 @testable import Graft
 
 @MainActor
 final class MarkdownVisualCheckTests: XCTestCase {
+    func testInboxViewsCollapsedProjectsAndSearchOnPhoneAndIPad() async throws {
+        func captureInbox(_ view: RemoteInboxScreen, width: CGFloat) async throws -> ViewCapture {
+            let size = CGSize(width: width, height: 900)
+            let controller = UIHostingController(rootView: view)
+            let window = host(controller, size: size)
+            defer {
+                window.isHidden = true
+                window.rootViewController = nil
+            }
+            // Allow the lazy stack and its accessibility tree to settle on iPadOS.
+            try await Task.sleep(for: .milliseconds(250))
+            controller.view.layoutIfNeeded()
+            return captureHostedView(controller.view, size: size)
+        }
+        func visibleText(_ capture: ViewCapture) throws -> String {
+            // Assert rendered text: detached SwiftUI test windows on iPadOS can
+            // render correctly while exposing an empty accessibility tree.
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["en-US"]
+            request.usesLanguageCorrection = false
+            try VNImageRequestHandler(cgImage: XCTUnwrap(capture.image.cgImage)).perform([request])
+            return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+                .joined().lowercased().filter(\.isLetter)
+        }
+        let snapshot = InboxGroupingTests.viewFixture
+        let projects = InboxGrouping.projects(from: snapshot, searchQuery: "")
+        for width: CGFloat in [440, 384] {
+            for mode in InboxViewMode.allCases {
+                let view = RemoteInboxScreen(
+                    projects: projects, isLoading: false, expandedProjectIds: .constant([]), mode: mode,
+                    sections: InboxGrouping.sections(from: snapshot, mode: mode, searchQuery: "",
+                        now: InboxGroupingTests.viewDate(20, hour: 12), calendar: InboxGroupingTests.viewCalendar),
+                    onToggleProject: { _ in }, onSelectThread: { _ in }, onComposeInProject: { _ in }, onRefresh: {}
+                )
+                let capture = try await captureInbox(view, width: width)
+                let attachment = XCTAttachment(image: capture.image)
+                attachment.name = "Inbox-\(mode.rawValue)-\(Int(width))"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let text = try visibleText(capture)
+                if mode == .project {
+                    XCTAssertTrue(text.contains("graft"))
+                    XCTAssertFalse(text.contains("todaynewest"), "Project children start collapsed.")
+                } else {
+                    XCTAssertTrue(text.contains("todaynewest"))
+                    XCTAssertTrue(text.contains("today"))
+                }
+            }
+        }
+        let search = RemoteInboxScreen(
+            projects: InboxGrouping.projects(from: snapshot, searchQuery: "newest"), isLoading: false,
+            expandedProjectIds: .constant([]), searchQuery: "newest",
+            onToggleProject: { _ in }, onSelectThread: { _ in }, onComposeInProject: { _ in }, onRefresh: {}
+        )
+        let capture = try await captureInbox(search, width: 440)
+        XCTAssertTrue(try visibleText(capture).contains("todaynewest"), "Search reveals a match without opening all projects permanently.")
+    }
+
     func testMarkdownProseVisualAttachments() throws {
         try renderFixtures(
             fixtureName: "prose",
@@ -398,6 +458,179 @@ final class MarkdownVisualCheckTests: XCTestCase {
         scenario.chat.isAwayFromLatest = true
 
         try renderThreadComposerDockFixtures(chat: scenario.chat, app: scenario.app)
+    }
+
+    func testComposerSoftScrollEdgeAndTrailingArrowOnPhoneAndIPad() async throws {
+        for size in [CGSize(width: 440, height: 956), CGSize(width: 1_024, height: 900)] {
+            for scheme in [ColorScheme.light, .dark] {
+                let app = AppModel(store: LocalStore(inMemory: true))
+                let chat = ChatModel(threadId: "scroll-edge", title: "Scroll edge", app: app)
+                chat.isAwayFromLatest = true
+                let surface = ZStack {
+                    DS.Color.bg.ignoresSafeArea()
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            ForEach(1..<31) { number in
+                                Text("\(number). Review the remaining changes and finish the final checks.")
+                                    .font(.title3)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .scrollEdgeEffectStyle(.soft, for: .bottom)
+                    .readableChatColumn()
+                }
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    ThreadComposerDock(chat: chat)
+                        .readableChatColumn()
+                }
+                .environment(app)
+                .environment(\.colorScheme, scheme)
+                let controller = UIHostingController(rootView: surface)
+                let window = host(controller, size: size)
+                defer {
+                    window.isHidden = true
+                    window.rootViewController = nil
+                }
+                let scroll = try XCTUnwrap(findFirstSubview(ofType: UIScrollView.self, in: controller.view))
+                scroll.setContentOffset(CGPoint(x: 0, y: 240), animated: false)
+                try await Task.sleep(for: .milliseconds(250))
+                controller.view.layoutIfNeeded()
+                XCTAssertGreaterThan(scroll.adjustedContentInset.bottom, 44, "The native bar must reserve the composer and safe area.")
+                let attachment = XCTAttachment(image: captureHostedView(window, size: size).image)
+                attachment.name = "Composer-soft-scroll-edge-\(Int(size.width))-\(scheme)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let arrow = try XCTUnwrap(firstAccessibilityFrame(containingLabel: "Scroll to latest message", in: controller.view))
+                let columnRight = (size.width + min(size.width, AdaptiveChrome.readableColumnMaxWidth)) / 2
+                XCTAssertEqual(arrow.maxX, columnRight - 12, accuracy: 1, "The jump button stays on the right edge of the composer.")
+                let before = chat.scrollToLatestTick
+                XCTAssertTrue(activateAccessibilityControl(identifier: "scroll-to-latest",
+                    fallbackLabel: "Scroll to latest message", fallbackValue: nil, in: controller.view))
+                XCTAssertEqual(chat.scrollToLatestTick, before + 1)
+
+            }
+        }
+    }
+
+    func testUsagePopoverHugsContentAndCapsLongAllowanceLists() async throws {
+        let context = ContextUsageInfo(percent: 62, tokensUsed: 148_000, tokensMax: 238_000, source: "measured")
+        func allowance(count: Int) -> ProviderAllowanceInfo {
+            ProviderAllowanceInfo(providerId: "codex", status: "available", updatedAt: nil,
+                stale: false, planName: "Pro", limits: (0..<count).map { _ in
+                    .init(label: "Weekly · 5h", remainingPercent: 22, resetsAt: "2099-09-22T12:33:00Z")
+                })
+        }
+        for size in [DynamicTypeSize.large, .accessibility3] {
+            for count in [0, 1, 8] {
+                let controller = UIHostingController(rootView: ThreadUsageDetails(context: context,
+                    allowance: allowance(count: count), loading: false, failed: false, onRetry: {})
+                    .environment(\.dynamicTypeSize, size))
+                let fitted = controller.sizeThatFits(in: CGSize(width: 440, height: 900))
+                XCTAssertEqual(fitted.width, 280, accuracy: 0.5)
+                XCTAssertLessThanOrEqual(fitted.height, 380.5)
+                if count == 1, size == .large {
+                    XCTAssertLessThan(fitted.height, 300, "The usage panel should end just below the reset time.")
+                }
+                if count == 8 { XCTAssertEqual(fitted.height, 380, accuracy: 0.5) }
+            }
+        }
+        for loading in [true, false] {
+            let controller = UIHostingController(rootView: ThreadUsageDetails(context: context,
+                allowance: nil, loading: loading, failed: !loading, onRetry: {}))
+            XCTAssertLessThan(controller.sizeThatFits(in: CGSize(width: 440, height: 900)).height, 300)
+        }
+
+        let size = CGSize(width: 440, height: 956)
+        let controller = UIHostingController(rootView: ThreadUsagePopoverFixture(context: context, allowance: allowance(count: 1)))
+        let window = host(controller, size: size)
+        defer {
+            controller.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        try await Task.sleep(for: .milliseconds(900))
+        let popover = try XCTUnwrap(controller.presentedViewController)
+        XCTAssertLessThan(popover.view.bounds.height, 320, "The native popover must also hug the usage rows.")
+        XCTAssertGreaterThan(popover.view.bounds.height, 180)
+        let attachment = XCTAttachment(image: captureHostedView(window, size: size).image)
+        attachment.name = "Context-account-usage-content-fitting-popover"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testStreamingArrivalVisualFramesPreserveTextAndWrapping() throws {
+        let scenario = makeTranscriptScenario(settled: false)
+        let assistant = try XCTUnwrap(scenario.chat.items.last { $0.kind == .assistant })
+        assistant.text = "The menu "
+        let surface = VStack(alignment: .leading, spacing: 24) {
+            Text("Streaming reply").font(.headline).foregroundStyle(.secondary)
+            TranscriptRow(item: assistant, showInlineReasoning: false, showMessageActions: false)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(DS.Color.bg)
+        .environment(scenario.app)
+        .environment(\.scenePhase, .active)
+        .environment(\.colorScheme, .light)
+        let size = CGSize(width: 390, height: 320)
+        let controller = UIHostingController(rootView: surface)
+        let window = host(controller, size: size)
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+
+        var frame = 0
+        for chunk in ["now fits ", "its contents. ", "New text ", "arrives softly, ", "while the rest ", "stays steady."] {
+            assistant.text += chunk
+            for _ in 0..<6 {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+                controller.view.layoutIfNeeded()
+                let capture = captureHostedView(window, size: size)
+                let attachment = XCTAttachment(image: capture.image)
+                attachment.name = String(format: "StreamingArrival-%03d", frame)
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                frame += 1
+            }
+        }
+        let streaming = try XCTUnwrap(firstAccessibilityFrame(containingLabel: assistant.text, in: controller.view))
+        assistant.isStreaming = false
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        controller.view.layoutIfNeeded()
+        let settled = try XCTUnwrap(firstAccessibilityFrame(containingLabel: assistant.text, in: controller.view))
+        XCTAssertEqual(streaming.width, settled.width, accuracy: 0.5)
+        XCTAssertEqual(streaming.height, settled.height, accuracy: 0.5)
+    }
+
+    func testStreamingRendererFadesNewTextWithNativeSelectionEnabled() throws {
+        let attributed = AttributedString("Steady text, incoming text")
+        var images: [Data] = []
+        for time in [0.0, 1.0] {
+            let surface = InlineText.renderedText(attributed, skillIconSize: 18,
+                arrivals: [.init(range: 13..<26, time: 0)], time: time)
+                .font(.body)
+                .textSelection(.enabled)
+                .padding(24)
+                .frame(width: 390, height: 160)
+                .background(.white)
+                .environment(\.colorScheme, .light)
+            let controller = UIHostingController(rootView: surface)
+            let size = CGSize(width: 390, height: 160)
+            let window = host(controller, size: size)
+            let capture = captureHostedView(window, size: size)
+            images.append(try XCTUnwrap(capture.image.pngData()))
+            let attachment = XCTAttachment(image: capture.image)
+            attachment.name = "StreamingRenderer-\(time)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        XCTAssertNotEqual(images[0], images[1], "Incoming text must draw more softly before its fade finishes.")
     }
 
     func testDiffBubbleDismissesFocusedComposerAndPresentsSheet() throws {
@@ -2358,4 +2591,33 @@ private extension MarkdownVisualCheckTests {
 
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+private struct ThreadUsagePopoverFixture: View {
+    let context: ContextUsageInfo
+    let allowance: ProviderAllowanceInfo
+    @State private var presented = false
+
+    var body: some View {
+        NavigationStack {
+            Color.white
+                .navigationTitle("Conversation")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { presented = true } label: { Image(systemName: "chart.pie") }
+                            .popover(isPresented: $presented) {
+                                ThreadUsageDetails(context: context, allowance: allowance,
+                                    loading: false, failed: false, onRetry: {})
+                                    .presentationCompactAdaptation(.popover)
+                            }
+                    }
+                }
+        }
+        .environment(\.colorScheme, .light)
+        .task {
+            try? await Task.sleep(for: .milliseconds(250))
+            presented = true
+        }
+    }
 }

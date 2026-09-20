@@ -1,5 +1,39 @@
 import Foundation
 
+enum InboxViewMode: String, CaseIterable, Identifiable {
+    case priority
+    case project
+    case chronological
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .priority: "Priority"
+        case .project: "By Project"
+        case .chronological: "Chronological"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .priority: "bell"
+        case .project: "folder"
+        case .chronological: "clock.arrow.circlepath"
+        }
+    }
+}
+
+struct InboxThreadSection: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let threads: [InboxThreadEntry]
+}
+
+struct InboxThreadEntry: Identifiable, Equatable {
+    let thread: InboxThreadItem
+    let projectName: String?
+    var id: String { thread.id }
+}
+
 /// Project → threads hierarchy for the Remote inbox.
 struct InboxProjectGroup: Identifiable, Equatable, Sendable {
     let id: String
@@ -131,6 +165,62 @@ enum InboxGrouping {
             let matching = group.threads.filter { $0.title.lowercased().contains(lowered) }
             guard !matching.isEmpty else { return nil }
             return InboxProjectGroup(id: group.id, name: group.name, threads: matching)
+        }
+    }
+}
+
+
+extension InboxGrouping {
+    /// Both list modes use host timestamps (milliseconds) and the user's local calendar.
+    /// Priority takes decision requests and active work out of the date sections once.
+    static func sections(
+        from snapshot: EnvironmentSnapshot?,
+        mode: InboxViewMode,
+        searchQuery: String,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> [InboxThreadSection] {
+        guard let snapshot, mode != .project else { return [] }
+        let projects = Dictionary(snapshot.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let matchingIds = Set(self.projects(from: snapshot, searchQuery: searchQuery).flatMap { $0.threads.map(\.id) })
+        let decisions = Set(snapshot.pendingApprovals.map(\.threadId) + snapshot.pendingQuestions.map(\.threadId))
+        let active = Set(snapshot.activeRuns.map(\.threadId))
+        let today = calendar.startOfDay(for: now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let week = calendar.date(byAdding: .day, value: -7, to: today)!
+
+        func rank(_ thread: ThreadInfo) -> Int {
+            if decisions.contains(thread.id) || thread.status == "needs_attention" { return 0 }
+            if active.contains(thread.id) || thread.status == "running" { return 1 }
+            return 2
+        }
+
+        let threads = snapshot.threads.filter { matchingIds.contains($0.id) }.sorted {
+            if mode == .priority, rank($0) != rank($1) { return rank($0) < rank($1) }
+            if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+            return $0.id < $1.id
+        }
+        var buckets: [String: [InboxThreadEntry]] = [:]
+        for thread in threads {
+            let date = Date(timeIntervalSince1970: Double(thread.updatedAt) / 1000)
+            let key: String
+            if mode == .priority && rank(thread) < 2 { key = "priority" }
+            else if date >= today { key = "today" }
+            else if date >= yesterday { key = "yesterday" }
+            else if date >= week { key = "week" }
+            else { key = "older" }
+            buckets[key, default: []].append(InboxThreadEntry(
+                thread: InboxThreadItem(
+                    id: thread.id, title: thread.title,
+                    showsAttentionDot: rank(thread) < 2, pr: thread.pr
+                ),
+                projectName: projects[thread.projectId]
+            ))
+        }
+        return [("priority", "Priority"), ("today", "Today"), ("yesterday", "Yesterday"),
+                ("week", "Previous 7 days"), ("older", "Older")].compactMap { id, title in
+            guard let items = buckets[id], !items.isEmpty else { return nil }
+            return InboxThreadSection(id: id, title: title, threads: items)
         }
     }
 }

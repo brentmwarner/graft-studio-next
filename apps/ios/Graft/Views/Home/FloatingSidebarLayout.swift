@@ -9,7 +9,7 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
     let hostLabel: String
     let isConnected: Bool
     let onSettings: () -> Void
-    let onMore: () -> Void
+    @Binding var viewMode: InboxViewMode
     @ViewBuilder var sidebar: Sidebar
     @ViewBuilder var detail: Detail
 
@@ -41,7 +41,7 @@ struct FloatingSidebarLayout<Sidebar: View, Detail: View>: View {
                         isConnected: isConnected,
                         onClose: { presentation.isVisible = false },
                         onSettings: onSettings,
-                        onMore: onMore
+                        viewMode: $viewMode
                     ) {
                         sidebar
                     }
@@ -60,7 +60,7 @@ private struct FloatingProjectsPanel<Content: View>: View {
     let isConnected: Bool
     let onClose: () -> Void
     let onSettings: () -> Void
-    let onMore: () -> Void
+    @Binding var viewMode: InboxViewMode
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -70,7 +70,7 @@ private struct FloatingProjectsPanel<Content: View>: View {
                 isConnected: isConnected,
                 onClose: onClose,
                 onSettings: onSettings,
-                onMore: onMore
+                viewMode: $viewMode
             )
 
             // Clip only the scrolling region: rows never pass under the header.
@@ -98,7 +98,7 @@ private struct FloatingProjectsHeader: View {
     let isConnected: Bool
     let onClose: () -> Void
     let onSettings: () -> Void
-    let onMore: () -> Void
+    @Binding var viewMode: InboxViewMode
 
     var body: some View {
         HStack(spacing: 0) {
@@ -108,8 +108,9 @@ private struct FloatingProjectsHeader: View {
                 .accessibilityIdentifier("projects-sidebar-title")
 
             Menu {
+                InboxViewOptions(selection: $viewMode)
+                Divider()
                 Button("Settings", systemImage: "gearshape", action: onSettings)
-                Button("Environment", systemImage: "desktopcomputer", action: onMore)
             } label: {
                 Image(systemName: "ellipsis")
                     .frame(width: 44, height: 44)

@@ -10,8 +10,8 @@ struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
-    @State private var collapsedProjectIds: Set<String> = []
-    @State private var showOverflow = false
+    @State private var expandedProjectIds: Set<String> = []
+    @AppStorage("inbox.viewMode") private var viewMode: InboxViewMode = .project
     @State private var showDrawer = false
     @State private var showSettings = false
     @State private var selectedThread: InboxThreadItem?
@@ -29,7 +29,7 @@ struct HomeView: View {
                     hostLabel: hostLabel,
                     isConnected: app.gateway.state == .connected,
                     onSettings: { showSettings = true },
-                    onMore: { showOverflow = true }
+                    viewMode: $viewMode
                 ) {
                     inboxContent
                 } detail: {
@@ -77,25 +77,30 @@ struct HomeView: View {
 
     private var inboxContent: some View {
         ZStack(alignment: .bottom) {
-            RemoteInboxScreen(
-                projects: inboxProjects,
-                isLoading: app.snapshot == nil && app.isPaired,
-                collapsedProjectIds: $collapsedProjectIds,
-                selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
-                fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
-                    usesPersistentSidebar: usesPersistentSidebar
-                ),
-                onToggleProject: { id in
-                    if collapsedProjectIds.contains(id) {
-                        collapsedProjectIds.remove(id)
-                    } else {
-                        collapsedProjectIds.insert(id)
-                    }
-                },
-                onSelectThread: openThread,
-                onComposeInProject: { openNewChat(projectId: $0) },
-                onRefresh: { app.reconnectIfNeeded() }
-            )
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                RemoteInboxScreen(
+                    projects: inboxProjects,
+                    isLoading: app.snapshot == nil && app.isPaired,
+                    expandedProjectIds: $expandedProjectIds,
+                    mode: viewMode,
+                    sections: InboxGrouping.sections(from: app.snapshot, mode: viewMode, searchQuery: searchText, now: context.date),
+                    searchQuery: searchText,
+                    selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
+                    fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
+                        usesPersistentSidebar: usesPersistentSidebar
+                    ),
+                    onToggleProject: { id in
+                        if expandedProjectIds.contains(id) {
+                            expandedProjectIds.remove(id)
+                        } else {
+                            expandedProjectIds.insert(id)
+                        }
+                    },
+                    onSelectThread: openThread,
+                    onComposeInProject: { openNewChat(projectId: $0) },
+                    onRefresh: { app.reconnectIfNeeded() }
+                )
+            }
 
             RemoteInboxBottomBar(
                 searchText: $searchText,
@@ -112,16 +117,6 @@ struct HomeView: View {
                         .padding(.bottom, 72)
                 }
             }
-        }
-        .confirmationDialog(
-            "Environment",
-            isPresented: $showOverflow,
-            titleVisibility: .visible
-        ) {
-            Button("Disconnect", role: .destructive) {
-                Task { await app.unpair() }
-            }
-            Button("Cancel", role: .cancel) {}
         }
     }
 
@@ -157,12 +152,14 @@ struct HomeView: View {
             )
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showOverflow = true
+            Menu {
+                InboxViewOptions(selection: $viewMode)
+                Divider()
+                Button("Settings", systemImage: "gearshape") { showSettings = true }
             } label: {
                 Image(systemName: "ellipsis")
             }
-            .accessibilityLabel(Text("More", comment: "Open overflow menu"))
+            .accessibilityLabel("Projects options")
         }
     }
 
@@ -291,7 +288,13 @@ struct InboxTitleLockup: View {
 struct RemoteInboxScreen: View {
     let projects: [InboxProjectGroup]
     let isLoading: Bool
-    @Binding var collapsedProjectIds: Set<String>
+    @Binding var expandedProjectIds: Set<String>
+    var mode: InboxViewMode = .project
+    var sections: [InboxThreadSection] = []
+    var searchQuery: String = ""
+    @State private var collapsedSections: Set<String> = []
+    @State private var collapsedSearchProjects: Set<String> = []
+    @State private var collapsedSearchSections: Set<String> = []
     var selectedThreadId: String? = nil
     /// Phone inbox paints `systemBackground` over the drawer. The iPad
     /// floating panel stays clear so its glass background can show through.
@@ -308,33 +311,73 @@ struct RemoteInboxScreen: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        if projects.isEmpty {
+                        if projects.isEmpty || (mode != .project && sections.isEmpty) {
                             ContentUnavailableView(
-                                "No projects yet",
-                                systemImage: "folder",
-                                description: Text(
-                                    "Open a project in Graft Studio to see it here.",
-                                    comment: "Empty remote inbox guidance"
-                                )
+                                isSearching ? "No matching chats" : mode == .project ? "No projects yet" : "No chats yet",
+                                systemImage: isSearching ? "magnifyingglass" : "folder",
+                                description: Text(isSearching ? "Try another name or project." : "Open a project or start a chat in Graft Studio to see it here.")
                             )
                             .padding(.top, 48)
-                        } else {
+                        } else if mode == .project {
                             ForEach(projects) { project in
                                 RemoteProjectSection(
                                     name: project.name,
                                     threads: project.threads,
-                                    isExpanded: !collapsedProjectIds.contains(project.id),
+                                    isExpanded: isSearching ? !collapsedSearchProjects.contains(project.id) : expandedProjectIds.contains(project.id),
                                     selectedThreadId: selectedThreadId,
-                                    onToggle: { onToggleProject(project.id) },
+                                    onToggle: {
+                                        if isSearching { toggle(project.id, in: &collapsedSearchProjects) }
+                                        else { onToggleProject(project.id) }
+                                    },
                                     onCompose: { onComposeInProject(project.id) },
                                     onSelectThread: onSelectThread
                                 )
+                            }
+                        } else {
+                            ForEach(sections) { section in
+                                let key = "\(mode.rawValue)/\(section.id)"
+                                let expanded = !(isSearching ? collapsedSearchSections : collapsedSections).contains(key)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Button {
+                                        if isSearching { toggle(key, in: &collapsedSearchSections) }
+                                        else { toggle(key, in: &collapsedSections) }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Text(section.title).font(.headline)
+                                            Image(systemName: "chevron.down")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                                .rotationEffect(.degrees(expanded ? 0 : -90))
+                                            Spacer()
+                                        }
+                                        .foregroundStyle(.primary)
+                                        .padding(.horizontal, 20)
+                                        .frame(minHeight: 52)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                                    if expanded {
+                                        ForEach(section.threads) { entry in
+                                            RemoteThreadRow(
+                                                title: entry.thread.title,
+                                                showsAttentionDot: entry.thread.showsAttentionDot,
+                                                isSelected: selectedThreadId == entry.id,
+                                                projectName: mode == .priority ? entry.projectName : nil,
+                                                leadingInset: 20,
+                                                action: { onSelectThread(entry.thread) }
+                                            )
+                                        }
+                                    }
+                                }
+                                .padding(.bottom, 16)
                             }
                         }
                     }
                     .padding(.top, 8)
                     .padding(.bottom, 120)
                 }
+                .id(mode)
                 .refreshable { onRefresh() }
             }
         }
@@ -344,6 +387,31 @@ struct RemoteInboxScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .onChange(of: searchQuery) {
+            collapsedSearchProjects.removeAll()
+            collapsedSearchSections.removeAll()
+        }
+    }
+
+    private var isSearching: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func toggle(_ id: String, in ids: inout Set<String>) {
+        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+    }
+}
+
+struct InboxViewOptions: View {
+    @Binding var selection: InboxViewMode
+
+    var body: some View {
+        Picker("View", selection: $selection) {
+            ForEach(InboxViewMode.allCases) { mode in
+                Label(mode.title, systemImage: mode.symbol).tag(mode)
+            }
+        }
+        .pickerStyle(.inline)
     }
 }
 
@@ -414,6 +482,7 @@ struct RemoteProjectHeaderRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(name))
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
             .accessibilityHint(
                 Text(
                     isExpanded ? "Collapse project" : "Expand project",
@@ -491,16 +560,26 @@ struct RemoteThreadRow: View {
     let title: String
     let showsAttentionDot: Bool
     var isSelected: Bool = false
+    var projectName: String? = nil
+    var leadingInset: CGFloat = 52
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Text(title)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if let projectName {
+                        Label(projectName, systemImage: "folder")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
 
                 Spacer(minLength: 8)
 
@@ -513,7 +592,7 @@ struct RemoteThreadRow: View {
                         )
                 }
             }
-            .padding(.leading, 52)
+            .padding(.leading, leadingInset)
             .padding(.trailing, 20)
             .padding(.vertical, 11)
             .background {
@@ -653,7 +732,7 @@ private func homeErrorMessage(_ error: GraftError) -> String {
             RemoteInboxScreen(
                 projects: projects,
                 isLoading: false,
-                collapsedProjectIds: .constant([]),
+                expandedProjectIds: .constant([]),
                 onToggleProject: { _ in },
                 onSelectThread: { _ in },
                 onComposeInProject: { _ in },

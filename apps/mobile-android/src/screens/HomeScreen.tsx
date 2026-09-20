@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { GraftEnvironmentSnapshot, GraftSessionCredential } from "@graft/mobile-contract";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,10 +14,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
+import { AnchoredMenu, MenuItem } from "../components/AnchoredMenu";
 import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { PressScale } from "../components/PressScale";
+import { groupInboxThreads, inboxViewModes, type InboxViewMode } from "../state/inboxGrouping";
 import { groupProjects, type InboxThreadItem } from "../state/mobileViewModels";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
 
@@ -29,7 +31,11 @@ interface HomeScreenProps {
   readonly onOpenMenu: () => void;
   readonly onOpenThread: (thread: InboxThreadItem) => void;
   readonly onRefresh: () => Promise<void>;
-  readonly onUnpair: () => Promise<void>;
+  readonly onSettings: () => void;
+  readonly viewMode: InboxViewMode;
+  readonly onViewModeChange: (mode: InboxViewMode) => void;
+  readonly expandedProjectIds: ReadonlySet<string>;
+  readonly onToggleProject: (id: string) => void;
   readonly session: GraftSessionCredential;
   readonly snapshot: GraftEnvironmentSnapshot | null;
 }
@@ -59,6 +65,7 @@ function ProjectSection({
           accessibilityHint={isExpanded ? "Collapse project" : "Expand project"}
           accessibilityLabel={name}
           accessibilityRole="button"
+          accessibilityState={{ expanded: isExpanded }}
           onPress={onToggle}
           style={styles.projectToggle}
         >
@@ -91,33 +98,77 @@ function ProjectSection({
       </View>
       {isExpanded
         ? threads.map((thread) => (
-            <Pressable
-              accessibilityHint="Open thread"
-              accessibilityRole="button"
-              key={thread.id}
-              onPress={() => onOpenThread(thread)}
-            >
-              {({ pressed }) => (
-                <View style={[styles.threadRow, { opacity: pressed ? 0.5 : 1 }]}>
-                  <Text
-                    numberOfLines={2}
-                    style={[styles.threadTitle, { color: palette.foreground }]}
-                  >
-                    {thread.title}
-                  </Text>
-                  {thread.showsAttentionDot ? (
-                    <View
-                      accessibilityLabel="Needs attention"
-                      style={[styles.attentionDot, { backgroundColor: palette.info }]}
-                    />
-                  ) : null}
-                </View>
-              )}
-            </Pressable>
+            <ThreadRow key={thread.id} thread={thread} onOpenThread={onOpenThread} indented />
           ))
         : null}
     </View>
   );
+}
+
+const viewOptions = {
+  priority: { title: "Priority", icon: "notifications-outline" },
+  project: { title: "By Project", icon: "folder-outline" },
+  chronological: { title: "Chronological", icon: "time-outline" },
+} as const;
+
+function ThreadRow({
+  thread,
+  onOpenThread,
+  projectName,
+  indented = false,
+}: {
+  readonly thread: InboxThreadItem;
+  readonly onOpenThread: (thread: InboxThreadItem) => void;
+  readonly projectName?: string;
+  readonly indented?: boolean;
+}) {
+  const palette = useGraftPalette();
+  return (
+    <Pressable
+      accessibilityHint="Open thread"
+      accessibilityRole="button"
+      onPress={() => onOpenThread(thread)}
+    >
+      {({ pressed }) => (
+        <View
+          style={[
+            styles.threadRow,
+            { paddingLeft: indented ? 52 : 20, opacity: pressed ? 0.5 : 1 },
+          ]}
+        >
+          <View style={styles.threadCopy}>
+            <Text numberOfLines={1} style={[styles.threadTitle, { color: palette.foreground }]}>
+              {thread.title}
+            </Text>
+            {projectName ? (
+              <View style={styles.threadMetadata}>
+                <Ionicons name="folder-outline" size={14} color={palette.foregroundSubtle} />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.projectLabel, { color: palette.foregroundSubtle }]}
+                >
+                  {projectName}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          {thread.showsAttentionDot ? (
+            <View
+              accessibilityLabel="Needs attention"
+              style={[styles.attentionDot, { backgroundColor: palette.info }]}
+            />
+          ) : null}
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function toggleId(current: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  const next = new Set(current);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
 }
 
 export function HomeScreen({
@@ -128,40 +179,52 @@ export function HomeScreen({
   onOpenMenu,
   onOpenThread,
   onRefresh,
-  onUnpair,
+  onSettings,
+  viewMode,
+  onViewModeChange,
+  expandedProjectIds,
+  onToggleProject,
   session,
   snapshot,
 }: HomeScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const [searchText, setSearchText] = useState("");
-  const [collapsedProjectIds, setCollapsedProjectIds] = useState<ReadonlySet<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set());
+  const [collapsedSearchProjects, setCollapsedSearchProjects] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [collapsedSearchSections, setCollapsedSearchSections] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [now, setNow] = useState(() => new Date());
+  const isSearching = searchText.trim().length > 0;
+  const sections = useMemo(
+    () => groupInboxThreads(snapshot, viewMode, searchText, now),
+    [snapshot, viewMode, searchText, now],
+  );
+  useEffect(() => {
+    const update = () => setNow(new Date());
+    const timer = setInterval(update, 60_000);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") update();
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, []);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [viewMode]);
   const projects = useMemo(() => groupProjects(snapshot, searchText), [searchText, snapshot]);
   const isConnected = connectionState === "connected";
-
-  function toggleProject(projectId: string) {
-    setCollapsedProjectIds((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
-  }
-
-  function confirmUnpair() {
-    Alert.alert("Environment", undefined, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Disconnect",
-        style: "destructive",
-        onPress: () => void onUnpair(),
-      },
-    ]);
-  }
 
   return (
     <View style={styles.flex}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.content,
           { paddingBottom: insets.bottom + 104, paddingTop: insets.top + 78 },
@@ -182,26 +245,83 @@ export function HomeScreen({
               Connecting to Studio…
             </Text>
           </View>
-        ) : projects.length === 0 ? (
+        ) : projects.length === 0 || (viewMode !== "project" && sections.length === 0) ? (
           <View style={styles.centerState}>
             <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={34} />
-            <Text style={[styles.emptyTitle, { color: palette.foreground }]}>No projects yet</Text>
+            <Text style={[styles.emptyTitle, { color: palette.foreground }]}>
+              {isSearching
+                ? "No matching chats"
+                : viewMode === "project"
+                  ? "No projects yet"
+                  : "No chats yet"}
+            </Text>
             <Text style={[styles.stateText, { color: palette.foregroundSubtle }]}>
-              Open a project in Graft Studio to see it here.
+              {isSearching
+                ? "Try another name or project."
+                : "Open a project or start a chat in Graft Studio to see it here."}
             </Text>
           </View>
-        ) : (
+        ) : viewMode === "project" ? (
           projects.map((project) => (
             <ProjectSection
-              isExpanded={!collapsedProjectIds.has(project.id)}
+              isExpanded={
+                isSearching
+                  ? !collapsedSearchProjects.has(project.id)
+                  : expandedProjectIds.has(project.id)
+              }
               key={project.id}
               name={project.name}
               onCompose={() => onNewChat(project.id)}
               onOpenThread={onOpenThread}
-              onToggle={() => toggleProject(project.id)}
+              onToggle={() =>
+                isSearching
+                  ? setCollapsedSearchProjects((current) => toggleId(current, project.id))
+                  : onToggleProject(project.id)
+              }
               threads={project.threads}
             />
           ))
+        ) : (
+          sections.map((section) => {
+            const key = `${viewMode}/${section.id}`;
+            const isExpanded = !(isSearching ? collapsedSearchSections : collapsedSections).has(
+              key,
+            );
+            return (
+              <View key={section.id} style={styles.listSection}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={section.title}
+                  accessibilityState={{ expanded: isExpanded }}
+                  onPress={() =>
+                    (isSearching ? setCollapsedSearchSections : setCollapsedSections)((current) =>
+                      toggleId(current, key),
+                    )
+                  }
+                  style={styles.sectionHeader}
+                >
+                  <Text style={[styles.sectionTitle, { color: palette.foreground }]}>
+                    {section.title}
+                  </Text>
+                  <Ionicons
+                    name={isExpanded ? "chevron-down" : "chevron-forward"}
+                    size={15}
+                    color={palette.foregroundSubtle}
+                  />
+                </Pressable>
+                {isExpanded
+                  ? section.threads.map((entry) => (
+                      <ThreadRow
+                        key={entry.thread.id}
+                        thread={entry.thread}
+                        onOpenThread={onOpenThread}
+                        projectName={viewMode === "priority" ? entry.projectName : undefined}
+                      />
+                    ))
+                  : null}
+              </View>
+            );
+          })
         )}
       </ScrollView>
 
@@ -224,11 +344,40 @@ export function HomeScreen({
             </Text>
           </View>
         </View>
-        <CircleIconButton
-          accessibilityLabel="More"
-          icon="ellipsis-horizontal"
-          onPress={confirmUnpair}
-        />
+        <AnchoredMenu
+          trigger={(open) => (
+            <CircleIconButton
+              accessibilityLabel="Projects options"
+              icon="ellipsis-horizontal"
+              onPress={open}
+            />
+          )}
+        >
+          {(close) => (
+            <>
+              {inboxViewModes.map((mode) => (
+                <MenuItem
+                  key={mode}
+                  label={viewOptions[mode].title}
+                  icon={viewOptions[mode].icon}
+                  selected={viewMode === mode}
+                  onPress={() => {
+                    onViewModeChange(mode);
+                    close();
+                  }}
+                />
+              ))}
+              <MenuItem
+                label="Settings"
+                icon="settings-outline"
+                onPress={() => {
+                  close();
+                  onSettings();
+                }}
+              />
+            </>
+          )}
+        </AnchoredMenu>
       </View>
 
       {error ? (
@@ -248,7 +397,11 @@ export function HomeScreen({
             accessibilityLabel="Search chats"
             autoCapitalize="none"
             autoCorrect={false}
-            onChangeText={setSearchText}
+            onChangeText={(text) => {
+              setSearchText(text);
+              setCollapsedSearchProjects(new Set());
+              setCollapsedSearchSections(new Set());
+            }}
             placeholder="Search Chats"
             placeholderTextColor={palette.foregroundSubtle}
             style={[styles.searchInput, { color: palette.foreground }]}
@@ -321,7 +474,19 @@ const styles = StyleSheet.create({
     paddingRight: 20,
     paddingVertical: 10,
   },
-  threadTitle: { flex: 1, fontSize: 16, lineHeight: 21 },
+  threadCopy: { flex: 1, gap: 5 },
+  threadTitle: { fontSize: 16, lineHeight: 21 },
+  threadMetadata: { flexDirection: "row", alignItems: "center", gap: 5 },
+  projectLabel: { flexShrink: 1, fontSize: 12 },
+  listSection: { paddingBottom: 16 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 52,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: { fontSize: 17, fontWeight: "600" },
   attentionDot: { borderRadius: 4, height: 8, marginLeft: 12, width: 8 },
   centerState: {
     alignItems: "center",

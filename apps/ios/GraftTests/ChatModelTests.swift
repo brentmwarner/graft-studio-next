@@ -326,6 +326,49 @@ final class ChatModelTests: XCTestCase {
         XCTAssertFalse(chat.items[0].isStreaming)
     }
 
+    func testFinalResponseSignalsCompletionOncePerTurn() {
+        let chat = makeChat()
+        chat.fold(event(id: "start", cursor: 1, kind: "run.status", runId: "r1", runStatus: "running"))
+        chat.fold(event(id: "work", cursor: 2, kind: "assistant.message", runId: "r1", text: "Checking…"))
+        XCTAssertEqual(chat.responseCompletionTick, 0, "An intermediate message is not a final reply.")
+        chat.fold(event(id: "answer", cursor: 3, kind: "assistant.message", runId: "r1", text: "Done."))
+        chat.fold(event(id: "end", cursor: 4, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertEqual(chat.responseCompletionTick, 1, "Short replies without text deltas still get feedback.")
+        chat.fold(event(id: "duplicate", cursor: 5, kind: "run.status", runId: "r1", runStatus: "completed"))
+        chat.fold(event(id: "idle", cursor: 6, kind: "run.status", runStatus: "completed"))
+        XCTAssertEqual(chat.responseCompletionTick, 1)
+        chat.fold(event(id: "next", cursor: 7, kind: "assistant.delta", runId: "r2", text: "Next answer."))
+        chat.fold(event(id: "tool", cursor: 8, kind: "tool.end", runId: "r2", toolName: "read"))
+        chat.fold(event(id: "end2", cursor: 9, kind: "run.status", runId: "r2", runStatus: "completed"))
+        XCTAssertEqual(chat.responseCompletionTick, 2)
+    }
+
+    func testCancelledFailedAndToolOnlyTurnsDoNotSignalResponseCompletion() {
+        for status in ["cancelled", "failed", "error"] {
+            let chat = makeChat()
+            chat.fold(event(id: "partial", cursor: 1, kind: "assistant.delta", runId: "r1", text: "Partial answer"))
+            chat.fold(event(id: "end", cursor: 2, kind: "run.status", runId: "r1", runStatus: status))
+            XCTAssertEqual(chat.responseCompletionTick, 0)
+        }
+        let chat = makeChat()
+        chat.fold(event(id: "tool", cursor: 1, kind: "tool.start", runId: "r1", toolName: "read"))
+        chat.fold(event(id: "end", cursor: 2, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertEqual(chat.responseCompletionTick, 0)
+    }
+
+    func testHistoryAndUnrelatedRunCompletionStaySilent() {
+        let chat = makeChat()
+        chat.applySnapshot(snapshot(events: [
+            event(id: "answer", cursor: 1, kind: "assistant.message", runId: "r1", text: "Old answer"),
+            event(id: "end", cursor: 2, kind: "run.status", runId: "r1", runStatus: "completed"),
+        ], cursor: 2))
+        XCTAssertEqual(chat.responseCompletionTick, 0)
+        chat.fold(event(id: "next", cursor: 3, kind: "assistant.delta", runId: "r2", text: "Current answer"))
+        chat.fold(event(id: "old", cursor: 4, kind: "run.status", runId: "r1", runStatus: "completed"))
+        XCTAssertEqual(chat.responseCompletionTick, 0)
+        XCTAssertTrue(chat.isStreaming)
+    }
+
     func testFoldApprovalLifecycle() {
         let chat = makeChat()
         chat.fold(event(

@@ -14,6 +14,7 @@ import { SplashScreen } from "./src/screens/SplashScreen";
 import { ThreadScreen } from "./src/screens/ThreadScreen";
 import { groupProjects } from "./src/state/mobileViewModels";
 import { useGraftSession } from "./src/state/useGraftSession";
+import { loadInboxViewMode, saveInboxViewMode } from "./src/storage/inboxPreferences";
 import { useGraftPalette } from "./src/theme/tokens";
 
 type AppRoute =
@@ -31,6 +32,8 @@ function GraftApp() {
   const [route, setRoute] = useState<AppRoute>({ name: "home" });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [inboxViewMode, setInboxViewMode] = useState(loadInboxViewMode);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<ReadonlySet<string>>(new Set());
   const paired = session.state.status === "paired" ? session.state : null;
   const pairedSnapshot = paired?.snapshot ?? null;
 
@@ -50,6 +53,7 @@ function GraftApp() {
       setRoute({ name: "home" });
       setIsDrawerOpen(false);
       setShowSettings(false);
+      setExpandedProjectIds(new Set());
     }
   }, [session.state.status]);
 
@@ -124,7 +128,21 @@ function GraftApp() {
                   if (thread) openThread(thread);
                 }}
                 onRefresh={session.refresh}
-                onUnpair={session.unpair}
+                onSettings={() => setShowSettings(true)}
+                viewMode={inboxViewMode}
+                onViewModeChange={(mode) => {
+                  setInboxViewMode(mode);
+                  saveInboxViewMode(mode);
+                }}
+                expandedProjectIds={expandedProjectIds}
+                onToggleProject={(id) =>
+                  setExpandedProjectIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  })
+                }
                 session={paired.session}
                 snapshot={paired.snapshot}
               />

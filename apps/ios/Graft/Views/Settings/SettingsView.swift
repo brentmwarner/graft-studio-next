@@ -6,8 +6,17 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        @Bindable var settings = app.settings
         NavigationStack {
             List {
+                Section {
+                    Toggle("Response haptics", isOn: $settings.streamingHaptics)
+                } header: {
+                    PlainHeader("Chat")
+                } footer: {
+                    Text("A few soft taps while streaming, with a confirmation when the final response is ready.")
+                }
+
                 Section {
                     LabeledContent {
                         HStack(spacing: 6) {

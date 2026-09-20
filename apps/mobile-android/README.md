@@ -12,7 +12,7 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Exchange a one-time token with the desktop gateway
 - Persist the bearer token in SecureStore and non-secret metadata in SQLite
 - Restore paired sessions and reconnect as the app moves between foreground and background
-- Browse the same project and thread hierarchy as the iOS client
+- Browse projects, a chronological thread list, or a priority inbox with the same behavior as iOS
 - Create threads and send, stream, or cancel turns through the authenticated gateway socket
 - Render assistant Markdown, reasoning, tool activity, questions, and approval requests
 - Use the RunStatusDotMatrix loader as the live-status thinking indicator
@@ -23,6 +23,24 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Show working-tree diff counts and changed files above the composer
 - Load individual file hunks on expansion, with retry for failed reads
 - Follow the iOS visual language with Android-native motion, floating surfaces, and edge fades
+
+## Projects and inbox views
+
+The top-right menu selects **Priority**, **By Project**, or **Chronological**, and
+remembers that choice across launches. By Project is the initial view. Projects
+start collapsed; folders opened manually stay open while navigating chats or
+switching views during the session. Search reveals matching titles and projects
+without changing the normal folder expansion state.
+
+Chronological groups threads by their most recent update: Today, Yesterday,
+Previous 7 days, and Older, using the device's local calendar. Priority first
+shows pending approvals and questions, followed by running work; the remaining
+threads appear in chronological sections. Each thread appears only once.
+
+Both mobile clients currently use one active paired computer. Its name and
+connection status remain in the header; there is no aggregate multi-computer
+filter. Settings, including Disconnect, remains available from the view menu
+and navigation drawer.
 
 ## Development
 

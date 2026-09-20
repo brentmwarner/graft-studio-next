@@ -227,8 +227,8 @@ private struct StreamingAssistantText: View {
             }
             guard !Task.isCancelled, stream.displayedText != stream.targetText else { continue }
 
-            // Text is already progress. Repeated fades and haptics make a
-            // frequently updated reading surface harder to follow.
+            // Commit the full snapshot without animating layout. Inline prose
+            // draws its own brief arrival fade; existing text stays steady.
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) { _ = stream.commit() }

@@ -30,6 +30,7 @@
 		201EFEFE28DFA52182EF9D89 /* host-event-plan.json in Resources */ = {isa = PBXBuildFile; fileRef = 6ECCC52B4B8B9B62E4FFC634 /* host-event-plan.json */; };
 		20D48831C64A34F1F39CF60F /* AgentThreadCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B919AC64CEC79A92C2275E1F /* AgentThreadCard.swift */; };
 		21191CFD09ACAAC99609657A /* ComposerAccessoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA2846EB705E1F71496E2C6 /* ComposerAccessoryModels.swift */; };
+		22B6739348887FDFDEEFBE79 /* StreamingTextEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = A88DCCEF4399962371383FD4 /* StreamingTextEffect.swift */; };
 		24A8492AAF32892736D583A7 /* host-snapshot-required.json in Resources */ = {isa = PBXBuildFile; fileRef = 3D316A8110B75A999473E70E /* host-snapshot-required.json */; };
 		24B7753DE21DD45B637F85E4 /* host-error-revoked.json in Resources */ = {isa = PBXBuildFile; fileRef = 349692DD96024178F72FE2A5 /* host-error-revoked.json */; };
 		24C9899CFCBE00C595567F1C /* ChatImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED9D3383C520D4ED43F7538 /* ChatImage.swift */; };
@@ -330,6 +331,7 @@
 		A3CA1BE29EE37619007B5218 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		A59D3244B812D6A55AE893D3 /* ProtocolModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolModels.swift; sourceTree = "<group>"; };
 		A5F6BFB2B804A178E2AB67E8 /* host-event-assistant-delta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "host-event-assistant-delta.json"; sourceTree = "<group>"; };
+		A88DCCEF4399962371383FD4 /* StreamingTextEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingTextEffect.swift; sourceTree = "<group>"; };
 		A8AF3DC083843416194B3065 /* host-event-todo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "host-event-todo.json"; sourceTree = "<group>"; };
 		A9B501AD0AFD9E0582DC8FCD /* client-command-approval.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "client-command-approval.json"; sourceTree = "<group>"; };
 		AAD651345AD03D02DF144B69 /* graft-app-icon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "graft-app-icon.icon"; sourceTree = "<group>"; };
@@ -672,6 +674,7 @@
 				157C666EC13E4AD90CBFE184 /* SelectableTextSheet.swift */,
 				27FCD147D0483E54DC0DC444 /* SlashPalette.swift */,
 				25D3FDC7A6E14216E92BB1EB /* StreamingReveal.swift */,
+				A88DCCEF4399962371383FD4 /* StreamingTextEffect.swift */,
 				084ECCC5028646FE7D52B40E /* TaskProgressPill.swift */,
 				71317E6B9D94484137CF9132 /* ToolActivityStrip.swift */,
 				37B658B02B0A986A4CA3D945 /* ToolCallCard.swift */,
@@ -991,6 +994,7 @@
 				FF0FEB66884E00C91C1A3001 /* SlashPalette.swift in Sources */,
 				05917B69BB5F4937F7853B2D /* SpeakerModel.swift in Sources */,
 				1AF4225169D6287340C1676B /* StreamingReveal.swift in Sources */,
+				22B6739348887FDFDEEFBE79 /* StreamingTextEffect.swift in Sources */,
 				D8683E8F49CBDEA5C8776BF4 /* TTSSynthesizer.swift in Sources */,
 				A48798E13CBDD174EA2105A7 /* TaskProgress.swift in Sources */,
 				9D0FC9C87021C1FF2F25371A /* TaskProgressPill.swift in Sources */,

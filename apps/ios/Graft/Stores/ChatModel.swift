@@ -41,6 +41,9 @@ final class ChatModel: Identifiable {
     /// Bumped when the user sends, so the view can force-scroll to bottom.
     private(set) var sendTick = 0
 
+    /// Live successful replies only; history reconciliation stays silent.
+    private(set) var responseCompletionTick = 0
+
     /// Mirror of the transcript's away-from-bottom latch, so chrome outside
     /// `TranscriptView` (the jump arrow beside the diff pill) can react.
     var isAwayFromLatest = false
@@ -480,6 +483,11 @@ final class ChatModel: Identifiable {
             }
             if status == "failed" || status == "error" {
                 appendErrorItem("The run failed.")
+            }
+            if status == "completed", isStreaming,
+               let answer = items.last(where: { $0.kind == .assistant && $0.runID == activeRunId }),
+               !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                responseCompletionTick += 1
             }
             finishTurn(failed: status == "failed" || status == "error")
         }

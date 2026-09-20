@@ -207,3 +207,73 @@ final class InboxGroupingTests: XCTestCase {
         XCTAssertEqual(future.state, .open)
     }
 }
+
+extension InboxGroupingTests {
+    static var viewCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        return calendar
+    }
+
+    static func viewDate(_ day: Int, hour: Int = 0) -> Date {
+        viewCalendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour))!
+    }
+
+    static var viewFixture: EnvironmentSnapshot {
+        func thread(_ id: String, _ day: Int, hour: Int = 0, status: String = "idle", project: String = "graft") -> ThreadInfo {
+            ThreadInfo(id: id, projectId: project, title: id,
+                       updatedAt: Int(viewDate(day, hour: hour).timeIntervalSince1970 * 1000), status: status)
+        }
+        return EnvironmentSnapshot(
+            environment: EnvironmentInfo(id: "mac", label: "Mac", hostVersion: "1", protocolVersion: 1, capabilities: [], cursor: 1),
+            projects: [ProjectInfo(id: "graft", name: "Graft", kind: "repo", path: "/graft"),
+                       ProjectInfo(id: "empty", name: "Empty", kind: "repo", path: "/empty")],
+            threads: [thread("old-active", 1), thread("yesterday", 19), thread("week", 13),
+                      thread("older", 12, hour: 23), thread("today-midnight", 20), thread("today-newest", 20, hour: 11),
+                      thread("approval", 2), thread("question", 3, project: "missing"),
+                      thread("status-attention", 4, status: "needs_attention"), thread("status-running", 5, status: "running")],
+            activeRuns: [ActiveRun(id: "run", threadId: "old-active", projectId: "graft", status: "running", startedAt: 1)],
+            pendingApprovals: [PendingApproval(id: "approve", threadId: "approval", title: "Review", createdAt: 1)],
+            pendingQuestions: [PendingQuestion(id: "ask", threadId: "question", runId: nil, prompt: "Choose", options: nil, allowFreeform: true, createdAt: 1)],
+            selectedTranscript: nil, cursor: 1
+        )
+    }
+
+    func testChronologicalCalendarBoundariesAndNewestFirst() {
+        let sections = InboxGrouping.sections(from: Self.viewFixture, mode: .chronological, searchQuery: "",
+                                               now: Self.viewDate(20, hour: 12), calendar: Self.viewCalendar)
+        XCTAssertEqual(sections.map(\.title), ["Today", "Yesterday", "Previous 7 days", "Older"])
+        XCTAssertEqual(sections.prefix(3).map { $0.threads.map(\.id) },
+                       [["today-newest", "today-midnight"], ["yesterday"], ["week"]])
+        XCTAssertEqual(Set(sections.flatMap { $0.threads.map(\.id) }).count, Self.viewFixture.threads.count)
+    }
+
+    func testPriorityRanksDecisionsBeforeRunningAndDoesNotDuplicateThreads() {
+        let sections = InboxGrouping.sections(from: Self.viewFixture, mode: .priority, searchQuery: "",
+                                               now: Self.viewDate(20, hour: 12), calendar: Self.viewCalendar)
+        XCTAssertEqual(sections.first?.threads.map(\.id),
+                       ["status-attention", "question", "approval", "status-running", "old-active"])
+        XCTAssertTrue(sections.first!.threads.allSatisfy { $0.thread.showsAttentionDot })
+        XCTAssertEqual(sections.flatMap(\.threads).count, Self.viewFixture.threads.count)
+        XCTAssertNil(sections.first?.threads.first { $0.id == "question" }?.projectName)
+    }
+
+    func testListSearchIncludesProjectsAndOrphans() {
+        XCTAssertEqual(InboxGrouping.sections(from: Self.viewFixture, mode: .priority, searchQuery: " QUESTION ").first?.threads.first?.id, "question")
+        XCTAssertEqual(InboxGrouping.sections(from: Self.viewFixture, mode: .chronological, searchQuery: "graft").flatMap(\.threads).count, 9)
+        XCTAssertTrue(InboxGrouping.sections(from: Self.viewFixture, mode: .chronological, searchQuery: "empty").isEmpty)
+        XCTAssertTrue(InboxGrouping.sections(from: Self.viewFixture, mode: .priority, searchQuery: "no match").isEmpty)
+        XCTAssertTrue(InboxGrouping.sections(from: nil, mode: .priority, searchQuery: "").isEmpty)
+    }
+
+    func testChronologyUsesCalendarDaysAcrossDaylightSaving() {
+        let calendar = Self.viewCalendar
+        let now = calendar.date(from: DateComponents(year: 2026, month: 3, day: 9, hour: 12))!
+        let previous = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 0, minute: 30))!
+        let fixture = Self.viewFixture
+        let snapshot = EnvironmentSnapshot(environment: fixture.environment, projects: fixture.projects,
+            threads: [ThreadInfo(id: "dst", projectId: "graft", title: "DST", updatedAt: Int(previous.timeIntervalSince1970 * 1000), status: "idle")],
+            activeRuns: [], pendingApprovals: [], pendingQuestions: [], selectedTranscript: nil, cursor: 1)
+        XCTAssertEqual(InboxGrouping.sections(from: snapshot, mode: .chronological, searchQuery: "", now: now, calendar: calendar).first?.title, "Yesterday")
+    }
+}

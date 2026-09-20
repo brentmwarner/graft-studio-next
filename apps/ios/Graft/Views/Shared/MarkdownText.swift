@@ -509,8 +509,12 @@ struct InlineText: View {
     }
 
     var body: some View {
-        Self.renderedText(Self.linkedAttributed(from: text, isStreaming: isStreaming,
-            resolvedPaths: fileLinks?.paths ?? [:], skills: skills), skillIconSize: skillIconSize)
+        StreamingInlineText(
+            attributed: Self.linkedAttributed(from: text, isStreaming: isStreaming,
+                resolvedPaths: fileLinks?.paths ?? [:], skills: skills),
+            isStreaming: isStreaming,
+            skillIconSize: skillIconSize
+        )
             .tint(DS.Color.link)
     }
 
@@ -540,12 +544,17 @@ struct InlineText: View {
         return result
     }
 
-    private static func renderedText(_ attributed: AttributedString, skillIconSize: CGFloat) -> Text {
+    static func renderedText(_ attributed: AttributedString, skillIconSize: CGFloat,
+                             arrivals: [StreamingTextFade.Arrival] = [], time: TimeInterval = 0) -> Text {
         var result = Text("")
+        var offset = 0
         for run in attributed.runs {
-            let content = Text(AttributedString(attributed[run.range]))
+            let length = attributed.characters.distance(from: run.range.lowerBound, to: run.range.upperBound)
+            let runRange = offset..<(offset + length)
+            let incoming = arrivals.filter { $0.range.overlaps(runRange) }
+            var content = Text(AttributedString(attributed[run.range]))
             if let label = run[SkillMentionAttribute.self] {
-                result = Text("\(result)\(SkillMention.text(label, iconSize: skillIconSize))")
+                content = SkillMention.text(label, iconSize: skillIconSize)
             } else if let url = run.link, let selected = WorkspaceFileSelection(url: url),
                let reference = MarkdownFileReference(selected.path) {
                 let icon: Text
@@ -555,12 +564,45 @@ struct InlineText: View {
                 case "File": icon = Text(Image(systemName: "doc"))
                 default: icon = Text(verbatim: reference.typeLabel)
                 }
-                result = Text("\(result)\(icon.font(.caption2.weight(.semibold)).foregroundStyle(DS.Color.link)) \(content)")
-            } else {
-                result = Text("\(result)\(content)")
+                content = Text("\(icon.font(.caption2.weight(.semibold)).foregroundStyle(DS.Color.link)) \(content)")
             }
+            if let arrival = incoming.last, run[SkillMentionAttribute.self] != nil || run.link != nil {
+                // Decorated labels and file icons are atomic: splitting their
+                // attributed run would repeat the label/icon on each chunk.
+                content = fading(content, color: run.foregroundColor, arrival: arrival, time: time)
+            } else if !incoming.isEmpty {
+                var pieces = Text("")
+                var cursor = run.range.lowerBound
+                var position = offset
+                for arrival in incoming {
+                    let lower = max(position, arrival.range.lowerBound)
+                    let upper = min(runRange.upperBound, arrival.range.upperBound)
+                    let start = attributed.characters.index(cursor, offsetBy: lower - position)
+                    let end = attributed.characters.index(start, offsetBy: upper - lower)
+                    let settled = Text(AttributedString(attributed[cursor..<start]))
+                    let added = fading(Text(AttributedString(attributed[start..<end])),
+                        color: run.foregroundColor, arrival: arrival, time: time)
+                    pieces = Text("\(pieces)\(settled)\(added)")
+                    cursor = end
+                    position = upper
+                }
+                let tail = Text(AttributedString(attributed[cursor..<run.range.upperBound]))
+                content = Text("\(pieces)\(tail)")
+            }
+            result = Text("\(result)\(content)")
+            offset += length
         }
         return result
+    }
+
+    private static func fading(_ text: Text, color: Color?, arrival: StreamingTextFade.Arrival,
+                               time: TimeInterval) -> Text {
+        let progress = min(1, max(0, (time - arrival.time) / StreamingTextFade.duration))
+        let opacity = 0.25 + 0.75 * (1 - pow(1 - progress, 3))
+        if let color {
+            return text.foregroundStyle(color.opacity(opacity))
+        }
+        return text.foregroundStyle(.primary.opacity(opacity))
     }
 
     private static func fileRanges(in attributed: AttributedString) -> [(range: Range<AttributedString.Index>, reference: MarkdownFileReference)] {

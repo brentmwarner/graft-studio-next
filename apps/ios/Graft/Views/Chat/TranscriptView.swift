@@ -179,6 +179,8 @@ struct TranscriptView: View {
             .padding(.bottom, chat.liveStatusText == nil ? 2 : 10)
         }
         .environment(\.transcriptSkills, Self.referencedSkills(in: chat.items))
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        .modifier(StreamingFeedback(chat: chat, isFollowing: !isAwayFromBottom && !userInteracting))
         // Open at the latest message by anchoring ONLY the initial content offset to
         // the bottom. `scrollPosition.scrollTo(edge: .bottom)` computes the bottom from
         // the LazyVStack's *estimated* height, so when the last row is un-realized
