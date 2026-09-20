@@ -92,7 +92,19 @@ async function requestJson<T>(
   return payload as T;
 }
 
-export function createMobilePairingLink(): Promise<GraftMobilePairingLink> {
+export async function createMobilePairingLink(): Promise<GraftMobilePairingLink> {
+  const account = window.desktopBridge?.account;
+  if (account?.connectRelay && (await account.getState()).status === "signed-in") {
+    let status = await getConnectionsStatus();
+    if (!status.enabled) status = await setConnectionsEnabled(true);
+    // A phone cannot assume it shares the desktop's LAN or Tailscale network.
+    // Reuse the saved relay during reconnects; registering again rotates its credential.
+    if (status.relay.state === "disabled" || status.relay.state === "error") {
+      await account.connectRelay();
+    }
+  }
+  // The host waits for relay registration before issuing the QR code. Let an
+  // outage surface here instead of persisting an unreachable local address.
   return requestJson<GraftMobilePairingLink>("/v1/pairing-link", { method: "POST" });
 }
 

@@ -10,6 +10,7 @@ import {
   getConnectionsStatus,
   revokeConnectionsDevice,
   setConnectionsEnabled,
+  type GraftConnectionsStatus,
 } from "~/graftConnections";
 import { copyTextToClipboard } from "~/hooks/useCopyToClipboard";
 const CONNECTIONS_QUERY_KEY = ["graft", "connections-status"] as const;
@@ -89,9 +90,9 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
       }
       return connectGraftRelay();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setError(null);
-      void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
     },
     onError: (cause: unknown) =>
       setError(cause instanceof Error ? cause.message : "Could not connect the Graft relay."),
@@ -104,9 +105,19 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
       }
       return createMobilePairingLink();
     },
-    onSuccess: () => {
+    onSuccess: async (pairing) => {
+      queryClient.setQueryData<GraftConnectionsStatus>(CONNECTIONS_QUERY_KEY, (previous) =>
+        previous
+          ? {
+              ...previous,
+              enabled: true,
+              pairingUrl: pairing.pairingUrl,
+              pairingExpiresAt: pairing.expiresAt,
+            }
+          : previous,
+      );
       setError(null);
-      void queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: CONNECTIONS_QUERY_KEY });
     },
     onError: (cause: unknown) =>
       setError(cause instanceof Error ? cause.message : "Could not create a pairing link."),
@@ -122,6 +133,7 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
   });
 
   const httpStatus = connectionsQuery.data;
+  const hidePairingCode = pairingMutation.isPending || pairingMutation.isError;
   const status: ConnectionsStatus = {
     ...EMPTY_STATUS,
     enabled: httpStatus?.enabled ?? EMPTY_STATUS.enabled,
@@ -132,8 +144,10 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     port: httpStatus?.port ?? EMPTY_STATUS.port,
     endpoints: httpStatus?.endpoints ?? EMPTY_STATUS.endpoints,
     devices: httpStatus?.devices ?? EMPTY_STATUS.devices,
-    pairingUrl: httpStatus?.pairingUrl ?? EMPTY_STATUS.pairingUrl,
-    pairingExpiresAt: httpStatus?.pairingExpiresAt ?? EMPTY_STATUS.pairingExpiresAt,
+    pairingUrl: hidePairingCode ? null : (httpStatus?.pairingUrl ?? EMPTY_STATUS.pairingUrl),
+    pairingExpiresAt: hidePairingCode
+      ? null
+      : (httpStatus?.pairingExpiresAt ?? EMPTY_STATUS.pairingExpiresAt),
     relay: httpStatus?.relay ?? EMPTY_STATUS.relay,
     keepHostAwake,
   };

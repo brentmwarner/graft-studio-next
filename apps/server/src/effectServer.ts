@@ -61,6 +61,7 @@ import { ExternalMcpService } from "./externalMcp/Services/ExternalMcpService";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
 import { graftMobileRouteLayer } from "./graftMobile/httpRoute";
 import { graftConnectionsRouteLayer } from "./graftMobile/connectionsHttp";
+import { serializeMobileConnectionChange } from "./graftMobile/mobileConnectionChanges";
 import {
   attachMobileLanGatewayMainServer,
   detachMobileLanGatewayMainServer,
@@ -249,33 +250,58 @@ export const createEffectServer = Effect.fn(function* (
   setBoundListenPort(listeningPort);
   setOccupancyListenPort(listeningPort);
   initializeMobileRelay(listeningPort, config.stateDir, process.env, config.host);
-  if (nodeServer && shouldStartMobileLanGateway(config)) {
-    const loopbackServer = nodeServer;
-    attachMobileLanGatewayMainServer(loopbackServer);
-    const settings = loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir));
-    if (settings.enabled) {
-      yield* Effect.tryPromise({
-        try: () => startMobileLanGateway(loopbackServer, settings.preferredPort ?? 0),
-        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-      }).pipe(
-        Effect.tap((port) => {
-          saveMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir), {
-            enabled: true,
-            preferredPort: port,
-          });
-          return Effect.logInfo("Graft mobile LAN gateway listening", {
-            host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
-            port,
-          });
+  const loopbackServer = nodeServer;
+  yield* Effect.promise(() =>
+    serializeMobileConnectionChange(() =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          if (loopbackServer && shouldStartMobileLanGateway(config)) {
+            attachMobileLanGatewayMainServer(loopbackServer);
+            const settings = loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir));
+            if (settings.enabled) {
+              yield* Effect.tryPromise({
+                try: () => startMobileLanGateway(loopbackServer, settings.preferredPort ?? 0),
+                catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+              }).pipe(
+                Effect.tap((port) =>
+                  Effect.tryPromise({
+                    try: () =>
+                      saveMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir), {
+                        enabled: true,
+                        preferredPort: port,
+                      }),
+                    catch: (cause) =>
+                      cause instanceof Error
+                        ? cause
+                        : new Error("Could not save connection settings."),
+                  }).pipe(
+                    Effect.catch((error) =>
+                      Effect.logWarning("Graft mobile LAN gateway settings could not be saved", {
+                        detail: error.message,
+                      }),
+                    ),
+                    Effect.andThen(
+                      Effect.logInfo("Graft mobile LAN gateway listening", {
+                        host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
+                        port,
+                      }),
+                    ),
+                  ),
+                ),
+                Effect.catch((error) =>
+                  Effect.logWarning("Graft mobile LAN gateway did not start", {
+                    detail: error.message,
+                  }),
+                ),
+              );
+            }
+          }
+          setMobileRelayEnabled(
+            loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir)).enabled,
+          );
         }),
-        Effect.catch((error) =>
-          Effect.logWarning("Graft mobile LAN gateway did not start", { detail: error.message }),
-        ),
-      );
-    }
-  }
-  setMobileRelayEnabled(
-    loadMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir)).enabled,
+      ),
+    ),
   );
   yield* Effect.addFinalizer(() =>
     Effect.promise(() =>

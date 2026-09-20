@@ -166,10 +166,13 @@ updater channel is `graft`.
 
 ## Cellular access
 
-The migrated host uses the existing Graft managed relay. In Settings → Connections,
-turn on remote connections and choose **Connect Graft account** if the relay is not
-connected. Sign-in opens on the host computer and uses the legacy Graft PKCE flow.
-Once the relay says Connected, create a new pairing code and pair the phone.
+The migrated host uses the existing Graft managed relay. In the signed-in desktop,
+**Settings → Connections → Add device → Get started** connects the relay before
+issuing the QR code. To connect it separately, turn on remote connections and choose
+**Connect Graft account** if the relay is not connected. The desktop reuses its
+signed-in account; browser/headless hosts open sign-in on the host computer using
+the Graft PKCE flow. Once the relay says Connected, create a new pairing code and
+pair the phone.
 
 Phones previously paired to a LAN or Tailnet URL need to pair once using the relay
 code. Their old saved local address cannot become internet-reachable by retrying

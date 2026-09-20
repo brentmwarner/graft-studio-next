@@ -1,5 +1,4 @@
 import { revokePairedAccountAccess } from "./accountDisconnect";
-import { writeFileStringAtomically } from "../atomicWrite";
 import { Effect } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { AuthSessionId } from "@graft/contracts";
@@ -16,6 +15,7 @@ import {
 import { isLoopbackHost, getBoundListenPort } from "../startupAccess";
 import { connectionsDevicesFromSessions } from "./connectionsDevices";
 import { getIssuedPairing } from "./issuedPairing";
+import { serializeMobileConnectionChange } from "./mobileConnectionChanges";
 import {
   getMobileLanGatewayPort,
   mobileLanGatewayAdvertisesIpv6,
@@ -101,24 +101,55 @@ const connectionsHttpRouteLayer = HttpRouter.add(
         return respond({ error: "This host is already reachable without the LAN gateway." }, 400);
       }
       const settingsPath = mobileGatewaySettingsPath(config.stateDir);
-      const previous = loadMobileGatewaySettings(settingsPath);
-      try {
-        if (!enabled) setMobileRelayEnabled(false);
-        const port = shouldStartMobileLanGateway(config)
-          ? yield* Effect.promise(() =>
-              setMobileLanGatewayEnabled(enabled, previous.preferredPort ?? 0),
-            )
-          : getMobileLanGatewayPort();
-        setMobileRelayEnabled(enabled);
-        saveMobileGatewaySettings(settingsPath, {
-          enabled,
-          preferredPort: port ?? previous.preferredPort,
-        });
-      } catch (error) {
-        return respond(
-          { error: error instanceof Error ? error.message : "Could not update the LAN gateway." },
-          500,
-        );
+      const error = yield* Effect.tryPromise({
+        try: () =>
+          serializeMobileConnectionChange(async () => {
+            const previous = loadMobileGatewaySettings(settingsPath);
+            const previousPort = getMobileLanGatewayPort();
+            const managesLan = shouldStartMobileLanGateway(config);
+            if (!enabled) {
+              // A failed save must leave the existing access policy intact.
+              try {
+                await saveMobileGatewaySettings(settingsPath, {
+                  enabled: false,
+                  preferredPort: previousPort ?? previous.preferredPort,
+                });
+              } catch (cause) {
+                // Directory sync can fail after replacement. Honor the committed intent.
+                if (!loadMobileGatewaySettings(settingsPath).enabled) {
+                  setMobileRelayEnabled(false);
+                  if (managesLan) await setMobileLanGatewayEnabled(false);
+                }
+                throw cause;
+              }
+              setMobileRelayEnabled(false);
+              if (managesLan) await setMobileLanGatewayEnabled(false);
+              return;
+            }
+            const port = managesLan
+              ? await setMobileLanGatewayEnabled(true, previous.preferredPort ?? 0)
+              : previousPort;
+            try {
+              await saveMobileGatewaySettings(settingsPath, {
+                enabled: true,
+                preferredPort: port ?? previous.preferredPort,
+              });
+            } catch (cause) {
+              if (loadMobileGatewaySettings(settingsPath).enabled) {
+                setMobileRelayEnabled(true);
+              } else if (managesLan && previousPort === null) {
+                // Only undo the gateway created by an uncommitted enable attempt.
+                await setMobileLanGatewayEnabled(false);
+              }
+              throw cause;
+            }
+            setMobileRelayEnabled(true);
+          }),
+        catch: (cause) =>
+          cause instanceof Error ? cause : new Error("Could not save connection settings."),
+      }).pipe(Effect.match({ onSuccess: () => null, onFailure: (cause) => cause }));
+      if (error) {
+        return respond({ error: error.message }, 500);
       }
       const clients = yield* serverAuth.listClientSessions(authenticated.sessionId);
       return respond(
@@ -127,17 +158,27 @@ const connectionsHttpRouteLayer = HttpRouter.add(
     }
 
     if (request.method === "POST" && url.pathname === "/api/graft/connections/account/disconnect") {
-      yield* Effect.promise(() => disconnectMobileRelayAccount());
-      if (shouldStartMobileLanGateway(config)) {
-        yield* Effect.promise(() => setMobileLanGatewayEnabled(false));
-        const settingsPath = mobileGatewaySettingsPath(config.stateDir);
-        const previous = loadMobileGatewaySettings(settingsPath);
-        yield* writeFileStringAtomically({
-          filePath: settingsPath,
-          contents: JSON.stringify({ enabled: false, preferredPort: previous.preferredPort }),
-          mode: 0o600,
-        }).pipe(Effect.orDie);
-      }
+      yield* Effect.promise(() => {
+        // Cancel registration immediately, then finish after any older settings change.
+        const disconnecting = disconnectMobileRelayAccount().then(
+          () => ({ error: null }),
+          (error: unknown) => ({ error }),
+        );
+        return serializeMobileConnectionChange(async () => {
+          const result = await disconnecting;
+          setMobileRelayEnabled(false);
+          if (shouldStartMobileLanGateway(config)) {
+            await setMobileLanGatewayEnabled(false);
+            const settingsPath = mobileGatewaySettingsPath(config.stateDir);
+            const previous = loadMobileGatewaySettings(settingsPath);
+            await saveMobileGatewaySettings(settingsPath, {
+              enabled: false,
+              preferredPort: previous.preferredPort,
+            });
+          }
+          if (result.error) throw result.error;
+        });
+      });
       yield* revokePairedAccountAccess(serverAuth, authenticated.sessionId);
       return respond({ ok: true });
     }

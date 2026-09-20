@@ -8,6 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraftAccountLoginServiceDependencies } from "./graftAccountLoginService";
 import type { RelayStatus } from "./relayUplink";
 import {
+  loadMobileGatewaySettings,
+  mobileGatewaySettingsPath,
+  saveMobileGatewaySettings,
+} from "./mobileGatewaySettings";
+import {
   connectMobileRelayAccount,
   connectMobileRelayWithAccount,
   disconnectMobileRelayAccount,
@@ -100,6 +105,31 @@ describe("mobile relay lifecycle", () => {
     expect(getMobileRelayEndpoint()?.httpBaseUrl).toBe(credential.httpBaseUrl);
   });
 
+  it("restores desktop relay access from disk after an update changes the backend port", async () => {
+    initializeMobileRelay(5100, directory, {});
+    setMobileRelayEnabled(true);
+    await saveMobileGatewaySettings(mobileGatewaySettingsPath(directory), {
+      enabled: true,
+      preferredPort: 5200,
+    });
+    const request = vi.fn(async () => new Response(JSON.stringify(credential)));
+    vi.stubGlobal("fetch", request);
+    await connectMobileRelayWithAccount("My computer", "desktop-account-token");
+    mocks.uplinks.at(-1)!.options.onStatus({ state: "connected", lastError: null });
+    const pairedAddress = getMobileRelayEndpoint();
+    stopMobileRelay();
+
+    initializeMobileRelay(6100, directory, {});
+    setMobileRelayEnabled(loadMobileGatewaySettings(mobileGatewaySettingsPath(directory)).enabled);
+    const restored = mocks.uplinks.at(-1)!;
+    expect(restored.start).toHaveBeenCalledOnce();
+    expect(restored.options.localHttpBaseUrl).toBe("http://127.0.0.1:6100");
+    restored.options.onStatus({ state: "connected", lastError: null });
+    expect(getMobileRelayEndpoint()).toEqual(pairedAddress);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(mocks.login).toBeNull();
+  });
+
   it("fails pairing during an outage instead of silently saving a LAN address", async () => {
     vi.useFakeTimers();
     initializeSaved();
@@ -137,6 +167,8 @@ describe("mobile relay lifecycle", () => {
     setMobileRelayEnabled(true);
     mocks.uplinks.at(-1)!.options.onStatus({ state: "connected", lastError: null });
     expect(getMobileRelayEndpoint()?.httpBaseUrl).toBe(credential.httpBaseUrl);
+    expect(mocks.uplinks.at(-1)!.options.localHttpBaseUrl).toBe("http://127.0.0.1:5001");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("registers the current desktop account without another login and stores only the scoped credential", async () => {

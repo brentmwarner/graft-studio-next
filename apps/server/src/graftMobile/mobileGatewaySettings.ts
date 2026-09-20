@@ -1,5 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
+import { Effect } from "effect";
+
+import { writeFileStringAtomically } from "../atomicWrite";
 
 export type MobileGatewaySettings = {
   enabled: boolean;
@@ -23,16 +25,16 @@ export function loadMobileGatewaySettings(filePath: string): MobileGatewaySettin
   }
 }
 
-export function saveMobileGatewaySettings(filePath: string, settings: MobileGatewaySettings): void {
-  try {
-    mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(
+export async function saveMobileGatewaySettings(
+  filePath: string,
+  settings: MobileGatewaySettings,
+): Promise<void> {
+  await Effect.runPromise(
+    writeFileStringAtomically({
       filePath,
-      `${JSON.stringify(sanitizeMobileGatewaySettings(settings), null, 2)}\n`,
-    );
-  } catch {
-    // Losing a write only means the owner re-enables the gateway after relaunch.
-  }
+      contents: `${JSON.stringify(sanitizeMobileGatewaySettings(settings), null, 2)}\n`,
+    }),
+  );
 }
 
 export function sanitizeMobileGatewaySettings(value: unknown): MobileGatewaySettings {
