@@ -9,7 +9,7 @@ The same fixture compares `f1b3d572d` with the changed composer and transcript.
 | ![Two-row composer and completed Working row](before.png) | ![Idle pill and folded completed work](after.png) |
 
 [Expanded editor](expanded.png) · [Colored provider mark](provider-color.png) · [Collapsed draft](draft-pill.png) · [Expanded work details](work-details.png) ·
-[25-second composer and streaming recording](motion.mp4)
+[30-second composer and streaming recording](motion.mp4)
 
 ## Observed behavior
 
@@ -31,9 +31,9 @@ The same fixture compares `f1b3d572d` with the changed composer and transcript.
 - `bun run fmt:check`: passed.
 - `bun run lint`: passed, with existing repository warnings and no errors.
 - `bun run typecheck`: all 12 workspace tasks passed; Android typecheck repeated
-  after the final composer and provider-color changes.
-- `bun run android:test`: 232 tests passed, including editor identity, permission
-  access, turn folding, preserved row identity, bounded reveal spans, ordinary-paragraph fades, and haptic cadence.
+  after the review fixes.
+- `bun run android:test`: 242 tests passed, including editor identity, permission
+  access, turn folding, preserved row identity, bounded reveal spans, ordinary-paragraph fades, haptic cadence, queued-run ownership, disclosure motion/reset, and abandoned text renders.
 - Local Gradle debug and release builds succeeded; release fixture opened and
   streamed without React Native or Android runtime errors.
 

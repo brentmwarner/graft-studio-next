@@ -111,11 +111,11 @@ export function useThreadModel({
   const items = useMemo(() => {
     const presented = reconcileTranscriptItems(
       presentedRef.current,
-      presentTranscript(followItems, isWorking || hasPendingSend),
+      presentTranscript(followItems, isWorking || hasPendingSend, activeRunId),
     );
     presentedRef.current = presented;
     return presented;
-  }, [followItems, isWorking, hasPendingSend]);
+  }, [followItems, isWorking, hasPendingSend, activeRunId]);
   const approval = snapshot?.pendingApprovals.find((item) => item.threadId === thread.id);
   const question = snapshot?.pendingQuestions.find((item) => item.threadId === thread.id);
   const { currentModel, lockedProviderId, selectableModels } = threadModelChoices(

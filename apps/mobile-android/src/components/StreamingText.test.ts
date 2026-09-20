@@ -1,11 +1,20 @@
-import { expect, it, vi } from "vitest";
+import { createElement, StrictMode, Suspense } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import { appendReveal } from "./StreamingText";
+import { appendReveal, StreamingText } from "./StreamingText";
 
 vi.mock("react-native", () => ({ Text: "Text" }));
 vi.mock("react-native-reanimated", () => ({ default: { Text: "AnimatedText" } }));
 vi.mock("../theme/tokens", () => ({ useGraftPalette: () => ({}) }));
 const initial = { text: "Hello", base: "Hello", spans: [] };
+let renderer: ReactTestRenderer | undefined;
+beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
+afterEach(async () => {
+  await act(() => renderer?.unmount());
+  renderer = undefined;
+  vi.unstubAllGlobals();
+});
 it("reveals only appended text and preserves the entire received value", () => {
   const next = appendReveal(initial, "Hello there 👋", true, 1000);
   expect(next.base).toBe("Hello");
@@ -27,4 +36,40 @@ it("flushes completion, reduced motion and corrections without animation", () =>
     base: "Corrected",
     spans: [],
   });
+});
+it("does not advance the reveal baseline for a suspended render", async () => {
+  const pending = new Promise<never>(() => {});
+  function Suspend({ enabled }: { enabled: boolean }) {
+    if (enabled) throw pending;
+    return null;
+  }
+  const frame = (text: string, suspend = false, animate = true) =>
+    createElement(
+      StrictMode,
+      null,
+      createElement(
+        Suspense,
+        { fallback: "pending" },
+        createElement(StreamingText, { text, animate }),
+        createElement(Suspend, { enabled: suspend }),
+      ),
+    );
+  const animated = () =>
+    renderer!.root.findAll((node) => (node.type as unknown) === "AnimatedText");
+  await act(() => {
+    renderer = create(frame("Hello"));
+  });
+  expect(animated()).toHaveLength(0);
+  await act(() => renderer!.update(frame("Hello speculative", true)));
+  await act(() => renderer!.update(frame("Hello friend")));
+  expect(animated().map((node) => node.props.children)).toEqual([" friend"]);
+  expect(renderer!.toJSON()).toEqual({
+    type: "Text",
+    props: {},
+    children: ["Hello", expect.objectContaining({ children: [" friend"] })],
+  });
+  await act(() => renderer!.update(frame("Hello friend", false, false)));
+  expect(renderer!.toJSON()).toBe("Hello friend");
+  await act(() => renderer!.update(frame("Hello friend again")));
+  expect(animated().map((node) => node.props.children)).toEqual([" again"]);
 });

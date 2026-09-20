@@ -25,7 +25,8 @@ vi.mock("../../components/RunStatusDotMatrix", () => ({
 }));
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("react-native-reanimated", () => ({
-  default: { Text: "AnimatedText" },
+  default: { Text: "AnimatedText", View: "AnimatedView" },
+  cubicBezier: (...values: number[]) => values,
   useReducedMotion: () => motion.reduced,
 }));
 vi.mock("../../components/ActivityCard", () => ({ ActivityCard: "ActivityCard" }));

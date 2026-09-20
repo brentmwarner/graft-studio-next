@@ -59,6 +59,10 @@ on the composer. Longer drafts grow to a scrolling limit. Model discovery is
 shared across composers, with loading, retry, and refresh states. Effort choices
 follow the selected model's advertised capabilities.
 
+Completed work is grouped by its run ID, so queued prompts cannot fold a still-active
+response. For legacy host events without run IDs, work stays visible while a turn is
+active and folds after it settles.
+
 The transcript keeps one live status through thinking, text, and tool work until
 the turn ends. Its text shimmer runs on the UI thread and becomes static with
 reduced motion. Acknowledged local message echoes are retired from the live
