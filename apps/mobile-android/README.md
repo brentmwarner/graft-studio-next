@@ -15,6 +15,8 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Browse the same project and thread hierarchy as the iOS client
 - Create threads and send, stream, or cancel turns through the authenticated gateway socket
 - Render assistant Markdown, reasoning, tool activity, questions, and approval requests
+- Use the RunStatusDotMatrix loader as the live-status thinking indicator
+- Show the official Graft mark on splash and pairing, then Pair with Studio
 - Select the thread model, reasoning effort, and approval policy offered by the host
 - Keep established chats on their provider while allowing model changes
 - Dictate a message with native Android speech recognition, then review or send the transcript

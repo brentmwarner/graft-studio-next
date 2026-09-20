@@ -19,6 +19,7 @@ vi.mock("react-native-reanimated", () => ({ default: { View: "AnimatedView" } })
 vi.mock("../../components/disclosureMotion", () => ({ useDisclosureHeightTransition: () => ({}) }));
 vi.mock("../../components/FloatingSurface", () => ({ FloatingSurface: "Surface" }));
 vi.mock("../../components/PressScale", () => ({ PressScale: "Press" }));
+vi.mock("../../components/ProviderLogo", () => ({ ProviderLogo: "ProviderLogo" }));
 vi.mock("../../theme/tokens", () => ({ useGraftPalette: () => ({}), graftRadius: { pill: 999 } }));
 vi.mock("./ComposerConfigMenu", () => ({ ComposerConfigMenu: "Menu" }));
 vi.mock("./ComposerAttachments", () => ({ ComposerAttachments: "Attachments" }));

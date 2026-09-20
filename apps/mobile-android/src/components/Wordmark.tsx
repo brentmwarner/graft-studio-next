@@ -1,25 +1,20 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { graftSpacing, useGraftPalette } from "../theme/tokens";
+import { GraftMark } from "./GraftMark";
 
-export function Wordmark() {
+export function Wordmark({ markSize = 20 }: { readonly markSize?: number }) {
   const palette = useGraftPalette();
 
   return (
     <View style={styles.row}>
-      <View style={[styles.mark, { backgroundColor: palette.foreground }]} />
+      <GraftMark size={markSize} />
       <Text style={[styles.word, { color: palette.foreground }]}>Graft</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mark: {
-    borderRadius: 4,
-    height: 15,
-    transform: [{ rotate: "45deg" }],
-    width: 15,
-  },
   row: {
     alignItems: "center",
     flexDirection: "row",

@@ -47,6 +47,7 @@ interface UseRecentViewSwitcherInput {
   activeContextThreadId: NewThreadContext["activeContextThreadId"];
   activeDraftThread: NewThreadContext["activeDraftThread"];
   projects: NewThreadContext["projects"];
+  hiddenProjectIds?: ReadonlySet<string>;
 }
 
 // Encapsulates recent-view persistence, pruning, prewarm, and activation.
@@ -83,9 +84,15 @@ export function useRecentViewSwitcher(input: UseRecentViewSwitcherInput) {
     settingsSection,
   });
   const currentRecentViewKey = currentRecentView ? recentViewKey(currentRecentView) : null;
-  const recentThreadIds = recentViews.flatMap((view) =>
-    view.kind === "thread" ? [view.threadId] : [],
-  );
+  const hiddenProjectIds = input.hiddenProjectIds;
+  const recentThreadIds = recentViews.flatMap((view) => {
+    if (view.kind !== "thread") return [];
+    const summary = sidebarThreadSummaryById[view.threadId];
+    const draft = draftThreadsByThreadId[view.threadId];
+    const projectId = summary?.projectId ?? draft?.projectId;
+    if (projectId && hiddenProjectIds?.has(projectId)) return [];
+    return [view.threadId];
+  });
   const switcherOpen = recentSwitcherState !== null;
   let recentViewEntries: RecentViewDisplayEntry[] = EMPTY_RECENT_VIEW_ENTRIES;
   if (switcherOpen) {
@@ -133,6 +140,7 @@ export function useRecentViewSwitcher(input: UseRecentViewSwitcherInput) {
       projects: input.projects,
       pinnedThreadIds: persistedPinnedThreadIds,
       terminalVisualIdentityByThreadId,
+      ...(hiddenProjectIds ? { hiddenProjectIds } : {}),
     });
   }
   const currentRecentViewRef = useRef<RecentView | null>(currentRecentView);
@@ -140,6 +148,7 @@ export function useRecentViewSwitcher(input: UseRecentViewSwitcherInput) {
   const recentViewsRef = useRef(recentViews);
   const activeContextThreadIdRef = useRef(input.activeContextThreadId);
   const activeDraftThreadRef = useRef(input.activeDraftThread);
+  const hiddenProjectIdsRef = useRef(input.hiddenProjectIds);
   const didHydrationPruneRef = useRef(false);
 
   useEffect(() => {
@@ -162,6 +171,10 @@ export function useRecentViewSwitcher(input: UseRecentViewSwitcherInput) {
     activeDraftThreadRef.current = input.activeDraftThread;
   }, [input.activeDraftThread]);
 
+  useEffect(() => {
+    hiddenProjectIdsRef.current = input.hiddenProjectIds;
+  }, [input.hiddenProjectIds]);
+
   const buildRecentViewAvailability = (): RecentViewAvailability => {
     const sidebarThreadSummaryById = useStore.getState().sidebarThreadSummaryById;
     const draftThreadsByThreadId = useComposerDraftStore.getState().draftThreadsByThreadId;
@@ -170,16 +183,20 @@ export function useRecentViewSwitcher(input: UseRecentViewSwitcherInput) {
     const activeDraftThread = activeDraftThreadRef.current;
 
     const availableThreadIds = new Set<ThreadId>();
+    const hiddenProjectIds = hiddenProjectIdsRef.current;
     for (const [threadId, thread] of Object.entries(sidebarThreadSummaryById)) {
-      if (!thread?.sidechatSourceThreadId) {
-        availableThreadIds.add(ThreadId.makeUnsafe(threadId));
-      }
+      if (thread?.sidechatSourceThreadId) continue;
+      if (thread && hiddenProjectIds?.has(thread.projectId)) continue;
+      availableThreadIds.add(ThreadId.makeUnsafe(threadId));
     }
-    for (const threadId of Object.keys(draftThreadsByThreadId)) {
+    for (const [threadId, draft] of Object.entries(draftThreadsByThreadId)) {
+      if (hiddenProjectIds?.has(draft.projectId)) continue;
       availableThreadIds.add(ThreadId.makeUnsafe(threadId));
     }
     if (activeDraftThread && activeContextThreadId) {
-      availableThreadIds.add(activeContextThreadId);
+      if (!hiddenProjectIds?.has(activeDraftThread.projectId)) {
+        availableThreadIds.add(activeContextThreadId);
+      }
     }
 
     const availableSplitViewIds = new Set(

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PressScale } from "../../components/PressScale";
+import { ProviderLogo } from "../../components/ProviderLogo";
 import { useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
@@ -31,6 +32,12 @@ export function ComposerSettings({
             onPress={open}
             style={styles.modelButton}
           >
+            <ProviderLogo
+              color={palette.foregroundMuted}
+              label={config.currentModel?.providerLabel}
+              providerId={config.currentModel?.providerId}
+              size={18}
+            />
             <Text
               numberOfLines={1}
               ellipsizeMode="middle"
@@ -85,6 +92,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
+    gap: 6,
     minHeight: 48,
     paddingHorizontal: 6,
   },

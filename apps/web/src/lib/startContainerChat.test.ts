@@ -28,6 +28,7 @@ describe("startFreshChatForActiveSurface", () => {
         cwd: "/Users/tester/Documents/Graft/Studio",
       },
       isStudioRoute: false,
+      studioWorkspaceEnabled: true,
       paths,
       handleNewChat,
       handleNewStudioChat,
@@ -45,6 +46,7 @@ describe("startFreshChatForActiveSurface", () => {
     await startFreshChatForActiveSurface({
       activeProject: null,
       isStudioRoute: true,
+      studioWorkspaceEnabled: true,
       paths,
       handleNewChat,
       handleNewStudioChat,
@@ -65,6 +67,7 @@ describe("startFreshChatForActiveSurface", () => {
       await startFreshChatForActiveSurface({
         activeProject,
         isStudioRoute: false,
+        studioWorkspaceEnabled: true,
         paths,
         handleNewChat,
         handleNewStudioChat,
@@ -76,6 +79,26 @@ describe("startFreshChatForActiveSurface", () => {
       expect(handleNewChat).toHaveBeenCalledWith();
       expect(handleNewStudioChat).not.toHaveBeenCalled();
     }
+  });
+
+  it("stays on home chat when the Studio workspace flag is off", async () => {
+    const handleNewChat = successfulHandler();
+    const handleNewStudioChat = successfulHandler();
+
+    await startFreshChatForActiveSurface({
+      activeProject: {
+        kind: "studio",
+        cwd: "/Users/tester/Documents/Graft/Studio",
+      },
+      isStudioRoute: true,
+      studioWorkspaceEnabled: false,
+      paths,
+      handleNewChat,
+      handleNewStudioChat,
+    });
+
+    expect(handleNewChat).toHaveBeenCalledOnce();
+    expect(handleNewStudioChat).not.toHaveBeenCalled();
   });
 });
 

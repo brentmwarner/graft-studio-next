@@ -19,6 +19,7 @@ import { unarchiveThreadFromClient } from "~/lib/threadArchive";
 import { cn } from "~/lib/utils";
 import { ensureNativeApi, readNativeApi } from "~/nativeApi";
 import { SETTINGS_CARD_ROW_DESCRIPTION_CLASS_NAME } from "~/settingsPanelStyles";
+import { useFeatureFlags } from "~/featureFlags";
 import { useStore } from "~/store";
 import { createThreadShellsSelector } from "~/storeSelectors";
 import { formatWorktreePathForDisplay } from "~/worktreeCleanup";
@@ -275,6 +276,7 @@ export function ArchivedSettingsPanel({ active }: { readonly active: boolean }) 
   );
   const threadShells = useStore(useMemo(() => createThreadShellsSelector(), []));
   const projects = useStore((store) => store.projects);
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
   const archivedGroups = useMemo(() => {
     // Represent each archived subtree once. Normally that is a top-level thread;
     // a child whose parent is still active/missing is also a root and must remain
@@ -287,24 +289,35 @@ export function ArchivedSettingsPanel({ active }: { readonly active: boolean }) 
       const parentThreadId = thread.parentThreadId ?? null;
       return parentThreadId === null || !archivedThreadIds.has(parentThreadId);
     });
-    const knownProjectIds = new Set(projects.map((project) => project.id));
+    const visibleProjects = studioWorkspaceEnabled
+      ? projects
+      : projects.filter((project) => project.kind !== "studio");
+    const hiddenStudioProjectIds = studioWorkspaceEnabled
+      ? null
+      : new Set(
+          projects.filter((project) => project.kind === "studio").map((project) => project.id),
+        );
+    const visibleArchivedThreads = hiddenStudioProjectIds
+      ? archivedThreads.filter((thread) => !hiddenStudioProjectIds.has(thread.projectId))
+      : archivedThreads;
+    const knownProjectIds = new Set(visibleProjects.map((project) => project.id));
     const groups: Array<{
       project: (typeof projects)[number] | null;
       threads: typeof archivedThreads;
-    }> = projects.map((project) => ({
+    }> = visibleProjects.map((project) => ({
       project,
-      threads: archivedThreads
+      threads: visibleArchivedThreads
         .filter((thread) => thread.projectId === project.id)
         .toSorted(compareArchivedThreads),
     }));
-    const orphanedThreads = archivedThreads
+    const orphanedThreads = visibleArchivedThreads
       .filter((thread) => !knownProjectIds.has(thread.projectId))
       .toSorted(compareArchivedThreads);
     if (orphanedThreads.length > 0) {
       groups.push({ project: null, threads: orphanedThreads });
     }
     return groups.filter((group) => group.threads.length > 0);
-  }, [projects, threadShells]);
+  }, [projects, studioWorkspaceEnabled, threadShells]);
 
   const unarchiveThread = useCallback(async (threadId: ThreadId) => {
     const api = readNativeApi();

@@ -13,10 +13,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FloatingSurface } from "../components/FloatingSurface";
+import { GraftMark } from "../components/GraftMark";
 import { PressScale } from "../components/PressScale";
-import { Wordmark } from "../components/Wordmark";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
 import { QrScanner } from "./QrScanner";
+import { PAIRING_FOOTNOTE } from "./welcomeCopy";
 
 interface PairingScreenProps {
   readonly error?: string;
@@ -51,17 +52,11 @@ export function PairingScreen({ error, initialInput, isPairing, onPair }: Pairin
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <Wordmark />
-          <View style={styles.intro}>
-            <Text style={[styles.eyebrow, { color: palette.foregroundSubtle }]}>
-              ANDROID REMOTE
-            </Text>
-            <Text style={[styles.title, { color: palette.foreground }]}>
-              Your work, away from your desk.
-            </Text>
-            <Text style={[styles.body, { color: palette.foregroundMuted }]}>
-              Pair securely with Graft Studio. Your computer stays authoritative; this phone becomes
-              a lightweight remote view.
+          <View style={styles.hero} accessibilityRole="header">
+            <GraftMark size={72} />
+            <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
+            <Text style={[styles.footnote, { color: palette.foregroundMuted }]}>
+              {PAIRING_FOOTNOTE}
             </Text>
           </View>
 
@@ -163,28 +158,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: graftSpacing.three,
   },
-  intro: {
+  hero: {
+    alignItems: "center",
     marginBottom: graftSpacing.three,
-    marginTop: 44,
-    maxWidth: 520,
+    paddingVertical: graftSpacing.four,
   },
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    marginBottom: graftSpacing.two,
-  },
-  title: {
-    fontSize: 42,
-    fontWeight: "700",
-    letterSpacing: -1.8,
-    lineHeight: 45,
-  },
-  body: {
-    fontSize: 17,
-    lineHeight: 25,
+  brand: {
+    fontSize: 32,
+    fontWeight: "600",
+    letterSpacing: -0.6,
     marginTop: graftSpacing.two,
-    maxWidth: 460,
+  },
+  footnote: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: graftSpacing.two,
+    textAlign: "center",
   },
   formSurface: {
     borderRadius: graftRadius.sheet,

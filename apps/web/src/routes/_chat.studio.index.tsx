@@ -12,6 +12,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { useAppSettings } from "../appSettings";
+import { useFeatureFlags } from "../featureFlags";
 import {
   RestoreOrCreateChatRoute,
   type RestoreRouteResolver,
@@ -104,7 +105,8 @@ function StudioIndexRouteView() {
   // A hidden Studio tab must never start the restore/create flow: a direct /studio link would
   // otherwise race the sidebar's hidden-section redirect and could mint a hidden Studio draft.
   const navigate = useNavigate();
-  const studioSectionVisible = appSettings.showStudioSection;
+  const studioWorkspaceEnabled = useFeatureFlags()["studio-workspace"];
+  const studioSectionVisible = studioWorkspaceEnabled && appSettings.showStudioSection;
   useEffect(() => {
     if (!studioSectionVisible) {
       void navigate({ to: "/", replace: true });

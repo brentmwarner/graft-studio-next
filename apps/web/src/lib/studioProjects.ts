@@ -68,6 +68,17 @@ export function collectStudioProjectIds<T extends Pick<Project, "id" | "cwd" | "
   );
 }
 
+// Kind-only hide set for when Studio mode is off. Path-aware collectors skip a
+// studio-kind row whose cwd drifted outside the configured root; those rows
+// must still stay out of desktop lists.
+export function collectStudioKindProjectIds<T extends Pick<Project, "id" | "kind">>(
+  projects: readonly T[],
+): Set<ProjectId> {
+  return new Set(
+    projects.filter((project) => project.kind === "studio").map((project) => project.id),
+  );
+}
+
 export function findStudioContainerProject<T extends Pick<Project, "cwd" | "kind">>(
   projects: readonly T[],
   paths: ServerWorkspacePaths,
