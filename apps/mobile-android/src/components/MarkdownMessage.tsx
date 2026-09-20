@@ -3,10 +3,12 @@ import type { ReactNode } from "react";
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { graftRadius, useGraftPalette } from "../theme/tokens";
+import { StreamingText } from "./StreamingText";
 import { markdownBlocks } from "./markdownBlocks";
 
 interface MarkdownMessageProps {
   readonly children: string;
+  readonly streaming?: boolean;
 }
 
 interface MarkdownTable {
@@ -50,7 +52,12 @@ function tableAt(lines: readonly string[], startIndex: number): MarkdownTable | 
   return { endIndex, headers, rows };
 }
 
-function inlineNodes(text: string, accent: string, codeBackground: string): readonly ReactNode[] {
+function inlineNodes(
+  text: string,
+  accent: string,
+  codeBackground: string,
+  streaming = false,
+): readonly ReactNode[] {
   const expression =
     /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s<>`]*[^\s<>`.,!?;:)\]])/g;
   const nodes: ReactNode[] = [];
@@ -58,7 +65,14 @@ function inlineNodes(text: string, accent: string, codeBackground: string): read
   let key = 0;
   for (const match of text.matchAll(expression)) {
     const index = match.index ?? cursor;
-    if (index > cursor) nodes.push(text.slice(cursor, index));
+    if (index > cursor)
+      nodes.push(
+        <StreamingText
+          key={`plain-${cursor}`}
+          text={text.slice(cursor, index)}
+          animate={streaming}
+        />,
+      );
     const token = match[0];
     if (token.startsWith("**")) {
       nodes.push(
@@ -88,14 +102,20 @@ function inlineNodes(text: string, accent: string, codeBackground: string): read
     }
     cursor = index + token.length;
   }
-  if (cursor < text.length) nodes.push(text.slice(cursor));
+  if (cursor < text.length)
+    nodes.push(
+      <StreamingText key={`plain-${cursor}`} text={text.slice(cursor)} animate={streaming} />,
+    );
   return nodes;
 }
 
 /// Memoized: the transcript re-renders its streaming tail on every token, and
 /// re-parsing every settled message's Markdown each time is what made long
 /// threads unusable.
-export const MarkdownMessage = memo(function MarkdownMessage({ children }: MarkdownMessageProps) {
+export const MarkdownMessage = memo(function MarkdownMessage({
+  children,
+  streaming = false,
+}: MarkdownMessageProps) {
   const palette = useGraftPalette();
   const blocks = useMemo(() => markdownBlocks(children), [children]);
 
@@ -208,7 +228,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                         },
                       ]}
                     >
-                      {inlineNodes(heading[2] ?? "", palette.link, palette.code)}
+                      {inlineNodes(heading[2] ?? "", palette.link, palette.code, streaming)}
                     </Text>,
                   );
                   continue;
@@ -245,7 +265,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                         selectable
                         style={[styles.text, styles.listText, { color: palette.foreground }]}
                       >
-                        {inlineNodes(itemText, palette.link, palette.code)}
+                        {inlineNodes(itemText, palette.link, palette.code, streaming)}
                       </Text>
                     </View>,
                   );
@@ -287,7 +307,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children }: Markd
                     selectable
                     style={[styles.text, { color: palette.foreground }]}
                   >
-                    {inlineNodes(paragraph, palette.link, palette.code)}
+                    {inlineNodes(paragraph, palette.link, palette.code, streaming)}
                   </Text>,
                 );
               }

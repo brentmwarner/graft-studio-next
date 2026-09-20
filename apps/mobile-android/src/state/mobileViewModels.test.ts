@@ -173,7 +173,7 @@ describe("mobile view models", () => {
     ).toEqual(["assistant", "toolGroup"]);
   });
 
-  it("does not split a tool run on interleaved thinking or status", () => {
+  it("preserves interleaved reasoning for the completed-work disclosure", () => {
     const thinking: TranscriptItem = {
       id: "think-1",
       kind: "assistant",
@@ -190,7 +190,7 @@ describe("mobile view models", () => {
 
     expect(
       groupToolRuns([tool("t1"), thinking, tool("t2"), status, tool("t9")]).map((row) => row.kind),
-    ).toEqual(["toolGroup"]);
+    ).toEqual(["tool", "assistant", "toolGroup"]);
   });
 
   it("leaves a lone tool call as its own row", () => {

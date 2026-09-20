@@ -48,19 +48,31 @@ waveform, Stop and review, and Send dictation, with Cancel outside the capsule.
 Stopping keeps the text for editing; sending waits for the final transcript;
 cancelling restores the draft from before recording.
 
-The composer keeps model, supported effort, permissions, attachments, and send
-controls inside one surface. These controls stay available before typing and after
-the keyboard closes. Model and effort share a compact picker; established chats
-open models for their locked provider directly. The input expands on focus into a
-three-line editor. Longer drafts grow up
-to a scrolling limit; an empty editor collapses when the keyboard is dismissed.
-Model discovery is shared across composers, with loading, retry, and refresh
-states. Effort choices follow the selected model's advertised capabilities.
+The idle composer is a single pill with plus, model name, and microphone controls.
+Tapping the editor expands it without replacing the input; dismissing the keyboard
+collapses it again, including with an unsent draft. Attachments keep it expanded.
+Model and effort share a picker; established chats open their locked provider's
+models directly. Permissions remain available in the plus menu, without a badge
+on the composer. Longer drafts grow to a scrolling limit. Model discovery is
+shared across composers, with loading, retry, and refresh states. Effort choices
+follow the selected model's advertised capabilities.
 
 The transcript keeps one live status through thinking, text, and tool work until
 the turn ends. Its text shimmer runs on the UI thread and becomes static with
 reduced motion. Acknowledged local message echoes are retired from the live
 buffer, while repeated prompts sent as separate turns remain distinct.
+
+After a turn completes, commentary, reasoning, and tool rows fold into a "Worked"
+disclosure above the unchanged final answer. Errors and structured result cards
+remain visible. Live turns retain their original order, and folding does not
+count as incoming text for auto-follow.
+
+Incoming prose has a 180ms fade on appended text only. Batches still display in
+full within 32ms; completion, corrections, history, and reduced motion display
+immediately. Android's frequent-segment haptic adds at most three light ticks per
+run, spaced at least 1.2 seconds apart, while connected, foregrounded, and following
+the response. Tools, historical snapshots, and reconnect catch-up do not vibrate.
+Rebuild the APK to include `expo-haptics`; a Metro reload cannot add the module.
 
 The gateway replaces its socket when the active network switches between Wi-Fi,
 cellular, and VPN, and pauses retries while offline. Connection handshakes have a

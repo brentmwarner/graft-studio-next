@@ -138,6 +138,19 @@ export function ComposerConfigMenu({
               enabled={Boolean(config.extras?.modesEnabled && !config.extras.busy)}
               onPress={() => setPage("mode")}
             />
+            {config.approvalOptions.length > 0 ? (
+              <MenuItem
+                label="Permissions"
+                icon="shield-checkmark-outline"
+                disclosure
+                detail={
+                  config.approvalOptions.find((option) => option.value === config.currentApproval)
+                    ?.label
+                }
+                enabled={enabled}
+                onPress={() => setPage("permissions")}
+              />
+            ) : null}
             {config.currentModel?.supportsFastMode ? (
               <MenuItem
                 label="Speed"

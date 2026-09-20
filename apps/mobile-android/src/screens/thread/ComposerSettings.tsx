@@ -1,8 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PressScale } from "../../components/PressScale";
-import { ProviderLogo } from "../../components/ProviderLogo";
 import { useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
@@ -32,19 +30,12 @@ export function ComposerSettings({
             onPress={open}
             style={styles.modelButton}
           >
-            <ProviderLogo
-              color={palette.foregroundMuted}
-              label={config.currentModel?.providerLabel}
-              providerId={config.currentModel?.providerId}
-              size={18}
-            />
             <Text
               numberOfLines={1}
               ellipsizeMode="middle"
               style={[styles.label, { color: palette.foreground }]}
             >
               {label}
-              {effort ? <Text style={{ color: palette.foregroundMuted }}> {effort}</Text> : null}
             </Text>
           </PressScale>
         )}
@@ -53,41 +44,8 @@ export function ComposerSettings({
   );
 }
 
-export function ComposerPermissions({
-  config,
-  label,
-  elevated,
-}: {
-  readonly config: ComposerMenuConfig;
-  readonly label: string;
-  readonly elevated: boolean;
-}) {
-  const palette = useGraftPalette();
-  if (!config.approvalOptions.length) return null;
-  return (
-    <ComposerConfigMenu
-      config={config}
-      initialPage="permissions"
-      trigger={(open) => (
-        <PressScale
-          accessibilityLabel={`Permissions: ${label}`}
-          disabled={config.approvalOptions.length < 2}
-          onPress={open}
-          style={styles.permissions}
-        >
-          <Ionicons
-            color={elevated ? palette.warning : palette.foregroundMuted}
-            name="shield-checkmark-outline"
-            size={18}
-          />
-        </PressScale>
-      )}
-    />
-  );
-}
-
 const styles = StyleSheet.create({
-  model: { flex: 1, minWidth: 0 },
+  model: { flexShrink: 1, minWidth: 0 },
   modelButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -96,6 +54,5 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 6,
   },
-  permissions: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   label: { flexShrink: 1, minWidth: 0, fontSize: 13, fontWeight: "500" },
 });

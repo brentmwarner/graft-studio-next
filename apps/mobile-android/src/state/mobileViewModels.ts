@@ -55,6 +55,7 @@ export type TranscriptItem =
       text: string;
       reasoning: string;
       streaming: boolean;
+      readonly foldedActivity?: readonly TranscriptItem[];
     }
   | TranscriptToolItem
   | TranscriptActivityItem
@@ -73,10 +74,8 @@ export type TranscriptItem =
     };
 
 /// Fold consecutive `tool` rows into a single `toolGroup`. Quiet rows that
-/// sit between tools (reasoning-only assistant bubbles, status banners)
-/// stay inside the run so Claude's think→grep→think→bash pattern is one
-/// line of activity, not a stack of identical "Using Bash…" rows. Mirrors
-/// the iOS `ToolActivityStrip`.
+/// sit between tools stay inside the run. Preserve reasoning so it remains
+/// available in the completed turn's disclosure.
 export function groupToolRuns(items: readonly TranscriptItem[]): readonly TranscriptItem[] {
   const grouped: TranscriptItem[] = [];
   let run: TranscriptToolItem[] = [];
@@ -106,7 +105,7 @@ export function groupToolRuns(items: readonly TranscriptItem[]): readonly Transc
 }
 
 function isQuietToolRunRow(item: TranscriptItem): boolean {
-  if (item.kind === "assistant") return !item.text.trim();
+  if (item.kind === "assistant") return !item.text.trim() && !item.reasoning.trim();
   if (item.kind === "activity") {
     return !item.data || item.data.type === "todo_update" || item.data.type === "web_search";
   }
@@ -480,7 +479,10 @@ function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolea
       return (
         left.text === other.text &&
         left.reasoning === other.reasoning &&
-        left.streaming === other.streaming
+        left.streaming === other.streaming &&
+        (left.foldedActivity?.length ?? 0) === (other.foldedActivity?.length ?? 0) &&
+        (left.foldedActivity?.every((item, index) => item === other.foldedActivity?.[index]) ??
+          true)
       );
     }
     case "tool": {

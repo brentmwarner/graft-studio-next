@@ -6,11 +6,12 @@ import type {
   GraftThreadSummary,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import type { TranscriptItem } from "../../state/mobileViewModels";
+import { reconcileTranscriptItems, type TranscriptItem } from "../../state/mobileViewModels";
 import { deriveTaskProgress, type TaskProgress } from "../../state/taskProgress";
 import { threadRunState } from "../../state/threadRunState";
+import { presentTranscript } from "./presentTranscript";
 import { useReconciledTranscript } from "./TranscriptRow";
 import { modelSelectionId, resolveModelEffort, threadModelChoices } from "./threadModels";
 
@@ -22,10 +23,8 @@ export interface ThreadModel {
   readonly activeRunId: string | undefined;
   readonly isWorking: boolean;
   readonly approval: GraftEnvironmentSnapshot["pendingApprovals"][number] | undefined;
-  readonly approvalIsElevated: boolean;
   readonly approvalOptions: readonly GraftApprovalPolicyOption[];
   readonly currentApproval: string | undefined;
-  readonly currentApprovalLabel: string;
   readonly currentModel: GraftModelOption | undefined;
   readonly currentThread: GraftThreadSummary;
   readonly lockedProviderId: string | undefined;
@@ -35,6 +34,7 @@ export interface ThreadModel {
   readonly efforts: readonly string[];
   readonly hasDiffChip: boolean;
   readonly items: readonly TranscriptItem[];
+  readonly followItems: readonly TranscriptItem[];
   readonly taskProgress: TaskProgress | undefined;
   readonly latestDiffEvent: GraftTimelineEvent | undefined;
   readonly question: GraftEnvironmentSnapshot["pendingQuestions"][number] | undefined;
@@ -81,7 +81,7 @@ export function useThreadModel({
     [threadLiveEvents],
   );
   const transcriptItems = useReconciledTranscript(transcript, threadLiveEvents, transcriptCursor);
-  const items = useMemo(
+  const followItems = useMemo(
     () =>
       transcriptItems.filter(
         (item) =>
@@ -107,6 +107,15 @@ export function useThreadModel({
     snapshot?.cursor ?? 0,
     currentThread.status === "running",
   );
+  const presentedRef = useRef<readonly TranscriptItem[]>([]);
+  const items = useMemo(() => {
+    const presented = reconcileTranscriptItems(
+      presentedRef.current,
+      presentTranscript(followItems, isWorking || hasPendingSend),
+    );
+    presentedRef.current = presented;
+    return presented;
+  }, [followItems, isWorking, hasPendingSend]);
   const approval = snapshot?.pendingApprovals.find((item) => item.threadId === thread.id);
   const question = snapshot?.pendingQuestions.find((item) => item.threadId === thread.id);
   const { currentModel, lockedProviderId, selectableModels } = threadModelChoices(
@@ -123,11 +132,6 @@ export function useThreadModel({
   };
   const approvalOptions = currentThread.approvalPolicyOptions ?? [];
   const currentApproval = currentThread.approvalPolicy ?? approvalOptions[0]?.value;
-  const currentApprovalLabel =
-    approvalOptions.find((option) => option.value === currentApproval)?.label ?? "Permissions";
-  const approvalIsElevated = Boolean(
-    currentApproval && approvalOptions[0] && currentApproval !== approvalOptions[0].value,
-  );
   const diffAdditions =
     diffSummary?.files.reduce((total, file) => total + (file.additions ?? 0), 0) ?? 0;
   const diffDeletions =
@@ -138,10 +142,8 @@ export function useThreadModel({
     activeRunId,
     isWorking,
     approval,
-    approvalIsElevated,
     approvalOptions,
     currentApproval,
-    currentApprovalLabel,
     currentModel,
     currentThread,
     lockedProviderId,
@@ -151,6 +153,7 @@ export function useThreadModel({
     efforts,
     hasDiffChip,
     items,
+    followItems,
     taskProgress,
     latestDiffEvent,
     question,
