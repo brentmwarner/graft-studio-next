@@ -108,7 +108,12 @@ export function ConnectionsSettingsPanel(props: { active: boolean }) {
     onSuccess: async (pairing) => {
       queryClient.setQueryData<GraftConnectionsStatus>(CONNECTIONS_QUERY_KEY, (previous) =>
         previous
-          ? { ...previous, pairingUrl: pairing.pairingUrl, pairingExpiresAt: pairing.expiresAt }
+          ? {
+              ...previous,
+              enabled: true,
+              pairingUrl: pairing.pairingUrl,
+              pairingExpiresAt: pairing.expiresAt,
+            }
           : previous,
       );
       setError(null);

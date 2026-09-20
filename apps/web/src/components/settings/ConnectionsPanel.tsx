@@ -100,6 +100,10 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
   const closeTimer = useRef<number | undefined>(undefined);
   const hasRemoteEndpoint = status.endpoints.some((endpoint) => endpoint.kind !== "loopback");
   const relayIsConnected = status.relay.state === "connected";
+  const pairingEndpointKind =
+    status.pairingUrl && URL.canParse(status.pairingUrl)
+      ? new URL(status.pairingUrl).searchParams.get("endpointKind")
+      : null;
   const pairingIsActive = Boolean(
     status.pairingUrl && status.pairingExpiresAt && status.pairingExpiresAt > Date.now(),
   );
@@ -462,7 +466,9 @@ export const ConnectionsPanel: FC<ConnectionsPanelProps> = ({
                     status={status}
                     busy={busy}
                     error={error}
-                    relayIsConnected={relayIsConnected}
+                    relayIsConnected={
+                      pairingEndpointKind ? pairingEndpointKind === "relay" : relayIsConnected
+                    }
                     pairingIsActive={pairingIsActive}
                     pairingQr={pairingQr}
                     onCreatePairing={onCreatePairing}
@@ -710,7 +716,7 @@ function relayStatusDescription(state: ConnectionsStatus["relay"]["state"]): str
     case "connected":
       return "Connected. Your devices can reach this computer from any network.";
     case "error":
-      return "Unavailable. Pairing falls back to LAN or Tailnet.";
+      return "Unavailable. Reconnect the relay to pair from another network.";
     default: {
       const exhaustive: never = state;
       return exhaustive;

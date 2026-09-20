@@ -57,12 +57,12 @@ describe("mobile gateway settings", () => {
     dirs.push(dir);
     const parent = join(dir, "not-a-directory");
     writeFileSync(parent, "occupied");
-    await expect(async () => {
-      await saveMobileGatewaySettings(mobileGatewaySettingsPath(parent), {
+    await expect(
+      saveMobileGatewaySettings(mobileGatewaySettingsPath(parent), {
         enabled: true,
         preferredPort: 42971,
-      });
-    }).rejects.toThrow();
+      }),
+    ).rejects.toThrow();
   });
 
   it("preserves the saved port and enabled intent when replacement fails", async () => {
@@ -72,9 +72,9 @@ describe("mobile gateway settings", () => {
     const saved = { enabled: true, preferredPort: 42971 };
     await saveMobileGatewaySettings(filePath, saved);
     vi.mocked(fs.rename).mockRejectedValueOnce(new Error("storage unavailable"));
-    await expect(async () => {
-      await saveMobileGatewaySettings(filePath, { enabled: false, preferredPort: 5000 });
-    }).rejects.toThrow();
+    await expect(
+      saveMobileGatewaySettings(filePath, { enabled: false, preferredPort: 5000 }),
+    ).rejects.toThrow();
     expect(loadMobileGatewaySettings(filePath)).toEqual(saved);
   });
 });

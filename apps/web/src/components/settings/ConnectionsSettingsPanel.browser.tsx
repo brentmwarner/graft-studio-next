@@ -37,7 +37,8 @@ const localStatus: GraftConnectionsStatus = {
   diagnostics: "",
 };
 const relayPairing = {
-  pairingUrl: "graft://pair?v=1&host=https%3A%2F%2Frelay.example%2Fhost#token=new-code",
+  pairingUrl:
+    "graft://pair?v=1&host=https%3A%2F%2Frelay.example%2Fhost&endpointKind=relay#token=new-code",
   expiresAt: Date.now() + 300_000,
 };
 
@@ -114,6 +115,9 @@ it("keeps the new relay code when the follow-up status refresh fails", async () 
   await expect.element(mounted.getByTestId("connections-pairing-qr")).toBeVisible();
   await mounted.getByTestId("connections-copy-pairing-link").click();
   expect(copy).toHaveBeenCalledWith(relayPairing.pairingUrl);
+  await expect
+    .element(mounted.getByTestId("connections-pairing-reachability"))
+    .toHaveTextContent("Your phone can be on any network.");
 });
 
 it("keeps the old local QR hidden when connecting the relay fails", async () => {
