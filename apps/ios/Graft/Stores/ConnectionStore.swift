@@ -14,6 +14,9 @@ final class ConnectionStore {
     /// The active session, loaded from SwiftData on startup.
     private(set) var session: PersistedSession?
 
+    /// Every stored pairing, newest last-used first.
+    private(set) var sessions: [PersistedSession] = []
+
     /// Indicates a pairing operation is in progress.
     private(set) var isPairing = false
 
@@ -22,8 +25,12 @@ final class ConnectionStore {
 
     var isPaired: Bool { session != nil }
 
-    init(store: LocalStore) {
+    private let defaults: UserDefaults
+    private static let activeEnvironmentKey = "connection.activeEnvironmentId"
+
+    init(store: LocalStore, defaults: UserDefaults = .standard) {
         self.store = store
+        self.defaults = defaults
         loadSession()
     }
 
@@ -86,18 +93,33 @@ final class ConnectionStore {
         }
     }
 
-    /// Clears the active session (bearer token + SwiftData row).
+    /// Clears one stored pairing. Omitting `environmentId` disconnects the
+    /// active computer and, if others remain, activates the next one.
     @discardableResult
-    func unpair() async -> Bool {
-        guard let session else { return true }
-        PushRegistrar.shared.configure(connectionStore: self)
-        await PushRegistrar.shared.unregisterForCurrentSession()
+    func unpair(_ environmentId: String? = nil) async -> Bool {
+        guard let targetId = environmentId ?? session?.environmentId else { return true }
+        let removingCurrent = session?.environmentId == targetId
+        if removingCurrent {
+            PushRegistrar.shared.configure(connectionStore: self)
+            await PushRegistrar.shared.unregisterForCurrentSession()
+        }
         do {
-            try store.deleteSession(environmentId: session.environmentId)
-            Keychain.delete(for: session.keychainAccount)
-            self.session = nil
+            let account = try store.session(environmentId: targetId)?.keychainAccount
+                ?? session?.keychainAccount
+            try store.deleteSession(environmentId: targetId)
+            if let account { Keychain.delete(for: account) }
+            if defaults.string(forKey: Self.activeEnvironmentKey) == targetId {
+                defaults.removeObject(forKey: Self.activeEnvironmentKey)
+            }
+            refreshSessions()
+            if removingCurrent {
+                session = sessions.first
+                if let session {
+                    rememberActiveEnvironment(session.environmentId)
+                }
+            }
             pairingError = nil
-            AppLog.pairing.info("Session cleared for environment \(session.environmentId)")
+            AppLog.pairing.info("Session cleared for environment \(targetId)")
             return true
         } catch {
             pairingError = .persistence("Could not remove the paired session.")
@@ -106,14 +128,47 @@ final class ConnectionStore {
         }
     }
 
+    func activate(environmentId: String) {
+        guard environmentId != session?.environmentId else { return }
+        do {
+            guard let next = try store.session(environmentId: environmentId) else { return }
+            session = next
+            rememberActiveEnvironment(environmentId)
+            refreshSessions()
+            pairingError = nil
+            AppLog.pairing.info("Activated environment \(environmentId)")
+        } catch {
+            pairingError = .persistence("Could not switch to that computer.")
+            AppLog.persistence.error("Failed to activate session \(environmentId): \(error)")
+        }
+    }
+
     // MARK: Private
 
     private func loadSession() {
+        refreshSessions()
+        if let remembered = defaults.string(forKey: Self.activeEnvironmentKey),
+           let match = sessions.first(where: { $0.environmentId == remembered }) {
+            session = match
+        } else {
+            session = sessions.first
+        }
+        if let session {
+            rememberActiveEnvironment(session.environmentId)
+        }
+    }
+
+    private func refreshSessions() {
         do {
-            session = try store.allSessions().first
+            sessions = try store.allSessions()
         } catch {
             AppLog.persistence.error("Failed to load sessions: \(error)")
+            sessions = []
         }
+    }
+
+    private func rememberActiveEnvironment(_ environmentId: String) {
+        defaults.set(environmentId, forKey: Self.activeEnvironmentKey)
     }
 
     private func persistSession(_ pair: PairSession) throws {
@@ -144,6 +199,8 @@ final class ConnectionStore {
             throw error
         }
         session = persisted
+        rememberActiveEnvironment(pair.environmentId)
+        refreshSessions()
         AppLog.pairing.info("Paired with environment \(pair.environmentId) (\(pair.environmentLabel))")
     }
 }

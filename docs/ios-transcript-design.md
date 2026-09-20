@@ -153,7 +153,9 @@ approvals or questions ahead of active runs, then shows remaining threads in
 date sections without duplicates. Date and priority sections can be collapsed.
 The same grouping rules and controls are implemented in the Android client.
 
-Mobile currently has one active paired computer per client. The existing host
-label and connection indicator remain in the header. Settings and Disconnect
-remain reachable through Settings; the overflow no longer opens a disconnect
-dialog directly.
+Mobile keeps one live gateway at a time and can store multiple paired computers.
+The header shows the active host. The drawer and Settings list every pairing so
+the user can switch computers or pair another without disconnecting first.
+Inbox view mode and read receipts stay scoped to the active computer. Settings
+and Disconnect remain reachable through Settings; the overflow no longer opens
+a disconnect dialog directly.

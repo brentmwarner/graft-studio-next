@@ -114,7 +114,10 @@ The Projects menu selects Priority, By Project, or Chronological and remembers
 the choice across launches. Project folders start collapsed; search temporarily
 reveals matching threads. Non-repository Chats appear above the project folders.
 Recents appears in the phone drawer and above Chats in the persistent iPad panel.
-Both mobile clients currently use one active paired computer, shown in the header.
+Both mobile clients keep one live gateway at a time, but they can store
+multiple paired computers. The drawer and Settings list every pairing; tap a
+computer to switch, or pair another without disconnecting first. Inbox view
+mode and read receipts stay scoped to the active computer.
 
 Working threads show a progress spinner (a static hourglass with Reduce Motion).
 Requests needing input show an attention icon. A blue dot marks a completed

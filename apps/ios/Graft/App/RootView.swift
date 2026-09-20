@@ -45,7 +45,7 @@ struct RootView: View {
                 return
             }
             AppLog.pairing.info("Received pairing deep link for host \(safeHost(payload.host))")
-            Task { await app.connection.pair(with: payload) }
+            Task { await app.pair(with: payload) }
         default:
             AppLog.ui.warning("Unhandled graft deep link route: \(url.host ?? "missing-host")")
         }

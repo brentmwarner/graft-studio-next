@@ -4,10 +4,18 @@ import SwiftUI
 /// column is pinned to the leading edge and the whole projects screen —
 /// navigation bar included — slides trailing to reveal it, with an impact
 /// haptic on open and close.
+struct PairedComputerItem: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let isActive: Bool
+    let isConnected: Bool
+}
+
 struct NavDrawerLayout<Content: View>: View {
     @Binding var isOpen: Bool
     let hostLabel: String
     let isConnected: Bool
+    let computers: [PairedComputerItem]
     let recentThreads: [InboxThreadItem]
     /// Right-swipe opens the drawer only while the projects root is on
     /// screen — on pushed screens the same motion must stay the interactive
@@ -15,6 +23,7 @@ struct NavDrawerLayout<Content: View>: View {
     let canSwipeOpen: Bool
     let onSearch: () -> Void
     let onSelectThread: (InboxThreadItem) -> Void
+    let onSelectComputer: (String) -> Void
     let onNewChat: () -> Void
     let onSettings: () -> Void
     let content: Content
@@ -26,10 +35,12 @@ struct NavDrawerLayout<Content: View>: View {
         isOpen: Binding<Bool>,
         hostLabel: String,
         isConnected: Bool,
+        computers: [PairedComputerItem] = [],
         recentThreads: [InboxThreadItem],
         canSwipeOpen: Bool,
         onSearch: @escaping () -> Void,
         onSelectThread: @escaping (InboxThreadItem) -> Void,
+        onSelectComputer: @escaping (String) -> Void = { _ in },
         onNewChat: @escaping () -> Void,
         onSettings: @escaping () -> Void,
         @ViewBuilder content: () -> Content
@@ -37,10 +48,12 @@ struct NavDrawerLayout<Content: View>: View {
         self._isOpen = isOpen
         self.hostLabel = hostLabel
         self.isConnected = isConnected
+        self.computers = computers
         self.recentThreads = recentThreads
         self.canSwipeOpen = canSwipeOpen
         self.onSearch = onSearch
         self.onSelectThread = onSelectThread
+        self.onSelectComputer = onSelectComputer
         self.onNewChat = onNewChat
         self.onSettings = onSettings
         self.content = content()
@@ -54,6 +67,7 @@ struct NavDrawerLayout<Content: View>: View {
             NavDrawerMenu(
                 hostLabel: hostLabel,
                 isConnected: isConnected,
+                computers: computers,
                 recentThreads: recentThreads,
                 onProjects: { isOpen = false },
                 onSearch: {
@@ -63,6 +77,10 @@ struct NavDrawerLayout<Content: View>: View {
                 onSelectThread: { thread in
                     isOpen = false
                     onSelectThread(thread)
+                },
+                onSelectComputer: { environmentId in
+                    isOpen = false
+                    onSelectComputer(environmentId)
                 },
                 onNewChat: {
                     isOpen = false
@@ -144,12 +162,21 @@ private struct DrawerDismissScrim: View {
 private struct NavDrawerMenu: View {
     let hostLabel: String
     let isConnected: Bool
+    let computers: [PairedComputerItem]
     let recentThreads: [InboxThreadItem]
     let onProjects: () -> Void
     let onSearch: () -> Void
     let onSelectThread: (InboxThreadItem) -> Void
+    let onSelectComputer: (String) -> Void
     let onNewChat: () -> Void
     let onSettings: () -> Void
+
+    private var computerRows: [PairedComputerItem] {
+        if computers.isEmpty {
+            return [PairedComputerItem(id: hostLabel, label: hostLabel, isActive: true, isConnected: isConnected)]
+        }
+        return computers
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -178,7 +205,16 @@ private struct NavDrawerMenu: View {
                 VStack(alignment: .leading, spacing: 0) {
                     NavDrawerRow(icon: "folder", title: "Projects", action: onProjects)
 
-                    NavDrawerConnectionRow(hostLabel: hostLabel, isConnected: isConnected)
+                    ForEach(computerRows) { computer in
+                        NavDrawerConnectionRow(
+                            hostLabel: computer.label,
+                            isConnected: computer.isConnected
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if !computer.isActive { onSelectComputer(computer.id) }
+                        }
+                    }
 
                     if !recentThreads.isEmpty {
                         Text("Recents", comment: "Drawer section of recently updated threads")

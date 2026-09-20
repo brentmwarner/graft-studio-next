@@ -1,5 +1,47 @@
 import Foundation
 
+enum InboxViewPreferences {
+    private static let legacyKey = "inbox.viewMode"
+
+    static func key(environmentId: String?) -> String {
+        guard let environmentId, !environmentId.isEmpty else { return legacyKey }
+        return "\(legacyKey).\(environmentId)"
+    }
+
+    static func load(environmentId: String?, defaults: UserDefaults = .standard) -> InboxViewMode {
+        let scoped = defaults.string(forKey: key(environmentId: environmentId))
+        if let scoped, let mode = InboxViewMode(rawValue: scoped) { return mode }
+        if let legacy = defaults.string(forKey: legacyKey),
+           let mode = InboxViewMode(rawValue: legacy) {
+            if let environmentId, !environmentId.isEmpty {
+                defaults.set(legacy, forKey: key(environmentId: environmentId))
+            }
+            return mode
+        }
+        return .project
+    }
+
+    static func save(_ mode: InboxViewMode, environmentId: String?, defaults: UserDefaults = .standard) {
+        defaults.set(mode.rawValue, forKey: key(environmentId: environmentId))
+    }
+}
+
+enum InboxReadVisibility {
+    static func visibleThreadId(
+        isForeground: Bool,
+        isConversationCovered: Bool,
+        selectedThreadId: String?,
+        loadedTranscriptThreadId: String?
+    ) -> String? {
+        guard isForeground,
+              !isConversationCovered,
+              let selectedThreadId,
+              selectedThreadId == loadedTranscriptThreadId
+        else { return nil }
+        return selectedThreadId
+    }
+}
+
 enum InboxViewMode: String, CaseIterable, Identifiable {
     case priority
     case project

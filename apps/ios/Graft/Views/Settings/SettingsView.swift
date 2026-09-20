@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @State private var showPairing = false
 
     var body: some View {
         @Bindable var settings = app.settings
@@ -18,25 +19,48 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(
-                                    app.gateway.state == .connected
-                                        ? Color.green : Color.secondary
-                                )
-                                .frame(width: 7, height: 7)
-                            Text(verbatim: hostLabel)
+                    ForEach(computers, id: \.environmentId) { computer in
+                        let isActive = computer.environmentId == app.connection.session?.environmentId
+                        Button {
+                            app.activateSession(computer.environmentId)
+                        } label: {
+                            LabeledContent {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(
+                                            isActive && app.gateway.state == .connected
+                                                ? Color.green : Color.secondary
+                                        )
+                                        .frame(width: 7, height: 7)
+                                    Text(verbatim: computerLabel(computer))
+                                }
+                            } label: {
+                                Text(isActive ? "Studio" : computerLabel(computer),
+                                     comment: "Paired desktop row label")
+                            }
                         }
-                    } label: {
-                        Text("Studio", comment: "Paired desktop row label")
+                        .disabled(isActive)
+                        .foregroundStyle(.primary)
+
+                        Button(role: .destructive) {
+                            Task {
+                                await app.unpair(computer.environmentId)
+                                if !app.isPaired { dismiss() }
+                            }
+                        } label: {
+                            Text(
+                                computers.count > 1
+                                    ? "Disconnect \(computerLabel(computer))"
+                                    : "Disconnect",
+                                comment: "Unpair from the desktop"
+                            )
+                        }
                     }
 
-                    Button(role: .destructive) {
-                        Task { await app.unpair() }
-                        dismiss()
+                    Button {
+                        showPairing = true
                     } label: {
-                        Text("Disconnect", comment: "Unpair from the desktop")
+                        Text("Pair another computer", comment: "Add another Studio pairing")
                     }
                 } header: {
                     PlainHeader("Connection")
@@ -83,14 +107,22 @@ struct SettingsView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showPairing) {
+                PairingView(isPresented: $showPairing)
+            }
         }
     }
 
-    private var hostLabel: String {
-        if let label = app.connection.session?.environmentLabel, !label.isEmpty {
-            return label
+    private var computers: [PersistedSession] {
+        let stored = app.connection.sessions
+        if stored.isEmpty, let session = app.connection.session {
+            return [session]
         }
-        return "Studio"
+        return stored
+    }
+
+    private func computerLabel(_ session: PersistedSession) -> String {
+        session.environmentLabel.isEmpty ? "Studio" : session.environmentLabel
     }
 
     private var appVersion: String {

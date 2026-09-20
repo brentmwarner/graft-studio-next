@@ -23,6 +23,8 @@ final class AppModel {
     private let readDefaults: UserDefaults
     private var inboxPendingAnswers: [String: String] = [:]
     private var isForeground = true
+    /// Settings or another cover is hiding the selected transcript.
+    private(set) var isConversationCovered = false
 
     /// Current environment snapshot received after the WebSocket handshake.
     private(set) var snapshot: EnvironmentSnapshot?
@@ -93,11 +95,48 @@ final class AppModel {
         reconnectIfNeeded()
     }
 
-    func unpair() async {
-        guard await connection.unpair() else {
+    func unpair(_ environmentId: String? = nil) async {
+        let removingCurrent = environmentId == nil || environmentId == connection.session?.environmentId
+        guard await connection.unpair(environmentId) else {
             gatewayError = connection.pairingError
             return
         }
+        if connection.isPaired {
+            if removingCurrent { resetForSessionSwitch() }
+            return
+        }
+        clearPairedRuntime()
+    }
+
+    func activateSession(_ environmentId: String) {
+        guard environmentId != connection.session?.environmentId else { return }
+        connection.activate(environmentId: environmentId)
+        resetForSessionSwitch()
+    }
+
+    func pair(with payload: PairingPayload) async {
+        let previousSessionId = connection.session?.sessionId
+        await connection.pair(with: payload)
+        if connection.pairingError == nil, connection.session?.sessionId != previousSessionId {
+            resetForSessionSwitch()
+        } else if let error = connection.pairingError {
+            gatewayError = error
+        }
+    }
+
+    func setConversationCovered(_ covered: Bool) {
+        guard isConversationCovered != covered else { return }
+        isConversationCovered = covered
+        if !covered { updateInboxReads() }
+    }
+
+    private func resetForSessionSwitch() {
+        clearPairedRuntime()
+        hydrateCachedSnapshot()
+        updateInboxReads()
+    }
+
+    private func clearPairedRuntime() {
         gateway.disconnect()
         // `disconnect()` tears down without broadcasting, so fail waiters here.
         failPendingCommands()
@@ -744,7 +783,12 @@ final class AppModel {
                 }
             }
         }
-        if isForeground, let id = selectedThreadId, snapshot?.selectedTranscript?.threadId == id {
+        if let id = InboxReadVisibility.visibleThreadId(
+            isForeground: isForeground,
+            isConversationCovered: isConversationCovered,
+            selectedThreadId: selectedThreadId,
+            loadedTranscriptThreadId: snapshot?.selectedTranscript?.threadId
+        ) {
             next.viewed(id)
         }
         guard next != inboxReadState else { return }

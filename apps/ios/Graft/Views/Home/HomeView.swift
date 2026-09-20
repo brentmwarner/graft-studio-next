@@ -11,7 +11,7 @@ struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
     @State private var expandedProjectIds: Set<String> = []
-    @AppStorage("inbox.viewMode") private var viewMode: InboxViewMode = .project
+    @State private var viewMode: InboxViewMode = .project
     @State private var showDrawer = false
     @State private var showSettings = false
     @State private var selectedThread: InboxThreadItem?
@@ -47,6 +47,26 @@ struct HomeView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .onAppear {
+            loadViewMode()
+            app.setConversationCovered(false)
+        }
+        .onChange(of: showSettings) { _, showing in
+            app.setConversationCovered(showing)
+        }
+        .onChange(of: app.connection.session?.environmentId) { _, _ in
+            loadViewMode()
+            expandedProjectIds = []
+            selectedThread = nil
+            newChatContext = nil
+        }
+        .onChange(of: viewMode) { _, mode in
+            InboxViewPreferences.save(mode, environmentId: app.connection.session?.environmentId)
+        }
+    }
+
+    private func loadViewMode() {
+        viewMode = InboxViewPreferences.load(environmentId: app.connection.session?.environmentId)
     }
 
     /// Phone / compact: drawer under a stack. Selecting a thread or compose
@@ -56,10 +76,20 @@ struct HomeView: View {
             isOpen: $showDrawer,
             hostLabel: hostLabel,
             isConnected: app.gateway.state == .connected,
+            computers: app.connection.sessions.map { session in
+                PairedComputerItem(
+                    id: session.environmentId,
+                    label: session.environmentLabel.isEmpty ? "Studio" : session.environmentLabel,
+                    isActive: session.environmentId == app.connection.session?.environmentId,
+                    isConnected: session.environmentId == app.connection.session?.environmentId
+                        && app.gateway.state == .connected
+                )
+            },
             recentThreads: InboxGrouping.recentThreads(from: app.snapshot, unreadThreadIds: app.inboxReadState.unreadThreadIds),
             canSwipeOpen: selectedThread == nil && newChatContext == nil,
             onSearch: { focusInboxSearch() },
             onSelectThread: openThread,
+            onSelectComputer: { app.activateSession($0) },
             onNewChat: { openNewChat() },
             onSettings: { showSettings = true }
         ) {

@@ -40,7 +40,13 @@ import {
 } from "../screens/thread/composerAttachmentSend";
 import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
-import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
+import {
+  activateSession as activateStoredSession,
+  listSessions,
+  loadSession,
+  removeSession,
+  saveSession,
+} from "../storage/sessionRepository";
 
 import { useModelCatalog } from "./useModelCatalog";
 import { mergeTimelineEvents } from "./mobileViewModels";
@@ -65,12 +71,14 @@ interface PairingState {
 export interface PairedState {
   readonly status: "paired";
   readonly session: GraftSessionCredential;
+  readonly sessions: readonly GraftSessionCredential[];
   readonly snapshot: GraftEnvironmentSnapshot | null;
   readonly liveEvents: readonly GraftTimelineEvent[];
   readonly diffs: Readonly<Record<string, GraftDiffSummary>>;
   readonly connectionState: GatewayConnectionState;
   readonly isRefreshing: boolean;
   readonly error?: string;
+  readonly pendingAdditionalInput?: string;
 }
 
 export type GraftSessionState = LoadingState | UnpairedState | PairingState | PairedState;
@@ -166,6 +174,7 @@ export function useGraftSession() {
   const [state, setState] = useState<GraftSessionState>({ status: "loading" });
   const [pendingSendThreadId, setPendingSendThreadId] = useState<string | undefined>();
   const sessionRef = useRef<GraftSessionCredential | null>(null);
+  const sessionsRef = useRef<GraftSessionCredential[]>([]);
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
   const socketRef = useRef<GatewaySocket | null>(null);
   const sendAttemptsRef = useRef(new Map<string, ComposerSendAttempt>());
@@ -301,15 +310,36 @@ export function useGraftSession() {
               clearTimeout(snapshotTimerRef.current);
               snapshotTimerRef.current = undefined;
             }
+            const revokedId = sessionRef.current?.environmentId;
             sessionRef.current = null;
             sendAttemptsRef.current.clear();
             snapshotCursorRef.current = 0;
-            void clearSession().finally(() => {
+            void (async () => {
+              const next = revokedId ? await removeSession(revokedId) : null;
+              const sessions = await listSessions();
+              sessionsRef.current = sessions;
+              if (!next) {
+                setState({
+                  status: "unpaired",
+                  error: "This device was disconnected.",
+                });
+                return;
+              }
+              sessionRef.current = next;
               setState({
-                status: "unpaired",
-                error: "This device was disconnected.",
+                status: "paired",
+                session: next,
+                sessions,
+                snapshot: null,
+                liveEvents: [],
+                diffs: {},
+                connectionState: "connecting",
+                isRefreshing: true,
+                error: "This device was disconnected from the previous computer.",
               });
-            });
+              socketRef.current?.connect(next);
+              scheduleSnapshot(true);
+            })();
           }
           break;
         case "pong":
@@ -352,11 +382,13 @@ export function useGraftSession() {
         }
 
         sessionRef.current = session;
+        sessionsRef.current = await listSessions();
 
         snapshotCursorRef.current = 0;
         setState({
           status: "paired",
           session,
+          sessions: sessionsRef.current,
           snapshot: null,
           liveEvents: [],
           diffs: {},
@@ -393,7 +425,9 @@ export function useGraftSession() {
     try {
       parsePairingInput(url);
       setState((current) => {
-        if (current.status === "paired") return current;
+        if (current.status === "paired") {
+          return { ...current, pendingAdditionalInput: url, error: undefined };
+        }
         return { status: "unpaired", pendingInput: url };
       });
     } catch {
@@ -401,9 +435,51 @@ export function useGraftSession() {
     }
   }, []);
 
+  const clearPendingAdditionalInput = useCallback(() => {
+    updatePaired(setState, (current) =>
+      current.pendingAdditionalInput
+        ? { ...current, pendingAdditionalInput: undefined }
+        : current,
+    );
+  }, []);
+
+  const connectPairedSession = useCallback(
+    async (session: GraftSessionCredential, sessions: readonly GraftSessionCredential[]) => {
+      socketRef.current?.disconnect();
+      sessionRef.current = session;
+      sessionsRef.current = [...sessions];
+      snapshotCursorRef.current = 0;
+      selectedThreadIdRef.current = undefined;
+      sendAttemptsRef.current.clear();
+      sendingThreadsRef.current.clear();
+      setState({
+        status: "paired",
+        session,
+        sessions,
+        snapshot: null,
+        liveEvents: [],
+        diffs: {},
+        connectionState: "connecting",
+        isRefreshing: true,
+      });
+      socketRef.current?.connect(session);
+      await refreshSnapshot(session, undefined, false);
+    },
+    [refreshSnapshot],
+  );
+
   const pair = useCallback(
     async (rawInput: string) => {
-      setState({ status: "pairing", pendingInput: rawInput });
+      const previous = sessionRef.current;
+      if (!previous) {
+        setState({ status: "pairing", pendingInput: rawInput });
+      } else {
+        updatePaired(setState, (current) => ({
+          ...current,
+          error: undefined,
+          pendingAdditionalInput: undefined,
+        }));
+      }
       try {
         const pairing = parsePairingInput(rawInput);
         await gateway.health(pairing.host);
@@ -415,21 +491,19 @@ export function useGraftSession() {
           deviceLabel: Device.deviceName ?? undefined,
         });
         await saveSession(session);
-        sessionRef.current = session;
-        snapshotCursorRef.current = 0;
-
-        setState({
-          status: "paired",
-          session,
-          snapshot: null,
-          liveEvents: [],
-          diffs: {},
-          connectionState: "connecting",
-          isRefreshing: true,
-        });
-        socketRef.current?.connect(session);
-        await refreshSnapshot(session, undefined, false);
+        const sessions = await listSessions();
+        await connectPairedSession(session, sessions);
+        return true;
       } catch (error) {
+        if (previous) {
+          sessionRef.current = previous;
+          updatePaired(setState, (current) => ({
+            ...current,
+            error: messageFor(error),
+            pendingAdditionalInput: rawInput,
+          }));
+          return false;
+        }
         sessionRef.current = null;
         snapshotCursorRef.current = 0;
         setState({
@@ -437,9 +511,20 @@ export function useGraftSession() {
           pendingInput: rawInput,
           error: messageFor(error),
         });
+        return false;
       }
     },
-    [refreshSnapshot],
+    [connectPairedSession],
+  );
+
+  const activateSession = useCallback(
+    async (environmentId: string) => {
+      if (sessionRef.current?.environmentId === environmentId) return;
+      const session = await activateStoredSession(environmentId);
+      if (!session) return;
+      await connectPairedSession(session, await listSessions());
+    },
+    [connectPairedSession],
   );
 
   const refresh = useCallback(async () => {
@@ -811,25 +896,44 @@ export function useGraftSession() {
     [scheduleSnapshot],
   );
 
-  const unpair = useCallback(async () => {
-    try {
-      socketRef.current?.disconnect();
-      await clearSession();
-      sessionRef.current = null;
-      sendAttemptsRef.current.clear();
-      snapshotCursorRef.current = 0;
-      selectedThreadIdRef.current = undefined;
-      setState({ status: "unpaired" });
-    } catch (error) {
-      setState((current) =>
-        current.status === "paired" ? { ...current, error: messageFor(error) } : current,
-      );
-    }
-  }, []);
+  const unpair = useCallback(
+    async (environmentId?: string) => {
+      const targetId = environmentId ?? sessionRef.current?.environmentId;
+      if (!targetId) return;
+      const removingCurrent = sessionRef.current?.environmentId === targetId;
+      try {
+        if (removingCurrent) socketRef.current?.disconnect();
+        const next = await removeSession(targetId);
+        const sessions = await listSessions();
+        sessionsRef.current = sessions;
+        if (!next) {
+          sessionRef.current = null;
+          sendAttemptsRef.current.clear();
+          sendingThreadsRef.current.clear();
+          snapshotCursorRef.current = 0;
+          selectedThreadIdRef.current = undefined;
+          setState({ status: "unpaired" });
+          return;
+        }
+        if (removingCurrent) {
+          await connectPairedSession(next, sessions);
+          return;
+        }
+        updatePaired(setState, (current) => ({ ...current, sessions }));
+      } catch (error) {
+        setState((current) =>
+          current.status === "paired" ? { ...current, error: messageFor(error) } : current,
+        );
+      }
+    },
+    [connectPairedSession],
+  );
 
   return {
     state,
+    activateSession,
     cancelTurn,
+    clearPendingAdditionalInput,
     closeThread,
     createThread,
     loadDiff,

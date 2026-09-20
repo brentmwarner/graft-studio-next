@@ -46,10 +46,12 @@ Previous 7 days, and Older, using the device's local calendar. Priority first
 shows pending approvals and questions, followed by running work; the remaining
 threads appear in chronological sections. Each thread appears only once.
 
-Both mobile clients currently use one active paired computer. Its name and
-connection status remain in the header; there is no aggregate multi-computer
-filter. Settings, including Disconnect, remains available from the view menu
-and navigation drawer.
+Both mobile clients keep one live gateway at a time, but they can store
+multiple paired computers. The drawer and Settings list every pairing; tap a
+computer to switch, or pair another without disconnecting first. There is no
+merged inbox across computers. Inbox view mode and read receipts stay scoped
+to the active computer. Settings, including Disconnect, remains available from
+the view menu and navigation drawer.
 
 ## Development
 

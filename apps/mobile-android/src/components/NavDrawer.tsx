@@ -23,12 +23,21 @@ const SPRING = { dampingRatio: 0.85, duration: 300 } as const;
 /// How much release velocity counts toward the open/close decision.
 const VELOCITY_PROJECTION = 0.15;
 
+export interface DrawerComputer {
+  readonly id: string;
+  readonly label: string;
+  readonly isActive: boolean;
+  readonly isConnected: boolean;
+}
+
 interface NavDrawerLayoutProps extends PropsWithChildren {
+  readonly computers?: readonly DrawerComputer[];
   readonly connectionState: GatewayConnectionState;
   readonly hostLabel: string;
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onOpen: () => void;
+  readonly onSelectComputer?: (environmentId: string) => void;
   readonly onSettings: () => void;
   readonly onProjects: () => void;
   readonly recentThreads: readonly InboxThreadItem[];
@@ -71,11 +80,13 @@ function DrawerRow({ icon, label, onPress, trailing }: DrawerRowProps) {
 /// read as a different product.
 export function NavDrawerLayout({
   children,
+  computers,
   connectionState,
   hostLabel,
   isOpen,
   onClose,
   onOpen,
+  onSelectComputer,
   onSettings,
   onProjects,
   recentThreads,
@@ -84,6 +95,10 @@ export function NavDrawerLayout({
   const insets = useSafeAreaInsets();
   const palette = useGraftPalette();
   const isConnected = connectionState === "connected";
+  const computerRows =
+    computers && computers.length > 0
+      ? computers
+      : [{ id: hostLabel, label: hostLabel, isActive: true, isConnected }];
 
   /// 0 closed, 1 fully open. Driven by `isOpen` normally, and taken over
   /// directly while a drag is in flight so the panel tracks the finger.
@@ -153,21 +168,37 @@ export function NavDrawerLayout({
       >
         <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
         <DrawerRow icon="folder-outline" label="Projects" onPress={onProjects} />
-        <DrawerRow
-          icon="laptop-outline"
-          label={hostLabel}
-          trailing={
-            <View
-              accessibilityLabel={isConnected ? "Connected" : "Disconnected"}
-              style={[
-                styles.connectionDot,
-                {
-                  backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
-                },
-              ]}
-            />
-          }
-        />
+        {computerRows.map((computer) => (
+          <DrawerRow
+            key={computer.id}
+            icon="laptop-outline"
+            label={computer.label}
+            onPress={
+              computer.isActive || !onSelectComputer
+                ? undefined
+                : () => onSelectComputer(computer.id)
+            }
+            trailing={
+              <View
+                accessibilityLabel={
+                  computer.isActive
+                    ? computer.isConnected
+                      ? "Connected"
+                      : "Disconnected"
+                    : "Paired"
+                }
+                style={[
+                  styles.connectionDot,
+                  {
+                    backgroundColor: computer.isConnected
+                      ? palette.success
+                      : palette.foregroundSubtle,
+                  },
+                ]}
+              />
+            }
+          />
+        ))}
         <ScrollView
           style={styles.spacer}
           contentContainerStyle={{ paddingTop: 20, paddingBottom: 16 }}

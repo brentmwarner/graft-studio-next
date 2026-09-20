@@ -1,7 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import type { GraftThreadSummary } from "@graft/mobile-contract";
 import { useEffect, useMemo, useState } from "react";
-import { BackHandler, Linking, StyleSheet, View } from "react-native";
+import { BackHandler, Linking, Modal, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { MenuProvider } from "./src/components/MenuProvider";
@@ -34,8 +34,10 @@ function GraftApp() {
   const [route, setRoute] = useState<AppRoute>({ name: "home" });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [inboxViewMode, setInboxViewMode] = useState(loadInboxViewMode);
+  const [inboxViewMode, setInboxViewMode] = useState<ReturnType<typeof loadInboxViewMode>>("project");
   const [expandedProjectIds, setExpandedProjectIds] = useState<ReadonlySet<string>>(new Set());
+  const [showAddPairing, setShowAddPairing] = useState(false);
+  const [isAddingPairing, setIsAddingPairing] = useState(false);
   const paired = session.state.status === "paired" ? session.state : null;
   const pairedSnapshot = paired?.snapshot ?? null;
   const inboxReads = useInboxReadState(
@@ -61,9 +63,25 @@ function GraftApp() {
       setRoute({ name: "home" });
       setIsDrawerOpen(false);
       setShowSettings(false);
+      setShowAddPairing(false);
+      setIsAddingPairing(false);
       setExpandedProjectIds(new Set());
     }
   }, [session.state.status]);
+
+  useEffect(() => {
+    const environmentId = paired?.session.environmentId;
+    setInboxViewMode(loadInboxViewMode(environmentId));
+    setExpandedProjectIds(new Set());
+    setRoute({ name: "home" });
+    session.closeThread();
+    // Reset only when the active computer changes, not when hook identities churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- environmentId is the switch signal
+  }, [paired?.session.environmentId]);
+
+  useEffect(() => {
+    if (paired?.pendingAdditionalInput) setShowAddPairing(true);
+  }, [paired?.pendingAdditionalInput]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -113,9 +131,21 @@ function GraftApp() {
               `NavDrawerLayout` wrapping its `NavigationStack`. */}
           <NavDrawerLayout
             recentThreads={recentInboxThreads(pairedSnapshot, inboxReads)}
+            computers={paired.sessions.map((computer) => ({
+              id: computer.environmentId,
+              label: computer.environmentLabel,
+              isActive: computer.environmentId === paired.session.environmentId,
+              isConnected:
+                computer.environmentId === paired.session.environmentId &&
+                paired.connectionState === "connected",
+            }))}
             onProjects={() => {
               setIsDrawerOpen(false);
               backToHome();
+            }}
+            onSelectComputer={(environmentId) => {
+              setIsDrawerOpen(false);
+              void session.activateSession(environmentId);
             }}
             onSelectThread={(item) => {
               const thread = pairedSnapshot?.threads.find((candidate) => candidate.id === item.id);
@@ -150,7 +180,7 @@ function GraftApp() {
                 viewMode={inboxViewMode}
                 onViewModeChange={(mode) => {
                   setInboxViewMode(mode);
-                  saveInboxViewMode(mode);
+                  saveInboxViewMode(mode, paired.session.environmentId);
                 }}
                 expandedProjectIds={expandedProjectIds}
                 onToggleProject={(id) =>
@@ -248,11 +278,44 @@ function GraftApp() {
           </NavDrawerLayout>
           <SettingsScreen
             connectionState={paired.connectionState}
+            onAddComputer={() => setShowAddPairing(true)}
+            onActivate={(environmentId) => {
+              setShowSettings(false);
+              void session.activateSession(environmentId);
+            }}
             onClose={() => setShowSettings(false)}
             onUnpair={session.unpair}
             session={paired.session}
+            sessions={paired.sessions}
             visible={showSettings}
           />
+          <Modal
+            animationType="slide"
+            onRequestClose={() => {
+              setShowAddPairing(false);
+              session.clearPendingAdditionalInput();
+            }}
+            visible={showAddPairing}
+          >
+            <PairingScreen
+              error={paired.error}
+              initialInput={paired.pendingAdditionalInput}
+              isPairing={isAddingPairing}
+              onCancel={() => {
+                setShowAddPairing(false);
+                setIsAddingPairing(false);
+                session.clearPendingAdditionalInput();
+              }}
+              onPair={async (input) => {
+                setIsAddingPairing(true);
+                try {
+                  if (await session.pair(input)) setShowAddPairing(false);
+                } finally {
+                  setIsAddingPairing(false);
+                }
+              }}
+            />
+          </Modal>
         </>
       ) : null}
     </View>

@@ -117,7 +117,7 @@ struct PairingView: View {
             return false
         }
         onValidPayload()
-        Task { await app.connection.pair(with: payload) }
+        Task { await app.pair(with: payload) }
         return true
     }
 }
@@ -222,6 +222,9 @@ private struct PairingConnectionSyncModifier: ViewModifier {
             }
             .onChange(of: connection.isPaired) { _, isPaired in
                 if isPaired { isPresented = false }
+            }
+            .onChange(of: connection.session?.sessionId) { oldId, newId in
+                if let newId, newId != oldId { isPresented = false }
             }
     }
 }

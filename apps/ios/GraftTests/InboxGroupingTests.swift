@@ -290,6 +290,53 @@ extension InboxGroupingTests {
         XCTAssertEqual(restored, state)
     }
 
+    func testViewModePreferenceIsScopedPerComputer() {
+        let suite = "inbox-view-mode-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        InboxViewPreferences.save(.priority, environmentId: "mac", defaults: defaults)
+        InboxViewPreferences.save(.chronological, environmentId: "studio", defaults: defaults)
+        XCTAssertEqual(InboxViewPreferences.load(environmentId: "mac", defaults: defaults), .priority)
+        XCTAssertEqual(InboxViewPreferences.load(environmentId: "studio", defaults: defaults), .chronological)
+        XCTAssertEqual(InboxViewPreferences.key(environmentId: "mac"), "inbox.viewMode.mac")
+    }
+
+    func testReadVisibilityIgnoresCoveredOrBackgroundTranscripts() {
+        XCTAssertEqual(
+            InboxReadVisibility.visibleThreadId(
+                isForeground: true,
+                isConversationCovered: false,
+                selectedThreadId: "t",
+                loadedTranscriptThreadId: "t"
+            ),
+            "t"
+        )
+        XCTAssertNil(
+            InboxReadVisibility.visibleThreadId(
+                isForeground: true,
+                isConversationCovered: true,
+                selectedThreadId: "t",
+                loadedTranscriptThreadId: "t"
+            )
+        )
+        XCTAssertNil(
+            InboxReadVisibility.visibleThreadId(
+                isForeground: false,
+                isConversationCovered: false,
+                selectedThreadId: "t",
+                loadedTranscriptThreadId: "t"
+            )
+        )
+        XCTAssertNil(
+            InboxReadVisibility.visibleThreadId(
+                isForeground: true,
+                isConversationCovered: false,
+                selectedThreadId: "t",
+                loadedTranscriptThreadId: "other"
+            )
+        )
+    }
+
     func testChatsRemainSeparateWhileSearching() {
         let snapshot = EnvironmentSnapshot(environment: EnvironmentInfo(id: "env", label: "Mac", hostVersion: "1", protocolVersion: 1, capabilities: [], cursor: 1),
             projects: [ProjectInfo(id: "chat", name: "Personal", kind: "desktop", path: nil)],
