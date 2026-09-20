@@ -8,8 +8,8 @@ The same fixture compares `f1b3d572d` with the changed composer and transcript.
 | --------------------------------------------------------- | ------------------------------------------------- |
 | ![Two-row composer and completed Working row](before.png) | ![Idle pill and folded completed work](after.png) |
 
-[Expanded editor](expanded.png) · [Expanded work details](work-details.png) ·
-[Composer and streaming recording](motion.mp4)
+[Expanded editor](expanded.png) · [Collapsed draft](draft-pill.png) · [Expanded work details](work-details.png) ·
+[32-second composer and streaming recording](motion.mp4)
 
 ## Observed behavior
 

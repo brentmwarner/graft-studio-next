@@ -117,10 +117,13 @@ it("collapses to one row on blur even with a draft, without replacing the editor
   const height = () =>
     renderer.root.find((node) => isType(node, "AnimatedView")).props.style[2].height;
   expect(height()).toBe(56);
+  expect(input().props.multiline).toBe(false);
   await act(() => editor.props.onFocus());
   expect(height()).toBeGreaterThan(100);
+  expect(input().props.multiline).toBe(true);
   await act(() => editor.props.onBlur());
   expect(height()).toBe(56);
+  expect(input().props.multiline).toBe(false);
   expect(input()).toBe(editor);
   expect(input().props.value).toBe("Unsent draft");
 });

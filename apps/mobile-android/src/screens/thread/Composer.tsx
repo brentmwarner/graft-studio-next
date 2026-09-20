@@ -324,7 +324,7 @@ export function Composer({
                 accessibilityLabel="Message"
                 editable={isConnected && !isSending && !voice.isActive}
                 maxLength={100_000}
-                multiline
+                multiline={expanded}
                 onBlur={() => setIsComposerFocused(false)}
                 onChangeText={onDraftChange}
                 onContentSizeChange={({ nativeEvent }) => {
