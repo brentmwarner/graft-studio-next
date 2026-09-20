@@ -47,13 +47,35 @@ inbox presentation without switching or replacing a connection.
   tests are unchanged from the previous PR head. The final Android suite adds
   four passing tests beyond the initial workspace run.
 
+## Android screenshots
+
+Captured September 20, 2026 on the available Android 15 emulator (1080 × 2400),
+rendering the current `d205e68c7` React Native screens with an isolated component
+harness and sample snapshots. These are native emulator screenshots, not mockups
+or screenshots from the earlier inbox implementation.
+
+| Projects / All                                                        | Add computer menu                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| ![All computers with green and red status dots](android-projects.png) | ![Projects menu with Add computer](android-add-computer.png) |
+
+[Offline computer filter](android-offline-filter.png) retains only that computer's
+sample chats and project. Its sample threads have stale running status; no spinner
+or warning appears. Selecting All restores the combined inbox. The computer row
+scrolls horizontally when labels exceed the available width.
+
+The Android SDK and running emulator were found outside the shell's PATH after
+the initial validation pass. These captures use the existing isolated development
+client (`studio.graft.mobile.chatcontrols`); no production pairing was changed.
+The older client lacks `RNSVGPath`, so opening the pairing screen failed in that
+client. A rebuilt client is still required to verify that screen. The screenshots
+do not establish a live two-computer connection or verify the signed release.
+
 ## Native verification still required
 
-Native visual/device verdict: **INCONCLUSIVE**. Xcode, Swift, Android SDK tools,
-and a usable simulator/emulator were unavailable on the execution host; the
-paired Mac was offline. The earlier inbox screenshots and videos are not evidence
-for this follow-up. No new native screenshots or live two-computer session were
-captured.
+Live device/session verdict: **INCONCLUSIVE**. Xcode and Swift remain unavailable
+on the execution host, and the paired Mac is offline. No current iOS screenshots
+were captured. The native iOS build and the complete Android pairing/runtime flow
+still need verification.
 
 On iPhone, iPad, and Android: pair two Studios; confirm both continue receiving
 updates while changing All/computer filters; open same-ID threads and send to
