@@ -80,8 +80,12 @@ presenting the sheet. File previews use the current working patch and preserve
 syntax highlighting, bounds, and truncated/unavailable states.
 
 Android shares structured task progress, slash commands, tool identity, working
-changes, and reading styles. Its current attachment, dictation, usage, anchored
-menu, and provider-lock behavior is preserved.
+changes, and reading styles. Settled Android turns now fold commentary, reasoning,
+and tool activity above the final answer under "Worked", preserving errors and
+structured results. Android uses this fallback label without an elapsed duration.
+Its idle composer is a compact pill; permissions are in the plus menu. Appended
+prose fades briefly, with sparse native haptics during live foreground streaming.
+Attachment, dictation, usage, anchored menu, and provider-lock behavior is preserved.
 
 ## Model controls
 

@@ -61,7 +61,7 @@ it("keeps a model picker mounted without a draft or loaded catalog and receives 
   expect(JSON.stringify(renderer!.toJSON())).toContain("Choose model");
 });
 
-it("combines the current model and effort in one compact control", async () => {
+it("shows only the model name while keeping effort accessible in the picker", async () => {
   await act(() => {
     renderer = create(
       createElement(ComposerSettings, {
@@ -69,7 +69,32 @@ it("combines the current model and effort in one compact control", async () => {
       }),
     );
   });
+  expect(renderer!.root.findAll((node) => (node.type as unknown) === "ProviderLogo")).toHaveLength(
+    0,
+  );
+  expect(
+    renderer!.root
+      .findAll((node) => (node.type as unknown) === "Text")
+      .map((node) => node.props.children),
+  ).toEqual(["Choose model"]);
   expect(renderer!.root.findAll(isMenu).map((node) => node.props.initialPage)).toEqual([
     "intelligence",
   ]);
+});
+
+it("shows the provider's untinted logo alongside the model when expanded", async () => {
+  await act(() => {
+    renderer = create(
+      createElement(ComposerSettings, {
+        config: {
+          ...config,
+          currentModel: { id: "claude-test", label: "Claude", providerId: "claudeAgent" },
+        },
+        showProviderIcon: true,
+      }),
+    );
+  });
+  const logo = renderer!.root.find((node) => (node.type as unknown) === "ProviderLogo");
+  expect(logo.props.providerId).toBe("claudeAgent");
+  expect(logo.props.color).toBeUndefined();
 });

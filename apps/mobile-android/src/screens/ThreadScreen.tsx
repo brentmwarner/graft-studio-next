@@ -52,6 +52,7 @@ import { renderTranscriptRow, transcriptRowKey } from "./thread/TranscriptRow";
 import { useThreadModel } from "./thread/useThreadModel";
 import { useVoiceInput } from "./thread/useVoiceInput";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
+import { useStreamingHaptics } from "./thread/useStreamingHaptics";
 import { useTranscriptFollow } from "./thread/useTranscriptFollow";
 
 const THREAD_HEADER_HEIGHT = 44;
@@ -152,9 +153,19 @@ export function ThreadScreen({
   });
   const follow = useTranscriptFollow(
     thread.id,
-    model.items,
+    model.followItems,
     Boolean(model.activeRunId) &&
       connectionState === "connected" &&
+      !model.approval &&
+      !model.question,
+  );
+
+  useStreamingHaptics(
+    thread.id,
+    model.activeRunId,
+    liveEvents,
+    connectionState === "connected" &&
+      !follow.isAwayFromBottom &&
       !model.approval &&
       !model.question,
   );
@@ -485,9 +496,7 @@ export function ThreadScreen({
           onRemoveAttachment={(id) => attachments.remove([id])}
           voice={voice}
           activeRunId={model.activeRunId}
-          approvalIsElevated={model.approvalIsElevated}
           canSend={canSend}
-          currentApprovalLabel={model.currentApprovalLabel}
           currentModelName={model.currentThread.modelName}
           draft={draft}
           hostLabel={hostLabel}

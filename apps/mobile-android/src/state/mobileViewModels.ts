@@ -24,6 +24,7 @@ export interface InboxProjectGroup {
 export interface TranscriptToolItem {
   readonly id: string;
   readonly kind: "tool";
+  readonly runId?: string;
   readonly toolId: string;
   name: string;
   detail: string;
@@ -37,6 +38,7 @@ export interface TranscriptToolItem {
 export interface TranscriptActivityItem {
   readonly id: string;
   readonly kind: "activity";
+  readonly runId?: string;
   readonly eventId: string;
   data?: GraftTimelineEventData;
   text: string;
@@ -46,15 +48,18 @@ export type TranscriptItem =
   | {
       readonly id: string;
       readonly kind: "user";
+      readonly runId?: string;
       text: string;
       attachments?: readonly GraftAttachment[];
     }
   | {
       readonly id: string;
       readonly kind: "assistant";
+      runId?: string;
       text: string;
       reasoning: string;
       streaming: boolean;
+      readonly foldedActivity?: readonly TranscriptItem[];
     }
   | TranscriptToolItem
   | TranscriptActivityItem
@@ -64,19 +69,19 @@ export type TranscriptItem =
   | {
       readonly id: string;
       readonly kind: "toolGroup";
+      readonly runId?: string;
       readonly tools: readonly TranscriptToolItem[];
     }
   | {
       readonly id: string;
       readonly kind: "error";
+      readonly runId?: string;
       text: string;
     };
 
 /// Fold consecutive `tool` rows into a single `toolGroup`. Quiet rows that
-/// sit between tools (reasoning-only assistant bubbles, status banners)
-/// stay inside the run so Claude's think→grep→think→bash pattern is one
-/// line of activity, not a stack of identical "Using Bash…" rows. Mirrors
-/// the iOS `ToolActivityStrip`.
+/// sit between tools stay inside the run. Preserve reasoning so it remains
+/// available in the completed turn's disclosure.
 export function groupToolRuns(items: readonly TranscriptItem[]): readonly TranscriptItem[] {
   const grouped: TranscriptItem[] = [];
   let run: TranscriptToolItem[] = [];
@@ -87,13 +92,21 @@ export function groupToolRuns(items: readonly TranscriptItem[]): readonly Transc
     // A lone tool call stays a plain row — folding one thing hides nothing and
     // costs a tap.
     grouped.push(
-      run.length === 1 ? first : { id: `toolgroup:${first.id}`, kind: "toolGroup", tools: run },
+      run.length === 1
+        ? first
+        : {
+            id: `toolgroup:${first.id}`,
+            kind: "toolGroup",
+            tools: run,
+            ...(first.runId ? { runId: first.runId } : {}),
+          },
     );
     run = [];
   }
 
   for (const item of items) {
     if (item.kind === "tool") {
+      if (run.length && run[0]?.runId !== item.runId) flushRun();
       run.push(item);
       continue;
     }
@@ -106,7 +119,7 @@ export function groupToolRuns(items: readonly TranscriptItem[]): readonly Transc
 }
 
 function isQuietToolRunRow(item: TranscriptItem): boolean {
-  if (item.kind === "assistant") return !item.text.trim();
+  if (item.kind === "assistant") return !item.text.trim() && !item.reasoning.trim();
   if (item.kind === "activity") {
     return !item.data || item.data.type === "todo_update" || item.data.type === "web_search";
   }
@@ -271,7 +284,6 @@ export function buildTranscriptItems(
   const assistantItems = new Map<string, Extract<TranscriptItem, { kind: "assistant" }>>();
   const completedMessages = new Set<string>();
   const completedRunIDs = new Set<string>();
-  const assistantRunIds = new Map<string, string | undefined>();
   let currentAssistant: Extract<TranscriptItem, { kind: "assistant" }> | undefined;
   const userMessageIds = new Set<string>();
 
@@ -288,17 +300,20 @@ export function buildTranscriptItems(
   function assistantFor(event: GraftTimelineEvent) {
     const id = assistantRowId(event);
     const existing = assistantItems.get(id);
-    if (existing) return existing;
+    if (existing) {
+      existing.runId ??= event.runId;
+      return existing;
+    }
     settleAssistant();
     const item: Extract<TranscriptItem, { kind: "assistant" }> = {
       id,
       kind: "assistant",
+      ...(event.runId ? { runId: event.runId } : {}),
       text: "",
       reasoning: "",
       streaming: true,
     };
     assistantItems.set(id, item);
-    assistantRunIds.set(id, event.runId);
     items.push(item);
     currentAssistant = item;
     return item;
@@ -327,6 +342,7 @@ export function buildTranscriptItems(
         items.push({
           id: claimId(usedIds, `user:${event.id}`),
           kind: "user",
+          ...(event.runId ? { runId: event.runId } : {}),
           text,
           ...(event.attachments?.length ? { attachments: event.attachments } : {}),
         });
@@ -365,6 +381,7 @@ export function buildTranscriptItems(
           const item: TranscriptToolItem = {
             id: claimId(usedIds, `tool:${toolId}`),
             kind: "tool",
+            ...(event.runId ? { runId: event.runId } : {}),
             toolId,
             name: event.toolName ?? "Working",
             detail: event.text ?? "",
@@ -379,7 +396,7 @@ export function buildTranscriptItems(
         if (isTerminalRunStatus(event.runStatus)) {
           if (event.runId) completedRunIDs.add(event.runId);
           for (const item of assistantItems.values()) {
-            const runId = assistantRunIds.get(item.id);
+            const runId = item.runId;
             if (event.runId && runId && event.runId !== runId) continue;
             item.streaming = false;
             completedMessages.add(item.id);
@@ -398,6 +415,7 @@ export function buildTranscriptItems(
           items.push({
             id: claimId(usedIds, `error:${event.id}`),
             kind: "error",
+            ...(event.runId ? { runId: event.runId } : {}),
             text,
           });
         }
@@ -430,6 +448,7 @@ export function buildTranscriptItems(
         const item: TranscriptActivityItem = {
           id: claimId(usedIds, `activity:${event.id}`),
           kind: "activity",
+          ...(event.runId ? { runId: event.runId } : {}),
           eventId: event.id,
           data: event.data,
           text,
@@ -466,7 +485,7 @@ function sameActivityData(
 }
 
 function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolean {
-  if (left.id !== right.id || left.kind !== right.kind) return false;
+  if (left.id !== right.id || left.kind !== right.kind || left.runId !== right.runId) return false;
   switch (left.kind) {
     case "user": {
       const other = right as typeof left;
@@ -480,7 +499,10 @@ function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolea
       return (
         left.text === other.text &&
         left.reasoning === other.reasoning &&
-        left.streaming === other.streaming
+        left.streaming === other.streaming &&
+        (left.foldedActivity?.length ?? 0) === (other.foldedActivity?.length ?? 0) &&
+        (left.foldedActivity?.every((item, index) => item === other.foldedActivity?.[index]) ??
+          true)
       );
     }
     case "tool": {

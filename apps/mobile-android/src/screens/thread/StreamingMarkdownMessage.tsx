@@ -48,5 +48,7 @@ export const StreamingMarkdownMessage = memo(function StreamingMarkdownMessage({
   );
 
   const visibleContent = showImmediately ? content : displayedContent;
-  return visibleContent ? <MarkdownMessage>{visibleContent}</MarkdownMessage> : null;
+  return visibleContent ? (
+    <MarkdownMessage streaming={streaming && !reduceMotion}>{visibleContent}</MarkdownMessage>
+  ) : null;
 });

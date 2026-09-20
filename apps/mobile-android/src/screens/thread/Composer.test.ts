@@ -29,9 +29,7 @@ const props: ComponentProps<typeof Composer> = {
   attachments: [],
   onRemoveAttachment: vi.fn(),
   activeRunId: undefined,
-  approvalIsElevated: false,
   canSend: false,
-  currentApprovalLabel: "Ask first",
   currentModelName: "GPT",
   draft: "",
   hostLabel: "Studio",
@@ -77,8 +75,10 @@ it("keeps model controls inside the composer and preserves input/picker identity
   });
   const editor = input();
   const settings = renderer.root.findByType(ComposerSettings);
-  expect(settings.parent?.parent?.type).toBe("AnimatedView");
+  expect(settings.parent?.parent?.parent?.type).toBe("AnimatedView");
+  expect(settings.props.showProviderIcon).toBe(false);
   await act(() => editor.props.onFocus());
+  expect(settings.props.showProviderIcon).toBe(true);
   await act(() =>
     renderer.update(
       createElement(Composer, { ...props, draft: "Follow up", canSend: true, modelMenuRequest: 1 }),
@@ -105,7 +105,28 @@ it("preserves the editor and hides its controls from accessibility during dictat
   );
   expect(input()).toBe(editor);
   expect(
-    renderer.root.findByType(ComposerSettings).parent?.parent?.props.importantForAccessibility,
+    renderer.root.findByType(ComposerSettings).parent?.parent?.parent?.props
+      .importantForAccessibility,
   ).toBe("no-hide-descendants");
   expect(input().props.editable).toBe(false);
+});
+
+it("collapses to one row on blur even with a draft, without replacing the editor", async () => {
+  await act(() => {
+    renderer = create(createElement(Composer, { ...props, draft: "Unsent draft" }));
+  });
+  const editor = input();
+  const height = () =>
+    renderer.root.find((node) => isType(node, "AnimatedView")).props.style[2].height;
+  expect(height()).toBe(56);
+  expect(input().props.multiline).toBe(false);
+  await act(() => editor.props.onFocus());
+  expect(height()).toBeGreaterThan(100);
+  expect(input().props.multiline).toBe(true);
+  await act(() => editor.props.onBlur());
+  expect(renderer.root.findByType(ComposerSettings).props.showProviderIcon).toBe(false);
+  expect(height()).toBe(56);
+  expect(input().props.multiline).toBe(false);
+  expect(input()).toBe(editor);
+  expect(input().props.value).toBe("Unsent draft");
 });

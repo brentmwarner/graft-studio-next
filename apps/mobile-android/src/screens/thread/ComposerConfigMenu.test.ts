@@ -153,6 +153,7 @@ it("opens each native picker from plus and keeps model settings in their own men
     "Photos",
     "Camera",
     "Mode",
+    "Permissions",
   ]);
   for (const [label, source] of [
     ["Add files", "files"],
@@ -226,4 +227,10 @@ it("exposes catalog recovery even when no models have loaded", async () => {
   expect(JSON.stringify(renderer!.toJSON())).toContain("Couldn’t load models.");
   await act(() => item("Retry loading models").props.onPress());
   expect(config.onReloadModels).toHaveBeenCalledOnce();
+});
+
+it("keeps permission changes available through the plus menu", async () => {
+  await mount("options");
+  await act(() => item("Permissions").props.onPress());
+  expect(items().some((node) => node.props.label === config.approvalOptions[0]?.label)).toBe(true);
 });

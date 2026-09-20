@@ -115,13 +115,6 @@ export function NewChatScreen({
     selectedApproval && approvalOptions.some((option) => option.value === selectedApproval)
       ? selectedApproval
       : (currentModel?.defaultApprovalPolicy ?? approvalOptions[0]?.value);
-  const currentApprovalLabel =
-    approvalOptions.find((option) => option.value === currentApproval)?.label ?? "Permissions";
-  const approvalIsElevated = Boolean(
-    currentApproval &&
-    currentModel?.defaultApprovalPolicy &&
-    currentApproval !== currentModel.defaultApprovalPolicy,
-  );
   const canUseWorktree = selectedProject?.kind === "repo";
   const fastMode = Boolean(currentModel?.supportsFastMode && selectedFastMode);
   const canSend = Boolean(
@@ -315,9 +308,7 @@ export function NewChatScreen({
             attachmentError={attachments.error ?? attachmentBlocked}
             onRemoveAttachment={(id) => attachments.remove([id])}
             activeRunId={undefined}
-            approvalIsElevated={approvalIsElevated}
             canSend={canSend}
-            currentApprovalLabel={currentApprovalLabel}
             currentModelName={currentModel?.id}
             draft={draft}
             hostLabel={hostLabel}

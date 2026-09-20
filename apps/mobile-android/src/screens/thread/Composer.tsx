@@ -16,7 +16,7 @@ import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
-import { ComposerPermissions, ComposerSettings } from "./ComposerSettings";
+import { ComposerSettings } from "./ComposerSettings";
 import { ComposerAttachments } from "./ComposerAttachments";
 import type { ComposerAttachment } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
@@ -118,9 +118,7 @@ export function Composer({
   attachmentError,
   onRemoveAttachment,
   activeRunId,
-  approvalIsElevated,
   canSend,
-  currentApprovalLabel,
   currentModelName,
   draft,
   hostLabel,
@@ -138,9 +136,7 @@ export function Composer({
   readonly attachmentError?: string;
   readonly onRemoveAttachment: (id: string) => void;
   readonly activeRunId: string | undefined;
-  readonly approvalIsElevated: boolean;
   readonly canSend: boolean;
-  readonly currentApprovalLabel: string;
   readonly currentModelName: string | undefined;
   readonly draft: string;
   readonly hostLabel: string;
@@ -158,18 +154,19 @@ export function Composer({
   const inputRef = useRef<TextInput>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
-  const [toolbarHeight, setToolbarHeight] = useState(55);
+  const [controlsWidth, setControlsWidth] = useState(150);
   const heightTransition = useDisclosureHeightTransition();
   const { height: windowHeight, fontScale } = useWindowDimensions();
   const hasDraft = Boolean(draft.trim() || attachments.length);
-  const expanded = (isComposerFocused || hasDraft) && !voice.isActive;
+  const expanded = (isComposerFocused || attachments.length > 0) && !voice.isActive;
   const editorMinHeight = 60 * fontScale;
   const editorMaxHeight = Math.max(editorMinHeight, Math.min(160 * fontScale, windowHeight * 0.3));
   const editorHeight = expanded
     ? Math.min(editorMaxHeight, Math.max(editorMinHeight, contentHeight))
     : Math.max(32, 20 * fontScale);
   // Keep the toolbar mounted inside the surface across focus and draft changes.
-  const typingHeight = voice.isActive ? 0 : editorHeight + (expanded ? 19 : 14) + toolbarHeight;
+  const idleHeight = Math.max(56, editorHeight + 16);
+  const typingHeight = voice.isActive ? 0 : expanded ? editorHeight + 75 : idleHeight;
   const extras = menuConfig.extras;
 
   useEffect(() => {
@@ -248,7 +245,13 @@ export function Composer({
         ) : null}
 
         <View style={styles.composer}>
-          <FloatingSurface style={[StyleSheet.absoluteFill, styles.composerSurface]} />
+          <FloatingSurface
+            style={[
+              StyleSheet.absoluteFill,
+              styles.composerSurface,
+              { borderRadius: expanded ? 28 : idleHeight / 2 },
+            ]}
+          />
           {expanded && attachments.length > 0 ? (
             <View style={styles.attachments}>
               <ComposerAttachments
@@ -307,22 +310,36 @@ export function Composer({
               voice.isActive ? styles.typingContentHidden : null,
             ]}
           >
-            <View style={[styles.typingRow, expanded ? styles.typingRowExpanded : null]}>
+            <View
+              style={[
+                styles.typingRow,
+                expanded
+                  ? styles.typingRowExpanded
+                  : {
+                      height: idleHeight,
+                      paddingVertical: 0,
+                      paddingLeft: 56,
+                      paddingRight: controlsWidth + 7,
+                    },
+              ]}
+            >
               {/* Keep the same editor mounted through focus and recording transitions. */}
               <TextInput
                 ref={inputRef}
                 accessibilityLabel="Message"
                 editable={isConnected && !isSending && !voice.isActive}
                 maxLength={100_000}
-                multiline
+                multiline={expanded}
                 onBlur={() => setIsComposerFocused(false)}
                 onChangeText={onDraftChange}
                 onContentSizeChange={({ nativeEvent }) => {
-                  if (!voice.isActive) setContentHeight(Math.ceil(nativeEvent.contentSize.height));
+                  if (expanded) setContentHeight(Math.ceil(nativeEvent.contentSize.height));
                 }}
                 onFocus={() => setIsComposerFocused(true)}
                 onSubmitEditing={onSend}
-                placeholder={isConnected ? `Work on ${hostLabel}` : "Reconnecting…"}
+                placeholder={
+                  isConnected ? (expanded ? `Work on ${hostLabel}` : "Message") : "Reconnecting…"
+                }
                 placeholderTextColor={palette.foregroundSubtle}
                 scrollEnabled={expanded && contentHeight > editorMaxHeight}
                 style={[
@@ -336,22 +353,23 @@ export function Composer({
                 value={draft}
               />
             </View>
-            <View
-              style={styles.toolbar}
-              onLayout={({ nativeEvent }) => setToolbarHeight(Math.ceil(nativeEvent.layout.height))}
-            >
+            <View style={styles.toolbar} pointerEvents="box-none">
               {options}
-              <ComposerPermissions
-                config={menuConfig}
-                label={currentApprovalLabel}
-                elevated={approvalIsElevated}
-              />
-              <ComposerSettings
-                config={menuConfig}
-                modelName={currentModelName}
-                modelMenuRequest={modelMenuRequest}
-              />
-              {trailing}
+              <View style={styles.toolbarSpacer} pointerEvents="none" />
+              <View
+                style={styles.modelControls}
+                onLayout={({ nativeEvent }) =>
+                  setControlsWidth(Math.ceil(nativeEvent.layout.width))
+                }
+              >
+                <ComposerSettings
+                  config={menuConfig}
+                  modelName={currentModelName}
+                  modelMenuRequest={modelMenuRequest}
+                  showProviderIcon={expanded}
+                />
+                {trailing}
+              </View>
             </View>
           </Animated.View>
           {voice.isActive ? (
@@ -375,17 +393,17 @@ const styles = StyleSheet.create({
   composerRow: { alignItems: "flex-end", flexDirection: "row", gap: 8 },
   cancelButton: { alignItems: "center", height: 46, justifyContent: "center", width: 46 },
   composer: { flex: 1, minWidth: 0, minHeight: 46 },
-  composerSurface: { borderRadius: 23 },
+  composerSurface: { borderRadius: 28 },
   attachments: { paddingHorizontal: 8, paddingTop: 10, paddingBottom: 2 },
   modeRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 7 },
   modeButton: { minHeight: 28, justifyContent: "center" },
-  typingContent: { overflow: "hidden", borderRadius: 23 },
+  typingContent: { overflow: "hidden", borderRadius: 28 },
   typingContentHidden: { position: "absolute", width: "100%", opacity: 0 },
   typingRow: {
     alignItems: "center",
     flexDirection: "row",
     gap: 5,
-    paddingVertical: 7,
+    paddingVertical: 8,
     paddingHorizontal: 16,
   },
   typingRowExpanded: { gap: 0, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 6 },
@@ -397,7 +415,16 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     padding: 0,
   },
-  toolbar: { alignItems: "center", flexDirection: "row", paddingHorizontal: 7, paddingBottom: 7 },
+  toolbar: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    right: 4,
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  toolbarSpacer: { flex: 1 },
+  modelControls: { flexDirection: "row", alignItems: "center", maxWidth: "70%" },
   toolbarText: { fontSize: 12, fontWeight: "500" },
   iconButton: { alignItems: "center", height: 48, justifyContent: "center", width: 48 },
   recordingRow: {
