@@ -108,6 +108,21 @@ ancestor, including compact widths, so content cannot overflow the chat pane.
 Visual verification still requires the simulator; policy tests do not prove
 material rendering or header sharpness.
 
+## Inbox and thread activity
+
+The Projects menu selects Priority, By Project, or Chronological and remembers
+the choice across launches. Project folders start collapsed; search temporarily
+reveals matching threads. Non-repository Chats appear above the project folders.
+Recents appears in the phone drawer and above Chats in the persistent iPad panel.
+Both mobile clients currently use one active paired computer, shown in the header.
+
+Working threads show a progress spinner (a static hourglass with Reduce Motion).
+Requests needing input show an attention icon. A blue dot marks a completed
+response not yet opened on this device; opening the loaded transcript in the
+foreground clears it. Read receipts persist per paired computer. The optional
+`lastCompletedAt` host field restores completions missed offline; older hosts
+use successful live responses observed by the app.
+
 ## Welcome visuals
 
 The welcome screen uses the official vector `GraftMark` and a native two-pass
