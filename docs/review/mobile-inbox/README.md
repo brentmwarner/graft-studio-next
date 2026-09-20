@@ -3,6 +3,21 @@
 The implementation is based on the merged PR #69 (`45800e1ac`). Inbox behavior is in
 `6f8333a40`; `56f384263` fixes array sorting on the installed Hermes runtime.
 
+## UI comparison
+
+These emulator captures use sample projects and conversations. The earlier
+Android preview expands every repository folder and uses a dot for active work;
+the updated inbox separates Chats, collapses repository folders, and distinguishes
+working spinners from unread response dots.
+
+| Earlier Android inbox                            | Updated Android inbox                                       |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| ![Earlier expanded projects](android-before.png) | ![Chats and collapsed projects](android-chats-projects.png) |
+
+[Working spinner and unread dots](android-working.png) ·
+[iOS layout](native-chats-projects.png) ·
+[iOS walkthrough](ios-inbox.mp4) · [Android walkthrough](android-inbox.mp4)
+
 ## Behavior
 
 - By Project starts with collapsed repository folders and a separate Chats section.
