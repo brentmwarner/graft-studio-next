@@ -117,6 +117,25 @@ record. Future versions use the new app's existing data and versioned database
 migrations. WorkOS accounts stay in the same hosted environment, with the same
 account IDs; a routine app update does not require an account migration.
 
+### Phone pairing and update continuity
+
+Signed-in desktop pairing automatically connects the existing Graft managed relay
+before issuing a QR code. This behavior ships in the desktop's bundled web and
+server code; it does not require a new mobile protocol or a relay deployment.
+Build the release from a main-branch commit containing the pairing fix, then
+include these checks in the native upgrade evidence:
+
+1. With the phone on cellular and Tailscale off, use **Connections → Add device →
+   Get started**, scan the QR code, and confirm the phone can load the host.
+2. Restart the desktop and confirm the existing phone pairing reconnects without
+   scanning again, including when the desktop's internal server port changes.
+3. Install the candidate update over the current desktop and repeat the same
+   connection without deleting state, signing out, or pairing again.
+
+Record an actual device result against the signed artifact. Mocked relay tests
+and a successful public health request do not establish phone upgrade continuity.
+The legacy cutover can require one new pairing; routine updates must retain it.
+
 The website reads the same promoted platform manifests, so its downloads move
 to the release when the feed is promoted. A bad release can be withdrawn from
 further distribution by restoring the saved manifests. Devices that already

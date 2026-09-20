@@ -258,16 +258,24 @@ export const createEffectServer = Effect.fn(function* (
         try: () => startMobileLanGateway(loopbackServer, settings.preferredPort ?? 0),
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }).pipe(
-        Effect.tap((port) => {
-          saveMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir), {
-            enabled: true,
-            preferredPort: port,
-          });
-          return Effect.logInfo("Graft mobile LAN gateway listening", {
-            host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
-            port,
-          });
-        }),
+        Effect.tap((port) =>
+          Effect.tryPromise({
+            try: () =>
+              saveMobileGatewaySettings(mobileGatewaySettingsPath(config.stateDir), {
+                enabled: true,
+                preferredPort: port,
+              }),
+            catch: (cause) =>
+              cause instanceof Error ? cause : new Error("Could not save connection settings."),
+          }).pipe(
+            Effect.andThen(
+              Effect.logInfo("Graft mobile LAN gateway listening", {
+                host: mobileLanGatewayAdvertisesIpv6() ? "::" : "0.0.0.0",
+                port,
+              }),
+            ),
+          ),
+        ),
         Effect.catch((error) =>
           Effect.logWarning("Graft mobile LAN gateway did not start", { detail: error.message }),
         ),

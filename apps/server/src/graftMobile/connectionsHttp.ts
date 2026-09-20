@@ -102,23 +102,23 @@ const connectionsHttpRouteLayer = HttpRouter.add(
       }
       const settingsPath = mobileGatewaySettingsPath(config.stateDir);
       const previous = loadMobileGatewaySettings(settingsPath);
-      try {
-        if (!enabled) setMobileRelayEnabled(false);
-        const port = shouldStartMobileLanGateway(config)
-          ? yield* Effect.promise(() =>
-              setMobileLanGatewayEnabled(enabled, previous.preferredPort ?? 0),
-            )
-          : getMobileLanGatewayPort();
-        setMobileRelayEnabled(enabled);
-        saveMobileGatewaySettings(settingsPath, {
-          enabled,
-          preferredPort: port ?? previous.preferredPort,
-        });
-      } catch (error) {
-        return respond(
-          { error: error instanceof Error ? error.message : "Could not update the LAN gateway." },
-          500,
-        );
+      const error = yield* Effect.tryPromise({
+        try: async () => {
+          if (!enabled) setMobileRelayEnabled(false);
+          const port = shouldStartMobileLanGateway(config)
+            ? await setMobileLanGatewayEnabled(enabled, previous.preferredPort ?? 0)
+            : getMobileLanGatewayPort();
+          await saveMobileGatewaySettings(settingsPath, {
+            enabled,
+            preferredPort: port ?? previous.preferredPort,
+          });
+          setMobileRelayEnabled(enabled);
+        },
+        catch: (cause) =>
+          cause instanceof Error ? cause : new Error("Could not save connection settings."),
+      }).pipe(Effect.match({ onSuccess: () => null, onFailure: (cause) => cause }));
+      if (error) {
+        return respond({ error: error.message }, 500);
       }
       const clients = yield* serverAuth.listClientSessions(authenticated.sessionId);
       return respond(

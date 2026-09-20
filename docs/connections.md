@@ -44,3 +44,9 @@ The app preserves OpenSSH host-key verification and does not store SSH private k
 ## Paired devices
 
 Use **Add device** to pair Graft Mobile. **Connection options** controls incoming access and keep-awake behavior. Expand **Connection details** for detected addresses, refresh, and diagnostic copying. These options are separate from outgoing SSH connections.
+
+In the signed-in desktop app, **Add device → Get started** connects the Graft relay before creating the QR code. Scan it in Graft Mobile. The phone can use Wi-Fi or cellular; Tailscale is not required. If relay setup fails, retry after resolving the displayed error. Graft does not substitute a LAN address for that pairing attempt.
+
+The host saves its relay credential and connection settings across restarts and updates. The phone keeps the same relay address even when the desktop's internal server port changes. Explicit account sign-out, account changes, device revocation, or session expiry still require pairing again. The legacy-to-0.9.0 migration does not activate old mobile credentials, so those devices need one new pairing.
+
+The computer must remain running and reachable. Enable **Keep host awake** if it should stay available while you use the phone. Browser/headless hosts and development desktops without a Graft account retain local pairing and require a reachable LAN, Tailnet, or configured public address.
