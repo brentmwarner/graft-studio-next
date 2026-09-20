@@ -3,6 +3,7 @@ import { createElement, useState, type ReactNode } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { machineInbox } from "../state/machineInbox";
 import { HomeScreen } from "./HomeScreen";
 import type { InboxViewMode } from "../state/inboxGrouping";
 
@@ -197,4 +198,65 @@ it("shows standalone Chats without expanding repository folders", async () => {
     root.findByProps({ accessibilityLabel: "New chat in Chats" }).props.onPress();
   });
   expect(onNewChat).toHaveBeenCalledWith("chats");
+});
+
+it("shows All and machine filters with offline status and an Add computer action", async () => {
+  const add = vi.fn();
+  function MachinesHarness() {
+    const [filter, setFilter] = useState<string>();
+    const sources = ["Mac", "Linux"].map((label) => ({
+      session: { environmentId: label, environmentLabel: label } as GraftSessionCredential,
+      snapshot: {
+        ...snapshot,
+        environment: { ...snapshot.environment, id: label },
+        threads: snapshot.threads.map((thread) => ({
+          ...thread,
+          title: `${thread.title} on ${label}`,
+        })),
+      },
+      connectionState: label === "Mac" ? ("connected" as const) : ("disconnected" as const),
+      reads: {},
+    }));
+    const inbox = machineInbox(sources, filter);
+    return createElement(HomeScreen, {
+      connectionState: "connected",
+      isRefreshing: false,
+      snapshot: inbox.snapshot,
+      reads: inbox.reads,
+      session: sources[0]!.session,
+      onNewChat,
+      onOpenThread,
+      onSettings,
+      onOpenMenu: () => {},
+      onRefresh: async () => {},
+      viewMode: "project",
+      onViewModeChange: () => {},
+      expandedProjectIds: new Set<string>(),
+      onToggleProject: () => {},
+      machines: sources.map((source) => ({
+        id: source.session.environmentId,
+        label: source.session.environmentLabel,
+        connected: source.connectionState === "connected",
+      })),
+      selectedMachineId: filter,
+      onSelectMachine: setFilter,
+      onAddMachine: add,
+    });
+  }
+  await act(() => renderer.update(createElement(MachinesHarness)));
+  expect(visible()).toContain("Plan the weekend on Mac");
+  expect(visible()).toContain("Plan the weekend on Linux");
+  await press("Pressable", { accessibilityLabel: "Linux, Offline" });
+  expect(visible()).not.toContain("Plan the weekend on Mac");
+  expect(visible()).toContain("Plan the weekend on Linux");
+  expect(renderer.root.findAll((node) => isHostType(node, "ActivityIndicator"))).toHaveLength(0);
+  expect(
+    find("Pressable", { accessibilityLabel: "Linux, Offline" }).props.accessibilityState.selected,
+  ).toBe(true);
+  await press("Pressable", { accessibilityLabel: "All computers" });
+  expect(visible()).toContain("Plan the weekend on Mac");
+  await press("PressScale", { accessibilityLabel: "New chat in Chats" });
+  expect(onNewChat).toHaveBeenLastCalledWith(undefined);
+  await press("MenuItem", { label: "Add computer" });
+  expect(add).toHaveBeenCalledOnce();
 });

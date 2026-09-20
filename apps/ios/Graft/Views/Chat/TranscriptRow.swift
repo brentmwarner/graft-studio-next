@@ -132,6 +132,7 @@ struct UserMessageText: View {
 }
 
 private struct AssistantMessage: View {
+    @Environment(\.transcriptConnectionActive) private var connectionActive
     let item: TranscriptItem
     let showReasoning: Bool
     let showActions: Bool
@@ -150,7 +151,7 @@ private struct AssistantMessage: View {
                 if item.isOversized {
                     LongMessageView(text: item.text)
                 } else {
-                    StreamingAssistantText(text: item.text, isStreaming: item.isStreaming)
+                    StreamingAssistantText(text: item.text, isStreaming: item.isStreaming && connectionActive)
                 }
             }
             if !item.images.isEmpty {

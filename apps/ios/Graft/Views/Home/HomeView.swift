@@ -7,8 +7,11 @@ import SwiftUI
 /// `NavigationStack`. Regular width floats an inset Liquid Glass Projects
 /// panel, always reserving chat space beside it while visible.
 struct HomeView: View {
-    @Environment(AppModel.self) private var app
+    @Environment(MachineStore.self) private var machines
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var selectedMachineId: String?
+    @State private var showPairing = false
+    @State private var chooseComposeMachine = false
     @State private var searchText = ""
     @State private var expandedProjectIds: Set<String> = []
     @State private var viewMode: InboxViewMode = .project
@@ -27,7 +30,7 @@ struct HomeView: View {
             if usesPersistentSidebar {
                 FloatingSidebarLayout(
                     hostLabel: hostLabel,
-                    isConnected: app.gateway.state == .connected,
+                    isConnected: visibleMachines.contains { $0.gateway.state == .connected },
                     onSettings: { showSettings = true },
                     viewMode: $viewMode
                 ) {
@@ -44,29 +47,39 @@ struct HomeView: View {
                 compactHome
             }
         }
+        .onAppear {
+            viewMode = InboxViewPreferences.load(environmentId: selectedMachineId ?? "_all_computers")
+            updateConversationCoverage()
+        }
+        .onChange(of: selectedMachineId) { _, id in
+            viewMode = InboxViewPreferences.load(environmentId: id ?? "_all_computers")
+        }
+        .onChange(of: viewMode) { _, mode in
+            InboxViewPreferences.save(mode, environmentId: selectedMachineId ?? "_all_computers")
+        }
+        .onChange(of: showSettings) { _, _ in updateConversationCoverage() }
+        .onChange(of: showPairing) { _, _ in updateConversationCoverage() }
+        .onChange(of: showDrawer) { _, _ in updateConversationCoverage() }
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
-        .onAppear {
-            loadViewMode()
-            app.setConversationCovered(false)
+        .sheet(isPresented: $showPairing) {
+            PairingView(isPresented: $showPairing).environment(machines.pairingApp)
         }
-        .onChange(of: showSettings) { _, showing in
-            app.setConversationCovered(showing)
+        .confirmationDialog("Choose a computer", isPresented: $chooseComposeMachine) {
+            ForEach(machines.machines) { machine in
+                Button(machine.environmentLabel) {
+                    newChatContext = NewChatContext(environmentId: machine.id)
+                }
+                .disabled(machine.gateway.state != .connected)
+            }
         }
-        .onChange(of: app.connection.session?.environmentId) { _, _ in
-            loadViewMode()
-            expandedProjectIds = []
-            selectedThread = nil
-            newChatContext = nil
+        .onChange(of: machines.machines.map(\.id)) { _, ids in
+            updateConversationCoverage()
+            if let selectedMachineId, !ids.contains(selectedMachineId) { self.selectedMachineId = nil }
+            if let id = selectedThread?.environmentId, !ids.contains(id) { selectedThread = nil }
+            if let id = newChatContext?.environmentId, !ids.contains(id) { newChatContext = nil }
         }
-        .onChange(of: viewMode) { _, mode in
-            InboxViewPreferences.save(mode, environmentId: app.connection.session?.environmentId)
-        }
-    }
-
-    private func loadViewMode() {
-        viewMode = InboxViewPreferences.load(environmentId: app.connection.session?.environmentId)
     }
 
     /// Phone / compact: drawer under a stack. Selecting a thread or compose
@@ -75,31 +88,42 @@ struct HomeView: View {
         NavDrawerLayout(
             isOpen: $showDrawer,
             hostLabel: hostLabel,
-            isConnected: app.gateway.state == .connected,
-            computers: app.connection.sessions.map { session in
+            isConnected: visibleMachines.contains { $0.gateway.state == .connected },
+            computers: machines.machines.map { machine in
                 PairedComputerItem(
-                    id: session.environmentId,
-                    label: session.environmentLabel.isEmpty ? "Studio" : session.environmentLabel,
-                    isActive: session.environmentId == app.connection.session?.environmentId,
-                    isConnected: session.environmentId == app.connection.session?.environmentId
-                        && app.gateway.state == .connected
+                    id: machine.id,
+                    label: machine.environmentLabel,
+                    isActive: selectedMachineId == machine.id,
+                    isConnected: machine.gateway.state == .connected
                 )
             },
-            recentThreads: InboxGrouping.recentThreads(from: app.snapshot, unreadThreadIds: app.inboxReadState.unreadThreadIds),
+            recentThreads: inbox.recents(),
             canSwipeOpen: selectedThread == nil && newChatContext == nil,
             onSearch: { focusInboxSearch() },
             onSelectThread: openThread,
-            onSelectComputer: { app.activateSession($0) },
+            onSelectComputer: { id in
+                selectedMachineId = id
+                selectedThread = nil
+                newChatContext = nil
+            },
             onNewChat: { openNewChat() },
             onSettings: { showSettings = true }
         ) {
             NavigationStack {
                 inboxRoot
                     .navigationDestination(item: $selectedThread) { thread in
-                        ThreadView(threadId: thread.id, title: thread.title)
+                        if let machine = machines.machine(thread.environmentId) {
+                            ThreadView(threadId: thread.threadId, title: thread.title)
+                                .environment(machine)
+                                .id("\(machine.sessionIdentity ?? "")/\(thread.id)")
+                        }
                     }
                     .navigationDestination(item: $newChatContext) { context in
-                        NewChatView(preselectedProjectId: context.preselectedProjectId)
+                        if let machine = machines.machine(context.environmentId) {
+                            NewChatView(preselectedProjectId: context.preselectedProjectId)
+                                .environment(machine)
+                                .id("\(machine.sessionIdentity ?? "")/\(context.id)")
+                        }
                     }
             }
         }
@@ -107,30 +131,34 @@ struct HomeView: View {
 
     private var inboxContent: some View {
         ZStack(alignment: .bottom) {
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                RemoteInboxScreen(
-                    projects: inboxProjects,
-                    recentThreads: usesPersistentSidebar ? InboxGrouping.recentThreads(from: app.snapshot, unreadThreadIds: app.inboxReadState.unreadThreadIds) : [],
-                    isLoading: app.snapshot == nil && app.isPaired,
-                    expandedProjectIds: $expandedProjectIds,
-                    mode: viewMode,
-                    sections: InboxGrouping.sections(from: app.snapshot, mode: viewMode, searchQuery: searchText, now: context.date, unreadThreadIds: app.inboxReadState.unreadThreadIds),
-                    searchQuery: searchText,
-                    selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
-                    fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
-                        usesPersistentSidebar: usesPersistentSidebar
-                    ),
-                    onToggleProject: { id in
-                        if expandedProjectIds.contains(id) {
-                            expandedProjectIds.remove(id)
-                        } else {
-                            expandedProjectIds.insert(id)
-                        }
-                    },
-                    onSelectThread: openThread,
-                    onComposeInProject: { openNewChat(projectId: $0) },
-                    onRefresh: { app.reconnectIfNeeded() }
-                )
+            VStack(spacing: 0) {
+                MachineFilterBar(machines: machines.machines, selection: $selectedMachineId)
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    RemoteInboxScreen(
+                        projects: inboxProjects,
+                        recentThreads: usesPersistentSidebar ? inbox.recents() : [],
+                        isLoading: false,
+                        expandedProjectIds: $expandedProjectIds,
+                        mode: viewMode,
+                        sections: inbox.sections(mode: viewMode, search: searchText, now: context.date),
+                        searchQuery: searchText,
+                        selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
+                        fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
+                            usesPersistentSidebar: usesPersistentSidebar
+                        ),
+                        onToggleProject: { id in
+                            if expandedProjectIds.contains(id) {
+                                expandedProjectIds.remove(id)
+                            } else {
+                                expandedProjectIds.insert(id)
+                            }
+                        },
+                        onSelectThread: openThread,
+                        onComposeInProject: { openNewChat(projectId: $0) },
+                        onComposeChats: { openNewChat() },
+                        onRefresh: { visibleMachines.forEach { $0.reconnectIfNeeded() } }
+                    )
+                }
             }
 
             RemoteInboxBottomBar(
@@ -141,10 +169,10 @@ struct HomeView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 10)
 
-            if let error = app.gatewayError {
+            if let machine = visibleMachines.first(where: { $0.connectionWarning != nil }), let error = machine.connectionWarning {
                 VStack {
                     Spacer()
-                    HomeGatewayErrorBanner(message: homeErrorMessage(error))
+                    HomeGatewayErrorBanner(message: "\(machine.environmentLabel): \(homeErrorMessage(error))")
                         .padding(.bottom, 72)
                 }
             }
@@ -179,12 +207,13 @@ struct HomeView: View {
         ToolbarItem(placement: .principal) {
             InboxTitleLockup(
                 hostLabel: hostLabel,
-                isConnected: app.gateway.state == .connected
+                isConnected: visibleMachines.contains { $0.gateway.state == .connected }
             )
         }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 InboxViewOptions(selection: $viewMode)
+                Button("Add computer", systemImage: "plus") { showPairing = true }
                 Divider()
                 Button("Settings", systemImage: "gearshape") { showSettings = true }
             } label: {
@@ -194,9 +223,15 @@ struct HomeView: View {
         }
     }
 
-    private var inboxProjects: [InboxProjectGroup] {
-        InboxGrouping.projects(from: app.snapshot, searchQuery: searchText, unreadThreadIds: app.inboxReadState.unreadThreadIds)
+    private func updateConversationCoverage() {
+        machines.machines.forEach { $0.setConversationCovered(showSettings || showPairing || showDrawer) }
     }
+
+    private var visibleMachines: [AppModel] {
+        machines.machines.filter { selectedMachineId == nil || $0.id == selectedMachineId }
+    }
+    private var inbox: MachineInbox { MachineInbox(machines: visibleMachines) }
+    private var inboxProjects: [InboxProjectGroup] { inbox.projects(search: searchText) }
 
     private func openThread(_ thread: InboxThreadItem) {
         newChatContext = nil
@@ -205,7 +240,13 @@ struct HomeView: View {
 
     private func openNewChat(projectId: String? = nil) {
         selectedThread = nil
-        newChatContext = NewChatContext(preselectedProjectId: projectId)
+        if let projectId, let resource = MachineResourceID.decode(projectId) {
+            newChatContext = NewChatContext(preselectedProjectId: resource.resourceId, environmentId: resource.environmentId)
+        } else if visibleMachines.count == 1, let machine = visibleMachines.first {
+            newChatContext = NewChatContext(environmentId: machine.id)
+        } else {
+            chooseComposeMachine = true
+        }
     }
 
     private func focusInboxSearch() {
@@ -216,30 +257,38 @@ struct HomeView: View {
     }
 
     private var hostLabel: String {
-        if let label = app.connection.session?.environmentLabel, !label.isEmpty {
-            return label
+        if let selectedMachineId, let machine = machines.machine(selectedMachineId) {
+            return machine.environmentLabel
         }
-        return "Studio"
+        return "All computers"
     }
 }
 
 /// Keeps the active chat at one structural location when the panel is toggled
 /// or resized, preserving its composer and session lifecycle.
 private struct HomeChatDetail: View {
+    @Environment(MachineStore.self) private var machines
     let selectedThread: InboxThreadItem?
     let newChatContext: NewChatContext?
     let onOpenThread: (InboxThreadItem) -> Void
     let onNewChat: () -> Void
 
     var body: some View {
-        if let thread = selectedThread {
-            ThreadView(threadId: thread.id, title: thread.title)
-        } else if let context = newChatContext {
+        if let thread = selectedThread, let machine = machines.machine(thread.environmentId) {
+            ThreadView(threadId: thread.threadId, title: thread.title)
+                .environment(machine)
+                .id("\(machine.sessionIdentity ?? "")/\(thread.id)")
+        } else if let context = newChatContext, let machine = machines.machine(context.environmentId) {
             NewChatView(
                 preselectedProjectId: context.preselectedProjectId,
-                onOpenedThread: onOpenThread
+                onOpenedThread: { thread in
+                    var thread = thread
+                    thread.environmentId = context.environmentId
+                    onOpenThread(thread)
+                }
             )
-            .id(context.id)
+            .environment(machine)
+            .id("\(machine.sessionIdentity ?? "")/\(context.id)")
         } else {
             HomeEmptyChatPlaceholder(onNewChat: onNewChat)
         }
@@ -288,9 +337,10 @@ struct HomeEmptyChatPlaceholder: View {
 struct NewChatContext: Identifiable, Hashable {
     let id = UUID()
     var preselectedProjectId: String?
+    var environmentId: String?
 }
 
-/// Inline two-line bar title: screen name over connection state.
+/// Projects title; connection states live in the computer filter row.
 struct InboxTitleLockup: View {
     let hostLabel: String
     let isConnected: Bool
@@ -300,15 +350,6 @@ struct InboxTitleLockup: View {
         VStack(alignment: alignment, spacing: 2) {
             Text("Projects", comment: "Remote inbox navigation title")
                 .font(.headline.weight(.semibold))
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(isConnected ? Color.green : Color.secondary)
-                    .frame(width: 7, height: 7)
-                Text(verbatim: hostLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
         }
         .accessibilityElement(children: .combine)
     }
@@ -334,6 +375,7 @@ struct RemoteInboxScreen: View {
     let onToggleProject: (String) -> Void
     let onSelectThread: (InboxThreadItem) -> Void
     let onComposeInProject: (String) -> Void
+    var onComposeChats: (() -> Void)? = nil
     let onRefresh: () -> Void
 
     var body: some View {
@@ -363,7 +405,10 @@ struct RemoteInboxScreen: View {
                                 Text("Chats").font(.headline)
                                 Spacer()
                                 if let project = projects.first(where: { $0.kind == "desktop" }) {
-                                    Button { onComposeInProject(project.id) } label: {
+                                    Button {
+                                        if let onComposeChats { onComposeChats() }
+                                        else { onComposeInProject(project.id) }
+                                    } label: {
                                         Image(systemName: "square.and.pencil").frame(width: 44, height: 44)
                                     }
                                     .accessibilityLabel("New chat in Chats")
@@ -836,5 +881,43 @@ struct InboxThreadActivityIndicator: View {
         case .idle:
             EmptyView()
         }
+    }
+}
+
+
+struct MachineFilterBar: View {
+    let machines: [AppModel]
+    @Binding var selection: String?
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                Button { selection = nil } label: {
+                    Text("All").padding(.horizontal, 16).padding(.vertical, 11)
+                        .foregroundStyle(selection == nil ? Color(uiColor: .systemBackground) : .primary)
+                        .background(selection == nil ? Color.primary : Color(uiColor: .secondarySystemBackground), in: .capsule)
+                }
+                .accessibilityAddTraits(selection == nil ? .isSelected : [])
+                ForEach(machines) { machine in
+                    Button { selection = machine.id } label: {
+                        HStack(spacing: 8) {
+                            Circle().fill(machine.gateway.state == .connected ? Color.green : Color.red)
+                                .frame(width: 7, height: 7)
+                            Image(systemName: "laptopcomputer")
+                            Text(verbatim: machine.environmentLabel).lineLimit(1)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .foregroundStyle(selection == machine.id ? Color(uiColor: .systemBackground) : .primary)
+                        .background(selection == machine.id ? Color.primary : Color(uiColor: .secondarySystemBackground), in: .capsule)
+                    }
+                    .accessibilityLabel("\(machine.environmentLabel), \(machine.gateway.state == .connected ? "Connected" : "Offline")")
+                    .accessibilityAddTraits(selection == machine.id ? .isSelected : [])
+                }
+            }
+            .font(.subheadline)
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16).padding(.vertical, 10)
+        }
+        .scrollIndicators(.hidden)
     }
 }

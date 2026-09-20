@@ -19,9 +19,11 @@ struct ThreadView: View {
                     TranscriptView(chat: chat)
                         .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
                         .id(chat.id)
-                } else {
+                } else if app.gateway.state == .connected {
                     ProgressView("Loading thread…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Color.clear
                 }
             }
             .readableChatColumn()
@@ -39,10 +41,15 @@ struct ThreadView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ChatNavigationTitle {
+                    HStack(spacing: 7) {
+                    Circle().fill(app.gateway.state == .connected ? Color.green : Color.red)
+                        .frame(width: 7, height: 7)
+                        .accessibilityLabel(app.gateway.state == .connected ? "Connected" : "Offline")
                     Text(title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                         .accessibilityAddTraits(.isHeader)
+                    }
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -58,7 +65,7 @@ struct ThreadView: View {
                 }
             }
         }
-        .task(id: threadId) {
+        .task(id: [app.id, app.sessionIdentity ?? "", threadId]) {
             await app.openThread(threadId, title: title)
         }
         .onDisappear {

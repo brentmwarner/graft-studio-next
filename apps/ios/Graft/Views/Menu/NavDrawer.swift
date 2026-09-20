@@ -472,7 +472,7 @@ private struct NavDrawerConnectionRow: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
             Circle()
-                .fill(isConnected ? Color.green : Color.secondary)
+                .fill(isConnected ? Color.green : Color.red)
                 .frame(width: 8, height: 8)
         }
         .foregroundStyle(.primary)

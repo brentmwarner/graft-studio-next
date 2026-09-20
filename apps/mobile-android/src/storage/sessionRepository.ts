@@ -6,196 +6,106 @@ import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 import { decodeSessionMetadata, encodeSessionMetadata } from "./sessionCodec";
 
 const DATABASE_NAME = "graft-mobile.db";
-const POINTER_ROW_ID = 1;
 const TOKEN_KEY_PREFIX = "graft.remote.bearer.v1";
-
 interface SessionRow {
   readonly environment_id: string;
   readonly metadata_json: string;
 }
-
 let databasePromise: Promise<SQLiteDatabase> | undefined;
-
+// Serialize credential + metadata writes, including re-pair and removal of the same host.
+let mutations: Promise<unknown> = Promise.resolve();
+function mutate<T>(operation: () => Promise<T>): Promise<T> {
+  const result = mutations.then(operation, operation);
+  mutations = result.catch(() => undefined);
+  return result;
+}
 async function tokenKey(environmentId: string): Promise<string> {
   const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, environmentId);
   return `${TOKEN_KEY_PREFIX}.${digest}`;
 }
-
 async function database(): Promise<SQLiteDatabase> {
   if (!databasePromise) {
-    databasePromise = openDatabaseAsync(DATABASE_NAME).then(async (db) => {
-      await db.execAsync(`
+    databasePromise = openDatabaseAsync(DATABASE_NAME)
+      .then(async (db) => {
+        await db.execAsync(`
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS active_session (
           singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
-          environment_id TEXT NOT NULL,
-          metadata_json TEXT NOT NULL,
-          updated_at INTEGER NOT NULL
+          environment_id TEXT NOT NULL, metadata_json TEXT NOT NULL, updated_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS paired_sessions (
-          environment_id TEXT PRIMARY KEY NOT NULL,
-          metadata_json TEXT NOT NULL,
-          updated_at INTEGER NOT NULL
+          environment_id TEXT PRIMARY KEY NOT NULL, metadata_json TEXT NOT NULL, updated_at INTEGER NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS active_session_pointer (
-          singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
-          environment_id TEXT NOT NULL
-        );
-        INSERT OR IGNORE INTO paired_sessions (environment_id, metadata_json, updated_at)
-          SELECT environment_id, metadata_json, updated_at FROM active_session;
-        INSERT OR IGNORE INTO active_session_pointer (singleton, environment_id)
-          SELECT 1, environment_id FROM active_session;
       `);
-      return db;
-    });
+        await db.withExclusiveTransactionAsync(async (tx) => {
+          await tx.runAsync(
+            `INSERT OR IGNORE INTO paired_sessions SELECT environment_id, metadata_json, updated_at FROM active_session`,
+          );
+          await tx.runAsync("DELETE FROM active_session");
+        });
+        return db;
+      })
+      .catch((error: unknown) => {
+        databasePromise = undefined;
+        throw error;
+      });
   }
   return databasePromise;
 }
-
-async function decodeRow(row: SessionRow): Promise<GraftSessionCredential | null> {
-  const key = await tokenKey(row.environment_id);
-  const bearerToken = await SecureStore.getItemAsync(key);
-  if (!bearerToken) return null;
-  try {
-    return decodeSessionMetadata(row.metadata_json, bearerToken);
-  } catch {
-    await SecureStore.deleteItemAsync(key);
-    return null;
-  }
-}
-
-async function writePointer(db: SQLiteDatabase, environmentId: string): Promise<void> {
-  await db.runAsync(
-    `INSERT INTO active_session_pointer (singleton, environment_id)
-     VALUES (?, ?)
-     ON CONFLICT(singleton) DO UPDATE SET environment_id = excluded.environment_id`,
-    POINTER_ROW_ID,
-    environmentId,
-  );
-}
-
-export async function listSessions(): Promise<GraftSessionCredential[]> {
+export async function loadSessions(): Promise<GraftSessionCredential[]> {
+  await mutations;
   const db = await database();
   const rows = await db.getAllAsync<SessionRow>(
     "SELECT environment_id, metadata_json FROM paired_sessions ORDER BY updated_at DESC",
   );
-  const sessions: GraftSessionCredential[] = [];
-  for (const row of rows) {
-    const session = await decodeRow(row);
-    if (session) sessions.push(session);
-    else {
-      await db.runAsync("DELETE FROM paired_sessions WHERE environment_id = ?", row.environment_id);
-    }
-  }
-  return sessions;
-}
-
-export async function loadSession(): Promise<GraftSessionCredential | null> {
-  const db = await database();
-  const pointer = await db.getFirstAsync<{ environment_id: string }>(
-    "SELECT environment_id FROM active_session_pointer WHERE singleton = ?",
-    POINTER_ROW_ID,
+  const sessions = await Promise.all(
+    rows.map(async (row) => {
+      const bearer = await SecureStore.getItemAsync(await tokenKey(row.environment_id));
+      if (!bearer) return null;
+      try {
+        return decodeSessionMetadata(row.metadata_json, bearer);
+      } catch {
+        return null;
+      }
+    }),
   );
-  if (pointer) {
-    const row = await db.getFirstAsync<SessionRow>(
-      "SELECT environment_id, metadata_json FROM paired_sessions WHERE environment_id = ?",
-      pointer.environment_id,
-    );
-    if (row) {
-      const session = await decodeRow(row);
-      if (session) return session;
-      await db.runAsync("DELETE FROM paired_sessions WHERE environment_id = ?", row.environment_id);
-    }
-  }
-  const sessions = await listSessions();
-  if (sessions[0]) {
-    await writePointer(db, sessions[0].environmentId);
-    return sessions[0];
-  }
-  await db.runAsync("DELETE FROM active_session_pointer WHERE singleton = ?", POINTER_ROW_ID);
-  return null;
+  return sessions.filter((session): session is GraftSessionCredential => session !== null);
 }
-
-export async function saveSession(session: GraftSessionCredential): Promise<void> {
-  const db = await database();
-  const key = await tokenKey(session.environmentId);
-  const previousToken = await SecureStore.getItemAsync(key);
-  await SecureStore.setItemAsync(key, session.bearerToken);
-
-  try {
-    await db.withExclusiveTransactionAsync(async (transaction) => {
-      await transaction.runAsync(
+export async function loadSession(): Promise<GraftSessionCredential | null> {
+  return (await loadSessions())[0] ?? null;
+}
+export function saveSession(session: GraftSessionCredential): Promise<void> {
+  return mutate(async () => {
+    const db = await database();
+    const key = await tokenKey(session.environmentId);
+    const previousToken = await SecureStore.getItemAsync(key);
+    await SecureStore.setItemAsync(key, session.bearerToken);
+    try {
+      await db.runAsync(
         `INSERT INTO paired_sessions (environment_id, metadata_json, updated_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(environment_id) DO UPDATE SET
-           metadata_json = excluded.metadata_json,
-           updated_at = excluded.updated_at`,
+        VALUES (?, ?, ?) ON CONFLICT(environment_id) DO UPDATE SET metadata_json = excluded.metadata_json, updated_at = excluded.updated_at`,
         session.environmentId,
         encodeSessionMetadata(session),
         Date.now(),
       );
-      await transaction.runAsync(
-        `INSERT INTO active_session_pointer (singleton, environment_id)
-         VALUES (?, ?)
-         ON CONFLICT(singleton) DO UPDATE SET environment_id = excluded.environment_id`,
-        POINTER_ROW_ID,
-        session.environmentId,
-      );
-    });
-  } catch (error) {
-    if (previousToken) {
-      await SecureStore.setItemAsync(key, previousToken);
-    } else {
-      await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      if (previousToken) await SecureStore.setItemAsync(key, previousToken);
+      else await SecureStore.deleteItemAsync(key);
+      throw error;
     }
-    throw error;
-  }
+  });
 }
-
-export async function activateSession(
-  environmentId: string,
-): Promise<GraftSessionCredential | null> {
-  const db = await database();
-  const row = await db.getFirstAsync<SessionRow>(
-    "SELECT environment_id, metadata_json FROM paired_sessions WHERE environment_id = ?",
-    environmentId,
-  );
-  if (!row) return null;
-  const session = await decodeRow(row);
-  if (!session) {
-    await db.runAsync("DELETE FROM paired_sessions WHERE environment_id = ?", environmentId);
-    return loadSession();
-  }
-  await db.runAsync(
-    "UPDATE paired_sessions SET updated_at = ? WHERE environment_id = ?",
-    Date.now(),
-    environmentId,
-  );
-  await writePointer(db, environmentId);
-  return session;
-}
-
-export async function removeSession(
-  environmentId: string,
-): Promise<GraftSessionCredential | null> {
-  const db = await database();
-  await SecureStore.deleteItemAsync(await tokenKey(environmentId));
-  await db.runAsync("DELETE FROM paired_sessions WHERE environment_id = ?", environmentId);
-  const pointer = await db.getFirstAsync<{ environment_id: string }>(
-    "SELECT environment_id FROM active_session_pointer WHERE singleton = ?",
-    POINTER_ROW_ID,
-  );
-  if (pointer?.environment_id === environmentId) {
-    await db.runAsync("DELETE FROM active_session_pointer WHERE singleton = ?", POINTER_ROW_ID);
-  }
-  return loadSession();
-}
-
-export async function clearSession(): Promise<void> {
-  const sessions = await listSessions();
-  await Promise.all(sessions.map((session) => removeSession(session.environmentId)));
-}
-
-export function resetSessionRepositoryForTests(): void {
-  databasePromise = undefined;
+export function clearSession(environmentId: string, sessionId?: string): Promise<void> {
+  return mutate(async () => {
+    const db = await database();
+    const result = sessionId
+      ? await db.runAsync(
+          "DELETE FROM paired_sessions WHERE environment_id = ? AND json_extract(metadata_json, '$.sessionId') = ?",
+          environmentId,
+          sessionId,
+        )
+      : await db.runAsync("DELETE FROM paired_sessions WHERE environment_id = ?", environmentId);
+    // A late revocation/removal from the old socket must not remove a new pairing.
+    if (result.changes > 0) await SecureStore.deleteItemAsync(await tokenKey(environmentId));
+  });
 }

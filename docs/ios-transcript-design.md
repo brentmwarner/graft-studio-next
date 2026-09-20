@@ -153,9 +153,12 @@ approvals or questions ahead of active runs, then shows remaining threads in
 date sections without duplicates. Date and priority sections can be collapsed.
 The same grouping rules and controls are implemented in the Android client.
 
-Mobile keeps one live gateway at a time and can store multiple paired computers.
-The header shows the active host. The drawer and Settings list every pairing so
-the user can switch computers or pair another without disconnecting first.
-Inbox view mode and read receipts stay scoped to the active computer. Settings
-and Disconnect remain reachable through Settings; the overflow no longer opens
-a disconnect dialog directly.
+Mobile keeps independent live gateways for every paired computer. Projects shows
+an All filter followed by computer chips with green/red connection dots. All
+merges the inbox; choosing a chip filters it without replacing any connection.
+The drawer also filters by computer. Projects → ⋯ → Add computer and
+Settings → Computers → Add computer open pairing. Settings removes only the
+chosen computer. View mode is remembered per filter, while reads, commands,
+project expansion, and transcript caches remain scoped to their computer.
+Offline machines retain cached content without work spinners or warning banners;
+authentication, protocol, and certificate failures remain visible.

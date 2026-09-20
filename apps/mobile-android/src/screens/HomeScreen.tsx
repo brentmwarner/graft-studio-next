@@ -25,7 +25,17 @@ import { groupInboxThreads, inboxViewModes, type InboxViewMode } from "../state/
 import { groupProjects, type InboxThreadItem } from "../state/mobileViewModels";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
 
+export interface MachineFilter {
+  readonly id: string;
+  readonly label: string;
+  readonly connected: boolean;
+}
+
 interface HomeScreenProps {
+  readonly machines?: readonly MachineFilter[];
+  readonly selectedMachineId?: string;
+  readonly onSelectMachine?: (id?: string) => void;
+  readonly onAddMachine?: () => void;
   readonly reads?: ThreadReadState;
   readonly connectionState: GatewayConnectionState;
   readonly error?: string;
@@ -170,6 +180,10 @@ function toggleId(current: ReadonlySet<string>, id: string): ReadonlySet<string>
 }
 
 export function HomeScreen({
+  machines,
+  selectedMachineId,
+  onSelectMachine,
+  onAddMachine,
   reads,
   connectionState,
   error,
@@ -229,7 +243,7 @@ export function HomeScreen({
         ref={scrollRef}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + 104, paddingTop: insets.top + 78 },
+          { paddingBottom: insets.bottom + 104, paddingTop: insets.top + 136 },
         ]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -281,9 +295,11 @@ export function HomeScreen({
                   accessibilityLabel="New chat in Chats"
                   onPress={() =>
                     onNewChat(
-                      projects.find(
-                        (project) => project.kind === "desktop" && project.id !== "_orphans",
-                      )?.id,
+                      !selectedMachineId && (machines?.length ?? 0) > 1
+                        ? undefined
+                        : projects.find(
+                            (project) => project.kind === "desktop" && project.id !== "_orphans",
+                          )?.id,
                     )
                   }
                 >
@@ -388,19 +404,6 @@ export function HomeScreen({
         <CircleIconButton accessibilityLabel="Menu" icon="menu" onPress={onOpenMenu} />
         <View style={styles.titleLockup}>
           <Text style={[styles.screenTitle, { color: palette.foreground }]}>Projects</Text>
-          <View style={styles.connectionRow}>
-            <View
-              style={[
-                styles.connectionDot,
-                {
-                  backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
-                },
-              ]}
-            />
-            <Text numberOfLines={1} style={[styles.hostLabel, { color: palette.foregroundSubtle }]}>
-              {session.environmentLabel}
-            </Text>
-          </View>
         </View>
         <AnchoredMenu
           trigger={(open) => (
@@ -425,6 +428,16 @@ export function HomeScreen({
                   }}
                 />
               ))}
+              {onAddMachine ? (
+                <MenuItem
+                  label="Add computer"
+                  icon="add-outline"
+                  onPress={() => {
+                    close();
+                    onAddMachine();
+                  }}
+                />
+              ) : null}
               <MenuItem
                 label="Settings"
                 icon="settings-outline"
@@ -436,6 +449,83 @@ export function HomeScreen({
             </>
           )}
         </AnchoredMenu>
+      </View>
+
+      <View
+        style={{
+          position: "absolute",
+          top: insets.top + 72,
+          left: 0,
+          right: 0,
+          backgroundColor: palette.background,
+        }}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}
+        >
+          {[
+            { id: undefined, label: "All", connected: false },
+            ...(machines ?? [
+              {
+                id: session.environmentId,
+                label: session.environmentLabel,
+                connected: isConnected,
+              },
+            ]),
+          ].map((machine) => {
+            const selected = machine.id === selectedMachineId;
+            return (
+              <Pressable
+                key={machine.id ?? "all"}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={
+                  machine.id
+                    ? `${machine.label}, ${machine.connected ? "Connected" : "Offline"}`
+                    : "All computers"
+                }
+                onPress={() => onSelectMachine?.(machine.id)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingHorizontal: 15,
+                  paddingVertical: 11,
+                  borderRadius: 24,
+                  backgroundColor: selected ? palette.foreground : palette.subtle,
+                }}
+              >
+                {machine.id ? (
+                  <>
+                    <View
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 4,
+                        backgroundColor: machine.connected ? palette.success : palette.danger,
+                      }}
+                    />
+                    <Ionicons
+                      name="laptop-outline"
+                      size={20}
+                      color={selected ? palette.background : palette.foreground}
+                    />
+                  </>
+                ) : null}
+                <Text
+                  style={{
+                    fontSize: 15,
+                    color: selected ? palette.background : palette.foreground,
+                  }}
+                >
+                  {machine.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {error ? (

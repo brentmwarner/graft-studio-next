@@ -1,6 +1,7 @@
 import type { GraftSessionCredential } from "@graft/mobile-contract";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import type { MachineFilter } from "./HomeScreen";
 import type { GatewayConnectionState } from "../api/gatewaySocket";
 import { BottomSheet } from "../components/BottomSheet";
 import { useGraftPalette } from "../theme/tokens";
@@ -8,13 +9,13 @@ import { useGraftPalette } from "../theme/tokens";
 const APP_VERSION = "0.1.0";
 
 interface SettingsScreenProps {
+  readonly machines?: readonly MachineFilter[];
+  readonly onRemoveMachine?: (id: string) => Promise<void>;
+  readonly onAddMachine?: () => void;
   readonly connectionState: GatewayConnectionState;
-  readonly onAddComputer: () => void;
-  readonly onActivate: (environmentId: string) => void;
   readonly onClose: () => void;
-  readonly onUnpair: (environmentId?: string) => Promise<void>;
+  readonly onUnpair: () => Promise<void>;
   readonly session: GraftSessionCredential;
-  readonly sessions: readonly GraftSessionCredential[];
   readonly visible: boolean;
 }
 
@@ -26,17 +27,17 @@ function SectionHeader({ title }: { readonly title: string }) {
 }
 
 export function SettingsScreen({
+  machines,
+  onRemoveMachine,
+  onAddMachine,
   connectionState,
-  onAddComputer,
-  onActivate,
   onClose,
   onUnpair,
   session,
-  sessions,
   visible,
 }: SettingsScreenProps) {
   const palette = useGraftPalette();
-  const computers = sessions.length > 0 ? sessions : [session];
+  const isConnected = connectionState === "connected";
 
   return (
     <BottomSheet
@@ -55,88 +56,75 @@ export function SettingsScreen({
       visible={visible}
     >
       <ScrollView contentContainerStyle={styles.content}>
-        <SectionHeader title="Connection" />
-        <View style={[styles.group, { backgroundColor: palette.subtle }]}>
-          {computers.map((computer, index) => {
-            const isActive = computer.environmentId === session.environmentId;
-            const isConnected = isActive && connectionState === "connected";
-            return (
-              <View key={computer.environmentId}>
-                {index > 0 ? (
-                  <View style={[styles.separator, { backgroundColor: palette.border }]} />
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
-                  disabled={isActive}
-                  onPress={() => onActivate(computer.environmentId)}
-                >
-                  {({ pressed }) => (
-                    <View style={[styles.row, { opacity: pressed && !isActive ? 0.55 : 1 }]}>
-                      <Text style={[styles.key, { color: palette.foreground }]}>
-                        {isActive ? "Studio" : computer.environmentLabel}
-                      </Text>
-                      <View style={styles.hostValue}>
-                        <View
-                          accessibilityLabel={
-                            isActive ? (isConnected ? "Connected" : "Disconnected") : "Paired"
-                          }
-                          style={[
-                            styles.connectionDot,
-                            {
-                              backgroundColor: isConnected
-                                ? palette.success
-                                : palette.foregroundSubtle,
-                            },
-                          ]}
-                        />
-                        <Text
-                          numberOfLines={1}
-                          style={[styles.value, { color: palette.foregroundSubtle }]}
-                        >
-                          {computer.environmentLabel}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </Pressable>
-                <View style={[styles.separator, { backgroundColor: palette.border }]} />
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    if (computers.length === 1) onClose();
-                    void onUnpair(computer.environmentId);
-                  }}
-                >
-                  {({ pressed }) => (
-                    <View style={[styles.row, { opacity: pressed ? 0.55 : 1 }]}>
-                      <Text style={[styles.key, { color: palette.danger }]}>
-                        {computers.length > 1
-                          ? `Disconnect ${computer.environmentLabel}`
-                          : "Disconnect"}
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
+        {machines ? (
+          <>
+            <SectionHeader title="Computers" />
+            <View style={[styles.group, { backgroundColor: palette.subtle }]}>
+              {machines.map((machine) => (
+                <View key={machine.id} style={[styles.row, { gap: 8 }]}>
+                  <View
+                    accessibilityLabel={machine.connected ? "Connected" : "Offline"}
+                    style={[
+                      styles.connectionDot,
+                      { backgroundColor: machine.connected ? palette.success : palette.danger },
+                    ]}
+                  />
+                  <Text style={[styles.key, { color: palette.foreground }]}>{machine.label}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${machine.label}`}
+                    onPress={() => void onRemoveMachine?.(machine.id)}
+                  >
+                    <Text style={{ color: palette.danger }}>Remove</Text>
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable accessibilityRole="button" onPress={onAddMachine} style={styles.row}>
+                <Text style={{ color: palette.foreground }}>Add computer</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <SectionHeader title="Connection" />
+            <View style={[styles.group, { backgroundColor: palette.subtle }]}>
+              <View style={styles.row}>
+                <Text style={[styles.key, { color: palette.foreground }]}>Studio</Text>
+                <View style={styles.hostValue}>
+                  <View
+                    accessibilityLabel={isConnected ? "Connected" : "Disconnected"}
+                    style={[
+                      styles.connectionDot,
+                      {
+                        backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
+                      },
+                    ]}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.value, { color: palette.foregroundSubtle }]}
+                  >
+                    {session.environmentLabel}
+                  </Text>
+                </View>
               </View>
-            );
-          })}
-          <View style={[styles.separator, { backgroundColor: palette.border }]} />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              onClose();
-              onAddComputer();
-            }}
-          >
-            {({ pressed }) => (
-              <View style={[styles.row, { opacity: pressed ? 0.55 : 1 }]}>
-                <Text style={[styles.key, { color: palette.accent }]}>Pair another computer</Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-
+              <View style={[styles.separator, { backgroundColor: palette.border }]} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  onClose();
+                  void onUnpair();
+                }}
+              >
+                {({ pressed }) => (
+                  <View style={[styles.row, { opacity: pressed ? 0.55 : 1 }]}>
+                    <Text style={[styles.key, { color: palette.danger }]}>Disconnect</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
+          </>
+        )}
         <SectionHeader title="About" />
         <View style={[styles.group, { backgroundColor: palette.subtle }]}>
           <View style={styles.row}>

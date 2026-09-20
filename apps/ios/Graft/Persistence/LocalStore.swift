@@ -113,12 +113,10 @@ final class LocalStore {
     /// this are pruned on save.
     private static let transcriptCacheLimit = 50
 
-    func decodedTranscript(threadId: String) throws -> TranscriptContainer? {
-        var descriptor = FetchDescriptor<CachedThreadTranscript>(
-            predicate: #Predicate { $0.threadId == threadId }
-        )
-        descriptor.fetchLimit = 1
-        guard let cached = try context.fetch(descriptor).first else { return nil }
+    func decodedTranscript(threadId: String, environmentId: String) throws -> TranscriptContainer? {
+        let cacheKey = MachineResourceID.encode(environmentId, threadId)
+        guard let cached = try cachedTranscript(key: cacheKey, environmentId: environmentId)
+            ?? cachedTranscript(key: threadId, environmentId: environmentId) else { return nil }
         do {
             return try JSONDecoder().decode(TranscriptContainer.self, from: cached.rawJSON)
         } catch {
@@ -130,18 +128,17 @@ final class LocalStore {
     }
 
     func saveTranscript(threadId: String, environmentId: String, rawJSON: Data) throws {
-        var descriptor = FetchDescriptor<CachedThreadTranscript>(
-            predicate: #Predicate { $0.threadId == threadId }
-        )
-        descriptor.fetchLimit = 1
-        if let existing = try context.fetch(descriptor).first {
+        let cacheKey = MachineResourceID.encode(environmentId, threadId)
+        if let existing = try cachedTranscript(key: cacheKey, environmentId: environmentId)
+            ?? cachedTranscript(key: threadId, environmentId: environmentId) {
+            existing.threadId = cacheKey
             existing.environmentId = environmentId
             existing.rawJSON       = rawJSON
             existing.cachedAt      = .now
         } else {
             context.insert(
                 CachedThreadTranscript(
-                    threadId: threadId,
+                    threadId: cacheKey,
                     environmentId: environmentId,
                     rawJSON: rawJSON
                 )
@@ -156,5 +153,13 @@ final class LocalStore {
             context.delete(stale)
         }
         try context.save()
+    }
+
+    private func cachedTranscript(key: String, environmentId: String) throws -> CachedThreadTranscript? {
+        var descriptor = FetchDescriptor<CachedThreadTranscript>(
+            predicate: #Predicate { $0.threadId == key && $0.environmentId == environmentId }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 }

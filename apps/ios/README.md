@@ -114,10 +114,19 @@ The Projects menu selects Priority, By Project, or Chronological and remembers
 the choice across launches. Project folders start collapsed; search temporarily
 reveals matching threads. Non-repository Chats appear above the project folders.
 Recents appears in the phone drawer and above Chats in the persistent iPad panel.
-Both mobile clients keep one live gateway at a time, but they can store
-multiple paired computers. The drawer and Settings list every pairing; tap a
-computer to switch, or pair another without disconnecting first. Inbox view
-mode and read receipts stay scoped to the active computer.
+Both mobile clients keep independent connections to every paired computer.
+The Projects filter row shows All and a chip for each computer, with a green dot
+when connected or a red dot when unavailable. All merges projects, Chats,
+recents, search, and activity views across computers. Filtering never disconnects
+another computer. Add a pairing through Projects → ⋯ → Add computer or
+Settings → Computers → Add computer; scan another Studio's QR code or paste its
+pairing link. Settings can remove one computer without affecting the others.
+Inbox view mode is remembered per filter; read receipts, transcripts, commands,
+and project expansion remain scoped to their computer.
+
+Offline computers retain cached projects and transcripts without warning banners
+or stale work/loading spinners. Authentication, protocol, and certificate errors
+still surface warnings. Reconnection restores live activity automatically.
 
 Working threads show a progress spinner (a static hourglass with Reduce Motion).
 Requests needing input show an attention icon. A blue dot marks a completed
@@ -246,15 +255,16 @@ apps/ios/
 
 ## Architecture overview
 
-### `AppModel` (root observable)
+### `MachineStore` and `AppModel`
 
-The single `AppModel` instance is created in `GraftApp` and injected as an `@Observable` environment object. It owns:
+`GraftApp` creates an observable `MachineStore`. It retains one `AppModel` per
+paired session, plus a separate pairing model. Each computer's model owns:
 
 - `ConnectionStore` — session lifecycle and bearer-token persistence
 - `GatewayClient` — WebSocket connection and reconnect loop
 - `LocalStore` — SwiftData container
 
-`RootView.onChange(of: scenePhase)` calls `appModel.scenePhaseChanged(_:)`:
+`RootView` forwards scene changes through `MachineStore` to every paired model:
 
 - `.active` → `gateway.nudge()` (ping-verifies or re-dials)
 - `.background` → `gateway.suspendForBackground()` (tears down socket)

@@ -14,9 +14,6 @@ final class ConnectionStore {
     /// The active session, loaded from SwiftData on startup.
     private(set) var session: PersistedSession?
 
-    /// Every stored pairing, newest last-used first.
-    private(set) var sessions: [PersistedSession] = []
-
     /// Indicates a pairing operation is in progress.
     private(set) var isPairing = false
 
@@ -25,13 +22,9 @@ final class ConnectionStore {
 
     var isPaired: Bool { session != nil }
 
-    private let defaults: UserDefaults
-    private static let activeEnvironmentKey = "connection.activeEnvironmentId"
-
-    init(store: LocalStore, defaults: UserDefaults = .standard) {
+    init(store: LocalStore, environmentId: String? = nil, loadSavedSession: Bool = true) {
         self.store = store
-        self.defaults = defaults
-        loadSession()
+        if loadSavedSession { loadSession(environmentId: environmentId) }
     }
 
     // MARK: Session access
@@ -64,6 +57,7 @@ final class ConnectionStore {
     /// Processes a decoded `PairingPayload` (from URL scheme or QR code).
     /// Posts a `PairRequest` to the host and persists the resulting session.
     func pair(with payload: PairingPayload) async {
+        guard !isPairing else { return }
         isPairing = true
         pairingError = nil
         defer { isPairing = false }
@@ -89,37 +83,29 @@ final class ConnectionStore {
         } catch let e as GraftError {
             pairingError = e
         } catch {
-            pairingError = .unreachable(error.localizedDescription)
+            pairingError = .transport(error)
         }
     }
 
-    /// Clears one stored pairing. Omitting `environmentId` disconnects the
-    /// active computer and, if others remain, activates the next one.
+    /// Clears the active session (bearer token + SwiftData row).
     @discardableResult
-    func unpair(_ environmentId: String? = nil) async -> Bool {
-        guard let targetId = environmentId ?? session?.environmentId else { return true }
-        let removingCurrent = session?.environmentId == targetId
-        if removingCurrent {
-            PushRegistrar.shared.configure(connectionStore: self)
-            await PushRegistrar.shared.unregisterForCurrentSession()
-        }
+    func unpair() async -> Bool {
+        guard let session else { return true }
+        let sessionId = session.sessionId
+        let environmentId = session.environmentId
+        PushRegistrar.shared.configure(connectionStore: self)
+        await PushRegistrar.shared.unregisterForCurrentSession()
         do {
-            let account = try store.session(environmentId: targetId)?.keychainAccount
-                ?? session?.keychainAccount
-            try store.deleteSession(environmentId: targetId)
-            if let account { Keychain.delete(for: account) }
-            if defaults.string(forKey: Self.activeEnvironmentKey) == targetId {
-                defaults.removeObject(forKey: Self.activeEnvironmentKey)
+            // A re-pair may replace this row while push unregistration awaits.
+            guard try store.session(environmentId: environmentId)?.sessionId == sessionId else {
+                self.session = nil
+                return true
             }
-            refreshSessions()
-            if removingCurrent {
-                session = sessions.first
-                if let session {
-                    rememberActiveEnvironment(session.environmentId)
-                }
-            }
+            try store.deleteSession(environmentId: environmentId)
+            Keychain.delete(for: session.keychainAccount)
+            self.session = nil
             pairingError = nil
-            AppLog.pairing.info("Session cleared for environment \(targetId)")
+            AppLog.pairing.info("Session cleared for environment \(session.environmentId)")
             return true
         } catch {
             pairingError = .persistence("Could not remove the paired session.")
@@ -128,47 +114,18 @@ final class ConnectionStore {
         }
     }
 
-    func activate(environmentId: String) {
-        guard environmentId != session?.environmentId else { return }
-        do {
-            guard let next = try store.session(environmentId: environmentId) else { return }
-            session = next
-            rememberActiveEnvironment(environmentId)
-            refreshSessions()
-            pairingError = nil
-            AppLog.pairing.info("Activated environment \(environmentId)")
-        } catch {
-            pairingError = .persistence("Could not switch to that computer.")
-            AppLog.persistence.error("Failed to activate session \(environmentId): \(error)")
-        }
-    }
-
     // MARK: Private
 
-    private func loadSession() {
-        refreshSessions()
-        if let remembered = defaults.string(forKey: Self.activeEnvironmentKey),
-           let match = sessions.first(where: { $0.environmentId == remembered }) {
-            session = match
-        } else {
-            session = sessions.first
-        }
-        if let session {
-            rememberActiveEnvironment(session.environmentId)
-        }
-    }
-
-    private func refreshSessions() {
+    private func loadSession(environmentId: String?) {
         do {
-            sessions = try store.allSessions()
+            if let environmentId {
+                session = try store.session(environmentId: environmentId)
+            } else {
+                session = try store.allSessions().first
+            }
         } catch {
             AppLog.persistence.error("Failed to load sessions: \(error)")
-            sessions = []
         }
-    }
-
-    private func rememberActiveEnvironment(_ environmentId: String) {
-        defaults.set(environmentId, forKey: Self.activeEnvironmentKey)
     }
 
     private func persistSession(_ pair: PairSession) throws {
@@ -199,8 +156,6 @@ final class ConnectionStore {
             throw error
         }
         session = persisted
-        rememberActiveEnvironment(pair.environmentId)
-        refreshSessions()
         AppLog.pairing.info("Paired with environment \(pair.environmentId) (\(pair.environmentLabel))")
     }
 }

@@ -52,6 +52,9 @@ final class GatewayClient {
     /// Resolves the hello frame sent immediately after the WebSocket upgrade.
     var helloProvider: (@MainActor () async throws -> ClientHello)?
 
+    /// Reports typed failures to the owning machine, including handshake errors.
+    var onFailure: (@MainActor (GraftError) -> Void)?
+
     private var socket: (any GatewaySocketTransport)?
     private var receiveTask: Task<Void, Never>?
     private var pingTask: Task<Void, Never>?
@@ -236,6 +239,7 @@ final class GatewayClient {
             } else {
                 state = .reconnecting
             }
+            if !(error is CancellationError) { onFailure?(.transport(error)) }
             throw error
         }
     }
@@ -280,11 +284,15 @@ final class GatewayClient {
 
     // MARK: Reconnect
 
-    private func handleDrop(of dropped: any GatewaySocketTransport, reason: String?) {
+    private func handleDrop(of dropped: any GatewaySocketTransport, reason: String?, error: Error? = nil) {
         guard dropped === socket else { return }
         reconnectTask?.cancel()
         reconnectTask = nil
         teardown(reason: reason, notify: true)
+        if let error {
+            onFailure?(.transport(error))
+            if !shouldRetry(error) { shouldStayConnected = false }
+        }
         if shouldStayConnected { scheduleReconnect(reason: reason) }
     }
 
@@ -354,7 +362,7 @@ final class GatewayClient {
                     guard !Task.isCancelled, self?.socket === task else { return }
                     self?.handleRaw(message)
                 } catch {
-                    self?.handleDrop(of: task, reason: error.localizedDescription)
+                    self?.handleDrop(of: task, reason: error.localizedDescription, error: error)
                     return
                 }
             }
@@ -392,13 +400,13 @@ final class GatewayClient {
                 let data = try JSONEncoder().encode(ClientPing(at: at))
                 try await task.send(.string(String(decoding: data, as: UTF8.self)))
             } catch {
-                self?.handleDrop(of: task, reason: error.localizedDescription)
+                self?.handleDrop(of: task, reason: error.localizedDescription, error: error)
             }
         }
     }
 
     private func shouldRetry(_ error: Error) -> Bool {
-        (error as? GraftError)?.isRetryable ?? true
+        GraftError.transport(error).isRetryable
     }
 
     // MARK: Send

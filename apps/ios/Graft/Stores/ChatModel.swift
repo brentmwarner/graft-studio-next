@@ -17,7 +17,8 @@ final class ChatModel: Identifiable {
 
     private(set) var items: [TranscriptItem] = []
     private(set) var isStreaming = false
-    private(set) var isLoadingHistory = false
+    private var historyLoading = false
+    var isLoadingHistory: Bool { historyLoading && app?.gateway.state == .connected }
     private(set) var statusText: String?
     private(set) var taskProgressState = TaskProgressState()
     var taskProgress: TaskProgress? { taskProgressState.visible }
@@ -54,13 +55,12 @@ final class ChatModel: Identifiable {
         scrollToLatestTick += 1
     }
 
-    var isTurnActive: Bool { isStreaming }
+    var isTurnActive: Bool { isStreaming && (app == nil || app?.gateway.state == .connected) }
 
     /// The desktop keeps one progress indicator for the whole active turn.
     /// Text, reasoning, and tools can interleave without unmounting it.
     var liveStatusText: String? {
-        guard isStreaming else { return nil }
-        if let app, app.gateway.state != .connected { return "Reconnecting…" }
+        guard isTurnActive else { return nil }
         if needsInteraction { return "Waiting for you" }
         return LiveStatusPhrase.current(from: items, fallback: statusText)
     }
@@ -115,14 +115,16 @@ final class ChatModel: Identifiable {
         historyLoadingIndicatorTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: Self.historyLoadingIndicatorDelay)
             guard let self, !Task.isCancelled, !self.hasLoadedTranscript else { return }
-            self.isLoadingHistory = true
+            self.historyLoading = true
         }
     }
+
+    func finishHistoryLoading() { cancelHistoryLoadingIndicator() }
 
     private func cancelHistoryLoadingIndicator() {
         historyLoadingIndicatorTask?.cancel()
         historyLoadingIndicatorTask = nil
-        isLoadingHistory = false
+        historyLoading = false
     }
 
     // MARK: Snapshot reconcile
@@ -315,7 +317,7 @@ final class ChatModel: Identifiable {
 
     /// Load (or refresh) a diff summary for the composer strip.
     func refreshDiff(diffId: String? = nil) async {
-        guard let app else { return }
+        guard let app, app.gateway.state == .connected else { return }
         let id = diffId ?? threadId
         guard let summary = await app.fetchDiff(diffId: id) else { return }
         upsertDiffPresentation(from: summary)

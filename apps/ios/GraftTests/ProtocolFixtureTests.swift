@@ -135,47 +135,6 @@ final class ProtocolFixtureTests: XCTestCase {
         XCTAssertNil(restored.endpointKind)
     }
 
-    @MainActor
-    func testKeepsMultipleSessionsAndRestoresTheActiveComputer() throws {
-        let store = LocalStore(inMemory: true)
-        let suite = "connection-active-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        try store.upsertSession(
-            PersistedSession(
-                environmentId: "mac",
-                environmentLabel: "Mac",
-                httpBaseUrl: "http://mac.local",
-                wsBaseUrl: "ws://mac.local",
-                sessionId: "session-mac",
-                deviceId: "device",
-                keychainAccount: "bearerToken:mac",
-                protocolVersion: 1,
-                capabilities: ["projects"]
-            )
-        )
-        try store.upsertSession(
-            PersistedSession(
-                environmentId: "studio",
-                environmentLabel: "Studio",
-                httpBaseUrl: "http://studio.local",
-                wsBaseUrl: "ws://studio.local",
-                sessionId: "session-studio",
-                deviceId: "device",
-                keychainAccount: "bearerToken:studio",
-                protocolVersion: 1,
-                capabilities: ["projects"]
-            )
-        )
-        let connection = ConnectionStore(store: store, defaults: defaults)
-        XCTAssertEqual(connection.sessions.map(\.environmentId).sorted(), ["mac", "studio"])
-        connection.activate(environmentId: "mac")
-        XCTAssertEqual(connection.session?.environmentId, "mac")
-        let restored = ConnectionStore(store: store, defaults: defaults)
-        XCTAssertEqual(restored.session?.environmentId, "mac")
-        defaults.removePersistentDomain(forName: suite)
-    }
-
     // MARK: Health
 
     func testDecodeHealth() throws {

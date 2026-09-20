@@ -46,12 +46,19 @@ Previous 7 days, and Older, using the device's local calendar. Priority first
 shows pending approvals and questions, followed by running work; the remaining
 threads appear in chronological sections. Each thread appears only once.
 
-Both mobile clients keep one live gateway at a time, but they can store
-multiple paired computers. The drawer and Settings list every pairing; tap a
-computer to switch, or pair another without disconnecting first. There is no
-merged inbox across computers. Inbox view mode and read receipts stay scoped
-to the active computer. Settings, including Disconnect, remains available from
-the view menu and navigation drawer.
+Both mobile clients keep an independent connection to every paired computer.
+Projects shows All and per-computer filter chips, with green connected dots and
+red unavailable dots. All merges projects, Chats, recents, search, and activity
+views; filtering leaves every connection running. Commands, read receipts,
+transcript caches, and expansion IDs belong to their computer even when two
+computers use identical thread or project IDs. View mode is remembered per filter.
+
+Use Projects → ⋯ → Add computer or Settings → Computers → Add computer to scan
+another Studio's QR code or paste its pairing link. Settings can remove one
+computer without disconnecting the others. Existing single-computer pairings
+migrate automatically. Offline machines retain cached content and show red dots
+without warning banners or stale progress indicators. Authentication and
+protocol errors still surface; live activity returns when a machine reconnects.
 
 ## Development
 

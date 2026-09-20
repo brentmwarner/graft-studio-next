@@ -134,11 +134,8 @@ struct RESTClient: Sendable {
         switch http.statusCode {
         case 200..<300:
             return data
-        case 401:
-            throw GraftError.unauthorized
         default:
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw GraftError.http(status: http.statusCode, body: body)
+            throw GraftError.httpResponse(status: http.statusCode, body: data)
         }
     }
 

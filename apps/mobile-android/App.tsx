@@ -1,8 +1,14 @@
 import { StatusBar } from "expo-status-bar";
-import type { GraftThreadSummary } from "@graft/mobile-contract";
-import { useEffect, useMemo, useState } from "react";
-import { BackHandler, Linking, Modal, StyleSheet, View } from "react-native";
+import type { GraftSessionCredential, GraftThreadSummary } from "@graft/mobile-contract";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BackHandler, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+
+import { BottomSheet } from "./src/components/BottomSheet";
+import { MachineRuntime, type MachineController } from "./src/state/MachineRuntime";
+import { machineInbox, parseMachineResourceId } from "./src/state/machineInbox";
+import { loadSessions } from "./src/storage/sessionRepository";
+import { parsePairingInput } from "./src/protocol/pairing";
 
 import { MenuProvider } from "./src/components/MenuProvider";
 import { recentInboxThreads } from "./src/state/inboxGrouping";
@@ -14,7 +20,6 @@ import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { ThreadScreen } from "./src/screens/ThreadScreen";
 import { groupProjects } from "./src/state/mobileViewModels";
-import { useInboxReadState } from "./src/state/useInboxReadState";
 import { useGraftSession } from "./src/state/useGraftSession";
 import { loadInboxViewMode, saveInboxViewMode } from "./src/storage/inboxPreferences";
 import { useGraftPalette } from "./src/theme/tokens";
@@ -23,65 +28,136 @@ type AppRoute =
   | { readonly name: "home" }
   | {
       readonly name: "thread";
+      readonly environmentId: string;
       readonly thread: GraftThreadSummary;
       readonly initialEffort?: string;
     }
-  | { readonly name: "new-chat"; readonly initialProjectId?: string };
+  | {
+      readonly name: "new-chat";
+      readonly environmentId: string;
+      readonly initialProjectId?: string;
+    };
 
 function GraftApp() {
   const palette = useGraftPalette();
-  const session = useGraftSession();
+  const [credentials, setCredentials] = useState<readonly GraftSessionCredential[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
+  const [controllers, setControllers] = useState<Readonly<Record<string, MachineController>>>({});
+  const [selectedMachineId, setSelectedMachineId] = useState<string>();
+  const [pairingInput, setPairingInput] = useState<string>();
+  const [showPairing, setShowPairing] = useState(false);
+  const [isPairing, setIsPairing] = useState(false);
+  const [chooseMachine, setChooseMachine] = useState(false);
+  const updateMachine = useCallback(
+    (credential: GraftSessionCredential, controller: MachineController) => {
+      setControllers((current) => ({ ...current, [credential.environmentId]: controller }));
+      if (controller.state.status === "unpaired") {
+        setCredentials((current) =>
+          current.filter(
+            (saved) =>
+              saved.sessionId !== credential.sessionId ||
+              saved.environmentId !== credential.environmentId,
+          ),
+        );
+      }
+    },
+    [],
+  );
+  const pairedMachine = useCallback((credential: GraftSessionCredential) => {
+    setCredentials((current) => [
+      credential,
+      ...current.filter((saved) => saved.environmentId !== credential.environmentId),
+    ]);
+    setShowPairing(false);
+    setPairingInput(undefined);
+  }, []);
+  const receivePairingLink = useCallback((url: string) => {
+    try {
+      parsePairingInput(url);
+      setPairingInput(url);
+      setShowPairing(true);
+    } catch {
+      /* Unrelated app link. */
+    }
+  }, []);
+  useEffect(() => {
+    let mounted = true;
+    void loadSessions()
+      .then((saved) => {
+        if (mounted) {
+          setCredentials(saved);
+          setLoaded(true);
+        }
+      })
+      .catch((error: unknown) => {
+        if (mounted) {
+          setLoadError(error instanceof Error ? error.message : "Could not load computers.");
+          setLoaded(true);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const [route, setRoute] = useState<AppRoute>({ name: "home" });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [inboxViewMode, setInboxViewMode] = useState<ReturnType<typeof loadInboxViewMode>>("project");
+  const [inboxViewMode, setInboxViewMode] = useState(() => loadInboxViewMode("_all_computers"));
+  useEffect(() => {
+    setInboxViewMode(loadInboxViewMode(selectedMachineId ?? "_all_computers"));
+  }, [selectedMachineId]);
   const [expandedProjectIds, setExpandedProjectIds] = useState<ReadonlySet<string>>(new Set());
-  const [showAddPairing, setShowAddPairing] = useState(false);
-  const [isAddingPairing, setIsAddingPairing] = useState(false);
-  const paired = session.state.status === "paired" ? session.state : null;
+  const activeEnvironmentId = route.name !== "home" ? route.environmentId : selectedMachineId;
+  const activeCredential =
+    credentials.find((item) => item.environmentId === activeEnvironmentId) ??
+    (route.name === "home" ? credentials[0] : undefined);
+  const candidate = activeCredential ? controllers[activeCredential.environmentId] : undefined;
+  const session =
+    candidate?.state.status === "paired" &&
+    candidate.state.session.sessionId === activeCredential?.sessionId
+      ? candidate
+      : undefined;
+  const paired = session?.state.status === "paired" ? session.state : null;
   const pairedSnapshot = paired?.snapshot ?? null;
-  const inboxReads = useInboxReadState(
-    paired?.session.environmentId,
-    pairedSnapshot,
-    paired?.liveEvents,
-    route.name === "thread" && !isDrawerOpen && !showSettings ? route.thread.id : undefined,
-  );
+  const sources = credentials.flatMap((credential) => {
+    const controller = controllers[credential.environmentId];
+    return controller?.state.status === "paired" &&
+      controller.state.session.sessionId === credential.sessionId
+      ? [{ ...controller.state, reads: controller.reads }]
+      : [];
+  });
+  const inbox = machineInbox(sources, selectedMachineId);
+  const machineFilters = credentials.map((credential) => ({
+    id: credential.environmentId,
+    label: credential.environmentLabel,
+    connected: sources.some(
+      (source) =>
+        source.session.environmentId === credential.environmentId &&
+        source.connectionState === "connected",
+    ),
+  }));
 
   useEffect(() => {
     void Linking.getInitialURL().then((url) => {
-      if (url) session.receivePairingLink(url);
+      if (url) receivePairingLink(url);
     });
 
     const subscription = Linking.addEventListener("url", ({ url }) => {
-      session.receivePairingLink(url);
+      receivePairingLink(url);
     });
     return () => subscription.remove();
-  }, [session.receivePairingLink]);
+  }, [receivePairingLink]);
 
   useEffect(() => {
-    if (session.state.status !== "paired") {
+    if (
+      route.name !== "home" &&
+      !credentials.some((item) => item.environmentId === route.environmentId)
+    )
       setRoute({ name: "home" });
-      setIsDrawerOpen(false);
-      setShowSettings(false);
-      setShowAddPairing(false);
-      setIsAddingPairing(false);
-      setExpandedProjectIds(new Set());
-    }
-  }, [session.state.status]);
-
-  useEffect(() => {
-    const environmentId = paired?.session.environmentId;
-    setInboxViewMode(loadInboxViewMode(environmentId));
-    setExpandedProjectIds(new Set());
-    setRoute({ name: "home" });
-    session.closeThread();
-    // Reset only when the active computer changes, not when hook identities churn.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- environmentId is the switch signal
-  }, [paired?.session.environmentId]);
-
-  useEffect(() => {
-    if (paired?.pendingAdditionalInput) setShowAddPairing(true);
-  }, [paired?.pendingAdditionalInput]);
+    if (selectedMachineId && !credentials.some((item) => item.environmentId === selectedMachineId))
+      setSelectedMachineId(undefined);
+  }, [credentials, route, selectedMachineId]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -92,65 +168,136 @@ function GraftApp() {
         return true;
       }
       if (route.name === "home") return false;
-      session.closeThread();
+      session?.closeThread();
       setRoute({ name: "home" });
       return true;
     });
     return () => subscription.remove();
-  }, [isDrawerOpen, route.name, session.closeThread]);
+  }, [isDrawerOpen, route.name, session?.closeThread]);
 
   const projectGroups = useMemo(() => groupProjects(pairedSnapshot, ""), [pairedSnapshot]);
 
-  function openThread(thread: GraftThreadSummary) {
+  function openInboxThread(id: string) {
+    const resource = parseMachineResourceId(id);
+    if (!resource) return;
+    const owner = controllers[resource.environmentId];
+    const thread =
+      owner?.state.status === "paired"
+        ? owner.state.snapshot?.threads.find((thread) => thread.id === resource.resourceId)
+        : undefined;
+    if (!thread || !owner) return;
+    session?.closeThread();
     setIsDrawerOpen(false);
-    setRoute({ name: "thread", thread });
-    void session.openThread(thread.id);
+    setRoute({ name: "thread", environmentId: resource.environmentId, thread });
+    void owner.openThread(thread.id);
+  }
+
+  function newChat(projectId?: string) {
+    const resource = projectId ? parseMachineResourceId(projectId) : undefined;
+    const environmentId =
+      resource?.environmentId ??
+      selectedMachineId ??
+      (credentials.length === 1 ? credentials[0]?.environmentId : undefined);
+    if (!environmentId) {
+      setChooseMachine(true);
+      return;
+    }
+    setRoute({ name: "new-chat", environmentId, initialProjectId: resource?.resourceId });
   }
 
   function backToHome() {
-    session.closeThread();
+    session?.closeThread();
     setRoute({ name: "home" });
   }
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
       <StatusBar style={palette.isDark ? "light" : "dark"} />
-      {session.state.status === "loading" ? <SplashScreen /> : null}
-      {session.state.status === "unpaired" || session.state.status === "pairing" ? (
-        <PairingScreen
-          error={session.state.error}
-          initialInput={session.state.pendingInput}
-          isPairing={session.state.status === "pairing"}
-          onPair={session.pair}
+      {credentials.map((credential) => (
+        <MachineRuntime
+          key={JSON.stringify([credential.environmentId, credential.sessionId])}
+          credential={credential}
+          onUpdate={updateMachine}
+          visibleThreadId={
+            route.name === "thread" &&
+            route.environmentId === credential.environmentId &&
+            !isDrawerOpen &&
+            !showSettings &&
+            !showPairing
+              ? route.thread.id
+              : undefined
+          }
         />
+      ))}
+      {!loaded || (credentials.length > 0 && !paired) ? <SplashScreen /> : null}
+      {loaded && credentials.length === 0 ? (
+        <PairMachine initialInput={pairingInput} onPaired={pairedMachine} error={loadError} />
       ) : null}
-      {paired ? (
+      <Modal
+        visible={showPairing && credentials.length > 0}
+        animationType="slide"
+        onRequestClose={() => {
+          if (!isPairing) setShowPairing(false);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: palette.background }}>
+          {showPairing ? (
+            <PairMachine
+              initialInput={pairingInput}
+              onPaired={pairedMachine}
+              onCancel={() => setShowPairing(false)}
+              onPairingChange={setIsPairing}
+            />
+          ) : null}
+        </View>
+      </Modal>
+      <BottomSheet
+        visible={chooseMachine}
+        onClose={() => setChooseMachine(false)}
+        title="Choose a computer"
+      >
+        {machineFilters.map((machine) => (
+          <Pressable
+            key={machine.id}
+            accessibilityRole="button"
+            disabled={!machine.connected}
+            onPress={() => {
+              setChooseMachine(false);
+              setRoute({ name: "new-chat", environmentId: machine.id });
+            }}
+            style={{ padding: 20 }}
+          >
+            <Text
+              style={{ color: machine.connected ? palette.foreground : palette.foregroundSubtle }}
+            >
+              {machine.label}
+            </Text>
+          </Pressable>
+        ))}
+      </BottomSheet>
+      {paired && session ? (
         <>
           {/* The drawer wraps the routed content, so opening it slides the
               whole screen — top bar included — exactly like the iOS
               `NavDrawerLayout` wrapping its `NavigationStack`. */}
           <NavDrawerLayout
-            recentThreads={recentInboxThreads(pairedSnapshot, inboxReads)}
-            computers={paired.sessions.map((computer) => ({
-              id: computer.environmentId,
-              label: computer.environmentLabel,
-              isActive: computer.environmentId === paired.session.environmentId,
-              isConnected:
-                computer.environmentId === paired.session.environmentId &&
-                paired.connectionState === "connected",
+            recentThreads={recentInboxThreads(inbox.snapshot, inbox.reads)}
+            computers={machineFilters.map((machine) => ({
+              id: machine.id,
+              label: machine.label,
+              isActive: selectedMachineId === machine.id,
+              isConnected: machine.connected,
             }))}
+            onSelectComputer={(id) => {
+              setSelectedMachineId(id);
+              setIsDrawerOpen(false);
+              backToHome();
+            }}
             onProjects={() => {
               setIsDrawerOpen(false);
               backToHome();
             }}
-            onSelectComputer={(environmentId) => {
-              setIsDrawerOpen(false);
-              void session.activateSession(environmentId);
-            }}
-            onSelectThread={(item) => {
-              const thread = pairedSnapshot?.threads.find((candidate) => candidate.id === item.id);
-              if (thread) openThread(thread);
-            }}
+            onSelectThread={(item) => openInboxThread(item.id)}
             connectionState={paired.connectionState}
             hostLabel={paired.session.environmentLabel}
             isOpen={isDrawerOpen}
@@ -163,24 +310,40 @@ function GraftApp() {
           >
             {route.name === "home" ? (
               <HomeScreen
-                reads={inboxReads}
+                reads={inbox.reads}
+                machines={machineFilters}
+                selectedMachineId={selectedMachineId}
+                onSelectMachine={setSelectedMachineId}
+                onAddMachine={() => setShowPairing(true)}
                 connectionState={paired.connectionState}
-                error={paired.error}
-                isRefreshing={paired.isRefreshing}
-                onNewChat={(initialProjectId) => setRoute({ name: "new-chat", initialProjectId })}
+                error={
+                  sources
+                    .filter(
+                      (source) =>
+                        !selectedMachineId || source.session.environmentId === selectedMachineId,
+                    )
+                    .find((source) => source.error)?.error
+                }
+                isRefreshing={sources.some(
+                  (source) => source.isRefreshing && source.connectionState === "connected",
+                )}
+                onNewChat={newChat}
                 onOpenMenu={() => setIsDrawerOpen(true)}
-                onOpenThread={(item) => {
-                  const thread = pairedSnapshot?.threads.find(
-                    (candidate) => candidate.id === item.id,
+                onOpenThread={(item) => openInboxThread(item.id)}
+                onRefresh={async () => {
+                  await Promise.all(
+                    credentials
+                      .filter(
+                        (item) => !selectedMachineId || item.environmentId === selectedMachineId,
+                      )
+                      .map((item) => controllers[item.environmentId]?.refresh()),
                   );
-                  if (thread) openThread(thread);
                 }}
-                onRefresh={session.refresh}
                 onSettings={() => setShowSettings(true)}
                 viewMode={inboxViewMode}
                 onViewModeChange={(mode) => {
                   setInboxViewMode(mode);
-                  saveInboxViewMode(mode, paired.session.environmentId);
+                  saveInboxViewMode(mode, selectedMachineId ?? "_all_computers");
                 }}
                 expandedProjectIds={expandedProjectIds}
                 onToggleProject={(id) =>
@@ -192,10 +355,11 @@ function GraftApp() {
                   })
                 }
                 session={paired.session}
-                snapshot={paired.snapshot}
+                snapshot={inbox.snapshot}
               />
             ) : route.name === "new-chat" ? (
               <NewChatScreen
+                key={JSON.stringify([route.environmentId, paired.session.sessionId])}
                 composerFeatures={paired.snapshot?.environment.composerFeatures}
                 error={paired.error}
                 availableModels={session.modelCatalog.models}
@@ -228,9 +392,10 @@ function GraftApp() {
                   );
                   if (sent)
                     setRoute((current) =>
-                      current.name === "new-chat"
+                      current.name === "new-chat" && current.environmentId === route.environmentId
                         ? {
                             name: "thread",
+                            environmentId: route.environmentId,
                             thread: configuredThread,
                             initialEffort: request.effort,
                           }
@@ -243,7 +408,11 @@ function GraftApp() {
               />
             ) : (
               <ThreadScreen
-                key={route.thread.id}
+                key={JSON.stringify([
+                  route.environmentId,
+                  paired.session.sessionId,
+                  route.thread.id,
+                ])}
                 availableModels={session.modelCatalog.models}
                 modelCatalog={session.modelCatalog}
                 connectionState={paired.connectionState}
@@ -251,7 +420,7 @@ function GraftApp() {
                 error={paired.error}
                 hostLabel={paired.session.environmentLabel}
                 initialEffort={route.initialEffort}
-                isRefreshing={paired.isRefreshing}
+                isRefreshing={paired.isRefreshing && paired.connectionState === "connected"}
                 liveEvents={paired.liveEvents}
                 onBack={backToHome}
                 onCancel={session.cancelTurn}
@@ -277,48 +446,58 @@ function GraftApp() {
             )}
           </NavDrawerLayout>
           <SettingsScreen
-            connectionState={paired.connectionState}
-            onAddComputer={() => setShowAddPairing(true)}
-            onActivate={(environmentId) => {
-              setShowSettings(false);
-              void session.activateSession(environmentId);
+            machines={machineFilters}
+            onRemoveMachine={async (id) => {
+              await controllers[id]?.unpair();
             }}
+            onAddMachine={() => {
+              setShowSettings(false);
+              setShowPairing(true);
+            }}
+            connectionState={paired.connectionState}
             onClose={() => setShowSettings(false)}
             onUnpair={session.unpair}
             session={paired.session}
-            sessions={paired.sessions}
             visible={showSettings}
           />
-          <Modal
-            animationType="slide"
-            onRequestClose={() => {
-              setShowAddPairing(false);
-              session.clearPendingAdditionalInput();
-            }}
-            visible={showAddPairing}
-          >
-            <PairingScreen
-              error={paired.error}
-              initialInput={paired.pendingAdditionalInput}
-              isPairing={isAddingPairing}
-              onCancel={() => {
-                setShowAddPairing(false);
-                setIsAddingPairing(false);
-                session.clearPendingAdditionalInput();
-              }}
-              onPair={async (input) => {
-                setIsAddingPairing(true);
-                try {
-                  if (await session.pair(input)) setShowAddPairing(false);
-                } finally {
-                  setIsAddingPairing(false);
-                }
-              }}
-            />
-          </Modal>
         </>
       ) : null}
     </View>
+  );
+}
+
+function PairMachine({
+  initialInput,
+  onPaired,
+  error,
+  onCancel,
+  onPairingChange,
+}: {
+  readonly onCancel?: () => void;
+  readonly onPairingChange?: (pairing: boolean) => void;
+  readonly initialInput?: string;
+  readonly onPaired: (credential: GraftSessionCredential) => void;
+  readonly error?: string;
+}) {
+  const pairing = useGraftSession(null);
+  useEffect(() => {
+    onPairingChange?.(pairing.state.status === "pairing");
+  }, [pairing.state.status, onPairingChange]);
+  useEffect(() => {
+    if (pairing.state.status === "paired") onPaired(pairing.state.session);
+  }, [pairing.state, onPaired]);
+  return (
+    <PairingScreen
+      initialInput={initialInput}
+      onCancel={onCancel}
+      error={
+        pairing.state.status === "unpaired" || pairing.state.status === "pairing"
+          ? (pairing.state.error ?? error)
+          : error
+      }
+      isPairing={pairing.state.status === "pairing"}
+      onPair={pairing.pair}
+    />
   );
 }
 

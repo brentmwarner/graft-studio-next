@@ -8,6 +8,7 @@ struct ToolCallCard: View {
     let item: TranscriptItem
     @State private var expanded = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.transcriptConnectionActive) private var connectionActive
 
     init(item: TranscriptItem, initiallyExpanded: Bool = false) {
         self.item = item
@@ -96,7 +97,7 @@ struct ToolCallCard: View {
                         .buttonStyle(.plain)
                     }
                     if item.toolSummary.isEmpty && item.toolResultText.isEmpty && presentation.detail == nil {
-                        Text(item.toolStatus == .running ? "Running…" : "No output")
+                        Text(item.toolStatus == .running && connectionActive ? "Running…" : "No output")
                             .font(.footnote)
                             .foregroundStyle(DS.Color.fgSubtle)
                     }

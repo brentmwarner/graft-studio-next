@@ -1,8 +1,8 @@
 import Foundation
 import SwiftUI
 
-/// Root observable model: owns the `ConnectionStore`, the `GatewayClient`,
-/// and the local `LocalStore`. One instance lives for the app lifetime.
+/// Per-computer observable model: owns its `ConnectionStore`, `GatewayClient`,
+/// and chat state. `MachineStore` retains one instance per paired session.
 ///
 /// `scenePhase` hooks (`active` / `background`) drive the socket lifecycle:
 /// - `.active` → `reconnectIfNeeded()` — nudges a stale socket back to life
@@ -13,17 +13,18 @@ import SwiftUI
 final class AppModel {
     let store: LocalStore
     let connection: ConnectionStore
+    let sessionIdentity: String?
+    var onUnpaired: (() -> Void)?
     let gateway: GatewayClient
     let speaker = SpeakerModel()
-    let settings = ChatSettings()
+    let settings: ChatSettings
     let models = ModelSettingsStore()
-    let auth = AuthStore()
+    let auth: AuthStore
     private(set) var inboxReadState = InboxReadState()
     private var inboxReadEnvironmentId: String?
     private let readDefaults: UserDefaults
     private var inboxPendingAnswers: [String: String] = [:]
     private var isForeground = true
-    /// Settings or another cover is hiding the selected transcript.
     private(set) var isConversationCovered = false
 
     /// Current environment snapshot received after the WebSocket handshake.
@@ -52,12 +53,15 @@ final class AppModel {
 
     var isPaired: Bool { connection.isPaired }
 
-    init(store: LocalStore? = nil, gateway: GatewayClient? = nil, readDefaults: UserDefaults = .standard) {
+    init(store: LocalStore? = nil, gateway: GatewayClient? = nil, readDefaults: UserDefaults = .standard, environmentId: String? = nil, loadSavedSession: Bool = true, settings: ChatSettings? = nil, auth: AuthStore? = nil) {
         self.readDefaults = readDefaults
+        self.settings = settings ?? ChatSettings()
+        self.auth = auth ?? AuthStore()
         let resolvedStore = store ?? LocalStore()
         self.store = resolvedStore
         self.gateway = gateway ?? GatewayClient()
-        connection = ConnectionStore(store: resolvedStore)
+        connection = ConnectionStore(store: resolvedStore, environmentId: environmentId, loadSavedSession: loadSavedSession)
+        sessionIdentity = connection.session?.sessionId
         hydrateCachedSnapshot()
         wireGateway()
     }
@@ -85,6 +89,26 @@ final class AppModel {
         gateway.nudge()
     }
 
+    func setConversationCovered(_ covered: Bool) {
+        guard isConversationCovered != covered else { return }
+        isConversationCovered = covered
+        if !covered { updateInboxReads() }
+    }
+
+    func stop() {
+        gateway.disconnect()
+        failPendingCommands()
+        snapshotRefreshTask?.cancel()
+        snapshotRequestGeneration += 1
+        activeChat = nil
+        selectedThreadId = nil
+        speaker.stop()
+    }
+
+    var connectionWarning: GraftError? {
+        gatewayError.flatMap { $0.isOffline ? nil : $0 }
+    }
+
     func suspendForBackground() {
         AppLog.networking.info("App backgrounded — suspending gateway")
         gateway.suspendForBackground()
@@ -95,48 +119,16 @@ final class AppModel {
         reconnectIfNeeded()
     }
 
-    func unpair(_ environmentId: String? = nil) async {
-        let removingCurrent = environmentId == nil || environmentId == connection.session?.environmentId
-        guard await connection.unpair(environmentId) else {
+    func unpair() async {
+        guard sessionIdentity == nil || sessionIdentity == connection.session?.sessionId else {
+            stop()
+            onUnpaired?()
+            return
+        }
+        guard await connection.unpair() else {
             gatewayError = connection.pairingError
             return
         }
-        if connection.isPaired {
-            if removingCurrent { resetForSessionSwitch() }
-            return
-        }
-        clearPairedRuntime()
-    }
-
-    func activateSession(_ environmentId: String) {
-        guard environmentId != connection.session?.environmentId else { return }
-        connection.activate(environmentId: environmentId)
-        resetForSessionSwitch()
-    }
-
-    func pair(with payload: PairingPayload) async {
-        let previousSessionId = connection.session?.sessionId
-        await connection.pair(with: payload)
-        if connection.pairingError == nil, connection.session?.sessionId != previousSessionId {
-            resetForSessionSwitch()
-        } else if let error = connection.pairingError {
-            gatewayError = error
-        }
-    }
-
-    func setConversationCovered(_ covered: Bool) {
-        guard isConversationCovered != covered else { return }
-        isConversationCovered = covered
-        if !covered { updateInboxReads() }
-    }
-
-    private func resetForSessionSwitch() {
-        clearPairedRuntime()
-        hydrateCachedSnapshot()
-        updateInboxReads()
-    }
-
-    private func clearPairedRuntime() {
         gateway.disconnect()
         // `disconnect()` tears down without broadcasting, so fail waiters here.
         failPendingCommands()
@@ -153,6 +145,7 @@ final class AppModel {
         models.reset()
         threadEfforts = [:]
         threadFastModes = [:]
+        onUnpaired?()
     }
 
     func openThread(_ threadId: String, title: String = "") async {
@@ -164,7 +157,7 @@ final class AppModel {
             }
             hydrateCachedTranscript(threadId)
         }
-        await refreshSnapshot()
+        if gateway.state == .connected { await refreshSnapshot() }
     }
 
     /// Paint the last-known transcript from disk while `refreshSnapshot`
@@ -173,7 +166,7 @@ final class AppModel {
     private func hydrateCachedTranscript(_ threadId: String) {
         guard let chat = activeChat, chat.threadId == threadId else { return }
         do {
-            guard let transcript = try store.decodedTranscript(threadId: threadId) else { return }
+            guard let transcript = try store.decodedTranscript(threadId: threadId, environmentId: connection.session?.environmentId ?? "") else { return }
             chat.applyCachedTranscript(transcript)
         } catch {
             AppLog.persistence.warning(
@@ -206,7 +199,7 @@ final class AppModel {
                 )
             )
             guard response.receipt?.status != "rejected" else {
-                gatewayError = .unreachable("Studio could not start this turn.")
+                gatewayError = .hostError(code: "command_rejected", message: "Studio could not start this turn.", retryable: false)
                 return false
             }
             scheduleSnapshotRefresh()
@@ -215,7 +208,7 @@ final class AppModel {
             gatewayError = error
             return false
         } catch {
-            gatewayError = .unreachable(error.localizedDescription)
+            gatewayError = .transport(error)
             return false
         }
     }
@@ -238,7 +231,7 @@ final class AppModel {
             gatewayError = error
             return false
         } catch {
-            gatewayError = .unreachable(error.localizedDescription)
+            gatewayError = .transport(error)
             return false
         }
     }
@@ -421,7 +414,7 @@ final class AppModel {
             gatewayError = error
             return false
         } catch {
-            gatewayError = .unreachable(error.localizedDescription)
+            gatewayError = .transport(error)
             return false
         }
     }
@@ -461,7 +454,7 @@ final class AppModel {
             gatewayError = error
             return nil
         } catch {
-            gatewayError = .unreachable(error.localizedDescription)
+            gatewayError = .transport(error)
             return nil
         }
     }
@@ -487,7 +480,7 @@ final class AppModel {
             gatewayError = error
             return nil
         } catch {
-            gatewayError = .unreachable(error.localizedDescription)
+            gatewayError = .transport(error)
             return nil
         }
     }
@@ -497,7 +490,7 @@ final class AppModel {
             command: .composerCommands(ComposerCommandsCommand(threadId: threadId))
         ))
         guard let commands = response.result?.commands else {
-            throw GraftError.unreachable("Studio could not load commands. Reopen the / menu to retry.")
+            throw GraftError.decoding("Studio could not load commands. Reopen the / menu to retry.")
         }
         return commands
     }
@@ -507,7 +500,7 @@ final class AppModel {
             command: .composerSkillRead(ComposerSkillReadCommand(threadId: threadId, name: name))
         ))
         guard let skill = response.result?.skill else {
-            throw GraftError.unreachable("Studio could not load this skill. Try again.")
+            throw GraftError.decoding("Studio could not load this skill. Try again.")
         }
         return skill
     }
@@ -517,7 +510,7 @@ final class AppModel {
             command: .filesResolve(FilesResolveCommand(threadId: threadId, references: references))
         ))
         guard let references = response.result?.references else {
-            throw GraftError.unreachable("Studio could not resolve file references.")
+            throw GraftError.decoding("Studio could not resolve file references.")
         }
         return references
     }
@@ -527,7 +520,7 @@ final class AppModel {
             command: .fileRead(FileReadCommand(threadId: threadId, path: path))
         ))
         guard let file = response.result?.file else {
-            throw GraftError.unreachable("Studio could not open this workspace file.")
+            throw GraftError.decoding("Studio could not open this workspace file.")
         }
         return file
     }
@@ -590,6 +583,10 @@ final class AppModel {
             )
         }
 
+        gateway.onFailure = { [weak self] error in
+            self?.handleConnectionError(error)
+        }
+
         _ = gateway.addListener { [weak self] event in
             self?.handleGatewayEvent(event)
         }
@@ -612,6 +609,7 @@ final class AppModel {
         case "gateway.disconnected":
             AppLog.networking.info("Gateway disconnected")
             failPendingCommands()
+            activeChat?.finishHistoryLoading()
         default:
             break
         }
@@ -619,13 +617,23 @@ final class AppModel {
 
     private func handleWelcome(_ data: Data) {
         guard let welcome = try? JSONDecoder().decode(HostWelcome.self, from: data) else { return }
+        guard welcome.environmentId == connection.session?.environmentId else {
+            gatewayError = .decoding("Welcome belongs to another computer.")
+            stop()
+            return
+        }
         AppLog.networking.info("Gateway welcome from \(welcome.environmentLabel), cursor=\(welcome.cursor)")
         gatewayError = nil
         scheduleSnapshotRefresh(immediately: true)
+        Task { [weak self] in await self?.activeChat?.refreshDiff() }
     }
 
     private func handleSnapshot(_ data: Data) {
         guard let snap = try? JSONDecoder().decode(EnvironmentSnapshot.self, from: data) else { return }
+        guard snap.environment.id == connection.session?.environmentId else {
+            gatewayError = .decoding("Snapshot belongs to another computer.")
+            return
+        }
         snapshot = snap
         activeChat?.applySnapshot(snap)
         updateInboxReads()
@@ -680,13 +688,18 @@ final class AppModel {
     private func handleHostError(_ data: Data) {
         guard let hostErr = try? JSONDecoder().decode(HostError.self, from: data) else { return }
         let detail = hostErr.error
-        gatewayError = .hostError(
+        handleConnectionError(.hostError(
             code: detail.code,
             message: detail.message,
             retryable: detail.retryable ?? false
-        )
+        ))
         AppLog.networking.error("Host error: \(detail.code) — \(detail.message)")
-        if detail.code == "device_revoked" || detail.code == "session_revoked" {
+    }
+
+    private func handleConnectionError(_ error: GraftError) {
+        gatewayError = error
+        if case .hostError(let code, _, _) = error,
+           code == "device_revoked" || code == "session_revoked" {
             Task { [weak self] in
                 await self?.unpair()
             }
@@ -727,8 +740,14 @@ final class AppModel {
         snapshotRequestGeneration += 1
         let generation = snapshotRequestGeneration
         let threadID = selectedThreadId
+        defer {
+            if generation == snapshotRequestGeneration { activeChat?.finishHistoryLoading() }
+        }
         do {
             let refreshed = try await client.snapshot(threadId: threadID)
+            guard refreshed.environment.id == connection.session?.environmentId else {
+                throw GraftError.decoding("Snapshot belongs to another computer.")
+            }
             guard generation == snapshotRequestGeneration, threadID == selectedThreadId else { return }
             snapshot = refreshed
             activeChat?.applySnapshot(refreshed)
@@ -739,14 +758,14 @@ final class AppModel {
                 "Refreshed environment snapshot at cursor \(refreshed.cursor)"
             )
         } catch let error as GraftError {
-            guard generation == snapshotRequestGeneration else { return }
+            guard !Task.isCancelled, generation == snapshotRequestGeneration else { return }
             gatewayError = error
             AppLog.networking.warning(
                 "Snapshot refresh failed: \(error.localizedDescription)"
             )
         } catch {
-            guard generation == snapshotRequestGeneration else { return }
-            gatewayError = .unreachable(error.localizedDescription)
+            guard !Task.isCancelled, generation == snapshotRequestGeneration else { return }
+            gatewayError = .transport(error)
             AppLog.networking.warning(
                 "Snapshot refresh failed: \(error.localizedDescription)"
             )
@@ -827,4 +846,67 @@ final class AppModel {
             )
         }
     }
+}
+
+
+/// Each paired computer owns its transport, commands, cursor and transcript.
+/// Filtering the inbox never swaps the transport underneath an open chat.
+@MainActor
+@Observable
+final class MachineStore {
+    let store: LocalStore
+    let pairingApp: AppModel
+    private(set) var machines: [AppModel] = []
+    private(set) var error: String?
+    private var isForeground = true
+
+    init(store: LocalStore? = nil) {
+        let store = store ?? LocalStore()
+        self.store = store
+        pairingApp = AppModel(store: store, loadSavedSession: false)
+        reload()
+    }
+
+    func reload() {
+        do {
+            let sessions = try store.allSessions()
+            let previous = machines
+            machines = sessions.map { session in
+                if let existing = previous.first(where: {
+                    $0.environmentId == session.environmentId && $0.sessionIdentity == session.sessionId
+                }) { return existing }
+                let machine = AppModel(
+                    store: store, environmentId: session.environmentId,
+                    settings: pairingApp.settings, auth: pairingApp.auth
+                )
+                machine.onUnpaired = { [weak self] in self?.reload() }
+                return machine
+            }
+            for old in previous where !machines.contains(where: { $0 === old }) { old.stop() }
+            if isForeground { machines.forEach { $0.reconnectIfNeeded() } }
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func machine(_ id: String?) -> AppModel? {
+        machines.first { $0.environmentId == id }
+    }
+
+    func remove(_ machine: AppModel) async {
+        await machine.unpair()
+        reload()
+    }
+
+    func scenePhaseChanged(_ phase: ScenePhase) {
+        isForeground = phase == .active
+        machines.forEach { $0.scenePhaseChanged(phase) }
+    }
+}
+
+extension AppModel: Identifiable {
+    var id: String { environmentId ?? "unpaired" }
+    var environmentId: String? { connection.session?.environmentId }
+    var environmentLabel: String { connection.session?.environmentLabel ?? "Studio" }
 }

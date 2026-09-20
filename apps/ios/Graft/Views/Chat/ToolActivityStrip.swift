@@ -124,6 +124,7 @@ struct ToolActivityStrip: View {
 /// (still-streaming) segment opens by default so the chain of thought is there
 /// the instant you reveal it; sealed segments stay folded to their duration.
 struct ExpandedThought: View {
+    @Environment(\.transcriptConnectionActive) private var connectionActive
     let item: TranscriptItem
     @State private var open: Bool
 
@@ -167,7 +168,7 @@ struct ExpandedThought: View {
         if let duration = item.reasoningDuration, duration >= 0.5 {
             return "Thought for \(max(1, Int(duration.rounded())))s"
         }
-        return item.isStreaming ? "Thinking" : "Thought"
+        return item.isStreaming && connectionActive ? "Thinking" : "Thought"
     }
 }
 

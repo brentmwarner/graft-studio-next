@@ -3,8 +3,9 @@ import SwiftUI
 /// App settings reached from the nav drawer: pairing, account, and app info.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
-    @Environment(\.dismiss) private var dismiss
+    @Environment(MachineStore.self) private var machines
     @State private var showPairing = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         @Bindable var settings = app.settings
@@ -19,51 +20,21 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    ForEach(computers, id: \.environmentId) { computer in
-                        let isActive = computer.environmentId == app.connection.session?.environmentId
-                        Button {
-                            app.activateSession(computer.environmentId)
-                        } label: {
-                            LabeledContent {
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(
-                                            isActive && app.gateway.state == .connected
-                                                ? Color.green : Color.secondary
-                                        )
-                                        .frame(width: 7, height: 7)
-                                    Text(verbatim: computerLabel(computer))
-                                }
-                            } label: {
-                                Text(isActive ? "Studio" : computerLabel(computer),
-                                     comment: "Paired desktop row label")
+                    ForEach(machines.machines) { machine in
+                        HStack {
+                            Circle().fill(machine.gateway.state == .connected ? Color.green : Color.red)
+                                .frame(width: 7, height: 7)
+                            Text(verbatim: machine.environmentLabel)
+                            Spacer()
+                            Button("Remove", role: .destructive) {
+                                Task { await machines.remove(machine) }
                             }
-                        }
-                        .disabled(isActive)
-                        .foregroundStyle(.primary)
-
-                        Button(role: .destructive) {
-                            Task {
-                                await app.unpair(computer.environmentId)
-                                if !app.isPaired { dismiss() }
-                            }
-                        } label: {
-                            Text(
-                                computers.count > 1
-                                    ? "Disconnect \(computerLabel(computer))"
-                                    : "Disconnect",
-                                comment: "Unpair from the desktop"
-                            )
+                            .accessibilityLabel("Remove \(machine.environmentLabel)")
                         }
                     }
-
-                    Button {
-                        showPairing = true
-                    } label: {
-                        Text("Pair another computer", comment: "Add another Studio pairing")
-                    }
+                    Button("Add computer", systemImage: "plus") { showPairing = true }
                 } header: {
-                    PlainHeader("Connection")
+                    PlainHeader("Computers")
                 }
 
                 if app.auth.isSignedIn, let email = app.auth.email {
@@ -96,6 +67,9 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .drawerSurface()
+            .sheet(isPresented: $showPairing) {
+                PairingView(isPresented: $showPairing).environment(machines.pairingApp)
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -107,22 +81,14 @@ struct SettingsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showPairing) {
-                PairingView(isPresented: $showPairing)
-            }
         }
     }
 
-    private var computers: [PersistedSession] {
-        let stored = app.connection.sessions
-        if stored.isEmpty, let session = app.connection.session {
-            return [session]
+    private var hostLabel: String {
+        if let label = app.connection.session?.environmentLabel, !label.isEmpty {
+            return label
         }
-        return stored
-    }
-
-    private func computerLabel(_ session: PersistedSession) -> String {
-        session.environmentLabel.isEmpty ? "Studio" : session.environmentLabel
+        return "Studio"
     }
 
     private var appVersion: String {
@@ -139,4 +105,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppModel())
+        .environment(MachineStore())
 }

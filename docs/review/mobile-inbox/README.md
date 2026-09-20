@@ -27,9 +27,13 @@ working spinners from unread response dots.
   on this device show a blue dot. Requests needing input use an attention icon.
 - Read receipts persist per paired computer. Opening the loaded transcript while
   foregrounded clears its dot; reconnect/replay does not restore an already read dot.
-- Clients keep one live gateway at a time and can store multiple paired
-  computers. Switching computers reloads that computer's inbox, view mode, and
-  read receipts. There is no merged multi-computer inbox.
+- Clients keep independent connections to every paired computer. All merges the
+  inbox; computer chips filter without disconnecting other machines. An offline
+  computer shows a red dot and cached content without stale progress or warnings.
+  Add computer is available in Projects → ⋯ and Settings → Computers.
+- The multi-computer follow-up's checks and native verification gaps are recorded
+  in [its review notes](../mobile-multi-machine/README.md). The captures and counts
+  below describe the earlier inbox work.
 
 ## Automated checks
 

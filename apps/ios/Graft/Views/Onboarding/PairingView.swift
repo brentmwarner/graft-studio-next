@@ -117,7 +117,7 @@ struct PairingView: View {
             return false
         }
         onValidPayload()
-        Task { await app.pair(with: payload) }
+        Task { await app.connection.pair(with: payload) }
         return true
     }
 }
@@ -220,11 +220,8 @@ private struct PairingConnectionSyncModifier: ViewModifier {
                     errorMessage = pairingErrorMessage(newError)
                 }
             }
-            .onChange(of: connection.isPaired) { _, isPaired in
-                if isPaired { isPresented = false }
-            }
-            .onChange(of: connection.session?.sessionId) { oldId, newId in
-                if let newId, newId != oldId { isPresented = false }
+            .onChange(of: connection.session?.sessionId) { _, sessionId in
+                if sessionId != nil { isPresented = false }
             }
     }
 }
@@ -267,4 +264,5 @@ private func pairingErrorMessage(_ error: GraftError) -> String {
 #Preview {
     PairingView(isPresented: .constant(true))
         .environment(AppModel())
+        .environment(MachineStore())
 }
