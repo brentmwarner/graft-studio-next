@@ -37,7 +37,7 @@ export function recentInboxThreads(
       (thread) =>
         rank(thread) < 2 || !["new thread", "untitled"].includes(thread.title.toLowerCase()),
     )
-    .toSorted((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
+    .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
     .slice(0, limit)
     .map((thread) => ({
       id: thread.id,
@@ -78,7 +78,7 @@ export function groupInboxThreads(
 
   const threads = snapshot.threads
     .filter((thread) => matchingIds.has(thread.id))
-    .toSorted((left, right) => {
+    .sort((left, right) => {
       if (mode === "priority" && rank(left) !== rank(right)) return rank(left) - rank(right);
       return right.updatedAt - left.updatedAt || left.id.localeCompare(right.id);
     });

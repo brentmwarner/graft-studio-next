@@ -137,3 +137,17 @@ it("keeps active and attention threads in Recents ahead of recent idle work", ()
   expect(recent.find((item) => item.id === "today-newest")?.activity).toBe("unread");
   expect(recentInboxThreads(snapshot, {}, 2)).toHaveLength(2);
 });
+
+it("sorts fresh arrays without mutating the snapshot when modern copy-sort APIs are unavailable", () => {
+  const original = snapshot.threads.map((thread) => thread.id);
+  const copySort = Object.getOwnPropertyDescriptor(Array.prototype, "toSorted");
+  Object.defineProperty(Array.prototype, "toSorted", { configurable: true, value: undefined });
+  try {
+    expect(recentInboxThreads(snapshot)).toHaveLength(10);
+    expect(groupInboxThreads(snapshot, "chronological", "", now)).not.toHaveLength(0);
+    expect(snapshot.threads.map((thread) => thread.id)).toEqual(original);
+  } finally {
+    if (copySort) Object.defineProperty(Array.prototype, "toSorted", copySort);
+    else Reflect.deleteProperty(Array.prototype, "toSorted");
+  }
+});
