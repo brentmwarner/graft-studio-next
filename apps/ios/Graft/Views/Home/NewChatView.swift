@@ -411,7 +411,7 @@ struct NewChatView: View {
             let item = InboxThreadItem(
                 id: thread.id,
                 title: thread.title,
-                showsAttentionDot: false
+                activity: .idle
             )
             if let onOpenedThread {
                 onOpenedThread(item)

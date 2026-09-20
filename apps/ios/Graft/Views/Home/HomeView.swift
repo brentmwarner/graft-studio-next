@@ -56,7 +56,7 @@ struct HomeView: View {
             isOpen: $showDrawer,
             hostLabel: hostLabel,
             isConnected: app.gateway.state == .connected,
-            recentThreads: InboxGrouping.recentThreads(from: app.snapshot),
+            recentThreads: InboxGrouping.recentThreads(from: app.snapshot, unreadThreadIds: app.inboxReadState.unreadThreadIds),
             canSwipeOpen: selectedThread == nil && newChatContext == nil,
             onSearch: { focusInboxSearch() },
             onSelectThread: openThread,
@@ -80,10 +80,11 @@ struct HomeView: View {
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 RemoteInboxScreen(
                     projects: inboxProjects,
+                    recentThreads: usesPersistentSidebar ? InboxGrouping.recentThreads(from: app.snapshot, unreadThreadIds: app.inboxReadState.unreadThreadIds) : [],
                     isLoading: app.snapshot == nil && app.isPaired,
                     expandedProjectIds: $expandedProjectIds,
                     mode: viewMode,
-                    sections: InboxGrouping.sections(from: app.snapshot, mode: viewMode, searchQuery: searchText, now: context.date),
+                    sections: InboxGrouping.sections(from: app.snapshot, mode: viewMode, searchQuery: searchText, now: context.date, unreadThreadIds: app.inboxReadState.unreadThreadIds),
                     searchQuery: searchText,
                     selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
                     fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
@@ -164,7 +165,7 @@ struct HomeView: View {
     }
 
     private var inboxProjects: [InboxProjectGroup] {
-        InboxGrouping.projects(from: app.snapshot, searchQuery: searchText)
+        InboxGrouping.projects(from: app.snapshot, searchQuery: searchText, unreadThreadIds: app.inboxReadState.unreadThreadIds)
     }
 
     private func openThread(_ thread: InboxThreadItem) {
@@ -287,6 +288,7 @@ struct InboxTitleLockup: View {
 
 struct RemoteInboxScreen: View {
     let projects: [InboxProjectGroup]
+    var recentThreads: [InboxThreadItem] = []
     let isLoading: Bool
     @Binding var expandedProjectIds: Set<String>
     var mode: InboxViewMode = .project
@@ -319,7 +321,40 @@ struct RemoteInboxScreen: View {
                             )
                             .padding(.top, 48)
                         } else if mode == .project {
-                            ForEach(projects) { project in
+                            if !isSearching && !recentThreads.isEmpty {
+                                Text("Recents").font(.headline).padding(.horizontal, 20).padding(.vertical, 16)
+                                ForEach(recentThreads) { thread in
+                                    RemoteThreadRow(title: thread.title, activity: thread.activity,
+                                        isSelected: selectedThreadId == thread.id, leadingInset: 20,
+                                        action: { onSelectThread(thread) })
+                                }
+                            }
+                            HStack {
+                                Text("Chats").font(.headline)
+                                Spacer()
+                                if let project = projects.first(where: { $0.kind == "desktop" }) {
+                                    Button { onComposeInProject(project.id) } label: {
+                                        Image(systemName: "square.and.pencil").frame(width: 44, height: 44)
+                                    }
+                                    .accessibilityLabel("New chat in Chats")
+                                    .tint(.primary)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .frame(minHeight: 52)
+                            let chats = projects.filter { $0.kind == "desktop" }.flatMap(\.threads)
+                            ForEach(chats) { thread in
+                                RemoteThreadRow(title: thread.title, activity: thread.activity,
+                                    isSelected: selectedThreadId == thread.id, leadingInset: 20,
+                                    action: { onSelectThread(thread) })
+                            }
+                            if chats.isEmpty {
+                                Text(isSearching ? "No matching chats" : "Chats started in Studio appear here.")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 20).padding(.bottom, 16)
+                            }
+                            Text("Projects").font(.headline).padding(.horizontal, 20).padding(.vertical, 16)
+                            ForEach(projects.filter { $0.kind != "desktop" }) { project in
                                 RemoteProjectSection(
                                     name: project.name,
                                     threads: project.threads,
@@ -361,7 +396,7 @@ struct RemoteInboxScreen: View {
                                         ForEach(section.threads) { entry in
                                             RemoteThreadRow(
                                                 title: entry.thread.title,
-                                                showsAttentionDot: entry.thread.showsAttentionDot,
+                                                activity: entry.thread.activity,
                                                 isSelected: selectedThreadId == entry.id,
                                                 projectName: mode == .priority ? entry.projectName : nil,
                                                 leadingInset: 20,
@@ -439,7 +474,7 @@ struct RemoteProjectSection: View {
                 ForEach(threads) { thread in
                     RemoteThreadRow(
                         title: thread.title,
-                        showsAttentionDot: thread.showsAttentionDot,
+                        activity: thread.activity,
                         isSelected: selectedThreadId == thread.id,
                         action: { onSelectThread(thread) }
                     )
@@ -558,7 +593,7 @@ struct OpenFolderGlyph: Shape {
 
 struct RemoteThreadRow: View {
     let title: String
-    let showsAttentionDot: Bool
+    var activity: InboxThreadActivity = .idle
     var isSelected: Bool = false
     var projectName: String? = nil
     var leadingInset: CGFloat = 52
@@ -583,14 +618,7 @@ struct RemoteThreadRow: View {
 
                 Spacer(minLength: 8)
 
-                if showsAttentionDot {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 8, height: 8)
-                        .accessibilityLabel(
-                            Text("Needs attention", comment: "Unread/active thread indicator")
-                        )
-                }
+                InboxThreadActivityIndicator(activity: activity)
             }
             .padding(.leading, leadingInset)
             .padding(.trailing, 20)
@@ -712,17 +740,17 @@ private func homeErrorMessage(_ error: GraftError) -> String {
             id: "1",
             name: "graft-studio",
             threads: [
-                InboxThreadItem(id: "t1", title: "Audit Graft identity coverage", showsAttentionDot: true),
-                InboxThreadItem(id: "t2", title: "Audit capability coverage for Graft", showsAttentionDot: false),
-                InboxThreadItem(id: "t9", title: "Plan Graft Mobile remote access", showsAttentionDot: false),
+                InboxThreadItem(id: "t1", title: "Audit Graft identity coverage", activity: .working),
+                InboxThreadItem(id: "t2", title: "Audit capability coverage for Graft", activity: .idle),
+                InboxThreadItem(id: "t9", title: "Plan Graft Mobile remote access", activity: .idle),
             ]
         ),
         InboxProjectGroup(
             id: "2",
             name: "graft",
             threads: [
-                InboxThreadItem(id: "t4", title: "Polish remote inbox hierarchy", showsAttentionDot: false),
-                InboxThreadItem(id: "t5", title: "Wire approval prompts on mobile", showsAttentionDot: false),
+                InboxThreadItem(id: "t4", title: "Polish remote inbox hierarchy", activity: .idle),
+                InboxThreadItem(id: "t5", title: "Wire approval prompts on mobile", activity: .idle),
             ]
         ),
     ]
@@ -751,6 +779,32 @@ private func homeErrorMessage(_ error: GraftError) -> String {
             ToolbarItem(placement: .principal) {
                 InboxTitleLockup(hostLabel: "MacBook-Pro-2.local", isConnected: true)
             }
+        }
+    }
+}
+
+struct InboxThreadActivityIndicator: View {
+    let activity: InboxThreadActivity
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        switch activity {
+        case .working:
+            Group {
+                if reduceMotion { Image(systemName: "hourglass") }
+                else { ProgressView().controlSize(.small).tint(.secondary) }
+            }
+            .frame(width: 18, height: 18)
+            .accessibilityLabel("Working")
+        case .unread:
+            Circle().fill(Color.blue).frame(width: 8, height: 8)
+                .accessibilityLabel("Unread response")
+        case .needsAttention:
+            Image(systemName: "exclamationmark.circle")
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Needs attention")
+        case .idle:
+            EmptyView()
         }
     }
 }

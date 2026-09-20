@@ -87,6 +87,8 @@ describe("mobile view models", () => {
         },
       ],
       activeRuns: [],
+      pendingApprovals: [],
+      pendingQuestions: [],
     } as unknown as GraftEnvironmentSnapshot;
 
     expect(groupProjects(snapshot, "")).toEqual([
@@ -95,8 +97,8 @@ describe("mobile view models", () => {
         kind: "repo",
         name: "Graft",
         threads: [
-          { id: "thread-a", title: "Android parity", showsAttentionDot: true },
-          { id: "thread-b", title: "Zebra", showsAttentionDot: false },
+          { id: "thread-a", title: "Android parity", activity: "needs_attention" },
+          { id: "thread-b", title: "Zebra", activity: "idle" },
         ],
       },
     ]);

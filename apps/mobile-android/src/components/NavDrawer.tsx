@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
+import { ThreadActivityIndicator } from "./ThreadActivityIndicator";
+import type { InboxThreadItem } from "../state/mobileViewModels";
 import { useGraftPalette } from "../theme/tokens";
 
 /// How far the content slides — which is also the revealed menu width.
@@ -28,6 +30,9 @@ interface NavDrawerLayoutProps extends PropsWithChildren {
   readonly onClose: () => void;
   readonly onOpen: () => void;
   readonly onSettings: () => void;
+  readonly onProjects: () => void;
+  readonly recentThreads: readonly InboxThreadItem[];
+  readonly onSelectThread: (thread: InboxThreadItem) => void;
 }
 
 interface DrawerRowProps {
@@ -72,6 +77,9 @@ export function NavDrawerLayout({
   onClose,
   onOpen,
   onSettings,
+  onProjects,
+  recentThreads,
+  onSelectThread,
 }: NavDrawerLayoutProps) {
   const insets = useSafeAreaInsets();
   const palette = useGraftPalette();
@@ -144,7 +152,7 @@ export function NavDrawerLayout({
         ]}
       >
         <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
-        <DrawerRow icon="folder-outline" label="Projects" onPress={onClose} />
+        <DrawerRow icon="folder-outline" label="Projects" onPress={onProjects} />
         <DrawerRow
           icon="laptop-outline"
           label={hostLabel}
@@ -160,7 +168,28 @@ export function NavDrawerLayout({
             />
           }
         />
-        <View style={styles.spacer} />
+        <ScrollView
+          style={styles.spacer}
+          contentContainerStyle={{ paddingTop: 20, paddingBottom: 16 }}
+        >
+          <Text
+            style={[
+              styles.rowLabel,
+              { color: palette.foregroundSubtle, paddingHorizontal: 24, paddingBottom: 8 },
+            ]}
+          >
+            Recents
+          </Text>
+          {recentThreads.map((thread) => (
+            <DrawerRow
+              key={thread.id}
+              icon="chatbubble-outline"
+              label={thread.title}
+              onPress={() => onSelectThread(thread)}
+              trailing={<ThreadActivityIndicator activity={thread.activity} />}
+            />
+          ))}
+        </ScrollView>
         <DrawerRow icon="settings-outline" label="Settings" onPress={onSettings} />
       </View>
 

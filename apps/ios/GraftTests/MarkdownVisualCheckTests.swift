@@ -32,8 +32,13 @@ final class MarkdownVisualCheckTests: XCTestCase {
             return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
                 .joined().lowercased().filter(\.isLetter)
         }
-        let snapshot = InboxGroupingTests.viewFixture
-        let projects = InboxGrouping.projects(from: snapshot, searchQuery: "")
+        let base = InboxGroupingTests.viewFixture
+        let snapshot = EnvironmentSnapshot(environment: base.environment,
+            projects: base.projects + [ProjectInfo(id: "chats", name: "Chats", kind: "desktop", path: nil)],
+            threads: base.threads + [ThreadInfo(id: "chat", projectId: "chats", title: "Plan weekend", updatedAt: 1, status: "idle")],
+            activeRuns: base.activeRuns, pendingApprovals: base.pendingApprovals,
+            pendingQuestions: base.pendingQuestions, selectedTranscript: nil, cursor: base.cursor)
+        let projects = InboxGrouping.projects(from: snapshot, searchQuery: "", unreadThreadIds: ["chat"])
         for width: CGFloat in [440, 384] {
             for mode in InboxViewMode.allCases {
                 let view = RemoteInboxScreen(
@@ -50,6 +55,8 @@ final class MarkdownVisualCheckTests: XCTestCase {
                 let text = try visibleText(capture)
                 if mode == .project {
                     XCTAssertTrue(text.contains("graft"))
+                    XCTAssertTrue(text.contains("chats"))
+                    XCTAssertTrue(text.contains("planweekend"))
                     XCTAssertFalse(text.contains("todaynewest"), "Project children start collapsed.")
                 } else {
                     XCTAssertTrue(text.contains("todaynewest"))

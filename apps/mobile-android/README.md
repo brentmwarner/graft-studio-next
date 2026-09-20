@@ -30,7 +30,16 @@ The top-right menu selects **Priority**, **By Project**, or **Chronological**, a
 remembers that choice across launches. By Project is the initial view. Projects
 start collapsed; folders opened manually stay open while navigating chats or
 switching views during the session. Search reveals matching titles and projects
-without changing the normal folder expansion state.
+without changing the normal folder expansion state. Non-repository chats appear
+in **Chats** above the project folders. The drawer includes **Recents**, with
+requests and active runs first, followed by recently updated threads.
+
+Thread rows show a spinner while working, an attention icon for requests, and a
+blue dot for a completed response not yet opened on this device. Read receipts
+are stored per paired computer and survive app restarts. The dot clears when the
+thread transcript opens in the foreground. New hosts include `lastCompletedAt`
+so completions missed while offline can be restored; older hosts are supported
+through observed live response completions.
 
 Chronological groups threads by their most recent update: Today, Yesterday,
 Previous 7 days, and Older, using the device's local calendar. Priority first

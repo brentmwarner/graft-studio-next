@@ -268,7 +268,7 @@ private struct NavDrawerRow: View {
 }
 
 /// A recent thread in the drawer: truncated title, PR state glyph when the
-/// thread tracks one, attention dot when live.
+/// thread tracks one, plus work, unread, or attention state.
 private struct NavDrawerThreadRow: View {
     let thread: InboxThreadItem
     let action: () -> Void
@@ -286,14 +286,7 @@ private struct NavDrawerThreadRow: View {
                     PrStateGlyph(state: pr.state)
                         .accessibilityLabel(pr.state.accessibilityLabel)
                 }
-                if thread.showsAttentionDot {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 8, height: 8)
-                        .accessibilityLabel(
-                            Text("Needs attention", comment: "Unread/active thread indicator")
-                        )
-                }
+                InboxThreadActivityIndicator(activity: thread.activity)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 11)
@@ -469,31 +462,31 @@ private struct NavDrawerConnectionRow: View {
             InboxThreadItem(
                 id: "t1",
                 title: "Audit Graft identity coverage",
-                showsAttentionDot: true,
+                activity: .working,
                 pr: ThreadPrInfo(number: 201, state: .open)
             ),
             InboxThreadItem(
                 id: "t2",
                 title: "Polish remote inbox hierarchy with a very long name",
-                showsAttentionDot: false,
+                activity: .idle,
                 pr: ThreadPrInfo(number: 195, state: .merged)
             ),
             InboxThreadItem(
                 id: "t9",
                 title: "Wire approval prompts on mobile",
-                showsAttentionDot: false,
+                activity: .idle,
                 pr: ThreadPrInfo(number: 188, state: .changesRequested)
             ),
             InboxThreadItem(
                 id: "t4",
                 title: "Spike drag to reorder",
-                showsAttentionDot: false,
+                activity: .idle,
                 pr: ThreadPrInfo(number: 168, state: .draft)
             ),
             InboxThreadItem(
                 id: "t5",
                 title: "Legacy onboarding pass",
-                showsAttentionDot: false,
+                activity: .idle,
                 pr: ThreadPrInfo(number: 90, state: .closed)
             ),
         ],

@@ -5,6 +5,7 @@ import { BackHandler, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { MenuProvider } from "./src/components/MenuProvider";
+import { recentInboxThreads } from "./src/state/inboxGrouping";
 import { NavDrawerLayout } from "./src/components/NavDrawer";
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { NewChatScreen } from "./src/screens/NewChatScreen";
@@ -13,6 +14,7 @@ import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { ThreadScreen } from "./src/screens/ThreadScreen";
 import { groupProjects } from "./src/state/mobileViewModels";
+import { useInboxReadState } from "./src/state/useInboxReadState";
 import { useGraftSession } from "./src/state/useGraftSession";
 import { loadInboxViewMode, saveInboxViewMode } from "./src/storage/inboxPreferences";
 import { useGraftPalette } from "./src/theme/tokens";
@@ -36,6 +38,12 @@ function GraftApp() {
   const [expandedProjectIds, setExpandedProjectIds] = useState<ReadonlySet<string>>(new Set());
   const paired = session.state.status === "paired" ? session.state : null;
   const pairedSnapshot = paired?.snapshot ?? null;
+  const inboxReads = useInboxReadState(
+    paired?.session.environmentId,
+    pairedSnapshot,
+    paired?.liveEvents,
+    route.name === "thread" && !isDrawerOpen && !showSettings ? route.thread.id : undefined,
+  );
 
   useEffect(() => {
     void Linking.getInitialURL().then((url) => {
@@ -104,6 +112,15 @@ function GraftApp() {
               whole screen — top bar included — exactly like the iOS
               `NavDrawerLayout` wrapping its `NavigationStack`. */}
           <NavDrawerLayout
+            recentThreads={recentInboxThreads(pairedSnapshot, inboxReads)}
+            onProjects={() => {
+              setIsDrawerOpen(false);
+              backToHome();
+            }}
+            onSelectThread={(item) => {
+              const thread = pairedSnapshot?.threads.find((candidate) => candidate.id === item.id);
+              if (thread) openThread(thread);
+            }}
             connectionState={paired.connectionState}
             hostLabel={paired.session.environmentLabel}
             isOpen={isDrawerOpen}
@@ -116,6 +133,7 @@ function GraftApp() {
           >
             {route.name === "home" ? (
               <HomeScreen
+                reads={inboxReads}
                 connectionState={paired.connectionState}
                 error={paired.error}
                 isRefreshing={paired.isRefreshing}

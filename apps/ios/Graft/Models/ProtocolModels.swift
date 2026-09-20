@@ -634,6 +634,8 @@ struct ThreadInfo: Codable, Sendable, Equatable, Identifiable {
     let pr: ThreadPrInfo?
     /// Latest context-window occupancy resolved by the host.
     let contextUsage: ContextUsageInfo?
+    /// Latest successful response completion. Older hosts omit this.
+    var lastCompletedAt: Int? = nil
     var effort: String? = nil
     var fastMode: Bool? = nil
 

@@ -10,6 +10,7 @@ vi.mock("@expo/vector-icons", () => ({ Ionicons: "Icon" }));
 vi.mock("react-native", () => ({
   AppState: { addEventListener: () => ({ remove: () => {} }) },
   View: "View",
+  ActivityIndicator: "ActivityIndicator",
   Text: "Text",
   TextInput: "TextInput",
   ScrollView: "ScrollView",
@@ -56,9 +57,11 @@ const snapshot: GraftEnvironmentSnapshot = {
   },
   projects: [
     { id: "graft", name: "Graft", kind: "repo" },
+    { id: "chats", name: "Personal", kind: "desktop" },
     { id: "other", name: "Other app", kind: "repo" },
   ],
   threads: [
+    { id: "chat", projectId: "chats", title: "Plan the weekend", updatedAt: Date.now() },
     {
       id: "a",
       projectId: "graft",
@@ -179,4 +182,19 @@ it("offers all three views and settings, marks selection, and searches closed da
   expect(
     renderer.root.findAll((node) => isHostType(node, "MenuItem")).map((node) => node.props.label),
   ).toEqual(["Priority", "By Project", "Chronological", "Settings"]);
+});
+
+it("shows standalone Chats without expanding repository folders", async () => {
+  await act(async () => {
+    renderer = create(createElement(Harness));
+  });
+  const root = renderer.root;
+  const texts = root.findAllByType("Text" as never).map((node) => node.props.children);
+  expect(texts).toContain("Chats");
+  expect(texts).toContain("Plan the weekend");
+  expect(texts).not.toContain("Review mobile");
+  await act(async () => {
+    root.findByProps({ accessibilityLabel: "New chat in Chats" }).props.onPress();
+  });
+  expect(onNewChat).toHaveBeenCalledWith("chats");
 });

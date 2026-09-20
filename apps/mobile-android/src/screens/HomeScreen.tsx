@@ -18,12 +18,15 @@ import { AnchoredMenu, MenuItem } from "../components/AnchoredMenu";
 import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
+import { ThreadActivityIndicator } from "../components/ThreadActivityIndicator";
+import type { ThreadReadState } from "../state/threadActivity";
 import { PressScale } from "../components/PressScale";
 import { groupInboxThreads, inboxViewModes, type InboxViewMode } from "../state/inboxGrouping";
 import { groupProjects, type InboxThreadItem } from "../state/mobileViewModels";
 import { graftRadius, graftSpacing, useGraftPalette } from "../theme/tokens";
 
 interface HomeScreenProps {
+  readonly reads?: ThreadReadState;
   readonly connectionState: GatewayConnectionState;
   readonly error?: string;
   readonly isRefreshing: boolean;
@@ -152,12 +155,7 @@ function ThreadRow({
               </View>
             ) : null}
           </View>
-          {thread.showsAttentionDot ? (
-            <View
-              accessibilityLabel="Needs attention"
-              style={[styles.attentionDot, { backgroundColor: palette.info }]}
-            />
-          ) : null}
+          <ThreadActivityIndicator activity={thread.activity} />
         </View>
       )}
     </Pressable>
@@ -172,6 +170,7 @@ function toggleId(current: ReadonlySet<string>, id: string): ReadonlySet<string>
 }
 
 export function HomeScreen({
+  reads,
   connectionState,
   error,
   isRefreshing,
@@ -201,8 +200,8 @@ export function HomeScreen({
   const [now, setNow] = useState(() => new Date());
   const isSearching = searchText.trim().length > 0;
   const sections = useMemo(
-    () => groupInboxThreads(snapshot, viewMode, searchText, now),
-    [snapshot, viewMode, searchText, now],
+    () => groupInboxThreads(snapshot, viewMode, searchText, now, reads),
+    [snapshot, viewMode, searchText, now, reads],
   );
   useEffect(() => {
     const update = () => setNow(new Date());
@@ -218,7 +217,10 @@ export function HomeScreen({
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [viewMode]);
-  const projects = useMemo(() => groupProjects(snapshot, searchText), [searchText, snapshot]);
+  const projects = useMemo(
+    () => groupProjects(snapshot, searchText, reads),
+    [searchText, snapshot, reads],
+  );
   const isConnected = connectionState === "connected";
 
   return (
@@ -262,25 +264,81 @@ export function HomeScreen({
             </Text>
           </View>
         ) : viewMode === "project" ? (
-          projects.map((project) => (
-            <ProjectSection
-              isExpanded={
-                isSearching
-                  ? !collapsedSearchProjects.has(project.id)
-                  : expandedProjectIds.has(project.id)
-              }
-              key={project.id}
-              name={project.name}
-              onCompose={() => onNewChat(project.id)}
-              onOpenThread={onOpenThread}
-              onToggle={() =>
-                isSearching
-                  ? setCollapsedSearchProjects((current) => toggleId(current, project.id))
-                  : onToggleProject(project.id)
-              }
-              threads={project.threads}
-            />
-          ))
+          <>
+            <View style={styles.projectHeader}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: palette.foreground, flex: 1, paddingLeft: 20 },
+                ]}
+              >
+                Chats
+              </Text>
+              {projects.find(
+                (project) => project.kind === "desktop" && project.id !== "_orphans",
+              ) ? (
+                <PressScale
+                  accessibilityLabel="New chat in Chats"
+                  onPress={() =>
+                    onNewChat(
+                      projects.find(
+                        (project) => project.kind === "desktop" && project.id !== "_orphans",
+                      )?.id,
+                    )
+                  }
+                >
+                  <View style={styles.projectCompose}>
+                    <Ionicons color={palette.foreground} name="create-outline" size={21} />
+                  </View>
+                </PressScale>
+              ) : null}
+            </View>
+            {projects
+              .filter((project) => project.kind === "desktop" && project.id !== "_orphans")
+              .flatMap((project) => project.threads)
+              .map((thread) => (
+                <ThreadRow key={thread.id} thread={thread} onOpenThread={onOpenThread} />
+              ))}
+            {!projects.some(
+              (project) =>
+                project.kind === "desktop" &&
+                project.id !== "_orphans" &&
+                project.threads.length > 0,
+            ) ? (
+              <Text
+                style={[
+                  styles.stateText,
+                  { color: palette.foregroundSubtle, paddingHorizontal: 20, paddingBottom: 16 },
+                ]}
+              >
+                {isSearching ? "No matching chats" : "Chats started in Studio appear here."}
+              </Text>
+            ) : null}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: palette.foreground }]}>Projects</Text>
+            </View>
+            {projects
+              .filter((project) => project.kind !== "desktop" || project.id === "_orphans")
+              .map((project) => (
+                <ProjectSection
+                  isExpanded={
+                    isSearching
+                      ? !collapsedSearchProjects.has(project.id)
+                      : expandedProjectIds.has(project.id)
+                  }
+                  key={project.id}
+                  name={project.name}
+                  onCompose={() => onNewChat(project.id)}
+                  onOpenThread={onOpenThread}
+                  onToggle={() =>
+                    isSearching
+                      ? setCollapsedSearchProjects((current) => toggleId(current, project.id))
+                      : onToggleProject(project.id)
+                  }
+                  threads={project.threads}
+                />
+              ))}
+          </>
         ) : (
           sections.map((section) => {
             const key = `${viewMode}/${section.id}`;

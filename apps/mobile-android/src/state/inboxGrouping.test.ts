@@ -1,7 +1,7 @@
 import type { GraftEnvironmentSnapshot } from "@graft/mobile-contract";
 import { describe, expect, it } from "vitest";
 
-import { groupInboxThreads, parseInboxViewMode } from "./inboxGrouping";
+import { groupInboxThreads, parseInboxViewMode, recentInboxThreads } from "./inboxGrouping";
 
 const now = new Date(2026, 8, 20, 12);
 const date = (day: number, hour = 0) => new Date(2026, 8, day, hour).getTime();
@@ -83,7 +83,11 @@ describe("inbox views", () => {
       "status-running",
       "old-active",
     ]);
-    expect(sections[0]?.threads.every((entry) => entry.thread.showsAttentionDot)).toBe(true);
+    expect(
+      sections[0]?.threads.every((entry) =>
+        ["working", "needs_attention"].includes(entry.thread.activity),
+      ),
+    ).toBe(true);
     expect(sections.flatMap((section) => section.threads)).toHaveLength(snapshot.threads.length);
     expect(
       sections[0]?.threads.find((entry) => entry.thread.id === "question")?.projectName,
@@ -119,4 +123,17 @@ describe("inbox views", () => {
     };
     expect(groupInboxThreads(dst, "chronological", "", dstNow)[0]?.title).toBe("Yesterday");
   });
+});
+
+it("keeps active and attention threads in Recents ahead of recent idle work", () => {
+  const recent = recentInboxThreads(snapshot, { "today-newest": { completedAt: 5, viewedAt: 0 } });
+  expect(recent.slice(0, 5).map((item) => item.activity)).toEqual([
+    "needs_attention",
+    "needs_attention",
+    "needs_attention",
+    "working",
+    "working",
+  ]);
+  expect(recent.find((item) => item.id === "today-newest")?.activity).toBe("unread");
+  expect(recentInboxThreads(snapshot, {}, 2)).toHaveLength(2);
 });

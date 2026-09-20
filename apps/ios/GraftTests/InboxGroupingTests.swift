@@ -57,8 +57,8 @@ final class InboxGroupingTests: XCTestCase {
         let groups = InboxGrouping.projects(from: snapshot, searchQuery: "")
         XCTAssertEqual(groups.map(\.name), ["graft-studio", "fetch"])
         XCTAssertEqual(groups[0].threads.map(\.title), ["Audit Graft", "Plan mobile"])
-        XCTAssertTrue(groups[0].threads[0].showsAttentionDot)
-        XCTAssertFalse(groups[0].threads[1].showsAttentionDot)
+        XCTAssertEqual(groups[0].threads[0].activity, .working)
+        XCTAssertEqual(groups[0].threads[1].activity, .idle)
     }
 
     func testSearchFiltersThreadTitles() {
@@ -175,7 +175,7 @@ final class InboxGroupingTests: XCTestCase {
             recents.map(\.id),
             ["t-attention", "t-running-husk", "t-running-old", "t-idle-pr", "t-idle"]
         )
-        XCTAssertTrue(recents[0].showsAttentionDot)
+        XCTAssertEqual(recents[0].activity, .needsAttention)
         XCTAssertEqual(recents[3].pr, ThreadPrInfo(number: 207, state: .merged))
         XCTAssertNil(recents[4].pr)
 
@@ -253,7 +253,7 @@ extension InboxGroupingTests {
                                                now: Self.viewDate(20, hour: 12), calendar: Self.viewCalendar)
         XCTAssertEqual(sections.first?.threads.map(\.id),
                        ["status-attention", "question", "approval", "status-running", "old-active"])
-        XCTAssertTrue(sections.first!.threads.allSatisfy { $0.thread.showsAttentionDot })
+        XCTAssertTrue(sections.first!.threads.allSatisfy { [.working, .needsAttention].contains($0.thread.activity) })
         XCTAssertEqual(sections.flatMap(\.threads).count, Self.viewFixture.threads.count)
         XCTAssertNil(sections.first?.threads.first { $0.id == "question" }?.projectName)
     }
@@ -276,4 +276,30 @@ extension InboxGroupingTests {
             activeRuns: [], pendingApprovals: [], pendingQuestions: [], selectedTranscript: nil, cursor: 1)
         XCTAssertEqual(InboxGrouping.sections(from: snapshot, mode: .chronological, searchQuery: "", now: now, calendar: calendar).first?.title, "Yesterday")
     }
+    func testUnreadReceiptSurvivesReplayAndClearsOnlyObservedCompletion() throws {
+        var state = InboxReadState()
+        state.completed("a", at: 20)
+        XCTAssertEqual(state.unreadThreadIds, ["a"])
+        state.viewed("a")
+        state.completed("a", at: 19)
+        state.completed("a", at: 20)
+        XCTAssertTrue(state.unreadThreadIds.isEmpty)
+        state.completed("a", at: 21)
+        XCTAssertEqual(state.unreadThreadIds, ["a"])
+        let restored = try JSONDecoder().decode(InboxReadState.self, from: JSONEncoder().encode(state))
+        XCTAssertEqual(restored, state)
+    }
+
+    func testChatsRemainSeparateWhileSearching() {
+        let snapshot = EnvironmentSnapshot(environment: EnvironmentInfo(id: "env", label: "Mac", hostVersion: "1", protocolVersion: 1, capabilities: [], cursor: 1),
+            projects: [ProjectInfo(id: "chat", name: "Personal", kind: "desktop", path: nil)],
+            threads: [ThreadInfo(id: "t", projectId: "chat", title: "Plan weekend", updatedAt: 2, status: "idle")],
+            activeRuns: [], pendingApprovals: [], pendingQuestions: [], selectedTranscript: nil, cursor: 1)
+        let groups = InboxGrouping.projects(from: snapshot, searchQuery: "weekend", unreadThreadIds: ["t"])
+        XCTAssertEqual(groups.first?.kind, "desktop")
+        XCTAssertEqual(groups.first?.threads.first?.activity, .unread)
+        let running = ThreadInfo(id: "t", projectId: "chat", title: "Plan weekend", updatedAt: 3, status: "running")
+        XCTAssertEqual(InboxGrouping.item(running, snapshot: snapshot, unreadThreadIds: ["t"]).activity, .working)
+    }
+
 }

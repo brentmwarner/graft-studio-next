@@ -39,33 +39,64 @@ struct InboxProjectGroup: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     var threads: [InboxThreadItem]
+    var kind: String = "repo"
+}
+
+enum InboxThreadActivity: String, Equatable, Hashable, Sendable {
+    case idle, working, unread, needsAttention
 }
 
 struct InboxThreadItem: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     let title: String
-    /// Blue attention dot (active run / needs attention).
-    let showsAttentionDot: Bool
-    /// Tracked PR badge, when the host knows its GitHub state.
+    let activity: InboxThreadActivity
     let pr: ThreadPrInfo?
 
-    init(id: String, title: String, showsAttentionDot: Bool, pr: ThreadPrInfo? = nil) {
+    init(id: String, title: String, activity: InboxThreadActivity = .idle, pr: ThreadPrInfo? = nil) {
         self.id = id
         self.title = title
-        self.showsAttentionDot = showsAttentionDot
+        self.activity = activity
         self.pr = pr
     }
 }
 
-enum InboxGrouping {
-    private static let attentionStatuses: Set<String> = ["running", "needs_attention"]
+struct InboxReadReceipt: Codable, Equatable {
+    var completedAt: Int = 0
+    var viewedAt: Int = 0
+}
 
-    private static func attentionDot(
-        for thread: ThreadInfo,
-        activeThreadIds: Set<String>
-    ) -> Bool {
-        activeThreadIds.contains(thread.id)
-            || thread.status.map(attentionStatuses.contains) == true
+struct InboxReadState: Codable, Equatable {
+    var receipts: [String: InboxReadReceipt] = [:]
+
+    var unreadThreadIds: Set<String> {
+        Set(receipts.compactMap { $0.value.completedAt > $0.value.viewedAt ? $0.key : nil })
+    }
+
+    mutating func completed(_ threadId: String, at timestamp: Int) {
+        guard timestamp > (receipts[threadId]?.completedAt ?? 0) else { return }
+        receipts[threadId, default: InboxReadReceipt()].completedAt = timestamp
+    }
+
+    mutating func viewed(_ threadId: String) {
+        guard var receipt = receipts[threadId], receipt.completedAt > receipt.viewedAt else { return }
+        receipt.viewedAt = receipt.completedAt
+        receipts[threadId] = receipt
+    }
+}
+
+enum InboxGrouping {
+    static func item(_ thread: ThreadInfo, snapshot: EnvironmentSnapshot, unreadThreadIds: Set<String> = []) -> InboxThreadItem {
+        let activity: InboxThreadActivity
+        if thread.status == "needs_attention" || snapshot.pendingApprovals.contains(where: { $0.threadId == thread.id }) || snapshot.pendingQuestions.contains(where: { $0.threadId == thread.id }) {
+            activity = .needsAttention
+        } else if thread.status == "running" || snapshot.activeRuns.contains(where: { $0.threadId == thread.id && ($0.status == "running" || $0.status == "queued") }) {
+            activity = .working
+        } else if unreadThreadIds.contains(thread.id) {
+            activity = .unread
+        } else {
+            activity = .idle
+        }
+        return InboxThreadItem(id: thread.id, title: thread.title, activity: activity, pr: thread.pr)
     }
 
     /// Default titles the host assigns before a thread earns a real name.
@@ -77,14 +108,14 @@ enum InboxGrouping {
     /// they read as noise, not recent work.
     static func recentThreads(
         from snapshot: EnvironmentSnapshot?,
-        limit: Int = 10
+        limit: Int = 10,
+        unreadThreadIds: Set<String> = []
     ) -> [InboxThreadItem] {
         guard let snapshot else { return [] }
-        let activeThreadIds = Set(snapshot.activeRuns.map(\.threadId))
-
         func rank(_ thread: ThreadInfo) -> Int {
-            if thread.status == "needs_attention" { return 0 }
-            if thread.status == "running" || activeThreadIds.contains(thread.id) { return 1 }
+            let activity = item(thread, snapshot: snapshot, unreadThreadIds: unreadThreadIds).activity
+            if activity == .needsAttention { return 0 }
+            if activity == .working { return 1 }
             return 2
         }
 
@@ -100,35 +131,20 @@ enum InboxGrouping {
                 return lhs.updatedAt > rhs.updatedAt
             }
             .prefix(limit)
-            .map {
-                InboxThreadItem(
-                    id: $0.id,
-                    title: $0.title,
-                    showsAttentionDot: attentionDot(for: $0, activeThreadIds: activeThreadIds),
-                    pr: $0.pr
-                )
-            }
+            .map { item($0, snapshot: snapshot, unreadThreadIds: unreadThreadIds) }
     }
 
     static func projects(
         from snapshot: EnvironmentSnapshot?,
-        searchQuery: String
+        searchQuery: String,
+        unreadThreadIds: Set<String> = []
     ) -> [InboxProjectGroup] {
         guard let snapshot else { return [] }
 
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let activeThreadIds = Set(snapshot.activeRuns.map(\.threadId))
-
         func threadItems(from threads: [ThreadInfo]) -> [InboxThreadItem] {
             threads
-                .map {
-                    InboxThreadItem(
-                        id: $0.id,
-                        title: $0.title,
-                        showsAttentionDot: attentionDot(for: $0, activeThreadIds: activeThreadIds),
-                        pr: $0.pr
-                    )
-                }
+                .map { item($0, snapshot: snapshot, unreadThreadIds: unreadThreadIds) }
                 .sorted {
                     $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
                 }
@@ -139,7 +155,8 @@ enum InboxGrouping {
             return InboxProjectGroup(
                 id: project.id,
                 name: project.name,
-                threads: threadItems(from: threads)
+                threads: threadItems(from: threads),
+                kind: project.kind
             )
         }
 
@@ -164,7 +181,7 @@ enum InboxGrouping {
             }
             let matching = group.threads.filter { $0.title.lowercased().contains(lowered) }
             guard !matching.isEmpty else { return nil }
-            return InboxProjectGroup(id: group.id, name: group.name, threads: matching)
+            return InboxProjectGroup(id: group.id, name: group.name, threads: matching, kind: group.kind)
         }
     }
 }
@@ -178,7 +195,8 @@ extension InboxGrouping {
         mode: InboxViewMode,
         searchQuery: String,
         now: Date = .now,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        unreadThreadIds: Set<String> = []
     ) -> [InboxThreadSection] {
         guard let snapshot, mode != .project else { return [] }
         let projects = Dictionary(snapshot.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
@@ -210,10 +228,7 @@ extension InboxGrouping {
             else if date >= week { key = "week" }
             else { key = "older" }
             buckets[key, default: []].append(InboxThreadEntry(
-                thread: InboxThreadItem(
-                    id: thread.id, title: thread.title,
-                    showsAttentionDot: rank(thread) < 2, pr: thread.pr
-                ),
+                thread: item(thread, snapshot: snapshot, unreadThreadIds: unreadThreadIds),
                 projectName: projects[thread.projectId]
             ))
         }

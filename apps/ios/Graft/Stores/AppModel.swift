@@ -18,6 +18,11 @@ final class AppModel {
     let settings = ChatSettings()
     let models = ModelSettingsStore()
     let auth = AuthStore()
+    private(set) var inboxReadState = InboxReadState()
+    private var inboxReadEnvironmentId: String?
+    private let readDefaults: UserDefaults
+    private var inboxPendingAnswers: [String: String] = [:]
+    private var isForeground = true
 
     /// Current environment snapshot received after the WebSocket handshake.
     private(set) var snapshot: EnvironmentSnapshot?
@@ -45,7 +50,8 @@ final class AppModel {
 
     var isPaired: Bool { connection.isPaired }
 
-    init(store: LocalStore? = nil, gateway: GatewayClient? = nil) {
+    init(store: LocalStore? = nil, gateway: GatewayClient? = nil, readDefaults: UserDefaults = .standard) {
+        self.readDefaults = readDefaults
         let resolvedStore = store ?? LocalStore()
         self.store = resolvedStore
         self.gateway = gateway ?? GatewayClient()
@@ -58,6 +64,8 @@ final class AppModel {
 
     /// Called from `RootView.onChange(of: scenePhase)`.
     func scenePhaseChanged(_ phase: ScenePhase) {
+        isForeground = phase == .active
+        if isForeground { updateInboxReads() }
         switch phase {
         case .active:
             resumeFromBackground()
@@ -97,6 +105,9 @@ final class AppModel {
         snapshotRequestGeneration += 1
         snapshotRefreshTask = nil
         snapshot = nil
+        inboxReadState = InboxReadState()
+        inboxReadEnvironmentId = nil
+        inboxPendingAnswers.removeAll()
         activeChat = nil
         selectedThreadId = nil
         gatewayError = nil
@@ -578,6 +589,7 @@ final class AppModel {
         guard let snap = try? JSONDecoder().decode(EnvironmentSnapshot.self, from: data) else { return }
         snapshot = snap
         activeChat?.applySnapshot(snap)
+        updateInboxReads()
         persistSnapshot(snap, rawJSON: data)
     }
 
@@ -616,6 +628,7 @@ final class AppModel {
         if let chat = activeChat, hostEvent.event.threadId == chat.threadId {
             chat.fold(hostEvent.event)
         }
+        updateInboxReads(event: hostEvent.event)
         guard hostEvent.event.cursor > (snapshot?.cursor ?? 0) else {
             return
         }
@@ -647,6 +660,7 @@ final class AppModel {
         guard let environmentId = connection.session?.environmentId else { return }
         do {
             snapshot = try store.decodedSnapshot(environmentId: environmentId)
+            updateInboxReads()
             if let cursor = snapshot?.cursor {
                 AppLog.persistence.info("Restored cached environment snapshot at cursor \(cursor)")
             }
@@ -679,6 +693,7 @@ final class AppModel {
             guard generation == snapshotRequestGeneration, threadID == selectedThreadId else { return }
             snapshot = refreshed
             activeChat?.applySnapshot(refreshed)
+            updateInboxReads()
             gatewayError = nil
             persistSnapshot(refreshed)
             AppLog.networking.debug(
@@ -697,6 +712,44 @@ final class AppModel {
                 "Snapshot refresh failed: \(error.localizedDescription)"
             )
         }
+    }
+
+    private func updateInboxReads(event: TimelineEvent? = nil) {
+        guard let environmentId = connection.session?.environmentId else { return }
+        let key = "inbox.reads.\(environmentId)"
+        if inboxReadEnvironmentId != environmentId {
+            inboxReadEnvironmentId = environmentId
+            inboxReadState = readDefaults.data(forKey: key)
+                .flatMap { try? JSONDecoder().decode(InboxReadState.self, from: $0) } ?? InboxReadState()
+            inboxPendingAnswers.removeAll()
+        }
+        var next = inboxReadState
+        for thread in snapshot?.threads ?? [] {
+            if let timestamp = thread.lastCompletedAt { next.completed(thread.id, at: timestamp) }
+        }
+        if let event, let id = event.threadId {
+            if ["assistant.delta", "assistant.message"].contains(event.kind),
+               event.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                inboxPendingAnswers[id] = event.runId ?? ""
+            }
+            if event.kind == "run.status" || event.kind == "error" {
+                let matches = event.runId == nil || inboxPendingAnswers[id] == "" || inboxPendingAnswers[id] == event.runId
+                if matches {
+                    if event.runStatus == "completed", inboxPendingAnswers[id] != nil {
+                        next.completed(id, at: event.completedAt ?? event.createdAt)
+                    }
+                    if event.kind == "error" || ["completed", "failed", "cancelled"].contains(event.runStatus ?? "") {
+                        inboxPendingAnswers[id] = nil
+                    }
+                }
+            }
+        }
+        if isForeground, let id = selectedThreadId, snapshot?.selectedTranscript?.threadId == id {
+            next.viewed(id)
+        }
+        guard next != inboxReadState else { return }
+        inboxReadState = next
+        if let data = try? JSONEncoder().encode(next) { readDefaults.set(data, forKey: key) }
     }
 
     private func persistSnapshot(

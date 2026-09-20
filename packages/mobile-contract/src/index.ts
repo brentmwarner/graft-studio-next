@@ -259,6 +259,8 @@ export const GraftThreadSummarySchema = z.object({
   approvalPolicyOptions: z.array(GraftApprovalPolicyOptionSchema).max(12).optional(),
   /** The PR this thread tracks, when its GitHub state is known. */
   pr: GraftThreadPrSchema.optional(),
+  /** Latest successful response completion, in milliseconds; older hosts omit it. */
+  lastCompletedAt: z.number().int().nonnegative().optional(),
   /** Latest context-window occupancy resolved by the host. */
   contextUsage: GraftContextUsageSchema.optional(),
 });
