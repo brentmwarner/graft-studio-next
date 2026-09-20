@@ -32,18 +32,21 @@ export function recentInboxThreads(
     const activity = threadActivity(thread, snapshot, reads);
     return activity === "needs_attention" ? 0 : activity === "working" ? 1 : 2;
   };
-  return snapshot.threads
-    .filter(
-      (thread) =>
-        rank(thread) < 2 || !["new thread", "untitled"].includes(thread.title.toLowerCase()),
-    )
-    .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
-    .slice(0, limit)
-    .map((thread) => ({
-      id: thread.id,
-      title: thread.title,
-      activity: threadActivity(thread, snapshot, reads),
-    }));
+  return (
+    snapshot.threads
+      .filter(
+        (thread) =>
+          rank(thread) < 2 || !["new thread", "untitled"].includes(thread.title.toLowerCase()),
+      )
+      // eslint-disable-next-line unicorn/no-array-sort -- Hermes lacks toSorted; filter owns this array.
+      .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
+      .slice(0, limit)
+      .map((thread) => ({
+        id: thread.id,
+        title: thread.title,
+        activity: threadActivity(thread, snapshot, reads),
+      }))
+  );
 }
 
 /** Host timestamps are milliseconds; calendar boundaries use the device's local time. */
@@ -78,6 +81,7 @@ export function groupInboxThreads(
 
   const threads = snapshot.threads
     .filter((thread) => matchingIds.has(thread.id))
+    // eslint-disable-next-line unicorn/no-array-sort -- Hermes lacks toSorted; filter owns this array.
     .sort((left, right) => {
       if (mode === "priority" && rank(left) !== rank(right)) return rank(left) - rank(right);
       return right.updatedAt - left.updatedAt || left.id.localeCompare(right.id);
