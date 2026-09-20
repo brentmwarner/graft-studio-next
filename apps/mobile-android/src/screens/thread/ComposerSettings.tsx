@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { PressScale } from "../../components/PressScale";
+import { ProviderLogo } from "../../components/ProviderLogo";
 import { useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { displayName } from "./displayName";
@@ -10,10 +11,12 @@ export function ComposerSettings({
   config,
   modelName,
   modelMenuRequest,
+  showProviderIcon = false,
 }: {
   readonly config: ComposerMenuConfig;
   readonly modelName?: string;
   readonly modelMenuRequest?: number;
+  readonly showProviderIcon?: boolean;
 }) {
   const palette = useGraftPalette();
   const label = config.currentModel?.label ?? modelName?.replace("[1m]", "") ?? "Choose model";
@@ -30,6 +33,13 @@ export function ComposerSettings({
             onPress={open}
             style={styles.modelButton}
           >
+            {showProviderIcon ? (
+              <ProviderLogo
+                providerId={config.currentModel?.providerId ?? config.lockedProviderId}
+                label={config.currentModel?.providerLabel}
+                size={18}
+              />
+            ) : null}
             <Text
               numberOfLines={1}
               ellipsizeMode="middle"

@@ -51,6 +51,8 @@ cancelling restores the draft from before recording.
 The idle composer is a single pill with plus, model name, and microphone controls.
 Tapping the editor expands it without replacing the input; dismissing the keyboard
 collapses it again, including with an unsent draft. Attachments keep it expanded.
+The expanded model control shows the provider logo in its original brand colors;
+monochrome marks use the full foreground color. The idle pill shows only the model name.
 Model and effort share a picker; established chats open their locked provider's
 models directly. Permissions remain available in the plus menu, without a badge
 on the composer. Longer drafts grow to a scrolling limit. Model discovery is

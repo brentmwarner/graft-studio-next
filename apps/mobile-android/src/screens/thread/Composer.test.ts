@@ -76,7 +76,9 @@ it("keeps model controls inside the composer and preserves input/picker identity
   const editor = input();
   const settings = renderer.root.findByType(ComposerSettings);
   expect(settings.parent?.parent?.parent?.type).toBe("AnimatedView");
+  expect(settings.props.showProviderIcon).toBe(false);
   await act(() => editor.props.onFocus());
+  expect(settings.props.showProviderIcon).toBe(true);
   await act(() =>
     renderer.update(
       createElement(Composer, { ...props, draft: "Follow up", canSend: true, modelMenuRequest: 1 }),
@@ -122,6 +124,7 @@ it("collapses to one row on blur even with a draft, without replacing the editor
   expect(height()).toBeGreaterThan(100);
   expect(input().props.multiline).toBe(true);
   await act(() => editor.props.onBlur());
+  expect(renderer.root.findByType(ComposerSettings).props.showProviderIcon).toBe(false);
   expect(height()).toBe(56);
   expect(input().props.multiline).toBe(false);
   expect(input()).toBe(editor);

@@ -315,7 +315,12 @@ export function Composer({
                 styles.typingRow,
                 expanded
                   ? styles.typingRowExpanded
-                  : { paddingLeft: 56, paddingRight: controlsWidth + 7 },
+                  : {
+                      height: idleHeight,
+                      paddingVertical: 0,
+                      paddingLeft: 56,
+                      paddingRight: controlsWidth + 7,
+                    },
               ]}
             >
               {/* Keep the same editor mounted through focus and recording transitions. */}
@@ -361,6 +366,7 @@ export function Composer({
                   config={menuConfig}
                   modelName={currentModelName}
                   modelMenuRequest={modelMenuRequest}
+                  showProviderIcon={expanded}
                 />
                 {trailing}
               </View>

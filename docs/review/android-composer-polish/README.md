@@ -8,8 +8,8 @@ The same fixture compares `f1b3d572d` with the changed composer and transcript.
 | --------------------------------------------------------- | ------------------------------------------------- |
 | ![Two-row composer and completed Working row](before.png) | ![Idle pill and folded completed work](after.png) |
 
-[Expanded editor](expanded.png) · [Collapsed draft](draft-pill.png) · [Expanded work details](work-details.png) ·
-[32-second composer and streaming recording](motion.mp4)
+[Expanded editor](expanded.png) · [Colored provider mark](provider-color.png) · [Collapsed draft](draft-pill.png) · [Expanded work details](work-details.png) ·
+[25-second composer and streaming recording](motion.mp4)
 
 ## Observed behavior
 
@@ -17,6 +17,8 @@ The same fixture compares `f1b3d572d` with the changed composer and transcript.
   or permissions badge. Plus → Permissions still exposes the configured policies.
 - Focus: the same input expands above the keyboard; dismissing the keyboard returns
   to the pill with the draft intact. Model, dictation, and send controls remain inside.
+  The focused provider mark preserves its brand colors. The idle editor and controls
+  share the pill’s vertical centerline.
 - Completion: a collapsed "Worked" disclosure contains the earlier commentary and
   tool rows. Expanding it retains the original final answer underneath. Android
   deliberately uses the iOS fallback label without an elapsed duration.
@@ -29,8 +31,8 @@ The same fixture compares `f1b3d572d` with the changed composer and transcript.
 - `bun run fmt:check`: passed.
 - `bun run lint`: passed, with existing repository warnings and no errors.
 - `bun run typecheck`: all 12 workspace tasks passed; Android typecheck repeated
-  after the final reconciliation change.
-- `bun run android:test`: 226 tests passed, including editor identity, permission
+  after the final composer and provider-color changes.
+- `bun run android:test`: 232 tests passed, including editor identity, permission
   access, turn folding, preserved row identity, bounded reveal spans, ordinary-paragraph fades, and haptic cadence.
 - Local Gradle debug and release builds succeeded; release fixture opened and
   streamed without React Native or Android runtime errors.

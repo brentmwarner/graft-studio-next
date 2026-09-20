@@ -81,3 +81,20 @@ it("shows only the model name while keeping effort accessible in the picker", as
     "intelligence",
   ]);
 });
+
+it("shows the provider's untinted logo alongside the model when expanded", async () => {
+  await act(() => {
+    renderer = create(
+      createElement(ComposerSettings, {
+        config: {
+          ...config,
+          currentModel: { id: "claude-test", label: "Claude", providerId: "claudeAgent" },
+        },
+        showProviderIcon: true,
+      }),
+    );
+  });
+  const logo = renderer!.root.find((node) => (node.type as unknown) === "ProviderLogo");
+  expect(logo.props.providerId).toBe("claudeAgent");
+  expect(logo.props.color).toBeUndefined();
+});
