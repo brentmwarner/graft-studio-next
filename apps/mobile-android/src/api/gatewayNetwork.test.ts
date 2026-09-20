@@ -46,6 +46,16 @@ it("does not let a stale initial read overwrite a newer route notification", asy
   expect(socket.networkChanged).not.toHaveBeenCalled();
 });
 
+it("applies an initial offline read after an unknown native event", async () => {
+  network.listener!({ type: NetworkStateType.UNKNOWN, isConnected: false });
+  network.initial!({ type: NetworkStateType.NONE, isConnected: false });
+  await Promise.resolve();
+  expect(socket.networkChanged.mock.calls).toEqual([[false]]);
+
+  network.listener!(cellular);
+  expect(socket.networkChanged.mock.calls).toEqual([[false], [true]]);
+});
+
 it("pauses while offline and resumes even on the same network type", () => {
   network.listener!(wifi);
   network.listener!({ ...wifi, isConnected: false });

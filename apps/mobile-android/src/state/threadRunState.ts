@@ -23,8 +23,9 @@ export function threadRunState(
     if (RUN_IS_ACTIVE[event.runStatus]) {
       activeRunId = event.runId ?? activeRunId;
       isWorking = true;
-    } else if (!event.runId || !activeRunId || event.runId === activeRunId) {
+    } else if (!event.runId || event.runId === activeRunId) {
       // Session completion may omit runId after the host clears activeTurnId.
+      // Otherwise, only a known matching run can clear the thread's working state.
       activeRunId = undefined;
       isWorking = false;
     }

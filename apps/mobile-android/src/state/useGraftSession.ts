@@ -631,7 +631,12 @@ export function useGraftSession() {
         const local: LocalTimelineEvent = {
           ...optimisticEvent,
           optimisticAfterMessageId:
-            events.findLast((event) => event.kind === "user.message")?.id ?? null,
+            events.findLast((event) => event.kind === "user.message")?.id ??
+            (transcript?.threadId === threadId ? null : undefined),
+          optimisticAfterCursor: current.liveEvents.reduce(
+            (cursor, event) => Math.max(cursor, event.cursor),
+            current.snapshot?.cursor ?? 0,
+          ),
         };
         return { ...current, liveEvents: [...current.liveEvents, local], error: undefined };
       });

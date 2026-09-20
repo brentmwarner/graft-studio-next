@@ -48,6 +48,21 @@ it("does not let a previous run's terminal event hide the current turn", () => {
     isWorking: true,
   });
 });
+it.each(["completed", "failed", "cancelled"] as const)(
+  "keeps a running thread visible when a previous run is %s before its run ID is known",
+  (runStatus) => {
+    expect(threadRunState(undefined, [status(2, runStatus, "old")], 1, true)).toEqual({
+      activeRunId: undefined,
+      isWorking: true,
+    });
+  },
+);
+it("handles completion without a run ID while the active run ID is unknown", () => {
+  expect(threadRunState(undefined, [status(2, "completed")], 1, true)).toEqual({
+    activeRunId: undefined,
+    isWorking: false,
+  });
+});
 it("does not resurrect a run from events already covered by the snapshot", () => {
   expect(threadRunState(undefined, [status(2, "running", "old")], 3, false).isWorking).toBe(false);
 });

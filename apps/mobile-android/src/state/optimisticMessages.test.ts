@@ -7,7 +7,7 @@ import { reconcileLiveUserMessages, type LocalTimelineEvent } from "./optimistic
 function user(id: string, text: string, cursor = 1): GraftTimelineEvent {
   return { id, text, cursor, kind: "user.message", threadId: "thread", createdAt: cursor };
 }
-function local(id: string, text: string, anchor: string | null): LocalTimelineEvent {
+function local(id: string, text: string, anchor: string | null | undefined): LocalTimelineEvent {
   return { ...user(id, text, 0), optimisticAfterMessageId: anchor };
 }
 const texts = (settled: readonly GraftTimelineEvent[], live: readonly LocalTimelineEvent[]) =>
@@ -16,6 +16,33 @@ const texts = (settled: readonly GraftTimelineEvent[], live: readonly LocalTimel
     .map((item) => item.text);
 
 describe("optimistic user messages", () => {
+  it("preserves a send before history loads until a new live echo proves its boundary", () => {
+    const pending = { ...local("pending", "Continue", undefined), optimisticAfterCursor: 20 };
+    // Snapshot event cursors are not journal cursors, including a large old one.
+    const settled = [user("old", "Continue", 100)];
+    expect(reconcileLiveUserMessages(settled, [pending])).toEqual([pending]);
+    const replay = user("old", "Continue", 20);
+    expect(reconcileLiveUserMessages(settled, [pending, replay])).toEqual([pending, replay]);
+    const echo = user("new", "Continue", 21);
+    expect(reconcileLiveUserMessages(settled, [pending, echo])).toEqual([echo]);
+    expect(reconcileLiveUserMessages([...settled, echo], [pending, echo])).toEqual([echo]);
+  });
+
+  it("remaps the next send after a send made before history loads is acknowledged", () => {
+    const first = { ...local("first", "Continue", undefined), optimisticAfterCursor: 20 };
+    const next = local("next", "Continue", "first");
+    const echo = user("new", "Continue", 21);
+    expect(reconcileLiveUserMessages([user("old", "Continue")], [first, next, echo])).toEqual([
+      { ...next, optimisticAfterMessageId: "new" },
+      echo,
+    ]);
+  });
+
+  it("accepts exact message identity even when its history boundary is unavailable", () => {
+    const pending = local("same", "Continue", "missing");
+    expect(reconcileLiveUserMessages([user("same", "Continue")], [pending])).toEqual([]);
+  });
+
   it("does not append older echoes after several snapshots and a new send", () => {
     const settled = [user("u1", "First"), user("u2", "Second")];
     const live = [

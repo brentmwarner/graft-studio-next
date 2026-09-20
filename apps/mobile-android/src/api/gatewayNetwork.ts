@@ -13,7 +13,7 @@ export function watchGatewayNetwork(socket: Pick<GatewaySocket, "networkChanged"
   let disposed = false;
   let receivedEvent = false;
   const update = (next: NetworkState) => {
-    if (disposed || next.type === NetworkStateType.UNKNOWN) return;
+    if (disposed || next.type === NetworkStateType.UNKNOWN) return false;
     const old = previous;
     previous = next;
     // Internet validation is a recovery hint, not a prerequisite for LAN access.
@@ -27,10 +27,10 @@ export function watchGatewayNetwork(socket: Pick<GatewaySocket, "networkChanged"
     ) {
       socket.networkChanged(true);
     }
+    return true;
   };
   const subscription = addNetworkStateListener((next) => {
-    receivedEvent = true;
-    update(next);
+    if (update(next)) receivedEvent = true;
   });
   void getNetworkStateAsync().then(
     (initial) => {

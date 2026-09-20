@@ -12,6 +12,7 @@ import {
   type TranscriptToolItem,
 } from "./mobileViewModels";
 import { liveStatusPhrase, toolRunningPhrase } from "./toolPresentation";
+import type { LocalTimelineEvent } from "./optimisticMessages";
 
 function tool(id: string, running = false): TranscriptToolItem {
   return { id, kind: "tool", toolId: id, name: "Bash", detail: "", running };
@@ -325,7 +326,8 @@ describe("mobile view models", () => {
     // `sendMessage` appends a local echo at cursor 0 so the turn paints before
     // the round trip. Once the snapshot settles the real event, the echo must
     // collapse into it rather than render a second identical bubble.
-    const optimistic: GraftTimelineEvent = {
+    const optimistic: LocalTimelineEvent = {
+      optimisticAfterMessageId: null,
       id: "optimistic-uuid",
       cursor: 0,
       kind: "user.message",
@@ -340,7 +342,8 @@ describe("mobile view models", () => {
   });
 
   it("reconciles a live authoritative turn that arrives after its optimistic echo", () => {
-    const optimistic: GraftTimelineEvent = {
+    const optimistic: LocalTimelineEvent = {
+      optimisticAfterMessageId: null,
       id: "optimistic-uuid",
       cursor: 0,
       kind: "user.message",
@@ -355,7 +358,8 @@ describe("mobile view models", () => {
   });
 
   it("reconciles a lingering optimistic echo after the settled response", () => {
-    const optimistic: GraftTimelineEvent = {
+    const optimistic: LocalTimelineEvent = {
+      optimisticAfterMessageId: null,
       id: "optimistic-uuid",
       cursor: 0,
       kind: "user.message",
@@ -373,7 +377,8 @@ describe("mobile view models", () => {
   });
 
   it("does not repeat a settled response still present in the live tail", () => {
-    const optimistic: GraftTimelineEvent = {
+    const optimistic: LocalTimelineEvent = {
+      optimisticAfterMessageId: null,
       id: "optimistic-uuid",
       cursor: 0,
       kind: "user.message",
@@ -391,7 +396,8 @@ describe("mobile view models", () => {
   });
 
   it("shows the optimistic echo before its turn has settled", () => {
-    const optimistic: GraftTimelineEvent = {
+    const optimistic: LocalTimelineEvent = {
+      optimisticAfterMessageId: null,
       id: "optimistic-uuid",
       cursor: 0,
       kind: "user.message",
@@ -532,7 +538,8 @@ it("keeps attachment-only messages and folds their optimistic upload echo", () =
     mimeType: "text/plain",
     sizeBytes: 10,
   };
-  const optimistic: GraftTimelineEvent = {
+  const optimistic: LocalTimelineEvent = {
+    optimisticAfterMessageId: null,
     id: "local",
     cursor: 0,
     kind: "user.message",
