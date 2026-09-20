@@ -93,7 +93,10 @@ describe("transcript streaming identity", () => {
   it("keeps a snapshot's live reply streaming while reconciling a user echo", () => {
     const user = frame("user", 0, "user.message", "Hello");
     const reply = frame("reply", 2, "assistant.delta", "Hello back");
-    const echo = frame("optimistic", 0, "user.message", "Hello");
+    const echo = {
+      ...frame("optimistic", 0, "user.message", "Hello"),
+      optimisticAfterMessageId: null,
+    };
     const items = buildTranscriptItems([user, reply], [echo], 2);
     expect(items).toHaveLength(2);
     expect(items[1]).toMatchObject({ streaming: true, text: "Hello back" });

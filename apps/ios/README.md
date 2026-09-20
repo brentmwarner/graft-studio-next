@@ -250,9 +250,18 @@ Persists the paired session in SwiftData and the bearer token in Keychain. The K
 `URLSessionWebSocketTask`-based WebSocket client with:
 
 - Exponential backoff reconnect (via `ReconnectPolicy`)
-- `NWPathMonitor` to dial immediately when the network recovers
-- Foreground ping every 25s to detect silently-dead connections
-- `nudge()` for fast-path liveness checks on foreground/network events
+- `NWPathMonitor` to replace the old socket when switching Wi-Fi/cellular routes,
+  pause retries offline, and dial immediately when a network returns
+- A 15-second deadline for the hello/welcome handshake
+- Foreground application ping every 25s, with a matching host pong required within
+  10s; this checks the entire relay-to-Studio path
+- `nudge()` for bounded liveness checks on foreground events
+- Connection generations to ignore late handshakes and frames from a replaced socket
+- Background teardown releases connection waiters and cancels all recovery timers
+
+Cellular access requires a relay, reachable HTTPS host, or connected tailnet. A
+phone paired to a LAN-only address must pair again using Studio's connected relay
+address; reconnecting cannot make a private Wi-Fi address reachable over cellular.
 
 ### Protocol
 

@@ -1,12 +1,11 @@
-import { Host, Text } from "@expo/ui/jetpack-compose";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { useGraftPalette } from "../theme/tokens";
 import { RunStatusDotMatrix } from "./RunStatusDotMatrix";
+import { ShimmerText } from "./ShimmerText";
 
 // Only the transcript footer owns live status. Phrase changes leave the
-// original dot animation mounted and update a single native text element.
+// original dot animation mounted while the label shimmers on the UI thread.
 export const LiveStatusLine = memo(function LiveStatusLine({
   phrase,
   animating = true,
@@ -14,7 +13,6 @@ export const LiveStatusLine = memo(function LiveStatusLine({
   readonly phrase: string;
   readonly animating?: boolean;
 }) {
-  const palette = useGraftPalette();
   return (
     <View
       accessible
@@ -23,16 +21,9 @@ export const LiveStatusLine = memo(function LiveStatusLine({
       style={styles.row}
     >
       {animating ? <RunStatusDotMatrix /> : null}
-      <Host ignoreSafeAreaKeyboardInsets matchContents={{ vertical: true }} style={styles.phrase}>
-        <Text
-          color={palette.foregroundSubtle}
-          maxLines={1}
-          overflow="ellipsis"
-          style={{ fontSize: 14, lineHeight: 20 }}
-        >
-          {phrase}
-        </Text>
-      </Host>
+      <View style={styles.phrase}>
+        <ShimmerText text={phrase} animating={animating} />
+      </View>
     </View>
   );
 });

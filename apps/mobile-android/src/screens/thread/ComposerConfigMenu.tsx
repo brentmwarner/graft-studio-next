@@ -37,6 +37,7 @@ export interface ComposerMenuConfig {
   readonly currentApproval: string | undefined;
   readonly approvalOptions: readonly GraftApprovalPolicyOption[];
   readonly currentModel: GraftModelOption | undefined;
+  readonly lockedProviderId?: string;
   readonly models: readonly GraftModelOption[];
   readonly efforts: readonly string[];
   readonly resolvedEffort: string | undefined;
@@ -69,8 +70,12 @@ export function ComposerConfigMenu({
   readonly trigger: (open: () => void) => ReactElement;
   readonly openRequest?: number;
 }) {
-  const [page, setPage] = useState(initialPage);
-  const [providerId, setProviderId] = useState(config.currentModel?.providerId);
+  const modelPage = config.lockedProviderId ? "models" : "providers";
+  const startingPage = initialPage === "providers" ? modelPage : initialPage;
+  const [page, setPage] = useState<ComposerMenuPage>(startingPage);
+  const [providerId, setProviderId] = useState(
+    config.lockedProviderId ?? config.currentModel?.providerId,
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const generation = useRef(0);
@@ -232,9 +237,17 @@ export function ComposerConfigMenu({
       case "models":
         return (
           <>
-            <MenuItem label="‹ Providers" enabled={!pending} onPress={() => setPage("providers")} />
+            {config.lockedProviderId ? (
+              <MenuCaption>Model</MenuCaption>
+            ) : (
+              <MenuItem
+                label="‹ Providers"
+                enabled={!pending}
+                onPress={() => setPage("providers")}
+              />
+            )}
             {config.models
-              .filter((model) => model.providerId === providerId)
+              .filter((model) => model.providerId === (config.lockedProviderId ?? providerId))
               .map((model) => (
                 <MenuItem
                   key={`${model.providerId}:${model.id}`}
@@ -260,6 +273,13 @@ export function ComposerConfigMenu({
       case "intelligence":
         return (
           <>
+            <MenuItem
+              label="Model"
+              detail={config.currentModel?.label ?? "Choose model"}
+              disclosure
+              enabled={!pending}
+              onPress={() => setPage(modelPage)}
+            />
             {config.efforts.length > 0 ? <MenuCaption>Reasoning effort</MenuCaption> : null}
             {[...config.efforts]
               .sort((a, b) => {
@@ -298,8 +318,8 @@ export function ComposerConfigMenu({
       onOpenChange={(open) => {
         generation.current += 1;
         if (open) {
-          setPage(initialPage);
-          setProviderId(config.currentModel?.providerId);
+          setPage(startingPage);
+          setProviderId(config.lockedProviderId ?? config.currentModel?.providerId);
           setError(undefined);
         }
       }}

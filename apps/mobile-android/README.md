@@ -48,13 +48,31 @@ waveform, Stop and review, and Send dictation, with Cancel outside the capsule.
 Stopping keeps the text for editing; sending waits for the final transcript;
 cancelling restores the draft from before recording.
 
-The composer has a persistent settings row for provider/model, supported effort,
-and permissions. These controls stay available before typing and after the
-keyboard closes. The input surface expands on focus into a three-line editor
-with an internal plus menu, microphone, and send controls. Longer drafts grow up
+The composer keeps model, supported effort, permissions, attachments, and send
+controls inside one surface. These controls stay available before typing and after
+the keyboard closes. Model and effort share a compact picker; established chats
+open models for their locked provider directly. The input expands on focus into a
+three-line editor. Longer drafts grow up
 to a scrolling limit; an empty editor collapses when the keyboard is dismissed.
 Model discovery is shared across composers, with loading, retry, and refresh
 states. Effort choices follow the selected model's advertised capabilities.
+
+The transcript keeps one live status through thinking, text, and tool work until
+the turn ends. Its text shimmer runs on the UI thread and becomes static with
+reduced motion. Acknowledged local message echoes are retired from the live
+buffer, while repeated prompts sent as separate turns remain distinct.
+
+The gateway replaces its socket when the active network switches between Wi-Fi,
+cellular, and VPN, and pauses retries while offline. Connection handshakes have a
+15-second deadline; foreground heartbeats run every 25 seconds and require the
+host's matching reply within 10 seconds. Reopening the app reconnects and refreshes
+the selected conversation. Commands whose outcome is uncertain keep their original
+retry ID instead of being silently resubmitted as a new command.
+
+This requires rebuilding the Android app to include `expo-network`; a Metro reload
+cannot add the native network listener to an older APK. Off-Wi-Fi access still
+requires a relay, reachable HTTPS host, or connected tailnet. An existing LAN-only
+pairing must be paired again using Studio's connected relay address.
 
 ## Verification
 
@@ -105,7 +123,7 @@ discovery, composer menus, native picker responses, attachment sending, and diff
 response matching. A rebuilt native preview still needs these device checks:
 
 1. Open New chat with an empty editor. Switch providers and models, then select
-   an effort. Verify the first turn uses those choices. Check the settings row
+   an effort. Verify the first turn uses those choices. Check the composer toolbar
    with the keyboard open and closed, on a narrow screen and with larger text.
 2. In an existing chat, verify model changes stay on its locked provider and
    `/model` opens the picker. Disconnect/reconnect and exercise catalog retry.

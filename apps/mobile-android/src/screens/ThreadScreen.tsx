@@ -188,7 +188,7 @@ export function ThreadScreen({
   const pendingQuestion = model.question;
   const liveStatus = transcriptLiveStatus({
     items: model.items,
-    isWorking: Boolean(isSending || pendingSend || model.activeRunId),
+    isWorking: isSending || pendingSend || model.isWorking,
     isConnected,
     needsInput: Boolean(pendingApproval || pendingQuestion),
   });
@@ -519,6 +519,7 @@ export function ThreadScreen({
             currentApproval: model.currentApproval,
             approvalOptions: model.approvalOptions,
             currentModel: model.currentModel,
+            lockedProviderId: model.lockedProviderId,
             models: model.selectableModels,
             efforts: model.efforts,
             resolvedEffort: model.resolvedEffort,

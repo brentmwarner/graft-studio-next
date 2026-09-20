@@ -6,6 +6,8 @@ import {
   type GraftTimelineEventData,
 } from "@graft/mobile-contract";
 
+import { reconciledOptimisticMessageIds } from "./optimisticMessages";
+
 export interface InboxThreadItem {
   readonly id: string;
   readonly title: string;
@@ -121,10 +123,6 @@ function assistantRowId(event: GraftTimelineEvent): string {
   return `${channel}:${transcriptMessageId(event.id)}`;
 }
 
-function normalizedText(text: string): string {
-  return text.trim().replace(/\s+/g, " ").toLocaleLowerCase();
-}
-
 export function groupProjects(
   snapshot: GraftEnvironmentSnapshot | null,
   searchQuery: string,
@@ -223,8 +221,10 @@ export function mergeTimelineEvents(
   snapshotCursor: number,
 ): readonly GraftTimelineEvent[] {
   const seen = new Set(settledEvents.map(eventKey));
+  const reconciled = reconciledOptimisticMessageIds(settledEvents, liveEvents);
   const merged = [...settledEvents];
   for (const event of liveEvents) {
+    if (event.cursor === 0 && reconciled.has(event.id)) continue;
     if (event.cursor > 0 && event.cursor <= snapshotCursor) continue;
     // Structured events revise in place under a stable id, and the revision
     // lives in `data` — which the key can't see. Deduping them by kind/id/text
@@ -272,17 +272,8 @@ export function buildTranscriptItems(
   const completedMessages = new Set<string>();
   const completedRunIDs = new Set<string>();
   const assistantRunIds = new Map<string, string | undefined>();
-  const optimisticIds = new Set(
-    liveEvents.filter((event) => event.cursor === 0).map((event) => event.id),
-  );
   let currentAssistant: Extract<TranscriptItem, { kind: "assistant" }> | undefined;
-  /// The host can echo a user turn either before or after the local optimistic
-  /// row. Keep the most recent candidate's source as well as its text so either
-  /// ordering collapses to one bubble without dropping two authoritative turns
-  /// that happen to contain the same words.
-  let userEchoCandidate:
-    | { readonly normalizedText: string; readonly optimistic: boolean }
-    | undefined;
+  const userMessageIds = new Set<string>();
 
   function settleAssistant(): void {
     if (!currentAssistant) return;
@@ -330,28 +321,8 @@ export function buildTranscriptItems(
       case "user.message": {
         const text = event.text?.trim() ?? "";
         if (!text && !event.attachments?.length) break;
-        // Local and host IDs differ after upload; metadata identifies the echo.
-        const normalized = JSON.stringify([
-          normalizedText(text),
-          event.attachments?.map(({ name, sizeBytes, type }) => [name, sizeBytes, type]) ?? [],
-        ]);
-        const optimistic = optimisticIds.has(event.id);
-        // Only `sendMessage` creates cursor-zero events. Pair one such event
-        // with one authoritative event, regardless of which arrived
-        // first. Same-source repeats remain distinct user turns.
-        if (
-          userEchoCandidate?.normalizedText === normalized &&
-          userEchoCandidate.optimistic !== optimistic
-        ) {
-          // Keep the candidate authoritative after consuming the pair. This
-          // also covers a snapshot that places the settled assistant response
-          // between the authoritative user row and its lingering live echo.
-          userEchoCandidate = {
-            normalizedText: normalized,
-            optimistic: false,
-          };
-          break;
-        }
+        if (userMessageIds.has(event.id)) break;
+        userMessageIds.add(event.id);
         settleAssistant();
         items.push({
           id: claimId(usedIds, `user:${event.id}`),
@@ -359,7 +330,6 @@ export function buildTranscriptItems(
           text,
           ...(event.attachments?.length ? { attachments: event.attachments } : {}),
         });
-        userEchoCandidate = { normalizedText: normalized, optimistic };
         break;
       }
       case "assistant.delta":

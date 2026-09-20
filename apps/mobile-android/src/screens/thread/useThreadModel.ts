@@ -3,7 +3,6 @@ import type {
   GraftDiffSummary,
   GraftEnvironmentSnapshot,
   GraftModelOption,
-  GraftRunStatus,
   GraftThreadSummary,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
@@ -11,6 +10,7 @@ import { useMemo, useState } from "react";
 
 import type { TranscriptItem } from "../../state/mobileViewModels";
 import { deriveTaskProgress, type TaskProgress } from "../../state/taskProgress";
+import { threadRunState } from "../../state/threadRunState";
 import { useReconciledTranscript } from "./TranscriptRow";
 import { modelSelectionId, resolveModelEffort, threadModelChoices } from "./threadModels";
 
@@ -18,17 +18,9 @@ import { modelSelectionId, resolveModelEffort, threadModelChoices } from "./thre
 /// array identity on every render and defeat the transcript memo below.
 const NO_EVENTS: readonly GraftTimelineEvent[] = [];
 
-const RUN_IS_ACTIVE: Record<GraftRunStatus, boolean> = {
-  queued: true,
-  running: true,
-  waiting: true,
-  completed: false,
-  failed: false,
-  cancelled: false,
-};
-
 export interface ThreadModel {
   readonly activeRunId: string | undefined;
+  readonly isWorking: boolean;
   readonly approval: GraftEnvironmentSnapshot["pendingApprovals"][number] | undefined;
   readonly approvalIsElevated: boolean;
   readonly approvalOptions: readonly GraftApprovalPolicyOption[];
@@ -108,18 +100,13 @@ export function useThreadModel({
       ]),
     [transcript, threadLiveEvents, transcriptCursor],
   );
-  const activeRun = snapshot?.activeRuns.find(
-    (run) => run.threadId === thread.id && RUN_IS_ACTIVE[run.status],
+  const activeRun = snapshot?.activeRuns.find((run) => run.threadId === thread.id);
+  const { activeRunId, isWorking } = threadRunState(
+    activeRun,
+    threadLiveEvents,
+    snapshot?.cursor ?? 0,
+    currentThread.status === "running",
   );
-  const latestRunStatus = useMemo(
-    () =>
-      [...threadLiveEvents]
-        .reverse()
-        .find((event) => event.kind === "run.status" && event.runId === activeRun?.id)?.runStatus,
-    [activeRun?.id, threadLiveEvents],
-  );
-  const activeRunId =
-    activeRun && (!latestRunStatus || RUN_IS_ACTIVE[latestRunStatus]) ? activeRun.id : undefined;
   const approval = snapshot?.pendingApprovals.find((item) => item.threadId === thread.id);
   const question = snapshot?.pendingQuestions.find((item) => item.threadId === thread.id);
   const { currentModel, lockedProviderId, selectableModels } = threadModelChoices(
@@ -149,6 +136,7 @@ export function useThreadModel({
 
   return {
     activeRunId,
+    isWorking,
     approval,
     approvalIsElevated,
     approvalOptions,

@@ -27,6 +27,7 @@ import {
 import { AppState } from "react-native";
 
 import { createGatewayClient, GatewayError } from "../api/gateway";
+import { watchGatewayNetwork } from "../api/gatewayNetwork";
 import {
   GatewaySocket,
   GatewaySocketError,
@@ -42,6 +43,8 @@ import { getDeviceIdentity } from "../storage/deviceIdentity";
 import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
 
 import { useModelCatalog } from "./useModelCatalog";
+import { mergeTimelineEvents } from "./mobileViewModels";
+import { reconcileLiveUserMessages, type LocalTimelineEvent } from "./optimisticMessages";
 
 interface LoadingState {
   readonly status: "loading";
@@ -207,7 +210,10 @@ export function useGraftSession() {
                 // transcript can briefly lag behind a just-started turn. Keep
                 // the bounded live tail and let the transcript merger dedupe
                 // events against the selected thread's actual event cursors.
-                liveEvents: current.liveEvents.slice(-2_000),
+                liveEvents: reconcileLiveUserMessages(
+                  snapshot.selectedTranscript?.events ?? [],
+                  current.liveEvents,
+                ).slice(-2_000),
                 isRefreshing: false,
                 error: undefined,
               }
@@ -262,7 +268,10 @@ export function useGraftSession() {
             current.status === "paired"
               ? {
                   ...current,
-                  liveEvents: [...current.liveEvents, message.event].slice(-2_000),
+                  liveEvents: reconcileLiveUserMessages(
+                    current.snapshot?.selectedTranscript?.events ?? [],
+                    [...current.liveEvents, message.event],
+                  ).slice(-2_000),
                 }
               : current,
           );
@@ -322,7 +331,9 @@ export function useGraftSession() {
       },
     });
     socketRef.current = socket;
+    const stopWatchingNetwork = watchGatewayNetwork(socket);
     return () => {
+      stopWatchingNetwork();
       if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
       socket.disconnect();
       socketRef.current = null;
@@ -610,11 +621,25 @@ export function useGraftSession() {
         text,
         ...(attachments.length ? { attachments: [...attachments] } : {}),
       };
-      updatePaired(setState, (current) => ({
-        ...current,
-        liveEvents: [...current.liveEvents, optimisticEvent],
-        error: undefined,
-      }));
+      updatePaired(setState, (current) => {
+        const transcript = current.snapshot?.selectedTranscript;
+        const events = mergeTimelineEvents(
+          transcript?.threadId === threadId ? transcript.events : [],
+          current.liveEvents.filter((event) => event.threadId === threadId),
+          transcript?.threadId === threadId ? transcript.cursor : 0,
+        );
+        const local: LocalTimelineEvent = {
+          ...optimisticEvent,
+          optimisticAfterMessageId:
+            events.findLast((event) => event.kind === "user.message")?.id ??
+            (transcript?.threadId === threadId ? null : undefined),
+          optimisticAfterCursor: current.liveEvents.reduce(
+            (cursor, event) => Math.max(cursor, event.cursor),
+            current.snapshot?.cursor ?? 0,
+          ),
+        };
+        return { ...current, liveEvents: [...current.liveEvents, local], error: undefined };
+      });
       setPendingSendThreadId(threadId);
 
       try {

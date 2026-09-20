@@ -9,6 +9,22 @@ struct GatewayEvent: Sendable {
     let payload: Data
 }
 
+@MainActor
+protocol GatewaySocketTransport: AnyObject {
+    func resume()
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
+    func send(_ message: URLSessionWebSocketTask.Message) async throws
+    func receive() async throws -> URLSessionWebSocketTask.Message
+}
+
+extension URLSessionWebSocketTask: GatewaySocketTransport {}
+
+struct GatewayConnectionTiming {
+    var handshake: Duration = .seconds(15)
+    var heartbeat: Duration = .seconds(25)
+    var pong: Duration = .seconds(10)
+}
+
 // MARK: - GatewayClient
 
 /// WebSocket client for the Graft remote-gateway protocol.
@@ -36,9 +52,16 @@ final class GatewayClient {
     /// Resolves the hello frame sent immediately after the WebSocket upgrade.
     var helloProvider: (@MainActor () async throws -> ClientHello)?
 
-    private var socket: URLSessionWebSocketTask?
+    private var socket: (any GatewaySocketTransport)?
     private var receiveTask: Task<Void, Never>?
     private var pingTask: Task<Void, Never>?
+    private var handshakeTimeoutTask: Task<Void, Never>?
+    private var pongTimeoutTask: Task<Void, Never>?
+    private var pendingPing: Int?
+    private var lastPing = 0
+    private var connectionGeneration = 0
+    private let timing: GatewayConnectionTiming
+    private let makeSocket: @MainActor (URLRequest) -> any GatewaySocketTransport
 
     private typealias ListenerID = UUID
     private struct Listener {
@@ -56,18 +79,47 @@ final class GatewayClient {
 
     /// Re-dials immediately when the network path recovers, bypassing backoff.
     private let pathMonitor = NWPathMonitor()
+    private var networkAvailable = true
+    private var networkInterfaces: [String]?
 
-    init() {
+    init(
+        monitorNetwork: Bool = true,
+        timing: GatewayConnectionTiming = GatewayConnectionTiming(),
+        makeSocket: @escaping @MainActor (URLRequest) -> any GatewaySocketTransport = { request in
+            let task = RESTClient.session.webSocketTask(with: request)
+            task.maximumMessageSize = 32 * 1024 * 1024
+            return task
+        }
+    ) {
+        self.timing = timing
+        self.makeSocket = makeSocket
+        guard monitorNetwork else { return }
         pathMonitor.pathUpdateHandler = { [weak self] path in
-            let satisfied = path.status == .satisfied
-            Task { @MainActor [weak self] in self?.pathChanged(satisfied: satisfied) }
+            // A requiresConnection path (for example an on-demand VPN) can
+            // become usable by dialing. Only an unsatisfied path is offline.
+            let available = path.status != .unsatisfied
+            let interfaces = path.availableInterfaces
+                .filter { path.usesInterfaceType($0.type) }.map(\.name).sorted()
+            Task { @MainActor [weak self] in
+                self?.networkChanged(available: available, interfaces: interfaces)
+            }
         }
         pathMonitor.start(queue: DispatchQueue(label: "graft.gateway.path-monitor", qos: .utility))
     }
 
-    private func pathChanged(satisfied: Bool) {
-        guard satisfied, shouldStayConnected else { return }
-        nudge()
+    /// Wi-Fi → cellular can leave the old socket nominally running. Replace it
+    /// on a route change instead of waiting for the old TCP connection to fail.
+    func networkChanged(available: Bool, interfaces: [String]) {
+        let changed = networkAvailable != available ||
+            (networkInterfaces != nil && networkInterfaces != interfaces)
+        networkAvailable = available
+        networkInterfaces = interfaces
+        guard changed, shouldStayConnected else { return }
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        teardown(reason: "network changed", notify: true)
+        state = .reconnecting
+        if available { scheduleReconnect(reason: "network changed", immediately: true) }
     }
 
     // MARK: Listeners
@@ -113,6 +165,10 @@ final class GatewayClient {
             throw GraftError.notPaired
         }
         shouldStayConnected = true
+        guard networkAvailable else {
+            state = .reconnecting
+            throw GraftError.unreachable("Waiting for a network connection.")
+        }
         state = .connecting
         try await openSocket(isReconnect: false)
     }
@@ -123,34 +179,62 @@ final class GatewayClient {
         guard let requestProvider, let helloProvider else {
             throw GraftError.notPaired
         }
+        connectionGeneration += 1
+        let generation = connectionGeneration
+        state = .connecting
+        var opened: (any GatewaySocketTransport)?
         do {
             var request = try await requestProvider()
             let hello = try await helloProvider()
+            try Task.checkCancellation()
+            guard generation == connectionGeneration, shouldStayConnected else {
+                throw CancellationError()
+            }
             request.timeoutInterval = 15
-            let task = RESTClient.session.webSocketTask(with: request)
-            task.maximumMessageSize = 32 * 1024 * 1024
+            let task = makeSocket(request)
+            opened = task
             socket = task
+            handshakeTimeoutTask = Task { [weak self, weak task] in
+                guard let self else { return }
+                do { try await Task.sleep(for: self.timing.handshake) } catch { return }
+                guard let task else { return }
+                self.handleDrop(of: task, reason: "handshake timeout")
+            }
             task.resume()
 
             // The host waits for `hello` before replying with `welcome`.
             try await task.send(.string(try GatewayHandshake.helloText(hello)))
             let first = try await task.receive()
             let welcomeData = try GatewayHandshake.validatedWelcomeData(first)
-            reconnectTask?.cancel()
+            try Task.checkCancellation()
+            guard generation == connectionGeneration, shouldStayConnected, socket === task else {
+                throw CancellationError()
+            }
+            handshakeTimeoutTask?.cancel()
+            handshakeTimeoutTask = nil
             reconnectTask = nil
             state = .connected
-            broadcast(GatewayEvent(envelope: "welcome", payload: welcomeData))
             startReceiveLoop(task)
             startPingLoop(task)
             resumeWaiters(with: nil)
+            broadcast(GatewayEvent(envelope: "welcome", payload: welcomeData))
         } catch {
+            opened?.cancel(with: .goingAway, reason: nil)
+            // A superseded handshake must never clear the replacement socket
+            // or restart a connection after backgrounding/unpairing.
+            guard generation == connectionGeneration else { throw error }
+            handshakeTimeoutTask?.cancel()
+            handshakeTimeoutTask = nil
             socket = nil
+            resumeWaiters(with: error)
+            if !shouldRetry(error) { shouldStayConnected = false }
             if !isReconnect {
                 state = .disconnected(error.localizedDescription)
-                resumeWaiters(with: error)
                 if shouldStayConnected && shouldRetry(error) {
                     scheduleReconnect(reason: error.localizedDescription)
                 }
+            } else {
+                state = .reconnecting
             }
             throw error
         }
@@ -165,14 +249,12 @@ final class GatewayClient {
             return
         case .connected:
             guard let socket else { return }
-            socket.sendPing { [weak self] error in
-                guard error != nil else { return }
-                Task { @MainActor [weak self] in
-                    self?.handleDrop(of: socket, reason: "connection lost")
-                }
-            }
+            sendHeartbeat(socket)
         case .reconnecting, .disconnected, .idle:
-            Task { try? await ensureConnected() }
+            shouldStayConnected = true
+            reconnectTask?.cancel()
+            reconnectTask = nil
+            scheduleReconnect(reason: "foregrounded", immediately: true)
         }
     }
 
@@ -198,21 +280,24 @@ final class GatewayClient {
 
     // MARK: Reconnect
 
-    private func handleDrop(of dropped: URLSessionWebSocketTask, reason: String?) {
-        guard dropped === socket, case .connected = state else { return }
+    private func handleDrop(of dropped: any GatewaySocketTransport, reason: String?) {
+        guard dropped === socket else { return }
+        reconnectTask?.cancel()
+        reconnectTask = nil
         teardown(reason: reason, notify: true)
         if shouldStayConnected { scheduleReconnect(reason: reason) }
     }
 
-    private func scheduleReconnect(reason: String?) {
+    private func scheduleReconnect(reason: String?, immediately: Bool = false) {
         guard shouldStayConnected, reconnectTask == nil else { return }
         state = .reconnecting
+        guard networkAvailable else { return }
         AppLog.networking.info("Scheduling reconnect after drop: \(reason ?? "unknown")")
         reconnectTask = Task { [weak self] in
             var attempt = 0
             while !Task.isCancelled {
                 guard let self else { return }
-                let delay = self.reconnectPolicy.delay(for: attempt)
+                let delay: Duration = immediately && attempt == 0 ? .zero : self.reconnectPolicy.delay(for: attempt)
                 AppLog.networking.debug("Reconnect attempt \(attempt), delay \(delay)")
                 try? await Task.sleep(for: delay)
                 if Task.isCancelled { return }
@@ -221,6 +306,7 @@ final class GatewayClient {
                     try await self.openSocket(isReconnect: true)
                     return
                 } catch {
+                    if Task.isCancelled { return }
                     guard self.shouldRetry(error) else {
                         self.shouldStayConnected = false
                         self.state = .disconnected(error.localizedDescription)
@@ -234,12 +320,19 @@ final class GatewayClient {
     }
 
     private func teardown(reason: String?, notify: Bool) {
+        connectionGeneration += 1
         receiveTask?.cancel()
         pingTask?.cancel()
+        handshakeTimeoutTask?.cancel()
+        pongTimeoutTask?.cancel()
         receiveTask = nil
         pingTask = nil
+        handshakeTimeoutTask = nil
+        pongTimeoutTask = nil
+        pendingPing = nil
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
+        resumeWaiters(with: GraftError.socketClosed)
         if case .connected = state {
             state = .disconnected(reason)
         } else if case .connecting = state {
@@ -252,39 +345,54 @@ final class GatewayClient {
 
     // MARK: Receive / Ping loops
 
-    private func startReceiveLoop(_ task: URLSessionWebSocketTask) {
+    private func startReceiveLoop(_ task: any GatewaySocketTransport) {
         receiveTask?.cancel()
         receiveTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
                     let message = try await task.receive()
-                    await MainActor.run { self?.handleRaw(message) }
+                    guard !Task.isCancelled, self?.socket === task else { return }
+                    self?.handleRaw(message)
                 } catch {
-                    await MainActor.run {
-                        self?.handleDrop(of: task, reason: error.localizedDescription)
-                    }
+                    self?.handleDrop(of: task, reason: error.localizedDescription)
                     return
                 }
             }
         }
     }
 
-    private func startPingLoop(_ task: URLSessionWebSocketTask) {
+    private func startPingLoop(_ task: any GatewaySocketTransport) {
         pingTask?.cancel()
         pingTask = Task { [weak self, weak task] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(25))
+                guard let interval = self?.timing.heartbeat else { return }
+                try? await Task.sleep(for: interval)
                 if Task.isCancelled { return }
-                guard let task, task.state == .running else { return }
-                let failed = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-                    task.sendPing { cont.resume(returning: $0 != nil) }
-                }
-                if failed {
-                    await MainActor.run {
-                        self?.handleDrop(of: task, reason: "ping timeout")
-                    }
-                    return
-                }
+                guard let task, self?.socket === task else { return }
+                self?.sendHeartbeat(task)
+            }
+        }
+    }
+
+    /// Application pings traverse the relay all the way to Studio. A native
+    /// WebSocket pong only proves the nearest proxy is still reachable.
+    private func sendHeartbeat(_ task: any GatewaySocketTransport) {
+        guard socket === task, pendingPing == nil, state == .connected else { return }
+        let at = max(Int(Date().timeIntervalSince1970), lastPing + 1)
+        lastPing = at
+        pendingPing = at
+        pongTimeoutTask = Task { [weak self, weak task] in
+            guard let self else { return }
+            do { try await Task.sleep(for: self.timing.pong) } catch { return }
+            guard let task else { return }
+            self.handleDrop(of: task, reason: "heartbeat timeout")
+        }
+        Task { [weak self] in
+            do {
+                let data = try JSONEncoder().encode(ClientPing(at: at))
+                try await task.send(.string(String(decoding: data, as: UTF8.self)))
+            } catch {
+                self?.handleDrop(of: task, reason: error.localizedDescription)
             }
         }
     }
@@ -321,6 +429,12 @@ final class GatewayClient {
         guard let envelope = (try? JSONDecoder().decode(EnvelopeProbe.self, from: data))?.envelope else {
             AppLog.networking.warning("Received unrecognized gateway frame")
             return
+        }
+        if envelope == "pong",
+           let pong = try? JSONDecoder().decode(HostPong.self, from: data), pong.at == pendingPing {
+            pongTimeoutTask?.cancel()
+            pongTimeoutTask = nil
+            pendingPing = nil
         }
         broadcast(GatewayEvent(envelope: envelope, payload: data))
     }
