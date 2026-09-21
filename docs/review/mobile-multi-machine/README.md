@@ -73,6 +73,9 @@ iOS uses the same compact proportions with caption text and 44pt tap targets;
 its native rendering remains unverified while the Mac is offline. The five Android
 HomeScreen tests pass after this refinement; tapping the connected computer, the
 offline computer, and All was also checked in the emulator.
+The Chats heading now shares the Projects heading's 20dp left inset; its duplicate
+text padding was removed and the screenshots refreshed. iOS already uses one
+20pt inset for both headings.
 
 The Android SDK and running emulator were found outside the shell's PATH after
 the initial validation pass. These captures use the existing isolated development

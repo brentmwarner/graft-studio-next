@@ -281,12 +281,7 @@ export function HomeScreen({
         ) : viewMode === "project" ? (
           <>
             <View style={styles.projectHeader}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: palette.foreground, flex: 1, paddingLeft: 20 },
-                ]}
-              >
+              <Text style={[styles.sectionTitle, { color: palette.foreground, flex: 1 }]}>
                 Chats
               </Text>
               {projects.find(
