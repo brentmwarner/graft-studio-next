@@ -243,7 +243,7 @@ export function HomeScreen({
         ref={scrollRef}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + 104, paddingTop: insets.top + 136 },
+          { paddingBottom: insets.bottom + 104, paddingTop: insets.top + 124 },
         ]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -454,7 +454,7 @@ export function HomeScreen({
       <View
         style={{
           position: "absolute",
-          top: insets.top + 72,
+          top: insets.top + 64,
           left: 0,
           right: 0,
           backgroundColor: palette.background,
@@ -463,7 +463,7 @@ export function HomeScreen({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4, gap: 6 }}
         >
           {[
             { id: undefined, label: "All", connected: false },
@@ -487,41 +487,41 @@ export function HomeScreen({
                     : "All computers"
                 }
                 onPress={() => onSelectMachine?.(machine.id)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingHorizontal: 15,
-                  paddingVertical: 11,
-                  borderRadius: 24,
-                  backgroundColor: selected ? palette.foreground : palette.subtle,
-                }}
+                style={styles.machineFilterTarget}
               >
-                {machine.id ? (
-                  <>
-                    <View
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: 4,
-                        backgroundColor: machine.connected ? palette.success : palette.danger,
-                      }}
-                    />
-                    <Ionicons
-                      name="laptop-outline"
-                      size={20}
-                      color={selected ? palette.background : palette.foreground}
-                    />
-                  </>
-                ) : null}
-                <Text
-                  style={{
-                    fontSize: 15,
-                    color: selected ? palette.background : palette.foreground,
-                  }}
+                <View
+                  style={[
+                    styles.machineFilterPill,
+                    { backgroundColor: selected ? palette.foreground : palette.subtle },
+                  ]}
                 >
-                  {machine.label}
-                </Text>
+                  {machine.id ? (
+                    <>
+                      <View
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          backgroundColor: machine.connected ? palette.success : palette.danger,
+                        }}
+                      />
+                      <Ionicons
+                        name="laptop-outline"
+                        size={16}
+                        color={selected ? palette.background : palette.foreground}
+                      />
+                    </>
+                  ) : null}
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 18,
+                      color: selected ? palette.background : palette.foreground,
+                    }}
+                  >
+                    {machine.label}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -568,6 +568,16 @@ export function HomeScreen({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  machineFilterTarget: { minWidth: 48, minHeight: 48, justifyContent: "center" },
+  machineFilterPill: {
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: graftRadius.pill,
+  },
   content: { flexGrow: 1 },
   topFade: { top: 0 },
   topBar: {

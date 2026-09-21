@@ -891,32 +891,37 @@ struct MachineFilterBar: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button { selection = nil } label: {
-                    Text("All").padding(.horizontal, 16).padding(.vertical, 11)
+                    Text("All").padding(.horizontal, 12).padding(.vertical, 7)
                         .foregroundStyle(selection == nil ? Color(uiColor: .systemBackground) : .primary)
                         .background(selection == nil ? Color.primary : Color(uiColor: .secondarySystemBackground), in: .capsule)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
                 }
                 .accessibilityAddTraits(selection == nil ? .isSelected : [])
                 ForEach(machines) { machine in
                     Button { selection = machine.id } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Circle().fill(machine.gateway.state == .connected ? Color.green : Color.red)
-                                .frame(width: 7, height: 7)
+                                .frame(width: 6, height: 6)
                             Image(systemName: "laptopcomputer")
+                                .font(.system(size: 14))
                             Text(verbatim: machine.environmentLabel).lineLimit(1)
                         }
-                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .padding(.horizontal, 10).padding(.vertical, 7)
                         .foregroundStyle(selection == machine.id ? Color(uiColor: .systemBackground) : .primary)
                         .background(selection == machine.id ? Color.primary : Color(uiColor: .secondarySystemBackground), in: .capsule)
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
                     }
                     .accessibilityLabel("\(machine.environmentLabel), \(machine.gateway.state == .connected ? "Connected" : "Offline")")
                     .accessibilityAddTraits(selection == machine.id ? .isSelected : [])
                 }
             }
-            .font(.subheadline)
+            .font(.footnote)
             .buttonStyle(.plain)
-            .padding(.horizontal, 16).padding(.vertical, 10)
+            .padding(.horizontal, 16).padding(.vertical, 4)
         }
         .scrollIndicators(.hidden)
     }

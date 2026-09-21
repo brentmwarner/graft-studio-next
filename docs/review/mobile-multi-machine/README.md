@@ -49,9 +49,9 @@ inbox presentation without switching or replacing a connection.
 
 ## Android screenshots
 
-Captured September 20, 2026 on the available Android 15 emulator (1080 × 2400),
-rendering the current `d205e68c7` React Native screens with an isolated component
-harness and sample snapshots. These are native emulator screenshots, not mockups
+Refreshed September 21, 2026 on the available Android 15 emulator (1080 × 2400),
+rendering the compact-filter follow-up to PR 70 with an isolated component harness
+and sample snapshots. These are native emulator screenshots, not mockups
 or screenshots from the earlier inbox implementation.
 
 | Projects / All                                                        | Add computer menu                                            |
@@ -61,7 +61,13 @@ or screenshots from the earlier inbox implementation.
 [Offline computer filter](android-offline-filter.png) retains only that computer's
 sample chats and project. Its sample threads have stale running status; no spinner
 or warning appears. Selecting All restores the combined inbox. The computer row
-scrolls horizontally when labels exceed the available width.
+scrolls horizontally when labels exceed the available width. The refreshed pills
+use 13sp labels, 16dp laptop icons, and 32dp visible fills inside 48dp tap targets.
+Both sample computer names now fit completely at the captured screen width.
+iOS uses the same compact proportions with footnote text and 44pt tap targets;
+its native rendering remains unverified while the Mac is offline. The five Android
+HomeScreen tests pass after the size change; tapping the offline filter and then
+All was also checked in the emulator.
 
 The Android SDK and running emulator were found outside the shell's PATH after
 the initial validation pass. These captures use the existing isolated development
