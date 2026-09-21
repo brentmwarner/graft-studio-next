@@ -202,6 +202,7 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
+  const machineFilterTop = Math.max(insets.top + 40, 72);
   const scrollRef = useRef<ScrollView>(null);
   const [searchText, setSearchText] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set());
@@ -243,7 +244,7 @@ export function HomeScreen({
         ref={scrollRef}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + 104, paddingTop: insets.top + 124 },
+          { paddingBottom: insets.bottom + 104, paddingTop: machineFilterTop + 60 },
         ]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -454,7 +455,7 @@ export function HomeScreen({
       <View
         style={{
           position: "absolute",
-          top: insets.top + 64,
+          top: machineFilterTop,
           left: 0,
           right: 0,
           backgroundColor: palette.background,
@@ -463,7 +464,7 @@ export function HomeScreen({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4, gap: 6 }}
+          contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 4, gap: 7 }}
         >
           {[
             { id: undefined, label: "All", connected: false },
@@ -487,11 +488,13 @@ export function HomeScreen({
                     : "All computers"
                 }
                 onPress={() => onSelectMachine?.(machine.id)}
+                hitSlop={{ left: 2, right: 2 }}
                 style={styles.machineFilterTarget}
               >
                 <View
                   style={[
                     styles.machineFilterPill,
+                    !machine.id && styles.allMachinesPill,
                     { backgroundColor: selected ? palette.foreground : palette.subtle },
                   ]}
                 >
@@ -499,10 +502,11 @@ export function HomeScreen({
                     <>
                       <View
                         style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          backgroundColor: machine.connected ? palette.success : palette.danger,
+                          width: 7,
+                          height: 7,
+                          borderRadius: 3.5,
+                          marginRight: 4,
+                          backgroundColor: machine.connected ? "#1DBF89" : "#FF375F",
                         }}
                       />
                       <Ionicons
@@ -514,8 +518,8 @@ export function HomeScreen({
                   ) : null}
                   <Text
                     style={{
-                      fontSize: 13,
-                      lineHeight: 18,
+                      fontSize: 12,
+                      lineHeight: 16,
                       color: selected ? palette.background : palette.foreground,
                     }}
                   >
@@ -568,16 +572,17 @@ export function HomeScreen({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  machineFilterTarget: { minWidth: 48, minHeight: 48, justifyContent: "center" },
+  machineFilterTarget: { minWidth: 44, minHeight: 48, justifyContent: "center" },
   machineFilterPill: {
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: graftRadius.pill,
   },
+  allMachinesPill: { minWidth: 42, justifyContent: "center" },
   content: { flexGrow: 1 },
   topFade: { top: 0 },
   topBar: {

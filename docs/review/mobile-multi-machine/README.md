@@ -50,24 +50,29 @@ inbox presentation without switching or replacing a connection.
 ## Android screenshots
 
 Refreshed September 21, 2026 on the available Android 15 emulator (1080 × 2400),
-rendering the compact-filter follow-up to PR 70 with an isolated component harness
+rendering the reference-matched filter follow-up to PR 70 with an isolated component harness
 and sample snapshots. These are native emulator screenshots, not mockups
 or screenshots from the earlier inbox implementation.
 
-| Projects / All                                                        | Add computer menu                                            |
-| --------------------------------------------------------------------- | ------------------------------------------------------------ |
-| ![All computers with green and red status dots](android-projects.png) | ![Projects menu with Add computer](android-add-computer.png) |
+| Selected computer                                                                 | Add computer menu                                            |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| ![Selected omarchy with green and red status dots](android-selected-computer.png) | ![Projects menu with Add computer](android-add-computer.png) |
+
+[All computers](android-projects.png) shows the combined inbox.
 
 [Offline computer filter](android-offline-filter.png) retains only that computer's
 sample chats and project. Its sample threads have stale running status; no spinner
 or warning appears. Selecting All restores the combined inbox. The computer row
 scrolls horizontally when labels exceed the available width. The refreshed pills
-use 13sp labels, 16dp laptop icons, and 32dp visible fills inside 48dp tap targets.
+use 12sp labels, 16dp laptop icons, 7dp teal/pink status dots, and 32dp visible fills.
+Laptop-to-label spacing is 4dp; status dots have a separate 8dp gap. The row sits
+closer to the header, with black selected and neutral unselected capsules.
+Tap targets remain at least 48dp including horizontal hit slop on All.
 Both sample computer names now fit completely at the captured screen width.
-iOS uses the same compact proportions with footnote text and 44pt tap targets;
+iOS uses the same compact proportions with caption text and 44pt tap targets;
 its native rendering remains unverified while the Mac is offline. The five Android
-HomeScreen tests pass after the size change; tapping the offline filter and then
-All was also checked in the emulator.
+HomeScreen tests pass after this refinement; tapping the connected computer, the
+offline computer, and All was also checked in the emulator.
 
 The Android SDK and running emulator were found outside the shell's PATH after
 the initial validation pass. These captures use the existing isolated development

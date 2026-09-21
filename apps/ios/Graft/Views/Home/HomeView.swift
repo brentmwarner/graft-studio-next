@@ -891,9 +891,10 @@ struct MachineFilterBar: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Button { selection = nil } label: {
                     Text("All").padding(.horizontal, 12).padding(.vertical, 7)
+                        .frame(minWidth: 42, minHeight: 32)
                         .foregroundStyle(selection == nil ? Color(uiColor: .systemBackground) : .primary)
                         .background(selection == nil ? Color.primary : Color(uiColor: .secondarySystemBackground), in: .capsule)
                         .frame(minWidth: 44, minHeight: 44)
@@ -902,14 +903,19 @@ struct MachineFilterBar: View {
                 .accessibilityAddTraits(selection == nil ? .isSelected : [])
                 ForEach(machines) { machine in
                     Button { selection = machine.id } label: {
-                        HStack(spacing: 6) {
-                            Circle().fill(machine.gateway.state == .connected ? Color.green : Color.red)
-                                .frame(width: 6, height: 6)
-                            Image(systemName: "laptopcomputer")
-                                .font(.system(size: 14))
-                            Text(verbatim: machine.environmentLabel).lineLimit(1)
+                        HStack(spacing: 8) {
+                            Circle().fill(machine.gateway.state == .connected
+                                ? Color(red: 29 / 255, green: 191 / 255, blue: 137 / 255)
+                                : Color(red: 1, green: 55 / 255, blue: 95 / 255))
+                                .frame(width: 7, height: 7)
+                            HStack(spacing: 4) {
+                                Image(systemName: "laptopcomputer")
+                                    .font(.system(size: 16))
+                                Text(verbatim: machine.environmentLabel).lineLimit(1)
+                            }
                         }
                         .padding(.horizontal, 10).padding(.vertical, 7)
+                        .frame(minHeight: 32)
                         .foregroundStyle(selection == machine.id ? Color(uiColor: .systemBackground) : .primary)
                         .background(selection == machine.id ? Color.primary : Color(uiColor: .secondarySystemBackground), in: .capsule)
                         .frame(minHeight: 44)
@@ -919,9 +925,9 @@ struct MachineFilterBar: View {
                     .accessibilityAddTraits(selection == machine.id ? .isSelected : [])
                 }
             }
-            .font(.footnote)
+            .font(.caption)
             .buttonStyle(.plain)
-            .padding(.horizontal, 16).padding(.vertical, 4)
+            .padding(.horizontal, 18).padding(.vertical, 4)
         }
         .scrollIndicators(.hidden)
     }
