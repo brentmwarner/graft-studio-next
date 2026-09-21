@@ -70,7 +70,7 @@ closer to the header, with black selected and neutral unselected capsules.
 Tap targets remain at least 48dp including horizontal hit slop on All.
 Both sample computer names now fit completely at the captured screen width.
 iOS uses the same compact proportions with caption text and 44pt tap targets;
-its native rendering remains unverified while the Mac is offline. The five Android
+its native rendering remains unverified pending Mac access. The five Android
 HomeScreen tests pass after this refinement; tapping the connected computer, the
 offline computer, and All was also checked in the emulator.
 The Chats heading now shares the Projects heading's 20dp left inset; its duplicate
@@ -81,15 +81,36 @@ The Android SDK and running emulator were found outside the shell's PATH after
 the initial validation pass. These captures use the existing isolated development
 client (`studio.graft.mobile.chatcontrols`); no production pairing was changed.
 The older client lacks `RNSVGPath`, so opening the pairing screen failed in that
-client. A rebuilt client is still required to verify that screen. The screenshots
-do not establish a live two-computer connection or verify the signed release.
+client. The signed APK below opens the pairing screen successfully. The inbox
+screenshots use sample snapshots and do not establish a live two-computer connection.
+
+## Signed Android preview
+
+On September 21, 2026, EAS cloud build rejected commit `212a8db60` because the
+account's monthly Android build allowance was exhausted. The same `preview`
+profile was built successfully with EAS locally using the existing remote signing
+credentials. This is a standalone APK; it does not require Metro.
+
+- Source: `212a8db601fb4620bda2567b3c69eca7a832d150` (PR 70, including Chats alignment).
+- Package: `studio.graft.mobile`, version `0.1.0` / code `1`; non-debuggable release.
+- Architectures: arm64-v8a, armeabi-v7a, x86, x86_64.
+- APK SHA-256: `69073f13ed71dbb8bfbbbe5db8b8d211b216ce904cebcf784eba5487483da6d4`.
+- APK v2 signature verification passes. Installation and cold launch pass on an
+  isolated Android 15 emulator. The [pairing screen](android-release-pairing.png)
+  renders its SVG logo and native controls. Camera permission and QR scanner
+  open/close navigation also pass, with no crash log entries. A physical camera
+  feed and actual QR pairing were not tested.
+- Expo Doctor reported duplicate `expo-file-system` installation entries and five
+  available patch updates. The native release build completed despite those
+  preflight failures; the dependency lockfile was unchanged.
 
 ## Native verification still required
 
 Live device/session verdict: **INCONCLUSIVE**. Xcode and Swift remain unavailable
-on the execution host, and the paired Mac is offline. No current iOS screenshots
-were captured. The native iOS build and the complete Android pairing/runtime flow
-still need verification.
+on the execution host. The paired Mac is now online, but the existing SSH login
+is rejected; the macOS login/access information is needed. No physical iPhone
+discovery, build, installation, or launch has occurred. The native iOS build and
+the complete Android pairing/runtime flow still need verification.
 
 On iPhone, iPad, and Android: pair two Studios; confirm both continue receiving
 updates while changing All/computer filters; open same-ID threads and send to
