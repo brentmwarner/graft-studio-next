@@ -8,10 +8,15 @@ import Foundation
 final class ChatSettings {
     private enum Key {
         static let showReasoning = "chat.showReasoning"
+        static let streamingHaptics = "chat.streamingHaptics"
     }
 
     var showReasoning: Bool {
         didSet { UserDefaults.standard.set(showReasoning, forKey: Key.showReasoning) }
+    }
+
+    var streamingHaptics: Bool {
+        didSet { UserDefaults.standard.set(streamingHaptics, forKey: Key.streamingHaptics) }
     }
 
     /// Server-side transcription needs a host speech endpoint the Graft
@@ -21,5 +26,6 @@ final class ChatSettings {
     init() {
         let defaults = UserDefaults.standard
         showReasoning = defaults.object(forKey: Key.showReasoning) as? Bool ?? true
+        streamingHaptics = defaults.object(forKey: Key.streamingHaptics) as? Bool ?? true
     }
 }

@@ -251,6 +251,11 @@ export function toMobileThread(thread: OrchestrationThreadShell): GraftThreadSum
     title: thread.title,
     updatedAt: timestamp(thread.updatedAt),
     status: toMobileThreadStatus(thread),
+    ...(thread.latestTurn?.state === "completed" &&
+    thread.latestTurn.completedAt &&
+    thread.latestTurn.assistantMessageId
+      ? { lastCompletedAt: timestamp(thread.latestTurn.completedAt) }
+      : {}),
     modelName: thread.modelSelection.model,
     providerId: mobileThreadProvider(thread),
     providerLocked: mobileThreadProviderLocked(thread),

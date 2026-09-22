@@ -6,12 +6,13 @@ import {
   type GraftTimelineEventData,
 } from "@graft/mobile-contract";
 
+import { threadActivity, type ThreadActivity, type ThreadReadState } from "./threadActivity";
 import { reconciledOptimisticMessageIds } from "./optimisticMessages";
 
 export interface InboxThreadItem {
   readonly id: string;
   readonly title: string;
-  readonly showsAttentionDot: boolean;
+  readonly activity: ThreadActivity;
 }
 
 export interface InboxProjectGroup {
@@ -139,9 +140,9 @@ function assistantRowId(event: GraftTimelineEvent): string {
 export function groupProjects(
   snapshot: GraftEnvironmentSnapshot | null,
   searchQuery: string,
+  reads: ThreadReadState = {},
 ): readonly InboxProjectGroup[] {
   if (!snapshot) return [];
-  const activeThreadIds = new Set(snapshot.activeRuns.map((run) => run.threadId));
   const query = searchQuery.trim().toLocaleLowerCase();
   const knownProjectIds = new Set(snapshot.projects.map((project) => project.id));
 
@@ -151,10 +152,7 @@ export function groupProjects(
       .map((thread) => ({
         id: thread.id,
         title: thread.title,
-        showsAttentionDot:
-          activeThreadIds.has(thread.id) ||
-          thread.status === "running" ||
-          thread.status === "needs_attention",
+        activity: threadActivity(thread, snapshot!, reads),
       }))
       .sort((left, right) => left.title.localeCompare(right.title));
   }
@@ -170,10 +168,7 @@ export function groupProjects(
     .map((thread) => ({
       id: thread.id,
       title: thread.title,
-      showsAttentionDot:
-        activeThreadIds.has(thread.id) ||
-        thread.status === "running" ||
-        thread.status === "needs_attention",
+      activity: threadActivity(thread, snapshot, reads),
     }))
     .sort((left, right) => left.title.localeCompare(right.title));
   if (orphanThreads.length > 0) {

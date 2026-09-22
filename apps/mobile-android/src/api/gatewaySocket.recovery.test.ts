@@ -171,3 +171,35 @@ it("recovers from native errors that never deliver a close callback", async () =
   await vi.advanceTimersByTimeAsync(1_000);
   expect(FakeWebSocket.instances).toHaveLength(2);
 });
+
+it("rejects a welcome from a different computer before allowing commands", async () => {
+  const onMessage = vi.fn();
+  socket.disconnect();
+  socket = new GatewaySocket({ onMessage, onStateChange: states });
+  socket.connect(session);
+  const wire = FakeWebSocket.instances.at(-1)!;
+  wire.open();
+  const pending = socket.command({ type: "turn.start", threadId: "thread-1", text: "Check this" });
+  const rejection = expect(pending).rejects.toMatchObject({ code: "socket_closed" });
+  wire.receive({
+    envelope: "welcome",
+    protocolVersion: 1,
+    capabilities: ["projects"],
+    environmentId: "different-computer",
+    environmentLabel: "Other Studio",
+    cursor: 1,
+  });
+  await rejection;
+  expect(states).toHaveBeenLastCalledWith("disconnected");
+  expect(onMessage).toHaveBeenCalledWith({
+    envelope: "error",
+    error: {
+      code: "authorization_denied",
+      message: "Welcome belongs to another computer.",
+      retryable: false,
+    },
+  });
+  expect(wire.frames().map((frame) => frame.envelope)).toEqual(["hello"]);
+  await vi.advanceTimersByTimeAsync(90_000);
+  expect(FakeWebSocket.instances).toHaveLength(2);
+});

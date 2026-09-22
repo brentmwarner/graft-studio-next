@@ -23,10 +23,17 @@ interface PairingScreenProps {
   readonly error?: string;
   readonly initialInput?: string;
   readonly isPairing: boolean;
-  readonly onPair: (input: string) => Promise<void>;
+  readonly onCancel?: () => void;
+  readonly onPair: (input: string) => Promise<boolean | void>;
 }
 
-export function PairingScreen({ error, initialInput, isPairing, onPair }: PairingScreenProps) {
+export function PairingScreen({
+  error,
+  initialInput,
+  isPairing,
+  onCancel,
+  onPair,
+}: PairingScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
   const [input, setInput] = useState(initialInput ?? "");
@@ -52,6 +59,16 @@ export function PairingScreen({ error, initialInput, isPairing, onPair }: Pairin
           ]}
           keyboardShouldPersistTaps="handled"
         >
+          {onCancel ? (
+            <PressScale
+              accessibilityLabel="Cancel pairing"
+              disabled={isPairing}
+              onPress={onCancel}
+              style={styles.cancel}
+            >
+              <Text style={[styles.cancelText, { color: palette.accent }]}>Cancel</Text>
+            </PressScale>
+          ) : null}
           <View style={styles.hero} accessibilityRole="header">
             <GraftMark size={72} />
             <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
@@ -157,6 +174,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: graftSpacing.three,
+  },
+  cancel: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  cancelText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   hero: {
     alignItems: "center",

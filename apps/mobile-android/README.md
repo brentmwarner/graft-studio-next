@@ -12,7 +12,7 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Exchange a one-time token with the desktop gateway
 - Persist the bearer token in SecureStore and non-secret metadata in SQLite
 - Restore paired sessions and reconnect as the app moves between foreground and background
-- Browse the same project and thread hierarchy as the iOS client
+- Browse projects, a chronological thread list, or a priority inbox with the same behavior as iOS
 - Create threads and send, stream, or cancel turns through the authenticated gateway socket
 - Render assistant Markdown, reasoning, tool activity, questions, and approval requests
 - Use the RunStatusDotMatrix loader as the live-status thinking indicator
@@ -23,6 +23,42 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Show working-tree diff counts and changed files above the composer
 - Load individual file hunks on expansion, with retry for failed reads
 - Follow the iOS visual language with Android-native motion, floating surfaces, and edge fades
+
+## Projects and inbox views
+
+The top-right menu selects **Priority**, **By Project**, or **Chronological**, and
+remembers that choice across launches. By Project is the initial view. Projects
+start collapsed; folders opened manually stay open while navigating chats or
+switching views during the session. Search reveals matching titles and projects
+without changing the normal folder expansion state. Non-repository chats appear
+in **Chats** above the project folders. The drawer includes **Recents**, with
+requests and active runs first, followed by recently updated threads.
+
+Thread rows show a spinner while working, an attention icon for requests, and a
+blue dot for a completed response not yet opened on this device. Read receipts
+are stored per paired computer and survive app restarts. The dot clears when the
+thread transcript opens in the foreground. New hosts include `lastCompletedAt`
+so completions missed while offline can be restored; older hosts are supported
+through observed live response completions.
+
+Chronological groups threads by their most recent update: Today, Yesterday,
+Previous 7 days, and Older, using the device's local calendar. Priority first
+shows pending approvals and questions, followed by running work; the remaining
+threads appear in chronological sections. Each thread appears only once.
+
+Both mobile clients keep an independent connection to every paired computer.
+Projects shows All and per-computer filter chips, with green connected dots and
+red unavailable dots. All merges projects, Chats, recents, search, and activity
+views; filtering leaves every connection running. Commands, read receipts,
+transcript caches, and expansion IDs belong to their computer even when two
+computers use identical thread or project IDs. View mode is remembered per filter.
+
+Use Projects → ⋯ → Add computer or Settings → Computers → Add computer to scan
+another Studio's QR code or paste its pairing link. Settings can remove one
+computer without disconnecting the others. Existing single-computer pairings
+migrate automatically. Offline machines retain cached content and show red dots
+without warning banners or stale progress indicators. Authentication and
+protocol errors still surface; live activity returns when a machine reconnects.
 
 ## Development
 

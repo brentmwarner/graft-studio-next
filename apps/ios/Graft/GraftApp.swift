@@ -3,12 +3,13 @@ import SwiftUI
 @main
 struct GraftApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var appModel = AppModel()
+    @State private var machines = MachineStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environment(appModel)
+                .environment(machines)
+                .environment(machines.pairingApp)
         }
     }
 }

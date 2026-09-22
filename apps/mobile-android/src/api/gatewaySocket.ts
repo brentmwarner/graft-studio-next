@@ -114,7 +114,10 @@ export class GatewaySocket {
     if (!this.desired) return;
     this.clearReconnectTimer();
     this.closeSocket();
-    const error = new GatewaySocketError("The network changed. Reconnecting to Graft Studio.");
+    const error = new GatewaySocketError(
+      "The network changed. Reconnecting to Graft Studio.",
+      "socket_closed",
+    );
     this.rejectPending(error);
     this.rejectConnectionWaiters(error);
     this.reconnectAttempt = 0;
@@ -162,7 +165,7 @@ export class GatewaySocket {
     this.desired = false;
     this.clearReconnectTimer();
     this.closeSocket();
-    const error = new GatewaySocketError("Disconnected from Graft Studio.", "socket_error", true);
+    const error = new GatewaySocketError("Disconnected from Graft Studio.", "socket_closed", true);
     this.rejectPending(error);
     this.rejectConnectionWaiters(error);
     this.setState("disconnected");
@@ -247,10 +250,16 @@ export class GatewaySocket {
     // Some network failures never deliver a close callback. Both callbacks
     // use the same identity-guarded teardown, so a later close is harmless.
     socket.onerror = () =>
-      this.drop(socket, new GatewaySocketError("The connection to Graft Studio failed."));
+      this.drop(
+        socket,
+        new GatewaySocketError("The connection to Graft Studio failed.", "socket_closed"),
+      );
 
     socket.onclose = () => {
-      this.drop(socket, new GatewaySocketError("The connection to Graft Studio closed."));
+      this.drop(
+        socket,
+        new GatewaySocketError("The connection to Graft Studio closed.", "socket_closed"),
+      );
     };
   }
 
@@ -277,6 +286,18 @@ export class GatewaySocket {
 
     switch (message.envelope) {
       case "welcome":
+        if (message.environmentId !== this.session?.environmentId) {
+          this.disconnect();
+          this.handlers.onMessage({
+            envelope: "error",
+            error: {
+              code: "authorization_denied",
+              message: "Welcome belongs to another computer.",
+              retryable: false,
+            },
+          });
+          return;
+        }
         clearTimeout(this.handshakeTimer);
         this.handshakeTimer = undefined;
         this.reconnectAttempt = 0;
@@ -336,7 +357,7 @@ export class GatewaySocket {
 
   private send(message: Parameters<typeof JSON.stringify>[0]): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      throw new GatewaySocketError("Graft Studio is not connected.");
+      throw new GatewaySocketError("Graft Studio is not connected.", "not_connected");
     }
     this.socket.send(JSON.stringify(message));
   }

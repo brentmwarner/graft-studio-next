@@ -3,34 +3,38 @@ import SwiftUI
 /// App settings reached from the nav drawer: pairing, account, and app info.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(MachineStore.self) private var machines
+    @State private var showPairing = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        @Bindable var settings = app.settings
         NavigationStack {
             List {
                 Section {
-                    LabeledContent {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(
-                                    app.gateway.state == .connected
-                                        ? Color.green : Color.secondary
-                                )
-                                .frame(width: 7, height: 7)
-                            Text(verbatim: hostLabel)
-                        }
-                    } label: {
-                        Text("Studio", comment: "Paired desktop row label")
-                    }
-
-                    Button(role: .destructive) {
-                        Task { await app.unpair() }
-                        dismiss()
-                    } label: {
-                        Text("Disconnect", comment: "Unpair from the desktop")
-                    }
+                    Toggle("Response haptics", isOn: $settings.streamingHaptics)
                 } header: {
-                    PlainHeader("Connection")
+                    PlainHeader("Chat")
+                } footer: {
+                    Text("A few soft taps while streaming, with a confirmation when the final response is ready.")
+                }
+
+                Section {
+                    ForEach(machines.machines) { machine in
+                        HStack {
+                            Circle().fill(machine.gateway.state == .connected ? Color.green : Color.red)
+                                .frame(width: 7, height: 7)
+                            Text(verbatim: machine.environmentLabel)
+                            Spacer()
+                            Button("Remove", role: .destructive) {
+                                Task { await machines.remove(machine) }
+                            }
+                            .accessibilityLabel("Remove \(machine.environmentLabel)")
+                        }
+                    }
+                    Button("Add computer", systemImage: "plus") { showPairing = true }
+                } header: {
+                    PlainHeader("Computers")
                 }
 
                 if app.auth.isSignedIn, let email = app.auth.email {
@@ -63,6 +67,9 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .drawerSurface()
+            .sheet(isPresented: $showPairing) {
+                PairingView(isPresented: $showPairing).environment(machines.pairingApp)
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -98,4 +105,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppModel())
+        .environment(MachineStore())
 }

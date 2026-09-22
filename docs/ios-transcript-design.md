@@ -17,6 +17,17 @@ and link styling. Received text is coalesced every 32ms; completion, corrections
 and Reduce Motion flush immediately. Partial inline link destinations show their
 label until the link closes. Literal code remains unchanged.
 
+Newly appended prose fades in over 100ms without changing layout or dimming
+earlier text. Each arrival keeps its own fade timing; completed replies, restored
+history, corrections, VoiceOver, and Reduce Motion show immediately. The drawing
+timeline stops once the incoming text has settled. Code and tables stay immediate.
+While following a connected live reply, streaming haptics provide at most three
+soft taps per turn, at least 1.5 seconds and 48 new characters apart. Scrolling
+away, backgrounding, approval waits, VoiceOver, and Reduce Motion suppress them.
+Successful live replies also produce one completion haptic, even while scrolled
+away. Cancelled or failed turns and restored history stay silent. Response
+haptics in Settings controls both streaming taps and completion feedback.
+
 The live turn retains its original order. When it finishes, commentary, reasoning,
 and tools fold into a “Worked for …” disclosure above the final answer. The duration
 uses host timestamps. Expanding restores the original details; no model rewrites
@@ -58,6 +69,16 @@ creates a tracked checklist. Enabled skills resolve on Studio before dispatch.
 
 ## Tasks and changes
 
+The composer uses a native safe-area bar with a soft scroll-edge effect on
+iPhone and iPad. Scrolling content stays visible through a progressive blur
+behind the composer and home-indicator area. The controls retain their readable
+width and follow the keyboard.
+
+The context ring in the conversation toolbar opens context and account usage.
+This popover fits its current contents, including loading and unavailable states,
+instead of reserving a fixed 380pt height. Longer allowance lists and larger text
+scroll within the 380pt cap.
+
 Normalized `turn.tasks.updated` activities carry the same structured task data in
 live events and reconnect snapshots. iOS also accepts named `plan.update` lists.
 Malformed rich data does not discard its event or clear valid tasks. Unfinished
@@ -66,7 +87,8 @@ updates cannot replace a newer list.
 
 The Tasks pill sits opposite the diff control. Its Liquid Glass checklist expands
 upward over the transcript, capped at 260pt, without moving the composer. The jump
-to latest arrow appears above that row only while scrolled away. Reduced Motion
+to latest arrow appears at the trailing edge above that row only while scrolled
+away. Reduced Motion
 removes the expansion animation.
 
 Studio enables `tools.update_plan.enabled=true` for its Codex processes. Default-mode
@@ -116,3 +138,27 @@ See [PR verification and visual evidence](review/ios-desktop-parity/README.md) f
 checks run against the integrated branch, simulator captures, and remaining gaps.
 Unit and hosted fixture tests do not establish live provider or physical-device
 behavior; those checks are identified separately.
+
+## Remote inbox views
+
+The Projects overflow menu offers Priority, By Project, and Chronological on
+both iPhone and the floating iPad sidebar. The selection persists in
+`inbox.viewMode`; By Project is the default. Projects start collapsed and retain
+manual expansion while opening chats or switching views. Search temporarily
+reveals matches without changing those folder choices.
+
+Chronological uses local calendar boundaries (Today, Yesterday, Previous 7 days,
+Older) and newest-first host timestamps. Priority moves threads with pending
+approvals or questions ahead of active runs, then shows remaining threads in
+date sections without duplicates. Date and priority sections can be collapsed.
+The same grouping rules and controls are implemented in the Android client.
+
+Mobile keeps independent live gateways for every paired computer. Projects shows
+an All filter followed by computer chips with green/red connection dots. All
+merges the inbox; choosing a chip filters it without replacing any connection.
+The drawer also filters by computer. Projects → ⋯ → Add computer and
+Settings → Computers → Add computer open pairing. Settings removes only the
+chosen computer. View mode is remembered per filter, while reads, commands,
+project expansion, and transcript caches remain scoped to their computer.
+Offline machines retain cached content without work spinners or warning banners;
+authentication, protocol, and certificate failures remain visible.

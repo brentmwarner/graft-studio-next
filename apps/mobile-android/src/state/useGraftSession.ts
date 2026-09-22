@@ -42,6 +42,9 @@ import { parsePairingInput } from "../protocol/pairing";
 import { getDeviceIdentity } from "../storage/deviceIdentity";
 import { clearSession, loadSession, saveSession } from "../storage/sessionRepository";
 
+import { loadCachedSnapshot, saveCachedSnapshot } from "../storage/snapshotCache";
+import { isOfflineError } from "./connectionStatus";
+
 import { useModelCatalog } from "./useModelCatalog";
 import { mergeTimelineEvents } from "./mobileViewModels";
 import { reconcileLiveUserMessages, type LocalTimelineEvent } from "./optimisticMessages";
@@ -158,15 +161,16 @@ function setPairedError(
 ): void {
   updatePaired(setState, (current) => ({
     ...current,
-    error: messageFor(error),
+    error: isOfflineError(error) ? undefined : messageFor(error),
   }));
 }
 
-export function useGraftSession() {
+export function useGraftSession(initialSession?: GraftSessionCredential | null) {
   const [state, setState] = useState<GraftSessionState>({ status: "loading" });
   const [pendingSendThreadId, setPendingSendThreadId] = useState<string | undefined>();
   const sessionRef = useRef<GraftSessionCredential | null>(null);
   const selectedThreadIdRef = useRef<string | undefined>(undefined);
+  const connectionStateRef = useRef<GatewayConnectionState>("disconnected");
   const socketRef = useRef<GatewaySocket | null>(null);
   const sendAttemptsRef = useRef(new Map<string, ComposerSendAttempt>());
   const sendingThreadsRef = useRef(new Set<string>());
@@ -198,7 +202,10 @@ export function useGraftSession() {
 
       try {
         const snapshot = await gateway.snapshot(session, threadId);
+        if (snapshot.environment.id !== session.environmentId)
+          throw new GatewayError("Snapshot belongs to another computer.", "invalid_response");
         if (snapshotRequestRef.current !== requestId) return;
+        saveCachedSnapshot(snapshot);
         socketRef.current?.updateCursor(snapshot.cursor);
         snapshotCursorRef.current = snapshot.cursor;
         setState((current) =>
@@ -228,7 +235,7 @@ export function useGraftSession() {
             ? {
                 ...current,
                 isRefreshing: false,
-                error: messageFor(error),
+                error: isOfflineError(error) ? undefined : messageFor(error),
               }
             : current,
         );
@@ -244,7 +251,7 @@ export function useGraftSession() {
         () => {
           snapshotTimerRef.current = undefined;
           const session = sessionRef.current;
-          if (session) {
+          if (session && connectionStateRef.current === "connected") {
             void refreshSnapshot(session, selectedThreadIdRef.current, false);
           }
         },
@@ -285,7 +292,12 @@ export function useGraftSession() {
           break;
         case "error":
           setState((current) =>
-            current.status === "paired" ? { ...current, error: message.error.message } : current,
+            current.status === "paired"
+              ? {
+                  ...current,
+                  error: message.error.code === "host_offline" ? undefined : message.error.message,
+                }
+              : current,
           );
           if (message.error.code === "device_revoked") {
             // Tear the transport down synchronously, before awaiting the
@@ -301,15 +313,18 @@ export function useGraftSession() {
               clearTimeout(snapshotTimerRef.current);
               snapshotTimerRef.current = undefined;
             }
+            const removedSession = sessionRef.current;
             sessionRef.current = null;
             sendAttemptsRef.current.clear();
             snapshotCursorRef.current = 0;
-            void clearSession().finally(() => {
-              setState({
-                status: "unpaired",
-                error: "This device was disconnected.",
-              });
-            });
+            void (
+              removedSession
+                ? clearSession(removedSession.environmentId, removedSession.sessionId)
+                : Promise.resolve()
+            ).then(
+              () => setState({ status: "unpaired", error: "This device was disconnected." }),
+              (error: unknown) => setPairedError(setState, error),
+            );
           }
           break;
         case "pong":
@@ -325,6 +340,7 @@ export function useGraftSession() {
     const socket = new GatewaySocket({
       onMessage: handleHostMessage,
       onStateChange: (connectionState) => {
+        connectionStateRef.current = connectionState;
         setState((current) =>
           current.status === "paired" ? { ...current, connectionState } : current,
         );
@@ -337,13 +353,15 @@ export function useGraftSession() {
       if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
       socket.disconnect();
       socketRef.current = null;
+      snapshotRequestRef.current += 1;
+      sessionRef.current = null;
     };
   }, [handleHostMessage]);
 
   useEffect(() => {
     let active = true;
 
-    void loadSession()
+    void (initialSession === undefined ? loadSession() : Promise.resolve(initialSession))
       .then(async (session) => {
         if (!active) return;
         if (!session) {
@@ -353,17 +371,18 @@ export function useGraftSession() {
 
         sessionRef.current = session;
 
-        snapshotCursorRef.current = 0;
+        const cached = loadCachedSnapshot(session.environmentId);
+        snapshotCursorRef.current = cached?.cursor ?? 0;
         setState({
           status: "paired",
           session,
-          snapshot: null,
+          snapshot: cached,
           liveEvents: [],
           diffs: {},
           connectionState: "connecting",
-          isRefreshing: true,
+          isRefreshing: false,
         });
-        socketRef.current?.connect(session);
+        socketRef.current?.connect(session, cached?.cursor);
         await refreshSnapshot(session, undefined, false);
       })
       .catch((error: unknown) => {
@@ -373,7 +392,7 @@ export function useGraftSession() {
     return () => {
       active = false;
     };
-  }, [refreshSnapshot]);
+  }, [refreshSnapshot, initialSession]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -381,7 +400,6 @@ export function useGraftSession() {
       if (!session) return;
       if (nextState === "active") {
         socketRef.current?.connect(session, snapshotCursorRef.current || undefined);
-        scheduleSnapshot(true);
       } else if (nextState === "background") {
         socketRef.current?.disconnect();
       }
@@ -445,7 +463,12 @@ export function useGraftSession() {
   const refresh = useCallback(async () => {
     const session = sessionRef.current;
     if (!session) return;
-    await refreshSnapshot(session, selectedThreadIdRef.current, true);
+    socketRef.current?.connect(session, snapshotCursorRef.current || undefined);
+    await refreshSnapshot(
+      session,
+      selectedThreadIdRef.current,
+      connectionStateRef.current === "connected",
+    );
   }, [refreshSnapshot]);
 
   const openThread = useCallback(
@@ -460,14 +483,28 @@ export function useGraftSession() {
           : current,
       );
       const session = sessionRef.current;
-      if (session) await refreshSnapshot(session, threadId, true);
+      if (session) {
+        const cached = loadCachedSnapshot(session.environmentId, threadId);
+        setState((current) =>
+          current.status === "paired" && cached
+            ? {
+                ...current,
+                snapshot: current.snapshot
+                  ? { ...current.snapshot, selectedTranscript: cached.selectedTranscript }
+                  : cached,
+              }
+            : current,
+        );
+        if (connectionStateRef.current === "connected")
+          await refreshSnapshot(session, threadId, true);
+      }
     },
     [refreshSnapshot],
   );
 
   const closeThread = useCallback(() => {
     selectedThreadIdRef.current = undefined;
-    scheduleSnapshot(true);
+    if (connectionStateRef.current === "connected") scheduleSnapshot(true);
   }, [scheduleSnapshot]);
 
   const loadUsage = useCallback(async (threadId: string) => {
@@ -814,7 +851,10 @@ export function useGraftSession() {
   const unpair = useCallback(async () => {
     try {
       socketRef.current?.disconnect();
-      await clearSession();
+      const session = sessionRef.current;
+      snapshotRequestRef.current += 1;
+      if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+      if (session) await clearSession(session.environmentId, session.sessionId);
       sessionRef.current = null;
       sendAttemptsRef.current.clear();
       snapshotCursorRef.current = 0;

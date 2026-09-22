@@ -58,7 +58,7 @@ struct NewChatView: View {
             }
         }
         .navigationDestination(item: $openedThread) { thread in
-            ThreadView(threadId: thread.id, title: thread.title)
+            ThreadView(threadId: thread.threadId, title: thread.title)
         }
         .task(id: app.gateway.state == .connected) {
             if selectedProjectId == nil {
@@ -411,7 +411,8 @@ struct NewChatView: View {
             let item = InboxThreadItem(
                 id: thread.id,
                 title: thread.title,
-                showsAttentionDot: false
+                activity: .idle,
+                environmentId: app.environmentId
             )
             if let onOpenedThread {
                 onOpenedThread(item)

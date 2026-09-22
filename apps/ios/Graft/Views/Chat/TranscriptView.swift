@@ -179,6 +179,9 @@ struct TranscriptView: View {
             .padding(.bottom, chat.liveStatusText == nil ? 2 : 10)
         }
         .environment(\.transcriptSkills, Self.referencedSkills(in: chat.items))
+        .environment(\.transcriptConnectionActive, chat.app == nil || chat.app?.gateway.state == .connected)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        .modifier(StreamingFeedback(chat: chat, isFollowing: !isAwayFromBottom && !userInteracting))
         // Open at the latest message by anchoring ONLY the initial content offset to
         // the bottom. `scrollPosition.scrollTo(edge: .bottom)` computes the bottom from
         // the LazyVStack's *estimated* height, so when the last row is un-realized
@@ -435,14 +438,6 @@ struct ScrollToBottomButton: View {
 /// One stable live status throughout text, reasoning, and tool transitions.
 private struct StreamingFooter: View {
     let chat: ChatModel
-    private var status: String? {
-        guard chat.isStreaming else { return nil }
-        if let app = chat.app, app.gateway.state != .connected { return "Reconnecting…" }
-        if chat.needsInteraction { return "Waiting for you" }
-        if let tail = chat.items.last, tail.kind == .assistant, !tail.text.isEmpty { return nil }
-        return LiveStatusPhrase.current(from: chat.items, fallback: chat.statusText)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let status = chat.liveStatusText {
@@ -467,4 +462,9 @@ private struct StreamingFooter: View {
         }
         .frame(minHeight: 24, alignment: .leading)
     }
+}
+
+/// Cached work retains its last-known status without animating while its computer is offline.
+extension EnvironmentValues {
+    @Entry var transcriptConnectionActive = true
 }

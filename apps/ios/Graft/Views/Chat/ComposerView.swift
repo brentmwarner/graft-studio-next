@@ -564,7 +564,7 @@ struct ComposerView: View {
     /// the neighbour changes rather than sliding around.
     @ViewBuilder
     private var trailingControl: some View {
-        if chat.isStreaming && !canSend {
+        if chat.isTurnActive && !canSend {
             filledCircle(icon: "stop.fill") { Task { await chat.interrupt() } }
                 .transition(.scale.combined(with: .opacity))
         } else {
@@ -573,7 +573,7 @@ struct ComposerView: View {
                 // session, so the mic steps aside until the stream settles. Its
                 // slot becomes the stop button instead — otherwise stopping a
                 // reply while holding a draft required clearing the field first.
-                if chat.isStreaming {
+                if chat.isTurnActive {
                     streamingStopButton
                 } else {
                     micButton

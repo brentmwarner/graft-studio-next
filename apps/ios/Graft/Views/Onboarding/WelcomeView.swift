@@ -285,11 +285,13 @@ private struct Beat: ViewModifier {
 #Preview("Light") {
     WelcomeView()
         .environment(AppModel())
+        .environment(MachineStore())
         .preferredColorScheme(.light)
 }
 
 #Preview("Dark") {
     WelcomeView()
         .environment(AppModel())
+        .environment(MachineStore())
         .preferredColorScheme(.dark)
 }

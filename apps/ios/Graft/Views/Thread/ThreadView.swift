@@ -19,14 +19,16 @@ struct ThreadView: View {
                     TranscriptView(chat: chat)
                         .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
                         .id(chat.id)
-                } else {
+                } else if app.gateway.state == .connected {
                     ProgressView("Loading thread…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Color.clear
                 }
             }
             .readableChatColumn()
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .safeAreaBar(edge: .bottom, spacing: 0) {
             if let chat = boundChat {
                 ThreadComposerDock(chat: chat)
                     .id(chat.id)
@@ -39,10 +41,15 @@ struct ThreadView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ChatNavigationTitle {
+                    HStack(spacing: 7) {
+                    Circle().fill(app.gateway.state == .connected ? Color.green : Color.red)
+                        .frame(width: 7, height: 7)
+                        .accessibilityLabel(app.gateway.state == .connected ? "Connected" : "Offline")
                     Text(title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                         .accessibilityAddTraits(.isHeader)
+                    }
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -58,7 +65,7 @@ struct ThreadView: View {
                 }
             }
         }
-        .task(id: threadId) {
+        .task(id: [app.id, app.sessionIdentity ?? "", threadId]) {
             await app.openThread(threadId, title: title)
         }
         .onDisappear {
@@ -154,6 +161,7 @@ struct ThreadComposerDock: View {
                         .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: .bottomTrailing).combined(with: .opacity))
                 } else if chat.isAwayFromLatest, !slashVisible {
                     ScrollToBottomButton { chat.scrollToLatest() }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                         .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
                 }
             }
@@ -220,55 +228,9 @@ private struct ThreadUsagePopover: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if let context, context.source == "measured" {
-                    meter("Context window", value: "\(context.percent)% used", percent: Double(context.percent))
-                    if context.tokensMax > 0 {
-                        Text("\(context.tokensUsed.formatted(.number.notation(.compactName))) of \(context.tokensMax.formatted(.number.notation(.compactName))) tokens")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                } else {
-                    Text("Context window").font(.caption).foregroundStyle(.secondary)
-                    Text("Not reported").font(.subheadline.weight(.semibold))
-                }
-                Divider()
-                Text("Account usage").font(.caption).foregroundStyle(.secondary)
-                if loading {
-                    Text("Checking allowance…").font(.caption).foregroundStyle(.secondary)
-                } else if let allowance = usage?.allowance {
-                    if let plan = allowance.planName { Text(plan).font(.caption) }
-                    ForEach(Array(allowance.limits.enumerated()), id: \.offset) { _, limit in
-                        VStack(alignment: .leading, spacing: 6) {
-                            meter(limit.label == "5h" ? "5-hour limit" : limit.label,
-                                  value: "\(Int(limit.remainingPercent.rounded()))% remaining", percent: limit.remainingPercent)
-                            if let reset = limit.resetsAt, let date = parseDate(reset) {
-                                if date > .now {
-                                    Text("Resets \(date.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                } else {
-                                    Text("Awaiting updated allowance").font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    if allowance.stale {
-                        Text("Last reported allowance · may be out of date").font(.caption).foregroundStyle(.secondary)
-                    }
-                    if allowance.limits.isEmpty {
-                        Text(allowance.status == "needs-auth"
-                             ? "Sign in to the provider on your host to see allowance."
-                             : "Account allowance is unavailable from this provider.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                } else if failed {
-                    Text("Account usage isn’t available right now.").font(.caption).foregroundStyle(.secondary)
-                    Button("Try again") { reload += 1 }
-                }
-            }
-            .padding(18)
+        ThreadUsageDetails(context: context, allowance: usage?.allowance, loading: loading, failed: failed) {
+            reload += 1
         }
-        .frame(width: 280, height: 380)
         .task(id: reload) {
             loading = true
             failed = false
@@ -282,6 +244,78 @@ private struct ThreadUsagePopover: View {
                 if !Task.isCancelled { failed = true; loading = false }
             }
         }
+    }
+}
+
+struct ThreadUsageDetails: View {
+    let context: ContextUsageInfo?
+    let allowance: ProviderAllowanceInfo?
+    let loading: Bool
+    let failed: Bool
+    let onRetry: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            details
+            ScrollView {
+                details
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .frame(width: 280)
+        .frame(maxHeight: 380)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("thread-usage-details")
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if let context, context.source == "measured" {
+                meter("Context window", value: "\(context.percent)% used", percent: Double(context.percent))
+                if context.tokensMax > 0 {
+                    Text("\(context.tokensUsed.formatted(.number.notation(.compactName))) of \(context.tokensMax.formatted(.number.notation(.compactName))) tokens")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Context window").font(.caption).foregroundStyle(.secondary)
+                Text("Not reported").font(.subheadline.weight(.semibold))
+            }
+            Divider()
+            Text("Account usage").font(.caption).foregroundStyle(.secondary)
+            if loading {
+                Text("Checking allowance…").font(.caption).foregroundStyle(.secondary)
+            } else if let allowance {
+                if let plan = allowance.planName { Text(plan).font(.caption) }
+                ForEach(Array(allowance.limits.enumerated()), id: \.offset) { _, limit in
+                    VStack(alignment: .leading, spacing: 6) {
+                        meter(limit.label == "5h" ? "5-hour limit" : limit.label,
+                              value: "\(Int(limit.remainingPercent.rounded()))% remaining", percent: limit.remainingPercent)
+                        if let reset = limit.resetsAt, let date = parseDate(reset) {
+                            if date > .now {
+                                Text("Resets \(date.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                Text("Awaiting updated allowance").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                if allowance.stale {
+                    Text("Last reported allowance · may be out of date").font(.caption).foregroundStyle(.secondary)
+                }
+                if allowance.limits.isEmpty {
+                    Text(allowance.status == "needs-auth"
+                         ? "Sign in to the provider on your host to see allowance."
+                         : "Account allowance is unavailable from this provider.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } else if failed {
+                Text("Account usage isn’t available right now.").font(.caption).foregroundStyle(.secondary)
+                Button("Try again", action: onRetry)
+            }
+        }
+        .padding(18)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func meter(_ title: String, value: String, percent: Double) -> some View {

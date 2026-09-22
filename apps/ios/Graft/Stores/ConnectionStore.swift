@@ -22,9 +22,9 @@ final class ConnectionStore {
 
     var isPaired: Bool { session != nil }
 
-    init(store: LocalStore) {
+    init(store: LocalStore, environmentId: String? = nil, loadSavedSession: Bool = true) {
         self.store = store
-        loadSession()
+        if loadSavedSession { loadSession(environmentId: environmentId) }
     }
 
     // MARK: Session access
@@ -57,6 +57,7 @@ final class ConnectionStore {
     /// Processes a decoded `PairingPayload` (from URL scheme or QR code).
     /// Posts a `PairRequest` to the host and persists the resulting session.
     func pair(with payload: PairingPayload) async {
+        guard !isPairing else { return }
         isPairing = true
         pairingError = nil
         defer { isPairing = false }
@@ -82,7 +83,7 @@ final class ConnectionStore {
         } catch let e as GraftError {
             pairingError = e
         } catch {
-            pairingError = .unreachable(error.localizedDescription)
+            pairingError = .transport(error)
         }
     }
 
@@ -90,10 +91,17 @@ final class ConnectionStore {
     @discardableResult
     func unpair() async -> Bool {
         guard let session else { return true }
+        let sessionId = session.sessionId
+        let environmentId = session.environmentId
         PushRegistrar.shared.configure(connectionStore: self)
         await PushRegistrar.shared.unregisterForCurrentSession()
         do {
-            try store.deleteSession(environmentId: session.environmentId)
+            // A re-pair may replace this row while push unregistration awaits.
+            guard try store.session(environmentId: environmentId)?.sessionId == sessionId else {
+                self.session = nil
+                return true
+            }
+            try store.deleteSession(environmentId: environmentId)
             Keychain.delete(for: session.keychainAccount)
             self.session = nil
             pairingError = nil
@@ -108,9 +116,13 @@ final class ConnectionStore {
 
     // MARK: Private
 
-    private func loadSession() {
+    private func loadSession(environmentId: String?) {
         do {
-            session = try store.allSessions().first
+            if let environmentId {
+                session = try store.session(environmentId: environmentId)
+            } else {
+                session = try store.allSessions().first
+            }
         } catch {
             AppLog.persistence.error("Failed to load sessions: \(error)")
         }

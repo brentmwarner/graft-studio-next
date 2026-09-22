@@ -694,3 +694,32 @@ it("projects user attachment metadata in snapshots and live events", () => {
     attachments: [attachment],
   });
 });
+
+describe("mobile unread completion timestamps", () => {
+  it("exposes successful response completion without treating activity or failure as unread", () => {
+    const thread = threadShell();
+    expect(toMobileThread(thread).lastCompletedAt).toBeUndefined();
+    const completed = {
+      ...thread,
+      latestTurn: {
+        ...thread.latestTurn!,
+        state: "completed" as const,
+        completedAt: now,
+        assistantMessageId: MessageId.makeUnsafe("reply"),
+      },
+    };
+    expect(toMobileThread(completed).lastCompletedAt).toBe(Date.parse(now));
+    expect(
+      toMobileThread({
+        ...completed,
+        latestTurn: { ...completed.latestTurn, assistantMessageId: null },
+      }).lastCompletedAt,
+    ).toBeUndefined();
+    expect(
+      toMobileThread({
+        ...completed,
+        latestTurn: { ...completed.latestTurn, state: "interrupted" },
+      }).lastCompletedAt,
+    ).toBeUndefined();
+  });
+});

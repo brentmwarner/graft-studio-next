@@ -98,7 +98,7 @@ final class AdaptiveChromeTests: XCTestCase {
                 hostLabel: "Mac",
                 isConnected: true,
                 onSettings: {},
-                onMore: {}
+                viewMode: .constant(.project)
             ) {
                 Color.clear.onGeometryChange(for: CGRect.self) {
                     $0.frame(in: .global)

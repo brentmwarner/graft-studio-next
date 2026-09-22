@@ -199,7 +199,7 @@ export function ThreadScreen({
   const pendingQuestion = model.question;
   const liveStatus = transcriptLiveStatus({
     items: model.items,
-    isWorking: isSending || pendingSend || model.isWorking,
+    isWorking: isConnected && (isSending || pendingSend || model.isWorking),
     isConnected,
     needsInput: Boolean(pendingApproval || pendingQuestion),
   });
@@ -209,14 +209,14 @@ export function ThreadScreen({
   }, [isConnected, onLoadModels]);
 
   useEffect(() => {
-    void onLoadDiff(thread.id);
-  }, [onLoadDiff, thread.id]);
+    if (isConnected) void onLoadDiff(thread.id);
+  }, [isConnected, onLoadDiff, thread.id]);
 
   useEffect(() => {
-    if (model.latestDiffEvent) {
+    if (isConnected && model.latestDiffEvent) {
       void onLoadDiff(thread.id, model.latestDiffEvent.diffId ?? thread.id);
     }
-  }, [model.latestDiffEvent?.id, onLoadDiff, thread.id]);
+  }, [isConnected, model.latestDiffEvent?.id, onLoadDiff, thread.id]);
 
   async function send(message = draft, fromDictation = false) {
     const text = message.trim();
@@ -307,7 +307,7 @@ export function ThreadScreen({
           <RefreshControl
             onRefresh={() => void onRefresh()}
             progressViewOffset={headerBottom + 8}
-            refreshing={isRefreshing}
+            refreshing={isRefreshing && isConnected}
             tintColor={palette.foregroundSubtle}
           />
         }
@@ -321,13 +321,13 @@ export function ThreadScreen({
           </View>
         }
         ListEmptyComponent={
-          isRefreshing ? (
+          isRefreshing && isConnected ? (
             <ActivityIndicator color={palette.foregroundSubtle} />
-          ) : (
+          ) : isConnected ? (
             <Text style={[styles.emptyText, { color: palette.foregroundSubtle }]}>
               Start the conversation below.
             </Text>
-          )
+          ) : null
         }
       />
 
@@ -352,6 +352,15 @@ export function ThreadScreen({
             >
               {projectName}
             </Text>
+            <View
+              accessibilityLabel={isConnected ? "Connected" : "Offline"}
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 4,
+                backgroundColor: isConnected ? palette.success : palette.danger,
+              }}
+            />
             <Ionicons color={palette.foregroundSubtle} name="laptop-outline" size={12} />
             <Text
               numberOfLines={1}

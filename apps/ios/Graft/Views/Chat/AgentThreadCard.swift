@@ -82,10 +82,15 @@ struct AgentThreadsView: View {
 
 /// The beat between "delegate" being called and the goals parsing out.
 private struct SpawningRow: View {
+    @Environment(\.transcriptConnectionActive) private var connectionActive
     var body: some View {
         HStack(spacing: 8) {
-            TypingDots()
-            ShimmerText(text: "Delegating", font: .subheadline.weight(.medium))
+            if connectionActive {
+                TypingDots()
+                ShimmerText(text: "Delegating", font: .subheadline.weight(.medium))
+            } else {
+                Text("Agents").font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -95,6 +100,7 @@ private struct SpawningRow: View {
 
 /// One agent as a single quiet line: who · what's happening · how long.
 private struct AgentWorkline: View {
+    @Environment(\.transcriptConnectionActive) private var connectionActive
     let run: AgentRun
     let onOpen: () -> Void
 
@@ -128,7 +134,11 @@ private struct AgentWorkline: View {
                 .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.fgSubtle)
         case .working:
-            ShimmerText(text: liveLine, font: .footnote)
+            if connectionActive {
+                ShimmerText(text: liveLine, font: .footnote)
+            } else {
+                Text(liveLine).font(.footnote).foregroundStyle(DS.Color.fgSubtle)
+            }
         case .done:
             Text(run.resultPreview.isEmpty ? "returned" : run.resultPreview)
                 .font(DS.Font.footnote)
@@ -148,7 +158,9 @@ private struct AgentWorkline: View {
                 .font(.caption2)
                 .foregroundStyle(DS.Color.fgFaint)
         case .working:
-            if let interrupt = run.onInterrupt {
+            if !connectionActive {
+                EmptyView()
+            } else if let interrupt = run.onInterrupt {
                 Button(role: .destructive) {
                     interrupt()
                 } label: {

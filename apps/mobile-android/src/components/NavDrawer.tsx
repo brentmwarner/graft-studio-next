@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { PropsWithChildren } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
+import { ThreadActivityIndicator } from "./ThreadActivityIndicator";
+import type { InboxThreadItem } from "../state/mobileViewModels";
 import { useGraftPalette } from "../theme/tokens";
 
 /// How far the content slides — which is also the revealed menu width.
@@ -21,13 +23,25 @@ const SPRING = { dampingRatio: 0.85, duration: 300 } as const;
 /// How much release velocity counts toward the open/close decision.
 const VELOCITY_PROJECTION = 0.15;
 
+export interface DrawerComputer {
+  readonly id: string;
+  readonly label: string;
+  readonly isActive: boolean;
+  readonly isConnected: boolean;
+}
+
 interface NavDrawerLayoutProps extends PropsWithChildren {
+  readonly computers?: readonly DrawerComputer[];
   readonly connectionState: GatewayConnectionState;
   readonly hostLabel: string;
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onOpen: () => void;
+  readonly onSelectComputer?: (environmentId: string) => void;
   readonly onSettings: () => void;
+  readonly onProjects: () => void;
+  readonly recentThreads: readonly InboxThreadItem[];
+  readonly onSelectThread: (thread: InboxThreadItem) => void;
 }
 
 interface DrawerRowProps {
@@ -66,16 +80,25 @@ function DrawerRow({ icon, label, onPress, trailing }: DrawerRowProps) {
 /// read as a different product.
 export function NavDrawerLayout({
   children,
+  computers,
   connectionState,
   hostLabel,
   isOpen,
   onClose,
   onOpen,
+  onSelectComputer,
   onSettings,
+  onProjects,
+  recentThreads,
+  onSelectThread,
 }: NavDrawerLayoutProps) {
   const insets = useSafeAreaInsets();
   const palette = useGraftPalette();
   const isConnected = connectionState === "connected";
+  const computerRows =
+    computers && computers.length > 0
+      ? computers
+      : [{ id: hostLabel, label: hostLabel, isActive: true, isConnected }];
 
   /// 0 closed, 1 fully open. Driven by `isOpen` normally, and taken over
   /// directly while a drag is in flight so the panel tracks the finger.
@@ -144,23 +167,60 @@ export function NavDrawerLayout({
         ]}
       >
         <Text style={[styles.brand, { color: palette.foreground }]}>Graft</Text>
-        <DrawerRow icon="folder-outline" label="Projects" onPress={onClose} />
-        <DrawerRow
-          icon="laptop-outline"
-          label={hostLabel}
-          trailing={
-            <View
-              accessibilityLabel={isConnected ? "Connected" : "Disconnected"}
-              style={[
-                styles.connectionDot,
-                {
-                  backgroundColor: isConnected ? palette.success : palette.foregroundSubtle,
-                },
-              ]}
+        <DrawerRow icon="folder-outline" label="Projects" onPress={onProjects} />
+        {computerRows.map((computer) => (
+          <DrawerRow
+            key={computer.id}
+            icon="laptop-outline"
+            label={computer.label}
+            onPress={
+              computer.isActive || !onSelectComputer
+                ? undefined
+                : () => onSelectComputer(computer.id)
+            }
+            trailing={
+              <View
+                accessibilityLabel={
+                  computer.isActive
+                    ? computer.isConnected
+                      ? "Connected"
+                      : "Disconnected"
+                    : "Paired"
+                }
+                style={[
+                  styles.connectionDot,
+                  {
+                    backgroundColor: computer.isConnected
+                      ? palette.success
+                      : palette.foregroundSubtle,
+                  },
+                ]}
+              />
+            }
+          />
+        ))}
+        <ScrollView
+          style={styles.spacer}
+          contentContainerStyle={{ paddingTop: 20, paddingBottom: 16 }}
+        >
+          <Text
+            style={[
+              styles.rowLabel,
+              { color: palette.foregroundSubtle, paddingHorizontal: 24, paddingBottom: 8 },
+            ]}
+          >
+            Recents
+          </Text>
+          {recentThreads.map((thread) => (
+            <DrawerRow
+              key={thread.id}
+              icon="chatbubble-outline"
+              label={thread.title}
+              onPress={() => onSelectThread(thread)}
+              trailing={<ThreadActivityIndicator activity={thread.activity} />}
             />
-          }
-        />
-        <View style={styles.spacer} />
+          ))}
+        </ScrollView>
         <DrawerRow icon="settings-outline" label="Settings" onPress={onSettings} />
       </View>
 

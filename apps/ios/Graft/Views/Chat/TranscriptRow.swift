@@ -132,6 +132,7 @@ struct UserMessageText: View {
 }
 
 private struct AssistantMessage: View {
+    @Environment(\.transcriptConnectionActive) private var connectionActive
     let item: TranscriptItem
     let showReasoning: Bool
     let showActions: Bool
@@ -150,7 +151,7 @@ private struct AssistantMessage: View {
                 if item.isOversized {
                     LongMessageView(text: item.text)
                 } else {
-                    StreamingAssistantText(text: item.text, isStreaming: item.isStreaming)
+                    StreamingAssistantText(text: item.text, isStreaming: item.isStreaming && connectionActive)
                 }
             }
             if !item.images.isEmpty {
@@ -227,8 +228,8 @@ private struct StreamingAssistantText: View {
             }
             guard !Task.isCancelled, stream.displayedText != stream.targetText else { continue }
 
-            // Text is already progress. Repeated fades and haptics make a
-            // frequently updated reading surface harder to follow.
+            // Commit the full snapshot without animating layout. Inline prose
+            // draws its own brief arrival fade; existing text stays steady.
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) { _ = stream.commit() }

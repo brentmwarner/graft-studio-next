@@ -61,6 +61,38 @@ final class GatewayHandshakeTests: XCTestCase {
 
 @MainActor
 final class GatewayRecoveryTests: XCTestCase {
+    func testCertificateFailureReachesTheMachineOwnerAndStopsRetrying() async {
+        let factory = FakeGatewaySocketFactory()
+        let gateway = makeGateway(factory)
+        defer { gateway.disconnect() }
+        var reported: GraftError?
+        gateway.onFailure = { reported = $0 }
+        gateway.requestProvider = { throw URLError(.serverCertificateUntrusted) }
+        gateway.nudge()
+        await waitUntil { reported != nil }
+        XCTAssertFalse(reported?.isOffline ?? true)
+        XCTAssertFalse(reported?.isRetryable ?? true)
+        if case .disconnected = gateway.state {} else { XCTFail("Certificate failures must stop retrying") }
+        XCTAssertTrue(factory.sockets.isEmpty)
+    }
+
+    func testRevokedHandshakeReachesTheMachineOwnerBeforeAnyWelcome() async {
+        let factory = FakeGatewaySocketFactory()
+        let gateway = makeGateway(factory)
+        defer { gateway.disconnect() }
+        var reported: GraftError?
+        gateway.onFailure = { reported = $0 }
+        gateway.nudge()
+        await waitUntil { factory.sockets.count == 1 }
+        factory.sockets[0].push(.string("""
+        {"envelope":"error","error":{"code":"device_revoked","message":"Revoked","retryable":false}}
+        """))
+        await waitUntil { reported != nil }
+        XCTAssertEqual(reported, .hostError(code: "device_revoked", message: "Revoked", retryable: false))
+        XCTAssertTrue(factory.sockets[0].cancelled)
+        XCTAssertEqual(factory.sockets.count, 1)
+    }
+
     func testNetworkHandoffReplacesTheOldConnectionAndKeepsTheResumeCursor() async throws {
         let factory = FakeGatewaySocketFactory()
         let gateway = makeGateway(factory)

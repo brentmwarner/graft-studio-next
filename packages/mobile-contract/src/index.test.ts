@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  GraftThreadSummarySchema,
   GraftCommandReceiptSchema,
   GraftCursorReplaySchema,
   GraftDiffSummarySchema,
@@ -408,4 +409,15 @@ it("supports attachments and modes without allowing empty or oversized turns", (
       text: "Existing client",
     }),
   ).toEqual({ type: "turn.start", threadId: "thread-1", text: "Existing client" });
+});
+
+it("accepts old thread summaries and optional completion timestamps", () => {
+  const thread = { id: "t", projectId: "p", title: "Chat", updatedAt: 20 };
+  expect(GraftThreadSummarySchema.parse(thread).lastCompletedAt).toBeUndefined();
+  expect(GraftThreadSummarySchema.parse({ ...thread, lastCompletedAt: 10 }).lastCompletedAt).toBe(
+    10,
+  );
+  expect(GraftThreadSummarySchema.safeParse({ ...thread, lastCompletedAt: -1 }).success).toBe(
+    false,
+  );
 });
