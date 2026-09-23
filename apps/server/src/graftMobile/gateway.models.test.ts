@@ -33,12 +33,15 @@ function harness(stallProvider?: ProviderKind) {
     interactionMode: "default",
     latestTurn: null,
   };
-  const dispatch = vi.fn((command: { type: string; modelSelection?: ModelSelection }) => {
-    if (command.modelSelection) thread.modelSelection = command.modelSelection;
-    return command.type === "thread.turn.start"
-      ? Effect.fail(new Error("turn dispatch captured"))
-      : Effect.succeed({ sequence: 1 });
-  });
+  const dispatch = vi.fn(
+    (command: { type: string; modelSelection?: ModelSelection; title?: string }) => {
+      if (command.title) thread.title = command.title;
+      if (command.modelSelection) thread.modelSelection = command.modelSelection;
+      return command.type === "thread.turn.start"
+        ? Effect.fail(new Error("turn dispatch captured"))
+        : Effect.succeed({ sequence: 1 });
+    },
+  );
   const listModels = vi.fn(({ provider }: { provider: ProviderKind }) =>
     provider === stallProvider
       ? Effect.never
@@ -94,6 +97,40 @@ function harness(stallProvider?: ProviderKind) {
 }
 
 describe("mobile model settings", () => {
+  it("renames the owning thread through the durable metadata command", async () => {
+    const test = harness();
+    const result = await test.run({
+      type: "thread.rename",
+      threadId: "thread",
+      title: "Mobile title",
+    });
+    expect(test.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "thread.meta.update",
+        threadId: "thread",
+        title: "Mobile title",
+      }),
+      undefined,
+    );
+    expect(result).toMatchObject({
+      type: "thread.rename.result",
+      thread: { id: "thread", title: "Mobile title" },
+    });
+  });
+
+  it.each(["thread.archive", "thread.delete"] as const)(
+    "dispatches %s through the host lifecycle",
+    async (type) => {
+      const test = harness();
+      const result = await test.run({ type, threadId: "thread" });
+      expect(test.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type, threadId: "thread" }),
+        undefined,
+      );
+      expect(result).toEqual({ type: `${type}.result`, threadId: "thread" });
+    },
+  );
+
   it("keeps Droid available without starting discovery on mobile catalog loads or reconnects", async () => {
     const test = harness();
     for (let request = 0; request < 2; request += 1) {

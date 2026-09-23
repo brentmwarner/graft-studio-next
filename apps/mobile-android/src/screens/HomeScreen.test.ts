@@ -41,6 +41,10 @@ vi.mock("../components/CircleIconButton", () => ({ CircleIconButton: "CircleButt
 vi.mock("../components/EdgeFade", () => ({ EdgeFade: "Fade" }));
 vi.mock("../components/FloatingSurface", () => ({ FloatingSurface: "Surface" }));
 vi.mock("../components/PressScale", () => ({ PressScale: "PressScale" }));
+vi.mock("../components/ThreadActions", () => ({
+  ThreadActions: ({ children, onOpen }: { children: ReactNode; onOpen: () => void }) =>
+    createElement("Pressable", { onPress: onOpen, accessibilityHint: "Open thread" }, children),
+}));
 vi.mock("../components/AnchoredMenu", () => ({
   AnchoredMenu: ({ children }: { children: (close: () => void) => ReactNode }) =>
     children(() => {}),
@@ -92,6 +96,7 @@ function Harness() {
     session: { environmentLabel: "Mac" } as GraftSessionCredential,
     onNewChat,
     onOpenThread,
+    onThreadAction: async () => {},
     onSettings,
     onOpenMenu: () => {},
     onRefresh: async () => {},
@@ -226,6 +231,7 @@ it("shows All and machine filters with offline status and an Add computer action
       session: sources[0]!.session,
       onNewChat,
       onOpenThread,
+      onThreadAction: async () => {},
       onSettings,
       onOpenMenu: () => {},
       onRefresh: async () => {},

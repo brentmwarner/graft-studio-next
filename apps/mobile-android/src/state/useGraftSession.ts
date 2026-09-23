@@ -574,6 +574,45 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     return result.diff;
   }, []);
 
+  const manageThread = useCallback(
+    async (threadId: string, action: "rename" | "archive" | "delete", title?: string) => {
+      const sessionId = sessionRef.current?.sessionId;
+      const result =
+        action === "rename"
+          ? await runSocketCommand(
+              socketRef.current,
+              { type: "thread.rename", threadId, title: title?.trim() ?? "" },
+              "thread.rename.result",
+            )
+          : action === "archive"
+            ? await runSocketCommand(
+                socketRef.current,
+                { type: "thread.archive", threadId },
+                "thread.archive.result",
+              )
+            : await runSocketCommand(
+                socketRef.current,
+                { type: "thread.delete", threadId },
+                "thread.delete.result",
+              );
+      if (sessionRef.current?.sessionId !== sessionId) return;
+      updatePaired(setState, (current) => ({
+        ...current,
+        snapshot:
+          result.type === "thread.rename.result"
+            ? withThread(current.snapshot, result.thread)
+            : current.snapshot
+              ? {
+                  ...current.snapshot,
+                  threads: current.snapshot.threads.filter((thread) => thread.id !== threadId),
+                }
+              : null,
+      }));
+      scheduleSnapshot();
+    },
+    [scheduleSnapshot],
+  );
+
   const setThreadModel = useCallback(
     async (threadId: string, model: GraftModelOption) => {
       try {
@@ -896,6 +935,7 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     sendMessage,
     setThreadApproval,
     setThreadModel,
+    manageThread,
     unpair,
   };
 }

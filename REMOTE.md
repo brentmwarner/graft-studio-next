@@ -30,6 +30,18 @@ This changes only the display label; environment IDs and pairings stay the same.
 Updated mobile clients refresh existing paired labels from host snapshots and
 keep the last snapshot's name available offline, without pairing again.
 
+## Mobile inbox actions
+
+On iOS and Android, swipe left on a chat to reveal Rename, Archive, and Delete. Long press
+for Rename, Archive, and Delete; deletion asks for confirmation. These actions
+change the thread on its owning computer, including when viewing All computers.
+Archive removes a chat from the mobile inbox; archived chats remain available
+through desktop conversation storage. Both the mobile app and host must include
+the inbox-action protocol commands.
+
+New mobile chats receive automatic titles after their first message, using the
+same host naming flow as desktop. Explicitly renamed chats keep their names.
+
 ## Security First
 
 - Always set `--auth-token` before exposing the server outside localhost.

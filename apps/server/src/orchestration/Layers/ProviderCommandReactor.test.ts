@@ -7166,46 +7166,49 @@ describe("ProviderCommandReactor", () => {
     expect((await readHarnessThread(harness))?.title).toBe("Manual title wins");
   });
 
-  it("renames a generic first-turn thread title using text generation", async () => {
-    const harness = await createHarness();
-    const now = new Date().toISOString();
-    harness.generateThreadTitle.mockImplementation(() =>
-      Effect.succeed({
-        title: "Polish loading states",
-      }),
-    );
+  it.each(["New thread", "New chat"])(
+    "renames the %s first-turn placeholder using text generation",
+    async (placeholder) => {
+      const harness = await createHarness();
+      const now = new Date().toISOString();
+      harness.generateThreadTitle.mockImplementation(() =>
+        Effect.succeed({
+          title: "Polish loading states",
+        }),
+      );
 
-    await Effect.runPromise(
-      harness.engine.dispatch({
-        type: "thread.meta.update",
-        commandId: CommandId.makeUnsafe("cmd-thread-title-generic"),
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        title: "New thread",
-      }),
-    );
+      await Effect.runPromise(
+        harness.engine.dispatch({
+          type: "thread.meta.update",
+          commandId: CommandId.makeUnsafe("cmd-thread-title-generic"),
+          threadId: ThreadId.makeUnsafe("thread-1"),
+          title: placeholder,
+        }),
+      );
 
-    await Effect.runPromise(
-      harness.engine.dispatch({
-        type: "thread.turn.start",
-        commandId: CommandId.makeUnsafe("cmd-turn-start-title"),
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        message: {
-          messageId: asMessageId("user-message-title-1"),
-          role: "user",
-          text: "Polish the loading states across the sidebar and composer",
-          attachments: [],
-        },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-        runtimeMode: "approval-required",
-        createdAt: now,
-      }),
-    );
+      await Effect.runPromise(
+        harness.engine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.makeUnsafe("cmd-turn-start-title"),
+          threadId: ThreadId.makeUnsafe("thread-1"),
+          message: {
+            messageId: asMessageId("user-message-title-1"),
+            role: "user",
+            text: "Polish the loading states across the sidebar and composer",
+            attachments: [],
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: "approval-required",
+          createdAt: now,
+        }),
+      );
 
-    await waitFor(() => harness.generateThreadTitle.mock.calls.length === 1);
-    await waitFor(
-      async () => (await readHarnessThread(harness))?.title === "Polish loading states",
-    );
-  });
+      await waitFor(() => harness.generateThreadTitle.mock.calls.length === 1);
+      await waitFor(
+        async () => (await readHarnessThread(harness))?.title === "Polish loading states",
+      );
+    },
+  );
 
   it("uses the configured text generation model for providers without native title generation", async () => {
     const harness = await createHarness({

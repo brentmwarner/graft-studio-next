@@ -577,6 +577,7 @@ export const executeMobileCommand = Effect.fn(function* (
       const normalizedQuery = command.query?.trim().toLowerCase();
       const threads = withoutStudioThreads(shell.threads, shell.projects).filter(
         (thread) =>
+          !thread.archivedAt &&
           (!command.projectId || thread.projectId === command.projectId) &&
           (!normalizedQuery || thread.title.toLowerCase().includes(normalizedQuery)),
       );
@@ -618,6 +619,48 @@ export const executeMobileCommand = Effect.fn(function* (
       });
       const thread = yield* waitForThreadShell(threadId, result.sequence);
       return { type: "thread.create.result", thread: toMobileThread(thread) };
+    }
+    case "thread.rename": {
+      const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
+      if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+      const result = yield* engine.dispatch(
+        {
+          type: "thread.meta.update",
+          commandId,
+          threadId: ThreadId.makeUnsafe(command.threadId),
+          title: command.title,
+        },
+        context,
+      );
+      const thread = yield* waitForThreadShell(command.threadId, result.sequence);
+      return { type: "thread.rename.result", thread: toMobileThread(thread) };
+    }
+    case "thread.archive":
+    case "thread.delete": {
+      const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
+      if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+      const result = yield* engine.dispatch(
+        {
+          type: command.type,
+          commandId,
+          threadId: ThreadId.makeUnsafe(command.threadId),
+        },
+        context,
+      );
+      const deadline = Date.now() + PROJECTION_WAIT_MS;
+      while ((yield* query.getShellSnapshot()).snapshotSequence < result.sequence) {
+        if (Date.now() >= deadline) {
+          return yield* fail(
+            "internal",
+            "The change was accepted but the mobile snapshot has not caught up. Refresh to check its status.",
+          );
+        }
+        yield* Effect.sleep(PROJECTION_POLL_MS);
+      }
+      return {
+        type: command.type === "thread.archive" ? "thread.archive.result" : "thread.delete.result",
+        threadId: command.threadId,
+      };
     }
     case "thread.set_model": {
       const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));

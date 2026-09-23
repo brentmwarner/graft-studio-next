@@ -18,6 +18,9 @@ function isIndependentRead(command: GraftMobileCommand): boolean {
     case "snapshot.get":
       return true;
     case "thread.create":
+    case "thread.rename":
+    case "thread.archive":
+    case "thread.delete":
     case "thread.set_model":
     case "thread.set_approval":
     case "turn.start":

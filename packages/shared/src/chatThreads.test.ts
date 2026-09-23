@@ -110,6 +110,8 @@ describe("chatThreads", () => {
 
   it("detects the generic chat placeholder title", () => {
     expect(isGenericChatThreadTitle(" New thread ")).toBe(true);
+    expect(isGenericChatThreadTitle(" New chat ")).toBe(true);
+    expect(isGenericChatThreadTitle("New chat about deployment")).toBe(false);
     expect(isGenericChatThreadTitle("Manual rename")).toBe(false);
   });
 });

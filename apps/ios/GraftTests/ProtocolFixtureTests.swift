@@ -9,6 +9,23 @@ import XCTest
 /// any protocol change to catch model drift early.
 final class ProtocolFixtureTests: XCTestCase {
 
+    func testInboxCommandsRoundTripWithHostCommandNames() throws {
+        let commands: [(CommandPayload, String)] = [
+            (.threadRename(ThreadRenameCommand(threadId: "thread-1", title: "Mobile title")), "thread.rename"),
+            (.threadArchive(ThreadArchiveCommand(threadId: "thread-1")), "thread.archive"),
+            (.threadDelete(ThreadDeleteCommand(threadId: "thread-1")), "thread.delete")
+        ]
+        for (command, expectedType) in commands {
+            let data = try JSONEncoder().encode(command)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+            XCTAssertEqual(object["type"], expectedType)
+            XCTAssertEqual(object["threadId"], "thread-1")
+            let decoded = try JSONDecoder().decode(CommandPayload.self, from: data)
+            let encoded = try JSONEncoder().encode(decoded)
+            XCTAssertEqual(try JSONSerialization.jsonObject(with: encoded) as? [String: String], object)
+        }
+    }
+
     func testLiveWorkingDiffReadsDoNotRequireMatchingTimestamps() {
         let summary = DiffSummary(
             id: "t", threadId: "t", runId: nil, title: "Working changes", files: [], updatedAt: 1

@@ -1,0 +1,46 @@
+import { registerRootComponent } from "expo";
+import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
+import { View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import type { GraftEnvironmentSnapshot, GraftSessionCredential } from "@graft/mobile-contract";
+import { buildPromptThreadTitleFallback } from "@graft/shared/chatThreads";
+import { HomeScreen } from "./src/screens/HomeScreen";
+import { MenuProvider } from "./src/components/MenuProvider";
+import type { InboxViewMode } from "./src/state/inboxGrouping";
+
+const now = Date.now();
+const titles = ["Fix mobile thread titles", "Review streaming recovery", "Polish the connected machines bar", "Add swipe actions to chats", "Check Android keyboard spacing", "Review project changes", "Improve reconnect behavior", "Update the release notes", "Test chat cancellation", "Fix transcript scrolling", "Review approval handling", "Check offline recovery", "Plan the next mobile release", "Verify iOS navigation"];
+const initial: GraftEnvironmentSnapshot = {
+  environment: { id: "sample", label: "Workstation", hostVersion: "capture", protocolVersion: 1, capabilities: ["threads"], cursor: 1 },
+  projects: [{ id: "graft", name: "graft-studio-next", kind: "repo" }],
+  threads: titles.map((title, index) => ({ id: `thread-${index}`, projectId: "graft", title, updatedAt: now - index * 60000 })),
+  activeRuns: [], pendingApprovals: [], pendingQuestions: [], selectedTranscript: null, cursor: 1,
+};
+const session = { environmentId: "sample", environmentLabel: "Workstation" } as GraftSessionCredential;
+
+function CaptureApp() {
+  const [snapshot, setSnapshot] = useState(initial);
+  const [mode, setMode] = useState<InboxViewMode>("priority");
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set(["graft"]));
+  const [machine, setMachine] = useState<string>();
+  return <SafeAreaProvider><StatusBar style="dark" /><MenuProvider><View style={{ flex: 1, backgroundColor: "white" }}>
+    <HomeScreen snapshot={snapshot} session={session} connectionState="connected" isRefreshing={false}
+      machines={[{ id: "sample", label: "Workstation", connected: true }, { id: "mac", label: "MacBook Pro", connected: false }]}
+      selectedMachineId={machine} onSelectMachine={setMachine} onOpenMenu={() => {}} onSettings={() => {}}
+      viewMode={mode} onViewModeChange={setMode} expandedProjectIds={expanded}
+      onToggleProject={(id) => setExpanded(new Set(expanded.has(id) ? [] : [id]))}
+      onRefresh={async () => {}} onOpenThread={() => {}}
+      onThreadAction={async (thread, action, title) => {
+        setSnapshot((current) => ({ ...current, threads: action === "rename"
+          ? current.threads.map((entry) => entry.id === thread.id ? { ...entry, title: title! } : entry)
+          : current.threads.filter((entry) => entry.id !== thread.id) }));
+      }}
+      onNewChat={() => {
+        const id = `new-${Date.now()}`;
+        setSnapshot((current) => ({ ...current, threads: [{ id, projectId: "graft", title: "New chat", updatedAt: Date.now() }, ...current.threads] }));
+        setTimeout(() => setSnapshot((current) => ({ ...current, threads: current.threads.map((thread) => thread.id === id ? { ...thread, title: buildPromptThreadTitleFallback("Review mobile inbox gestures and scrolling") } : thread) })), 1800);
+      }} />
+  </View></MenuProvider></SafeAreaProvider>;
+}
+registerRootComponent(CaptureApp);

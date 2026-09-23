@@ -10,6 +10,10 @@ struct ThreadView: View {
     let threadId: String
     let title: String
 
+    private var currentTitle: String {
+        app.snapshot?.threads.first(where: { $0.id == threadId })?.title ?? title
+    }
+
     var body: some View {
         ZStack {
             DS.Color.bg.ignoresSafeArea()
@@ -35,7 +39,7 @@ struct ThreadView: View {
                     .readableChatColumn()
             }
         }
-        .navigationTitle(title)
+        .navigationTitle(currentTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
@@ -45,7 +49,7 @@ struct ThreadView: View {
                     Circle().fill(app.gateway.state == .connected ? Color.green : Color.red)
                         .frame(width: 7, height: 7)
                         .accessibilityLabel(app.gateway.state == .connected ? "Connected" : "Offline")
-                    Text(title)
+                    Text(currentTitle)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                         .accessibilityAddTraits(.isHeader)

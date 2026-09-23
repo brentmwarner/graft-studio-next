@@ -168,6 +168,9 @@ struct ClientCommandEnvelope: Codable, Sendable {
 // MARK: Command payloads
 
 enum CommandPayload: Codable, Sendable {
+    case threadRename(ThreadRenameCommand)
+    case threadArchive(ThreadArchiveCommand)
+    case threadDelete(ThreadDeleteCommand)
     case turnStart(TurnStartCommand)
     case turnCancel(TurnCancelCommand)
     case approvalResolve(ApprovalResolveCommand)
@@ -189,6 +192,12 @@ enum CommandPayload: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
         switch type {
+        case "thread.rename":
+            self = .threadRename(try ThreadRenameCommand(from: decoder))
+        case "thread.archive":
+            self = .threadArchive(try ThreadArchiveCommand(from: decoder))
+        case "thread.delete":
+            self = .threadDelete(try ThreadDeleteCommand(from: decoder))
         case "turn.start":
             self = .turnStart(try TurnStartCommand(from: decoder))
         case "turn.cancel":
@@ -228,6 +237,9 @@ enum CommandPayload: Codable, Sendable {
 
     func encode(to encoder: Encoder) throws {
         switch self {
+        case .threadRename(let cmd): try cmd.encode(to: encoder)
+        case .threadArchive(let cmd): try cmd.encode(to: encoder)
+        case .threadDelete(let cmd): try cmd.encode(to: encoder)
         case .turnStart(let cmd):    try cmd.encode(to: encoder)
         case .turnCancel(let cmd):   try cmd.encode(to: encoder)
         case .approvalResolve(let cmd): try cmd.encode(to: encoder)
@@ -332,6 +344,22 @@ struct ComposerSkillPreview: Codable, Sendable {
     let description: String
     let contents: String
     let truncated: Bool
+}
+
+struct ThreadRenameCommand: Codable, Sendable {
+    var type = "thread.rename"
+    let threadId: String
+    let title: String
+}
+
+struct ThreadArchiveCommand: Codable, Sendable {
+    var type = "thread.archive"
+    let threadId: String
+}
+
+struct ThreadDeleteCommand: Codable, Sendable {
+    var type = "thread.delete"
+    let threadId: String
 }
 
 struct ThreadCreateCommand: Codable, Sendable {

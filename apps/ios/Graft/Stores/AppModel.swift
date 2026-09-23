@@ -419,6 +419,27 @@ final class AppModel {
         }
     }
 
+    func manageThread(_ threadId: String, action: InboxThreadAction) async throws {
+        let command: CommandPayload
+        let expectedResult: String
+        switch action {
+        case .rename(let title):
+            command = .threadRename(ThreadRenameCommand(threadId: threadId, title: title))
+            expectedResult = "thread.rename.result"
+        case .archive:
+            command = .threadArchive(ThreadArchiveCommand(threadId: threadId))
+            expectedResult = "thread.archive.result"
+        case .delete:
+            command = .threadDelete(ThreadDeleteCommand(threadId: threadId))
+            expectedResult = "thread.delete.result"
+        }
+        let response = try await sendCommand(ClientCommandEnvelope(command: command))
+        guard response.receipt?.status != "rejected", response.result?.type == expectedResult else {
+            throw GraftError.decoding("Studio could not update this chat. Reconnect and try again.")
+        }
+        scheduleSnapshotRefresh()
+    }
+
     /// Create a thread in the given project on the host and return its summary,
     /// so the caller can navigate straight into it.
     func createThread(
