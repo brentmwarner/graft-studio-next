@@ -436,6 +436,8 @@ function GraftApp() {
                 onLoadDiff={session.loadDiff}
                 onLoadDiffFile={session.loadDiffFile}
                 onLoadUsage={session.loadUsage}
+                onLoadThreadDetails={session.loadThreadDetails}
+                onRenameThread={session.renameThread}
                 onLoadComposerCommands={session.loadComposerCommands}
                 onLoadModels={session.loadModels}
                 onRefresh={session.refresh}

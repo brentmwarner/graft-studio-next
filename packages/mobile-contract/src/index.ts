@@ -266,6 +266,15 @@ export const GraftThreadSummarySchema = z.object({
 });
 export type GraftThreadSummary = z.infer<typeof GraftThreadSummarySchema>;
 
+/** On-demand thread metadata; Git values describe the actual workspace at read time. */
+export const GraftThreadDetailsSchema = z.object({
+  thread: GraftThreadSummarySchema,
+  workspaceName: z.string(),
+  gitStatus: z.enum(["available", "not_repository", "unavailable"]),
+  branch: z.string().optional(),
+});
+export type GraftThreadDetails = z.infer<typeof GraftThreadDetailsSchema>;
+
 /** A model the host can run turns with, offered to the mobile picker. */
 export const GraftModelOptionSchema = z.object({
   id: z.string().min(1),
@@ -759,6 +768,10 @@ export const GraftMobileCommandSchema = z
       threadId: z.string().min(1),
     }),
     z.object({
+      type: z.literal("thread.details"),
+      threadId: z.string().min(1),
+    }),
+    z.object({
       type: z.literal("thread.create"),
       projectId: z.string().min(1),
       title: z.string().min(1).max(200).optional(),
@@ -891,6 +904,10 @@ export const GraftMobileCommandResultSchema = z.discriminatedUnion("type", [
     run: GraftRunSummarySchema.nullable(),
     pendingApprovals: z.array(GraftApprovalRequestSchema),
     pendingQuestions: z.array(GraftQuestionRequestSchema),
+  }),
+  z.object({
+    type: z.literal("thread.details.result"),
+    details: GraftThreadDetailsSchema,
   }),
   z.object({
     type: z.literal("thread.create.result"),
@@ -1058,6 +1075,8 @@ export function describeMobileCommand(command: GraftMobileCommand): string {
       return "thread.list";
     case "thread.open":
       return "thread.open";
+    case "thread.details":
+      return "thread.details";
     case "thread.create":
       return "thread.create";
     case "thread.set_model":

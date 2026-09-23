@@ -513,6 +513,15 @@ struct ComposerView: View {
                 if app.models.pendingSelections[chat.threadId] != nil {
                     ProgressView().controlSize(.small)
                 } else {
+                    if isExpanded, let model = currentModel, !model.providerId.isEmpty {
+                        ProviderLogoView(
+                            providerId: model.providerId,
+                            label: model.providerLabel,
+                            size: 18
+                        )
+                        .foregroundStyle(.primary)
+                        .accessibilityHidden(true)
+                    }
                     Text(currentModel?.label ?? "Model").foregroundStyle(.primary)
                     if isExpanded, let effort = app.resolvedEffort(forThread: chat.threadId) {
                         Text(Self.effortDisplayName(effort)).foregroundStyle(.secondary)

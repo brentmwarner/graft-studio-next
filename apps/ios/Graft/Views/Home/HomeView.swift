@@ -131,42 +131,40 @@ struct HomeView: View {
 
     private var inboxContent: some View {
         ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                TimelineView(.periodic(from: .now, by: 60)) { context in
-                    RemoteInboxScreen(
-                        projects: inboxProjects,
-                        recentThreads: usesPersistentSidebar ? inbox.recents() : [],
-                        isLoading: false,
-                        expandedProjectIds: $expandedProjectIds,
-                        mode: viewMode,
-                        sections: inbox.sections(mode: viewMode, search: searchText, now: context.date),
-                        searchQuery: searchText,
-                        selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
-                        fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
-                            usesPersistentSidebar: usesPersistentSidebar
-                        ),
-                        onToggleProject: { id in
-                            if expandedProjectIds.contains(id) {
-                                expandedProjectIds.remove(id)
-                            } else {
-                                expandedProjectIds.insert(id)
-                            }
-                        },
-                        onSelectThread: openThread,
-                        onThreadAction: { thread, action in
-                            guard let machine = machines.machine(thread.environmentId) else {
-                                throw GraftError.decoding("Computer unavailable. Reconnect and try again.")
-                            }
-                            try await machine.manageThread(thread.threadId, action: action)
-                        },
-                        onComposeInProject: { openNewChat(projectId: $0) },
-                        onComposeChats: { openNewChat() },
-                        onRefresh: { visibleMachines.forEach { $0.reconnectIfNeeded() } }
-                    )
-                }
-                .safeAreaBar(edge: .top, spacing: 0) {
-                    MachineFilterBar(machines: machines.machines, selection: $selectedMachineId)
-                }
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                RemoteInboxScreen(
+                    projects: inboxProjects,
+                    recentThreads: usesPersistentSidebar ? inbox.recents() : [],
+                    isLoading: false,
+                    expandedProjectIds: $expandedProjectIds,
+                    mode: viewMode,
+                    sections: inbox.sections(mode: viewMode, search: searchText, now: context.date),
+                    searchQuery: searchText,
+                    selectedThreadId: usesPersistentSidebar ? selectedThread?.id : nil,
+                    fillsOpaqueBackground: AdaptiveChrome.paintsOpaqueInboxBackground(
+                        usesPersistentSidebar: usesPersistentSidebar
+                    ),
+                    onToggleProject: { id in
+                        if expandedProjectIds.contains(id) {
+                            expandedProjectIds.remove(id)
+                        } else {
+                            expandedProjectIds.insert(id)
+                        }
+                    },
+                    onSelectThread: openThread,
+                    onThreadAction: { thread, action in
+                        guard let machine = machines.machine(thread.environmentId) else {
+                            throw GraftError.decoding("Computer unavailable. Reconnect and try again.")
+                        }
+                        try await machine.manageThread(thread.threadId, action: action)
+                    },
+                    onComposeInProject: { openNewChat(projectId: $0) },
+                    onComposeChats: { openNewChat() },
+                    onRefresh: { visibleMachines.forEach { $0.reconnectIfNeeded() } }
+                )
+            }
+            .safeAreaBar(edge: .top, spacing: 0) {
+                MachineFilterBar(machines: machines.machines, selection: $selectedMachineId)
             }
 
             RemoteInboxBottomBar(
@@ -501,6 +499,7 @@ struct RemoteInboxScreen: View {
                     .padding(.bottom, 120)
                 }
                 .id(mode)
+                .scrollEdgeEffectStyle(.soft, for: .top)
                 .refreshable { onRefresh() }
             }
         }
@@ -850,18 +849,15 @@ struct RemoteInboxBottomBar: View {
                 .padding(.vertical, 12)
                 .glassEffect(.regular.interactive(), in: .capsule)
 
-                // Sign-in pill's dark liquid glass, in circle form — reads as
-                // the one primary action on the bar.
                 Button(action: onCompose) {
                     Image(systemName: "square.and.pencil")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 48, height: 48)
-                        .contentShape(.circle)
-                        .background { GlassSurface(dark: true, in: .circle) }
-                        .clipShape(.circle)
+                        .foregroundStyle(DS.Color.accentFg)
+                        .frame(width: 24, height: 24)
                 }
-                .buttonStyle(PillPress())
+                .buttonStyle(.glass(.regular.tint(.accentColor.opacity(0.85)).interactive()))
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
                 .accessibilityLabel(
                     Text("New chat", comment: "Compose new thread from remote inbox")
                 )

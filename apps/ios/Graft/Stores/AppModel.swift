@@ -331,6 +331,43 @@ final class AppModel {
         threadFastModes[threadId] = enabled
     }
 
+    func fetchThreadDetails(threadId: String) async throws -> ThreadDetailsInfo {
+        let response = try await sendCommand(ClientCommandEnvelope(
+            command: .threadDetails(ThreadDetailsCommand(threadId: threadId))
+        ))
+        try response.receipt?.checkAccepted()
+        guard let details = response.result?.details, details.thread.id == threadId else {
+            throw GraftError.decoding("Graft did not return thread details. Update Graft on your computer and try again.")
+        }
+        return details
+    }
+
+    func renameThread(threadId: String, title: String) async throws {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.utf16.count <= 200 else {
+            throw GraftError.decoding("Use a thread name between 1 and 200 characters.")
+        }
+        defer { scheduleSnapshotRefresh(immediately: true) }
+        let response = try await sendCommand(ClientCommandEnvelope(
+            command: .threadRename(ThreadRenameCommand(threadId: threadId, title: trimmed))
+        ))
+        try response.receipt?.checkAccepted()
+        guard let confirmed = response.result?.thread, confirmed.id == threadId else {
+            throw GraftError.decoding("Graft did not confirm the name change.")
+        }
+        snapshotRequestGeneration += 1
+        if let previous = snapshot {
+            snapshot = EnvironmentSnapshot(
+                environment: previous.environment, projects: previous.projects,
+                threads: previous.threads.map { $0.id == threadId ? confirmed : $0 },
+                activeRuns: previous.activeRuns, pendingApprovals: previous.pendingApprovals,
+                pendingQuestions: previous.pendingQuestions,
+                selectedTranscript: previous.selectedTranscript, cursor: previous.cursor
+            )
+        }
+        if activeChat?.threadId == threadId { activeChat?.title = confirmed.title }
+    }
+
     /// Point the thread at a different model for subsequent turns. The
     /// confirmed thread updates the control before the next snapshot arrives.
     func setThreadModel(threadId: String, model: ModelOption) async -> Bool {
@@ -424,8 +461,8 @@ final class AppModel {
         let expectedResult: String
         switch action {
         case .rename(let title):
-            command = .threadRename(ThreadRenameCommand(threadId: threadId, title: title))
-            expectedResult = "thread.rename.result"
+            try await renameThread(threadId: threadId, title: title)
+            return
         case .archive:
             command = .threadArchive(ThreadArchiveCommand(threadId: threadId))
             expectedResult = "thread.archive.result"

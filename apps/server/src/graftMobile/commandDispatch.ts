@@ -8,6 +8,7 @@ function isIndependentRead(command: GraftMobileCommand): boolean {
     case "project.list":
     case "thread.list":
     case "thread.open":
+    case "thread.details":
     case "models.list":
     case "composer.commands":
     case "composer.skill.read":

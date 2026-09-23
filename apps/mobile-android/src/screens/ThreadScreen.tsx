@@ -9,6 +9,7 @@ import type {
   GraftQuestionRequest,
   GraftThreadSummary,
   GraftThreadUsage,
+  GraftThreadDetails,
   GraftTimelineEvent,
 } from "@graft/mobile-contract";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,7 +29,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { GatewayConnectionState } from "../api/gatewaySocket";
-import { AnchoredMenu, MenuItem } from "../components/AnchoredMenu";
+import { ThreadDetailsMenu } from "./thread/ThreadDetailsMenu";
 import { UsageMenu } from "./thread/UsageMenu";
 import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
@@ -43,6 +44,11 @@ import { attachmentHostError, type ComposerSendOptions } from "./thread/composer
 import { useComposerAttachments } from "./thread/useComposerAttachments";
 import { Composer } from "./thread/Composer";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
+import {
+  SCROLL_TO_LATEST_SIZE,
+  scrollToLatestBottom,
+  type ComposerAccessoryLayout,
+} from "./thread/scrollToLatestLayout";
 import { ContextProgressRing } from "./thread/ContextProgressRing";
 import { contextUsageAccessibilityLabel } from "./thread/contextUsage";
 import { DiffSheet } from "./thread/DiffSheet";
@@ -73,6 +79,8 @@ interface ThreadScreenProps {
   readonly onBack: () => void;
   readonly onCancel: (runId: string) => Promise<boolean>;
   readonly onLoadDiff: (threadId: string, diffId?: string) => Promise<void>;
+  readonly onLoadThreadDetails: (threadId: string) => Promise<GraftThreadDetails>;
+  readonly onRenameThread: (threadId: string, title: string) => Promise<GraftThreadSummary>;
   readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
   readonly onLoadComposerCommands: (threadId: string) => Promise<readonly GraftComposerCommand[]>;
   readonly onLoadModels: (force?: boolean) => Promise<void>;
@@ -117,6 +125,8 @@ export function ThreadScreen({
   onLoadModels,
   modelCatalog,
   onLoadUsage,
+  onLoadThreadDetails,
+  onRenameThread,
   onRefresh,
   onResolveApproval,
   onResolveQuestion,
@@ -139,6 +149,7 @@ export function ThreadScreen({
   const dictationSendPending = useRef(false);
   const sendInFlight = useRef(false);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
+  const [diffRowLayout, setDiffRowLayout] = useState<ComposerAccessoryLayout>();
   const [showDiffSheet, setShowDiffSheet] = useState(false);
   const closeDiffSheet = useCallback(() => setShowDiffSheet(false), []);
 
@@ -282,7 +293,7 @@ export function ThreadScreen({
           {
             // Clear the composer by enough to also clear the bottom fade
             // (`insets.bottom + 116`) — at 12 the last line settled inside the
-            // blur, which is what "the end of the conversation should be
+            // gradient, which is what "the end of the conversation should be
             // readable above the composer" was asking for.
             paddingBottom: Math.max(insets.bottom + 126, bottomChromeHeight + 24),
             paddingTop: headerBottom + 30,
@@ -389,7 +400,13 @@ export function ThreadScreen({
               </PressScale>
             )}
           />
-          <AnchoredMenu
+          <ThreadDetailsMenu
+            key={thread.id}
+            thread={model.currentThread}
+            projectName={projectName}
+            connected={isConnected}
+            onLoadDetails={onLoadThreadDetails}
+            onRename={onRenameThread}
             trigger={(open) => (
               <PressScale accessibilityLabel="Thread options" onPress={open}>
                 <View style={styles.headerActionButton}>
@@ -397,17 +414,7 @@ export function ThreadScreen({
                 </View>
               </PressScale>
             )}
-          >
-            {(close) => (
-              <MenuItem
-                label="Refresh"
-                onPress={() => {
-                  close();
-                  void onRefresh();
-                }}
-              />
-            )}
-          </AnchoredMenu>
+          />
         </FloatingSurface>
       </View>
 
@@ -441,46 +448,36 @@ export function ThreadScreen({
             {error}
           </Text>
         ) : null}
-        {model.hasDiffChip || follow.isAwayFromBottom ? (
-          // Diff pill leading, jump-to-latest arrow trailing, one row — so the
-          // two floating chips read as a single chrome band above the composer.
-          // Mirrors the `HStack` in the iOS `ThreadView` bottom inset.
-          <View style={styles.accessoryRow}>
-            {model.hasDiffChip ? (
-              <PressScale
-                accessibilityLabel={`Changes: ${diffSummary?.files.length ?? 0} files, ${model.diffAdditions} additions, ${model.diffDeletions} deletions`}
-                onPress={() => {
-                  Vibration.vibrate(10);
-                  Keyboard.dismiss();
-                  void onLoadDiff(thread.id);
-                  setShowDiffSheet(true);
-                }}
-              >
-                <FloatingSurface style={styles.diffChip}>
-                  <Text style={[styles.diffLabel, { color: palette.foregroundMuted }]}>
-                    {diffSummary?.files.length ?? 0} files changed
-                  </Text>
-                  {model.diffAdditions > 0 || model.diffDeletions > 0 ? (
-                    <>
-                      <Text style={[styles.diffCount, { color: palette.success }]}>
-                        +{model.diffAdditions}
-                      </Text>
-                      <Text style={[styles.diffCount, { color: palette.danger }]}>
-                        −{model.diffDeletions}
-                      </Text>
-                    </>
-                  ) : null}
-                </FloatingSurface>
-              </PressScale>
-            ) : null}
-            <View style={styles.accessorySpacer} />
-            {follow.isAwayFromBottom ? (
-              <PressScale accessibilityLabel="Jump to latest message" onPress={follow.jumpToLatest}>
-                <FloatingSurface style={styles.jumpButton}>
-                  <Ionicons color={palette.foreground} name="arrow-down" size={19} />
-                </FloatingSurface>
-              </PressScale>
-            ) : null}
+        {model.hasDiffChip ? (
+          <View
+            onLayout={(event) => setDiffRowLayout(event.nativeEvent.layout)}
+            style={styles.accessoryRow}
+          >
+            <PressScale
+              accessibilityLabel={`Changes: ${diffSummary?.files.length ?? 0} files, ${model.diffAdditions} additions, ${model.diffDeletions} deletions`}
+              onPress={() => {
+                Vibration.vibrate(10);
+                Keyboard.dismiss();
+                void onLoadDiff(thread.id);
+                setShowDiffSheet(true);
+              }}
+            >
+              <FloatingSurface style={styles.diffChip}>
+                <Text style={[styles.diffLabel, { color: palette.foregroundMuted }]}>
+                  {diffSummary?.files.length ?? 0} files changed
+                </Text>
+                {model.diffAdditions > 0 || model.diffDeletions > 0 ? (
+                  <>
+                    <Text style={[styles.diffCount, { color: palette.success }]}>
+                      +{model.diffAdditions}
+                    </Text>
+                    <Text style={[styles.diffCount, { color: palette.danger }]}>
+                      −{model.diffDeletions}
+                    </Text>
+                  </>
+                ) : null}
+              </FloatingSurface>
+            </PressScale>
           </View>
         ) : null}
         {draft.startsWith("/") && !/\s/.test(draft) ? (
@@ -555,6 +552,28 @@ export function ThreadScreen({
         />
       </View>
 
+      {follow.isAwayFromBottom && !(draft.startsWith("/") && !/\s/.test(draft)) ? (
+        // Keep the hit target inside the full-screen parent, outside the measured
+        // chrome. It shares the diff row without moving pills or transcript insets.
+        <PressScale
+          accessibilityLabel="Jump to latest message"
+          onPress={follow.jumpToLatest}
+          style={[
+            styles.jumpOverlay,
+            {
+              bottom: scrollToLatestBottom(
+                bottomChromeHeight,
+                model.hasDiffChip ? diffRowLayout : undefined,
+              ),
+            },
+          ]}
+        >
+          <FloatingSurface style={styles.jumpButton}>
+            <Ionicons color={palette.foreground} name="arrow-down" size={19} />
+          </FloatingSurface>
+        </PressScale>
+      ) : null}
+
       <DiffSheet
         diff={diffSummary}
         onLoadFile={onLoadDiffFile}
@@ -618,13 +637,17 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 12,
   },
-  accessoryRow: { alignItems: "center", flexDirection: "row", gap: 8 },
-  accessorySpacer: { flex: 1, minWidth: 0 },
+  accessoryRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    paddingRight: SCROLL_TO_LATEST_SIZE + 8,
+  },
+  jumpOverlay: { position: "absolute", right: 12 },
   jumpButton: {
     alignItems: "center",
-    height: 42,
+    height: SCROLL_TO_LATEST_SIZE,
     justifyContent: "center",
-    width: 42,
+    width: SCROLL_TO_LATEST_SIZE,
   },
   inlineError: { fontSize: 12, marginHorizontal: 12, textAlign: "center" },
   diffChip: {

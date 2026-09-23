@@ -337,7 +337,7 @@ final class ChatModel: Identifiable {
         openedDiff = nil
     }
 
-    private func upsertDiffPresentation(from summary: DiffSummary) {
+    func upsertDiffPresentation(from summary: DiffSummary) {
         guard !summary.files.isEmpty else {
             pendingDiffs.removeAll { $0.id == summary.id }
             return
