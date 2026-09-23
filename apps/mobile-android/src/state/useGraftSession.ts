@@ -583,19 +583,31 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     return result.commands;
   }, []);
 
+  const diffRequestsRef = useRef(new Map<string, symbol>());
   const loadDiff = useCallback(async (threadId: string, diffId = threadId) => {
+    const sessionId = sessionRef.current?.sessionId;
+    const request = Symbol();
+    diffRequestsRef.current.set(threadId, request);
     try {
       const result = await runSocketCommand(
         socketRef.current,
         { type: "diff.get", diffId },
         "diff.get.result",
       );
+      if (
+        sessionRef.current?.sessionId !== sessionId ||
+        diffRequestsRef.current.get(threadId) !== request
+      )
+        return;
       updatePaired(setState, (current) => ({
         ...current,
         diffs: { ...current.diffs, [threadId]: result.diff },
       }));
     } catch {
       // No diff is a normal state, and older hosts may not support this read.
+    } finally {
+      if (diffRequestsRef.current.get(threadId) === request)
+        diffRequestsRef.current.delete(threadId);
     }
   }, []);
 

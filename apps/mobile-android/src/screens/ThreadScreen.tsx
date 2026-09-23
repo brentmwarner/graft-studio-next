@@ -15,6 +15,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -220,14 +221,36 @@ export function ThreadScreen({
   }, [isConnected, onLoadModels]);
 
   useEffect(() => {
-    if (isConnected) void onLoadDiff(thread.id);
-  }, [isConnected, onLoadDiff, thread.id]);
-
-  useEffect(() => {
-    if (isConnected && model.latestDiffEvent) {
-      void onLoadDiff(thread.id, model.latestDiffEvent.diffId ?? thread.id);
-    }
-  }, [isConnected, model.latestDiffEvent?.id, onLoadDiff, thread.id]);
+    if (!isConnected) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let generation = 0;
+    const refresh = async () => {
+      const request = ++generation;
+      await onLoadDiff(thread.id);
+      // diff.updated describes completed checkpoints. Read the working tree
+      // during the turn too, including edits inside long-running tools.
+      if (
+        !disposed &&
+        request === generation &&
+        model.isWorking &&
+        AppState.currentState === "active"
+      ) {
+        timer = setTimeout(() => void refresh(), 2_000);
+      }
+    };
+    if (AppState.currentState === "active") void refresh();
+    const subscription = AppState.addEventListener("change", (state) => {
+      generation += 1;
+      clearTimeout(timer);
+      if (state === "active") void refresh();
+    });
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+      subscription.remove();
+    };
+  }, [isConnected, model.isWorking, model.latestDiffEvent?.id, onLoadDiff, thread.id]);
 
   async function send(message = draft, fromDictation = false) {
     const text = message.trim();

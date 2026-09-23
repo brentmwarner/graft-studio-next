@@ -137,6 +137,11 @@ floats above the accessory row when the task pill occupies the trailing slot.
 Showing or hiding the arrow preserves the composer, accessory spacing, and
 transcript inset.
 
+File-change pills refresh from the working tree every two seconds while the
+visible thread is running, with a final refresh when it settles. Refreshing
+pauses in the background or offline and resumes on return; it does not drive
+transcript auto-follow.
+
 Offline computers retain cached projects and transcripts without warning banners
 or stale work/loading spinners. Authentication, protocol, and certificate errors
 still surface warnings. Reconnection restores live activity automatically.

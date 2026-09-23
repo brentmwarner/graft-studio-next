@@ -217,6 +217,11 @@ field distinguishes these cases; PR 25 hosts without it remain supported.
 The equivalent iOS matching fix and a Swift regression test are included, but
 the iOS build and tests must run on macOS.
 
+File-change pills refresh from the working tree every two seconds while the
+visible thread is running, with a final refresh when it settles. Refreshing
+pauses in the background or offline and resumes on return; it does not drive
+transcript auto-follow.
+
 The thread toolbar’s three-dot menu shows only the current Git branch and the
 short local workspace/worktree name, plus a plain **Rename thread** action. The
 rename form uses a native Jetpack Compose dialog. Branch reads and renames

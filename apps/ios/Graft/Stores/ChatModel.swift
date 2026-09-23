@@ -36,6 +36,8 @@ final class ChatModel: Identifiable {
     /// Working-tree / run diffs advertised by `diff.updated` or fetched on demand.
     private(set) var pendingDiffs: [ComposerDiffPresentation] = []
     private(set) var openedDiff: DiffSummary?
+    private var diffRequestGeneration = 0
+    private var requestedDiffId: String?
     var attachments: [PendingAttachment] = []
     var lastError: String?
 
@@ -103,7 +105,6 @@ final class ChatModel: Identifiable {
         self.app = app
         fileLinks = WorkspaceFileLinks(threadId: threadId, app: app)
         startHistoryLoadingIndicator()
-        Task { await refreshDiff(diffId: threadId) }
     }
 
     // MARK: History loading indicator
@@ -315,25 +316,41 @@ final class ChatModel: Identifiable {
         }
     }
 
+    /// Check working-tree edits while this thread is visible and running.
+    /// Checkpoint notifications alone arrive too late to show edits mid-turn.
+    func pollWorkingDiff() async {
+        while !Task.isCancelled {
+            await refreshDiff()
+            guard isTurnActive else { return }
+            do { try await Task.sleep(for: .seconds(2)) }
+            catch { return }
+        }
+    }
+
     /// Load (or refresh) a diff summary for the composer strip.
     func refreshDiff(diffId: String? = nil) async {
-        guard let app, app.gateway.state == .connected else { return }
+        guard !Task.isCancelled, let app, app.gateway.state == .connected else { return }
+        diffRequestGeneration += 1
+        let generation = diffRequestGeneration
         let id = diffId ?? threadId
         guard let summary = await app.fetchDiff(diffId: id) else { return }
+        guard !Task.isCancelled, generation == diffRequestGeneration,
+              app.gateway.state == .connected else { return }
         upsertDiffPresentation(from: summary)
-        if openedDiff?.id == summary.id {
+        if openedDiff?.id == summary.id || requestedDiffId == summary.id {
             openedDiff = summary.files.isEmpty ? nil : summary
+            requestedDiffId = nil
         }
     }
 
     func openDiff(id: String) async {
-        guard let app else { return }
-        guard let summary = await app.fetchDiff(diffId: id) else { return }
-        upsertDiffPresentation(from: summary)
-        openedDiff = summary.files.isEmpty ? nil : summary
+        // A concurrent refresh may finish first; open the newest summary.
+        requestedDiffId = id
+        await refreshDiff(diffId: id)
     }
 
     func dismissOpenedDiff() {
+        requestedDiffId = nil
         openedDiff = nil
     }
 

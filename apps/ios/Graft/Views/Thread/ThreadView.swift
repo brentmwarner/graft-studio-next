@@ -5,6 +5,7 @@ import SwiftUI
 /// and the glass composer. `AppModel` owns the `ChatModel` lifecycle.
 struct ThreadView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.scenePhase) private var scenePhase
     @State private var toolbarPopover: ThreadToolbarPopover?
 
     let threadId: String
@@ -22,6 +23,10 @@ struct ThreadView: View {
                 if let chat = boundChat {
                     TranscriptView(chat: chat)
                         .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
+                        .task(id: [chat.isTurnActive, app.gateway.state == .connected, scenePhase == .active]) {
+                            guard scenePhase == .active, app.gateway.state == .connected else { return }
+                            await chat.pollWorkingDiff()
+                        }
                         .id(chat.id)
                 } else if app.gateway.state == .connected {
                     ProgressView("Loading thread…")
