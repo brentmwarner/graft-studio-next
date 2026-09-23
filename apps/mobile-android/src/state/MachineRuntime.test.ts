@@ -318,6 +318,39 @@ it("ignores a removed session's late snapshot after re-pairing the same machine"
   expect(mock.sockets[0]!.disconnect).toHaveBeenCalledOnce();
 });
 
+it("ignores an older diff response after a newer read clears the working tree", async () => {
+  await act(async () => {
+    renderer = create(createElement(Harness, { credentials: [a] }));
+  });
+  await connect(0);
+  let finish!: (value: unknown) => void;
+  mock.sockets[0]!.command.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const olderRead = published.a!.loadDiff("same");
+  const clean = { id: "same", threadId: "same", title: "Changes", updatedAt: 2, files: [] };
+  mock.sockets[0]!.command.mockResolvedValueOnce({ type: "diff.get.result", diff: clean });
+  await act(async () => {
+    await published.a!.loadDiff("same");
+  });
+  await act(async () => {
+    finish({
+      type: "diff.get.result",
+      diff: {
+        ...clean,
+        updatedAt: 1,
+        files: [{ path: "old.ts", status: "modified", additions: 10 }],
+      },
+    });
+    await olderRead;
+  });
+  const current = published.a!.state;
+  expect(current.status === "paired" && current.diffs.same).toEqual(clean);
+});
+
 it("revokes only the owning session without interrupting another computer", async () => {
   await act(async () => {
     renderer = create(createElement(Harness, { credentials: [a, b] }));

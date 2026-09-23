@@ -5,7 +5,8 @@ import SwiftUI
 /// and the glass composer. `AppModel` owns the `ChatModel` lifecycle.
 struct ThreadView: View {
     @Environment(AppModel.self) private var app
-    @State private var showingContextDetails = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var toolbarPopover: ThreadToolbarPopover?
 
     let threadId: String
     let title: String
@@ -22,6 +23,10 @@ struct ThreadView: View {
                 if let chat = boundChat {
                     TranscriptView(chat: chat)
                         .modifier(WorkspaceFilePresenter(links: chat.fileLinks))
+                        .task(id: [chat.isTurnActive, app.gateway.state == .connected, scenePhase == .active]) {
+                            guard scenePhase == .active, app.gateway.state == .connected else { return }
+                            await chat.pollWorkingDiff()
+                        }
                         .id(chat.id)
                 } else if app.gateway.state == .connected {
                     ProgressView("Loading thread…")
@@ -56,15 +61,22 @@ struct ThreadView: View {
                     }
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    showingContextDetails = true
+                    toolbarPopover = .usage
                 } label: {
                     ContextProgressRing(usage: contextUsage)
                 }
                 .accessibilityLabel(contextAccessibilityLabel)
-                .popover(isPresented: $showingContextDetails) {
+                .popover(isPresented: popoverBinding(.usage)) {
                     ThreadUsagePopover(threadId: threadId, fallbackContext: contextUsage)
+                        .presentationCompactAdaptation(.popover)
+                }
+                Button("Thread options", systemImage: "ellipsis") {
+                    toolbarPopover = .details
+                }
+                .popover(isPresented: popoverBinding(.details)) {
+                    ThreadDetailsPopover(threadId: threadId, fallbackTitle: currentTitle)
                         .presentationCompactAdaptation(.popover)
                 }
             }
@@ -93,6 +105,12 @@ struct ThreadView: View {
         }
     }
 
+    private enum ThreadToolbarPopover { case usage, details }
+
+    private func popoverBinding(_ value: ThreadToolbarPopover) -> Binding<Bool> {
+        Binding(get: { toolbarPopover == value }, set: { if !$0, toolbarPopover == value { toolbarPopover = nil } })
+    }
+
     private var boundChat: ChatModel? {
         guard let chat = app.activeChat, chat.threadId == threadId else { return nil }
         return chat
@@ -108,12 +126,11 @@ struct ThreadView: View {
         }
         return "Context: \(contextUsage.percent)% used"
     }
-
-
 }
 
 /// Only the composer and its compact accessories reserve transcript space.
-/// Menus and the jump button grow into an overlay above those stable bounds.
+/// The jump button shares the diff row, or floats above an occupied task row.
+/// Its visibility never changes the dock's bounds.
 struct ThreadComposerDock: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tasksExpanded = false
@@ -140,6 +157,15 @@ struct ThreadComposerDock: View {
                                     tasksExpanded.toggle()
                                 }
                             }
+                        } else {
+                            // Keep the trailing space stable when the arrow hides.
+                            Color.clear
+                                .frame(width: 44, height: 44)
+                                .overlay {
+                                    if chat.isAwayFromLatest {
+                                        scrollToLatestButton
+                                    }
+                                }
                         }
                     }
                 }
@@ -163,10 +189,10 @@ struct ThreadComposerDock: View {
                 if tasksExpanded, let progress = chat.taskProgress, !slashVisible {
                     TaskProgressDetails(progress: progress)
                         .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: .bottomTrailing).combined(with: .opacity))
-                } else if chat.isAwayFromLatest, !slashVisible {
-                    ScrollToBottomButton { chat.scrollToLatest() }
+                } else if chat.isAwayFromLatest, !slashVisible,
+                          chat.taskProgress != nil || !hasAccessories {
+                    scrollToLatestButton
                         .frame(maxWidth: .infinity, alignment: .trailing)
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 12)
@@ -177,6 +203,11 @@ struct ThreadComposerDock: View {
         .onChange(of: chat.taskProgress == nil) { _, isEmpty in
             if isEmpty { tasksExpanded = false }
         }
+    }
+
+    private var scrollToLatestButton: some View {
+        ScrollToBottomButton { chat.scrollToLatest() }
+            .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
     }
 }
 

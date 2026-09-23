@@ -22,7 +22,7 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Dictate a message with native Android speech recognition, then review or send the transcript
 - Show working-tree diff counts and changed files above the composer
 - Load individual file hunks on expansion, with retry for failed reads
-- Follow the iOS visual language with Android-native motion, floating surfaces, and progressive scroll-edge blurs
+- Follow the iOS visual language with Android-native motion, floating surfaces, and soft scroll-edge fades
 
 ## Projects and inbox views
 
@@ -75,11 +75,11 @@ bun run --cwd apps/mobile-android start:dev-client
 bun run --cwd apps/mobile-android android:native
 ```
 
-Projects, new chat, and thread screens feather scrolling content with
-`ProgressiveBlurView` from `expo-backdrop` (top and bottom edges). The blur
-ramps in once content sits under the header or composer, and fast flicks fall
-back to a page-colored gradient. Rebuild the native app after pulling this
-dependency; a Metro reload alone cannot add it to an existing APK.
+Projects, new chat, and thread screens feather scrolling content with the original
+page-colored `LinearGradient` fades from `expo-linear-gradient` at the top and
+bottom edges. The fade stays consistent while scrolling and does not blur the
+content. Rebuild the native app after pulling the dependency change; a Metro
+reload alone cannot add it to an existing APK.
 
 Dictation uses `expo-speech-recognition`. Rebuild the native app after pulling
 this dependency; a Metro reload alone cannot add it to an existing APK. The first
@@ -99,6 +99,10 @@ The idle composer is a single pill with plus, permissions, model name, and
 microphone controls. The shield beside the plus opens the permissions page
 directly and turns to the warning tint when the thread's policy is more
 permissive than the model's default.
+The scroll-to-latest arrow overlays the trailing side of the diff row, centered
+with its pill. Without a diff row it clears the composer and any task controls.
+It stays outside the measured composer layout so appearing or disappearing does
+not change pill spacing or transcript padding.
 Tapping the editor expands it without replacing the input; dismissing the keyboard
 collapses it again, including with an unsent draft. Attachments keep it expanded.
 The expanded model control shows the provider logo in its original brand colors;
@@ -164,6 +168,9 @@ device testing. Production builds retain the HTTPS-only policy.
 
 Check out the PR branch (or the merged commit), then build from `apps/mobile-android` with
 `bunx eas-cli@latest build --platform android --profile preview`.
+To build the same preview locally without cloud build credits, use
+`bunx eas-cli@latest build --platform android --profile preview --local --output ./graft-preview.apk`.
+Local builds require the Android SDK/NDK, JDK, Node, and Bun installed on the machine.
 The profile creates an internal release APK that runs without Metro and uses
 the existing `brentmwarner/graft-mobile-android` EAS project. Sign in with
 `bunx eas-cli@latest login` if this machine is not authenticated. Native speech
@@ -209,3 +216,15 @@ responses still require an exact revision match. The optional protocol source
 field distinguishes these cases; PR 25 hosts without it remain supported.
 The equivalent iOS matching fix and a Swift regression test are included, but
 the iOS build and tests must run on macOS.
+
+File-change pills refresh from the working tree every two seconds while the
+visible thread is running, with a final refresh when it settles. Refreshing
+pauses in the background or offline and resumes on return; it does not drive
+transcript auto-follow.
+
+The thread toolbar’s three-dot menu shows only the current Git branch and the
+short local workspace/worktree name, plus a plain **Rename thread** action. The
+rename form uses a native Jetpack Compose dialog. Branch reads and renames
+require a host with `thread.details` and `thread.rename`
+support; renames update the host through orchestration and display the confirmed
+title. The form preserves the draft on failure and never renames a Git branch.

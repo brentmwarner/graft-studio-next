@@ -413,7 +413,7 @@ private struct TranscriptRowGroup: Identifiable {
 }
 
 /// Glass "jump to latest" affordance shown when the user scrolls up.
-/// Floats above the thread's accessory row without reserving transcript space.
+/// Shares the diff row, clearing task controls without reserving transcript space.
 struct ScrollToBottomButton: View {
     let action: () -> Void
 

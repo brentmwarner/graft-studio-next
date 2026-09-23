@@ -12,6 +12,7 @@ import {
   type GraftRemoteErrorCode,
   type GraftRunSummary,
   type GraftThreadUsage,
+  type GraftThreadDetails,
 } from "@graft/mobile-contract";
 import {
   CommandId,
@@ -429,6 +430,38 @@ const loadThreadWorkspace = Effect.fn(function* (threadId: string) {
   return { thread: current.value, cwd };
 });
 
+const loadMobileThreadDetails = Effect.fn(function* (threadId: string) {
+  const query = yield* ProjectionSnapshotQuery;
+  const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(threadId));
+  if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+  const thread = current.value;
+  const project = yield* query.getProjectShellById(thread.projectId);
+  if (Option.isNone(project) || isStudioProjectKind(project.value))
+    return yield* fail("not_found", "Thread not found.");
+  const cwd = resolveThreadWorkspaceCwd({ thread, projects: [project.value] });
+  const details: GraftThreadDetails = {
+    thread: toMobileThread(thread),
+    workspaceName:
+      thread.envMode === "worktree" && thread.worktreePath
+        ? nodePath.basename(thread.worktreePath)
+        : project.value.title,
+    gitStatus: "unavailable",
+  };
+  if (!cwd) return details;
+  const git = yield* GitCore;
+  const status = yield* git.readBranchContext(cwd).pipe(
+    Effect.timeout("5 seconds"),
+    Effect.catch(() => Effect.succeed(null)),
+  );
+  if (!status) return details;
+  if (!status.isRepo) return { ...details, gitStatus: "not_repository" as const };
+  return {
+    ...details,
+    gitStatus: "available" as const,
+    ...(status.branch ? { branch: status.branch } : {}),
+  };
+});
+
 const loadComposerCommands = Effect.fn(function* (threadId: string) {
   const { thread, cwd } = yield* loadThreadWorkspace(threadId);
   const discovery = yield* ProviderDiscoveryService;
@@ -605,6 +638,11 @@ export const executeMobileCommand = Effect.fn(function* (
         pendingQuestions: toMobilePendingQuestions(detail.thread),
       };
     }
+    case "thread.details":
+      return {
+        type: "thread.details.result",
+        details: yield* loadMobileThreadDetails(command.threadId),
+      };
     case "thread.create": {
       const project = yield* query.getProjectShellById(ProjectId.makeUnsafe(command.projectId));
       if (Option.isNone(project)) return yield* fail("not_found", "Project not found.");

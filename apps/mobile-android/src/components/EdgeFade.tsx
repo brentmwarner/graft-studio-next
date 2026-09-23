@@ -1,6 +1,6 @@
-import { ProgressiveBlurView } from "expo-backdrop";
+import { LinearGradient } from "expo-linear-gradient";
 import type { StyleProp, ViewStyle } from "react-native";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { useGraftPalette } from "../theme/tokens";
 
@@ -9,25 +9,21 @@ interface EdgeFadeProps {
   readonly style?: StyleProp<ViewStyle>;
 }
 
-/// Scroll-edge progressive blur from `expo-backdrop`. The native view finds
-/// the scroll surface behind it, ramps blur toward `edge`, and fades in only
-/// once content sits under that edge. Fast flicks swap to a page-colored
-/// gradient so the blur capture does not trail the list.
 export function EdgeFade({ edge, style }: EdgeFadeProps) {
   const palette = useGraftPalette();
+  const transparent = "rgba(0, 0, 0, 0)";
+  const colors =
+    edge === "top"
+      ? ([palette.background, palette.background, palette.fadeMid, transparent] as const)
+      : ([transparent, palette.fadeMid, palette.background, palette.background] as const);
 
   return (
-    <View pointerEvents="none" style={[styles.fade, style]}>
-      <ProgressiveBlurView
-        edge={edge}
-        fallbackColor={palette.background}
-        intensity={64}
-        startOffset={0.18}
-        style={StyleSheet.absoluteFill}
-        tint={palette.isDark ? "systemUltraThinMaterialDark" : "systemUltraThinMaterialLight"}
-        tintColor={palette.fadeMid}
-      />
-    </View>
+    <LinearGradient
+      colors={colors}
+      locations={[0, 0.2, 0.62, 1]}
+      pointerEvents="none"
+      style={[styles.fade, style]}
+    />
   );
 }
 

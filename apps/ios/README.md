@@ -2,6 +2,9 @@
 
 Native SwiftUI companion app for Graft Studio.
 
+The expanded thread composer shows the selected provider's logo beside the model,
+matching Android. The compact composer keeps its text-only model control.
+
 ## Requirements
 
 | Tool                  | Version                  |
@@ -123,6 +126,21 @@ Settings → Computers → Add computer; scan another Studio's QR code or paste 
 pairing link. Settings can remove one computer without affecting the others.
 Inbox view mode is remembered per filter; read receipts, transcripts, commands,
 and project expansion remain scoped to their computer.
+
+The computer filter uses a native top `safeAreaBar`, with a soft scroll edge
+effect so inbox rows fade beneath it. New Chat uses SwiftUI's configurable
+`glass` circle button with a translucent adaptive accent tint and system press
+feedback.
+
+In a thread, the scroll-to-latest arrow shares the diff pills' centerline. It
+floats above the accessory row when the task pill occupies the trailing slot.
+Showing or hiding the arrow preserves the composer, accessory spacing, and
+transcript inset.
+
+File-change pills refresh from the working tree every two seconds while the
+visible thread is running, with a final refresh when it settles. Refreshing
+pauses in the background or offline and resumes on return; it does not drive
+transcript auto-follow.
 
 Offline computers retain cached projects and transcripts without warning banners
 or stale work/loading spinners. Authentication, protocol, and certificate errors
@@ -334,3 +352,10 @@ defined.
 - **Push delivery** — token registration is scaffolded, but the host does not send notifications yet
 - **Code signing** — `DEVELOPMENT_TEAM` is empty in `project.yml`; set your team ID before running on a device
 - **Deep-link handling from terminated state** — the `onOpenURL` modifier covers foreground/background; test cold-launch URL handling separately
+
+The thread toolbar’s three-dot menu shows only the current Git branch and the
+short local workspace/worktree name, plus a plain **Rename thread** action. The
+iOS toolbar groups context usage and this menu in one native Liquid Glass capsule.
+Branch reads and renames require a host with `thread.details` and `thread.rename`
+support; renames update the host through orchestration and display the confirmed
+title. The form preserves the draft on failure and never renames a Git branch.

@@ -521,6 +521,119 @@ final class MarkdownVisualCheckTests: XCTestCase {
         }
     }
 
+    func testDiffOnlyJumpArrowSharesRowWithoutMovingDockOrTranscript() async throws {
+        try await assertJumpArrowGeometry(hasDiff: true, hasTasks: false)
+    }
+
+    func testTaskAndDiffJumpArrowFloatsAboveStableAccessoryRow() async throws {
+        try await assertJumpArrowGeometry(hasDiff: true, hasTasks: true)
+    }
+
+    func testJumpArrowWithoutAccessoriesKeepsComposerAndTranscriptStable() async throws {
+        try await assertJumpArrowGeometry(hasDiff: false, hasTasks: false)
+    }
+
+    private func assertJumpArrowGeometry(hasDiff: Bool, hasTasks: Bool) async throws {
+        for width: CGFloat in [390, 440] {
+            for typeSize in [DynamicTypeSize.large, .accessibility1] {
+                let scenario = hasTasks ? makeTaskProgressScenario() : TranscriptScenario(
+                    app: AppModel(store: LocalStore(inMemory: true)),
+                    chat: ChatModel(threadId: "jump-geometry", title: "Jump geometry")
+                )
+                let chat = scenario.chat
+                if hasDiff { chat.upsertDiffPresentation(from: Self.zeroLineDiffSummary) }
+                chat.isAwayFromLatest = false
+                let size = CGSize(width: width, height: 956)
+                var dockFrame = CGRect.null
+                let surface = ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        ForEach(1..<31) { number in
+                            Text("\(number). Review the changes without moving the composer.")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    ThreadComposerDock(chat: chat)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { dockFrame = $0 }
+                }
+                .background(DS.Color.bg)
+                .environment(scenario.app)
+                .environment(\.dynamicTypeSize, typeSize)
+                let controller = UIHostingController(rootView: surface)
+                let window = host(controller, size: size)
+                defer {
+                    window.isHidden = true
+                    window.rootViewController = nil
+                }
+                let scroll = try XCTUnwrap(findFirstSubview(ofType: UIScrollView.self, in: controller.view))
+                scroll.setContentOffset(CGPoint(x: 0, y: 240), animated: false)
+                try await Task.sleep(for: .milliseconds(250))
+                controller.view.layoutIfNeeded()
+                let input = try XCTUnwrap(findFirstSubview(ofType: UITextView.self, in: controller.view))
+                let baselineInput = input.convert(input.bounds, to: window)
+                let baselineDock = dockFrame
+                let baselineInset = scroll.adjustedContentInset.bottom
+                let baselineScrollFrame = scroll.convert(scroll.bounds, to: window)
+                let baselineOffset = scroll.contentOffset
+                XCTAssertFalse(baselineDock.isNull)
+                XCTAssertGreaterThan(baselineInset, 44)
+                let baselineDiff = hasDiff ? try XCTUnwrap(firstAccessibilityFrame(containingLabel: "Changes:", in: controller.view)) : nil
+                let baselineTask = hasTasks ? try XCTUnwrap(firstAccessibilityFrame(containingLabel: "Polish chat response,", in: controller.view)) : nil
+                XCTAssertNil(firstAccessibilityFrame(containingLabel: "Scroll to latest message", in: controller.view))
+
+                for isVisible in [true, false] {
+                    chat.isAwayFromLatest = isVisible
+                    try await Task.sleep(for: .milliseconds(250))
+                    controller.view.layoutIfNeeded()
+                    let context = "diff=\(hasDiff) tasks=\(hasTasks) width=\(width) type=\(typeSize) arrow=\(isVisible)"
+                    assertFrameUnchanged(input.convert(input.bounds, to: window), baselineInput, context)
+                    assertFrameUnchanged(dockFrame, baselineDock, context)
+                    assertFrameUnchanged(scroll.convert(scroll.bounds, to: window), baselineScrollFrame, context)
+                    XCTAssertEqual(scroll.adjustedContentInset.bottom, baselineInset, accuracy: 0.5, context)
+                    XCTAssertEqual(scroll.contentOffset.y, baselineOffset.y, accuracy: 0.5, context)
+                    if let baselineDiff {
+                        let diff = try XCTUnwrap(firstAccessibilityFrame(containingLabel: "Changes:", in: controller.view))
+                        assertFrameUnchanged(diff, baselineDiff, context)
+                    }
+                    if let baselineTask {
+                        let task = try XCTUnwrap(firstAccessibilityFrame(containingLabel: "Polish chat response,", in: controller.view))
+                        assertFrameUnchanged(task, baselineTask, context)
+                    }
+                    let arrow = firstAccessibilityFrame(containingLabel: "Scroll to latest message", in: controller.view)
+                    if isVisible {
+                        let arrow = try XCTUnwrap(arrow)
+                        XCTAssertEqual(arrow.width, 44, accuracy: 0.5, context)
+                        XCTAssertEqual(arrow.height, 44, accuracy: 0.5, context)
+                        if let baselineTask {
+                            XCTAssertLessThanOrEqual(arrow.maxY, baselineTask.minY - 12 + 0.5, context)
+                        } else if let baselineDiff {
+                            XCTAssertEqual(arrow.midY, baselineDiff.midY, accuracy: 0.5, context)
+                        } else {
+                            XCTAssertLessThanOrEqual(arrow.maxY, baselineDock.minY - 12 + 0.5, context)
+                        }
+                    } else {
+                        XCTAssertNil(arrow, context)
+                    }
+                    let attachment = XCTAttachment(image: captureHostedView(window, size: size).image)
+                    attachment.name = "Jump-geometry-diff-\(hasDiff)-tasks-\(hasTasks)-\(Int(width))-\(typeSize)-\(isVisible)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+            }
+        }
+    }
+
+    private func assertFrameUnchanged(_ frame: CGRect, _ baseline: CGRect, _ context: String,
+                                      file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(frame.minX, baseline.minX, accuracy: 0.5, context, file: file, line: line)
+        XCTAssertEqual(frame.minY, baseline.minY, accuracy: 0.5, context, file: file, line: line)
+        XCTAssertEqual(frame.width, baseline.width, accuracy: 0.5, context, file: file, line: line)
+        XCTAssertEqual(frame.height, baseline.height, accuracy: 0.5, context, file: file, line: line)
+    }
+
     func testUsagePopoverHugsContentAndCapsLongAllowanceLists() async throws {
         let context = ContextUsageInfo(percent: 62, tokensUsed: 148_000, tokensMax: 238_000, source: "measured")
         func allowance(count: Int) -> ProviderAllowanceInfo {
@@ -1487,6 +1600,8 @@ final class MarkdownVisualCheckTests: XCTestCase {
         let window = Self.window(size: size)
         window.rootViewController = controller
         window.makeKeyAndVisible()
+        // Announce each hosted window before querying its accessibility elements.
+        UIAccessibility.post(notification: .screenChanged, argument: controller.view)
         controller.view.frame = window.bounds
         controller.view.bounds = window.bounds
         controller.view.backgroundColor = .clear

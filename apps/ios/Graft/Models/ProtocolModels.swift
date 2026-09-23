@@ -177,6 +177,7 @@ enum CommandPayload: Codable, Sendable {
     case questionResolve(QuestionResolveCommand)
     case diffGet(DiffGetCommand)
     case cursorReplay(CursorReplayCommand)
+    case threadDetails(ThreadDetailsCommand)
     case threadCreate(ThreadCreateCommand)
     case threadSetModel(ThreadSetModelCommand)
     case threadSetApproval(ThreadSetApprovalCommand)
@@ -210,6 +211,8 @@ enum CommandPayload: Codable, Sendable {
             self = .diffGet(try DiffGetCommand(from: decoder))
         case "cursor.replay":
             self = .cursorReplay(try CursorReplayCommand(from: decoder))
+        case "thread.details":
+            self = .threadDetails(try ThreadDetailsCommand(from: decoder))
         case "thread.create":
             self = .threadCreate(try ThreadCreateCommand(from: decoder))
         case "thread.set_model":
@@ -246,6 +249,7 @@ enum CommandPayload: Codable, Sendable {
         case .questionResolve(let cmd): try cmd.encode(to: encoder)
         case .diffGet(let cmd):      try cmd.encode(to: encoder)
         case .cursorReplay(let cmd): try cmd.encode(to: encoder)
+        case .threadDetails(let cmd): try cmd.encode(to: encoder)
         case .threadCreate(let cmd): try cmd.encode(to: encoder)
         case .threadSetModel(let cmd): try cmd.encode(to: encoder)
         case .threadSetApproval(let cmd): try cmd.encode(to: encoder)
@@ -256,6 +260,18 @@ enum CommandPayload: Codable, Sendable {
         case .fileRead(let cmd): try cmd.encode(to: encoder)
         }
     }
+}
+
+struct ThreadDetailsCommand: Codable, Sendable {
+    var type = "thread.details"
+    let threadId: String
+}
+
+struct ThreadDetailsInfo: Codable, Sendable, Equatable {
+    let thread: ThreadInfo
+    let workspaceName: String
+    let gitStatus: String
+    let branch: String?
 }
 
 struct FilesResolveCommand: Codable, Sendable {
@@ -586,6 +602,7 @@ struct CommandResult: Codable, Sendable {
     let diff: DiffSummary?
     let thread: ThreadInfo?
     let models: [ModelOption]?
+    var details: ThreadDetailsInfo? = nil
     var commands: [ComposerCommand]? = nil
     var skill: ComposerSkillPreview? = nil
     var references: [WorkspaceFileReference]? = nil

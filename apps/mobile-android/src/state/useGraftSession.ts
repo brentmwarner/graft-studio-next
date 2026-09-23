@@ -524,6 +524,42 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     return usage;
   }, []);
 
+  const loadThreadDetails = useCallback(async (threadId: string) => {
+    const sessionId = sessionRef.current?.sessionId;
+    const result = await runSocketCommand(
+      socketRef.current,
+      { type: "thread.details", threadId },
+      "thread.details.result",
+    );
+    if (sessionRef.current?.sessionId !== sessionId || result.details.thread.id !== threadId)
+      throw new Error("The connection changed. Reopen thread details.");
+    return result.details;
+  }, []);
+
+  const renameThread = useCallback(
+    async (threadId: string, title: string) => {
+      const sessionId = sessionRef.current?.sessionId;
+      try {
+        const result = await runSocketCommand(
+          socketRef.current,
+          { type: "thread.rename", threadId, title: title.trim() },
+          "thread.rename.result",
+        );
+        if (sessionRef.current?.sessionId !== sessionId || result.thread.id !== threadId)
+          throw new Error("The connection changed. Reopen the thread to check its name.");
+        updatePaired(setState, (current) => ({
+          ...current,
+          snapshot: withThread(current.snapshot, result.thread),
+        }));
+        return result.thread;
+      } finally {
+        // Reconcile ambiguous outcomes without repeating a mutation automatically.
+        if (sessionRef.current?.sessionId === sessionId) scheduleSnapshot();
+      }
+    },
+    [scheduleSnapshot],
+  );
+
   const requestModels = useCallback(async () => {
     const result = await runSocketCommand(
       socketRef.current,
@@ -547,19 +583,31 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     return result.commands;
   }, []);
 
+  const diffRequestsRef = useRef(new Map<string, symbol>());
   const loadDiff = useCallback(async (threadId: string, diffId = threadId) => {
+    const sessionId = sessionRef.current?.sessionId;
+    const request = Symbol();
+    diffRequestsRef.current.set(threadId, request);
     try {
       const result = await runSocketCommand(
         socketRef.current,
         { type: "diff.get", diffId },
         "diff.get.result",
       );
+      if (
+        sessionRef.current?.sessionId !== sessionId ||
+        diffRequestsRef.current.get(threadId) !== request
+      )
+        return;
       updatePaired(setState, (current) => ({
         ...current,
         diffs: { ...current.diffs, [threadId]: result.diff },
       }));
     } catch {
       // No diff is a normal state, and older hosts may not support this read.
+    } finally {
+      if (diffRequestsRef.current.get(threadId) === request)
+        diffRequestsRef.current.delete(threadId);
     }
   }, []);
 
@@ -576,41 +624,35 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
 
   const manageThread = useCallback(
     async (threadId: string, action: "rename" | "archive" | "delete", title?: string) => {
+      if (action === "rename") {
+        await renameThread(threadId, title ?? "");
+        return;
+      }
       const sessionId = sessionRef.current?.sessionId;
-      const result =
-        action === "rename"
-          ? await runSocketCommand(
-              socketRef.current,
-              { type: "thread.rename", threadId, title: title?.trim() ?? "" },
-              "thread.rename.result",
-            )
-          : action === "archive"
-            ? await runSocketCommand(
-                socketRef.current,
-                { type: "thread.archive", threadId },
-                "thread.archive.result",
-              )
-            : await runSocketCommand(
-                socketRef.current,
-                { type: "thread.delete", threadId },
-                "thread.delete.result",
-              );
+      await (action === "archive"
+        ? runSocketCommand(
+            socketRef.current,
+            { type: "thread.archive", threadId },
+            "thread.archive.result",
+          )
+        : runSocketCommand(
+            socketRef.current,
+            { type: "thread.delete", threadId },
+            "thread.delete.result",
+          ));
       if (sessionRef.current?.sessionId !== sessionId) return;
       updatePaired(setState, (current) => ({
         ...current,
-        snapshot:
-          result.type === "thread.rename.result"
-            ? withThread(current.snapshot, result.thread)
-            : current.snapshot
-              ? {
-                  ...current.snapshot,
-                  threads: current.snapshot.threads.filter((thread) => thread.id !== threadId),
-                }
-              : null,
+        snapshot: current.snapshot
+          ? {
+              ...current.snapshot,
+              threads: current.snapshot.threads.filter((thread) => thread.id !== threadId),
+            }
+          : null,
       }));
       scheduleSnapshot();
     },
-    [scheduleSnapshot],
+    [renameThread, scheduleSnapshot],
   );
 
   const setThreadModel = useCallback(
@@ -924,6 +966,8 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     loadModels,
     modelCatalog,
     loadUsage,
+    loadThreadDetails,
+    renameThread,
     loadComposerCommands,
     openThread,
     pair,
