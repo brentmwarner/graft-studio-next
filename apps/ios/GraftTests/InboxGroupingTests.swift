@@ -1,4 +1,5 @@
 import SwiftData
+import Testing
 import XCTest
 @testable import Graft
 
@@ -586,5 +587,29 @@ final class ConnectionPresentationTests: XCTestCase {
         XCTAssertFalse(GraftError.httpResponse(status: 503, body: Data("Service unavailable".utf8)).isOffline)
         let invalid = Data(#"{"ok":false,"error":{"code":"protocol_mismatch","message":"Update required","retryable":false}}"#.utf8)
         XCTAssertFalse(GraftError.httpResponse(status: 400, body: invalid).isOffline)
+    }
+}
+
+@MainActor
+struct MachineNameTests {
+    @Test(arguments: ["omarchy", "MacBook Pro", "  "])
+    func cachedMachineNameReplacesPairingLabelWithoutChangingSession(name: String) throws {
+        let store = LocalStore(inMemory: true)
+        let session = PersistedSession(
+            environmentId: "machine", environmentLabel: "brentwarner",
+            httpBaseUrl: "https://example.invalid", wsBaseUrl: "wss://example.invalid",
+            sessionId: "paired-session", deviceId: "test-device", keychainAccount: "test.MachineNameTests",
+            protocolVersion: 1, capabilities: [])
+        try store.upsertSession(session)
+        let snapshot = EnvironmentSnapshot(
+            environment: EnvironmentInfo(id: "machine", label: name, hostVersion: "1", protocolVersion: 1, capabilities: [], cursor: 1),
+            projects: [], threads: [], activeRuns: [], pendingApprovals: [], pendingQuestions: [],
+            selectedTranscript: nil, cursor: 1)
+        try store.saveSnapshot(environmentId: "machine", rawJSON: JSONEncoder().encode(snapshot))
+        let app = AppModel(store: store, gateway: GatewayClient(monitorNetwork: false), environmentId: "machine")
+        defer { app.stop() }
+        #expect(app.environmentLabel == (name == "  " ? "brentwarner" : name))
+        #expect(app.connection.session?.sessionId == "paired-session")
+        #expect(app.connection.session?.environmentLabel == "brentwarner")
     }
 }

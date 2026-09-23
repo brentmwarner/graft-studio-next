@@ -130,7 +130,9 @@ function GraftApp() {
   const inbox = machineInbox(sources, selectedMachineId);
   const machineFilters = credentials.map((credential) => ({
     id: credential.environmentId,
-    label: credential.environmentLabel,
+    label:
+      sources.find((source) => source.session.environmentId === credential.environmentId)?.session
+        .environmentLabel ?? credential.environmentLabel,
     connected: sources.some(
       (source) =>
         source.session.environmentId === credential.environmentId &&
