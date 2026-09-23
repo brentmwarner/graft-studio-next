@@ -15,8 +15,10 @@ Synara bridge releases and GitHub channel aliases are not part of this rollout.
 | Linux x64           | ubuntu-22.04        | AppImage                            |
 
 These are the required build and upgrade verification targets. A matrix entry is
-not evidence that its build or upgrade has passed. macOS requires **12.3 or
-later**, including the bundled AppSnap helper. Windows requires **10 or later**.
+not evidence that its build or upgrade has passed. macOS requires **13.5 or
+later** because the bundled Node 24 runtime does; the AppSnap helper can run on
+12.3 or later but does not lower the desktop app's requirement. Windows requires
+**10 or later**.
 The AppImage targets the Ubuntu 22.04 native build baseline; a local Arch Linux
 smoke does not establish compatibility across Linux distributions. Windows ARM64, Linux ARM64,
 32-bit systems, and additional Linux distributions require separate native
@@ -39,14 +41,15 @@ promotion, confirm that the legacy Blob bridge updated all three manifests so
 older installs can discover the new release too.
 
 Older Macs remain on the legacy app. Both macOS update manifests carry
-`minimumSystemVersion: 21.4.0`, the Darwin kernel version for macOS 12.3, and the
-bundle declares `LSMinimumSystemVersion=12.3`. Windows metadata uses `10.0.0`.
+`minimumSystemVersion: 22.6.0`, the Darwin kernel version for macOS 13.5, and the
+bundle declares `LSMinimumSystemVersion=13.5`. Windows metadata uses `10.0.0`.
 The publisher rejects missing/mismatched gates. The legacy electron-updater
-6.3.9 reads this field against `os.release()`, so a `12.3` value in the update
+6.3.9 reads this field against `os.release()`, so a `13.5` value in the update
 manifest would incorrectly admit incompatible older Macs. See the
 [electron-builder updater field](https://www.electron.build/docs/features/auto-update/),
-[Apple's macOS 12.3 source manifest](https://raw.githubusercontent.com/apple-oss-distributions/distribution-macOS/macos-123/release.json),
-and its [kernel MasterVersion](https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-8020.101.4/config/MasterVersion).
+[Node 24's macOS requirement](https://github.com/nodejs/node/blob/v24.20.0/BUILDING.md),
+[Apple's macOS 13.5 source manifest](https://raw.githubusercontent.com/apple-oss-distributions/distribution-macOS/macos-135/release.json),
+and its [kernel MasterVersion](https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-8796.141.3/config/MasterVersion).
 This rollout cannot promise the replacement to every historical OS version.
 
 ## Build once, verify, then promote those bytes
