@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
 import { PressScale } from "../../components/PressScale";
@@ -54,8 +55,43 @@ export function ComposerSettings({
   );
 }
 
+/**
+ * Shield button beside the plus that opens the permissions page directly, so the
+ * current approval policy stays one tap away instead of buried in the plus menu.
+ * The model's default policy is the baseline; anything else earns the warning tint.
+ */
+export function ComposerPermissions({ config }: { readonly config: ComposerMenuConfig }) {
+  const palette = useGraftPalette();
+  const options = config.approvalOptions;
+  if (!options.length) return null;
+  const baseline = config.currentModel?.defaultApprovalPolicy ?? options[0]?.value;
+  const current = options.find((option) => option.value === config.currentApproval);
+  const elevated = Boolean(current && current.value !== baseline);
+  return (
+    <ComposerConfigMenu
+      config={config}
+      initialPage="permissions"
+      trigger={(open) => (
+        <PressScale
+          accessibilityLabel={`Permissions: ${current?.label ?? "Permissions"}`}
+          disabled={options.length < 2}
+          onPress={open}
+          style={styles.permissions}
+        >
+          <Ionicons
+            color={elevated ? palette.warning : palette.foregroundMuted}
+            name="shield-checkmark-outline"
+            size={20}
+          />
+        </PressScale>
+      )}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   model: { flexShrink: 1, minWidth: 0 },
+  permissions: { alignItems: "center", height: 48, justifyContent: "center", width: 40 },
   modelButton: {
     flexDirection: "row",
     alignItems: "center",

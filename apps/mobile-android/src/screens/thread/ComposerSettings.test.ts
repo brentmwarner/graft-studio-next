@@ -2,7 +2,7 @@ import { createElement, type ReactNode } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import { ComposerSettings } from "./ComposerSettings";
+import { ComposerPermissions, ComposerSettings } from "./ComposerSettings";
 import type { ComposerMenuConfig } from "./ComposerConfigMenu";
 
 vi.mock("@expo/vector-icons", () => ({ Ionicons: "Icon" }));
@@ -80,6 +80,44 @@ it("shows only the model name while keeping effort accessible in the picker", as
   expect(renderer!.root.findAll(isMenu).map((node) => node.props.initialPage)).toEqual([
     "intelligence",
   ]);
+});
+
+it("opens permissions directly and tints the shield when the policy exceeds the default", async () => {
+  const approvalOptions = [
+    { value: "ask", label: "Ask first" },
+    { value: "full", label: "Full access" },
+  ];
+  const model = {
+    id: "codex",
+    label: "Codex",
+    providerId: "codex",
+    defaultApprovalPolicy: "ask",
+  };
+  await act(() => {
+    renderer = create(
+      createElement(ComposerPermissions, {
+        config: { ...config, approvalOptions, currentApproval: "ask", currentModel: model },
+      }),
+    );
+  });
+  const menu = () => renderer!.root.find(isMenu);
+  const icon = () => renderer!.root.find((node) => (node.type as unknown) === "Icon");
+  expect(menu().props.initialPage).toBe("permissions");
+  expect(icon().props.color).toBe("grey");
+  expect(renderer!.root.find((node) => (node.type as unknown) === "Press").props).toMatchObject({
+    accessibilityLabel: "Permissions: Ask first",
+    disabled: false,
+  });
+  await act(() =>
+    renderer!.update(
+      createElement(ComposerPermissions, {
+        config: { ...config, approvalOptions, currentApproval: "full", currentModel: model },
+      }),
+    ),
+  );
+  expect(icon().props.color).toBe("orange");
+  await act(() => renderer!.update(createElement(ComposerPermissions, { config: { ...config } })));
+  expect(renderer!.toJSON()).toBeNull();
 });
 
 it("shows the provider's untinted logo alongside the model when expanded", async () => {

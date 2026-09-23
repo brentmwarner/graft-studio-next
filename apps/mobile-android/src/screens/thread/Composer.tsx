@@ -16,7 +16,7 @@ import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
-import { ComposerSettings } from "./ComposerSettings";
+import { ComposerPermissions, ComposerSettings } from "./ComposerSettings";
 import { ComposerAttachments } from "./ComposerAttachments";
 import type { ComposerAttachment } from "./composerAttachmentSend";
 import { displayName } from "./displayName";
@@ -154,6 +154,7 @@ export function Composer({
   const inputRef = useRef<TextInput>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
+  const [leadingWidth, setLeadingWidth] = useState(48);
   const [controlsWidth, setControlsWidth] = useState(150);
   const heightTransition = useDisclosureHeightTransition();
   const { height: windowHeight, fontScale } = useWindowDimensions();
@@ -318,7 +319,7 @@ export function Composer({
                   : {
                       height: idleHeight,
                       paddingVertical: 0,
-                      paddingLeft: 56,
+                      paddingLeft: leadingWidth + 8,
                       paddingRight: controlsWidth + 7,
                     },
               ]}
@@ -354,7 +355,13 @@ export function Composer({
               />
             </View>
             <View style={styles.toolbar} pointerEvents="box-none">
-              {options}
+              <View
+                style={styles.leadingControls}
+                onLayout={({ nativeEvent }) => setLeadingWidth(Math.ceil(nativeEvent.layout.width))}
+              >
+                {options}
+                <ComposerPermissions config={menuConfig} />
+              </View>
               <View style={styles.toolbarSpacer} pointerEvents="none" />
               <View
                 style={styles.modelControls}
@@ -423,6 +430,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
   },
+  leadingControls: { flexDirection: "row", alignItems: "center" },
   toolbarSpacer: { flex: 1 },
   modelControls: { flexDirection: "row", alignItems: "center", maxWidth: "70%" },
   toolbarText: { fontSize: 12, fontWeight: "500" },

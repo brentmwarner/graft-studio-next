@@ -90,6 +90,31 @@ it("keeps model controls inside the composer and preserves input/picker identity
   expect(settings.props.modelMenuRequest).toBe(1);
 });
 
+it("keeps the permissions shortcut beside the plus button whenever policies exist", async () => {
+  await act(() => {
+    renderer = create(createElement(Composer, props));
+  });
+  const menus = () => renderer.root.findAll((node) => isType(node, "Menu"));
+  // The leading toolbar group holds the plus menu and the permissions shortcut.
+  const leadingPages = () => {
+    const leading = menus().find((node) => node.props.initialPage === "options")!.parent!;
+    expect(leading.type).toBe("View");
+    return leading.findAll((node) => isType(node, "Menu")).map((node) => node.props.initialPage);
+  };
+  expect(leadingPages()).toEqual(["options", "permissions"]);
+  await act(() => input().props.onFocus());
+  expect(leadingPages()).toEqual(["options", "permissions"]);
+  await act(() =>
+    renderer.update(
+      createElement(Composer, {
+        ...props,
+        menuConfig: { ...props.menuConfig, approvalOptions: [], currentApproval: undefined },
+      }),
+    ),
+  );
+  expect(menus().some((node) => node.props.initialPage === "permissions")).toBe(false);
+});
+
 it("preserves the editor and hides its controls from accessibility during dictation", async () => {
   await act(() => {
     renderer = create(createElement(Composer, props));

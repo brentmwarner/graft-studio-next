@@ -73,7 +73,7 @@ describe("voice input", () => {
     await session.start("Please");
     expect(native.requestPermissionsAsync).toHaveBeenCalledOnce();
     expect(native.start).toHaveBeenCalledWith(
-      expect.objectContaining({ interimResults: true, continuous: false }),
+      expect.objectContaining({ interimResults: true, continuous: true }),
     );
     emit("start");
     expect(onState).toHaveBeenLastCalledWith({ phase: "listening" });
@@ -88,6 +88,38 @@ describe("voice input", () => {
     expect(onDraft).toHaveBeenLastCalledWith("Please fix the header.");
     expect(onState).toHaveBeenLastCalledWith({ phase: "idle" });
     await expect(completion).resolves.toBe("Please fix the header.");
+  });
+
+  it("keeps listening through pauses and joins every finalized segment", async () => {
+    const { session, native, emit, result, onDraft, onState } = setup();
+    await session.start("Please");
+    emit("start");
+    result("fix the");
+    result("fix the header", true);
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the header");
+    // A silent stretch finalizes an empty segment without ending the session.
+    emit("nomatch");
+    expect(onState).toHaveBeenLastCalledWith({ phase: "listening" });
+    expect(native.abort).not.toHaveBeenCalled();
+    result("and the");
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the header and the");
+    result("and the footer.", true);
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the header and the footer.");
+    const completion = session.stop();
+    emit("end");
+    await expect(completion).resolves.toBe("Please fix the header and the footer.");
+  });
+
+  it("delivers finalized segments when stopping during a pause reports no speech", async () => {
+    const { session, emit, result, onState } = setup();
+    await session.start("");
+    emit("start");
+    result("Ship it", true);
+    const completion = session.stop();
+    emit("error", { error: "no-speech" });
+    emit("end");
+    await expect(completion).resolves.toBe("Ship it");
+    expect(onState).toHaveBeenLastCalledWith({ phase: "idle" });
   });
 
   it("does not send interim text, failed recognition, or cancelled recordings", async () => {
@@ -190,11 +222,42 @@ describe("voice input", () => {
     expect(onState).toHaveBeenLastCalledWith({ phase: "starting" });
   });
 
+  it("restarts continuous capture when the recognizer ends during an open recording", async () => {
+    const { session, native, emit, result, onDraft, onState } = setup();
+    await session.start("Please");
+    emit("start");
+    // A long-silence timeout can emit end with no stop, cancel, or error.
+    emit("nomatch");
+    emit("end");
+    expect(native.start).toHaveBeenCalledTimes(2);
+    expect(native.stop).not.toHaveBeenCalled();
+    expect(native.abort).not.toHaveBeenCalled();
+    expect(onState).toHaveBeenLastCalledWith({ phase: "listening" });
+    result("fix the");
+    emit("end");
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the");
+    expect(native.start).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ interimResults: true, continuous: true }),
+    );
+    expect(onState).toHaveBeenLastCalledWith({ phase: "listening" });
+    result("footer", true);
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the footer");
+    const completion = session.stop();
+    emit("end");
+    await expect(completion).resolves.toBe("Please fix the footer");
+    expect(onState).toHaveBeenLastCalledWith({ phase: "idle" });
+    expect(native.start).toHaveBeenCalledTimes(3);
+  });
+
   it("reports empty recognition results instead of silently returning to idle", async () => {
     const { session, emit, onState } = setup();
     await session.start("");
+    emit("start");
     emit("nomatch");
+    const completion = session.stop();
     emit("end");
+    await expect(completion).resolves.toBeUndefined();
     expect(onState).toHaveBeenLastCalledWith({
       phase: "idle",
       error: expect.stringContaining("No speech"),
