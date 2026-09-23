@@ -30,6 +30,25 @@ import {
 } from "./index";
 
 describe("mobile inbox actions", () => {
+  it("discovers composer commands for exactly one thread or draft project context", () => {
+    for (const context of [
+      { threadId: "thread" },
+      { projectId: "project", providerId: "codex", interactionMode: "plan" },
+    ]) {
+      const command = { type: "composer.commands", ...context };
+      expect(GraftMobileCommandSchema.parse(command)).toEqual(command);
+    }
+    for (const context of [
+      {},
+      { providerId: "codex" },
+      { threadId: "thread", projectId: "project" },
+      { threadId: "thread", providerId: "codex" },
+    ]) {
+      expect(
+        GraftMobileCommandSchema.safeParse({ type: "composer.commands", ...context }).success,
+      ).toBe(false);
+    }
+  });
   it("normalizes rename titles and rejects empty or oversized titles", () => {
     const command = { type: "thread.rename", threadId: "thread-1", title: "  Fix mobile titles  " };
     expect(GraftMobileCommandSchema.parse(command)).toEqual({

@@ -368,6 +368,7 @@ function GraftApp() {
               />
             ) : route.name === "new-chat" ? (
               <NewChatScreen
+                onLoadComposerCommands={session.loadComposerCommands}
                 key={JSON.stringify([route.environmentId, paired.session.sessionId])}
                 composerFeatures={paired.snapshot?.environment.composerFeatures}
                 error={paired.error}

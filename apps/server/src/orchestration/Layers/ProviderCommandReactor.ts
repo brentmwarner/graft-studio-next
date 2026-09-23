@@ -2857,7 +2857,7 @@ const make = Effect.gen(function* () {
     readonly modelSelection?: ModelSelection;
     readonly providerOptions?: ProviderStartOptions;
   }) {
-    const expectedTitleSequence = yield* orchestrationEngine.getThreadTitleHighWaterSequence(
+    let expectedTitleSequence = yield* orchestrationEngine.getThreadTitleHighWaterSequence(
       input.threadId,
     );
     const thread = yield* resolveFirstTurnThread(input.threadId, input.messageId);
@@ -2866,9 +2866,30 @@ const make = Effect.gen(function* () {
     const fallbackTitle = buildPromptThreadTitleFallback(
       input.messageText.trim() || attachmentTitleSeed(input.attachments?.[0]) || "",
     );
-    const currentTitle = thread.title.trim();
+    let currentTitle = thread.title.trim();
     if (!isGenericChatThreadTitle(currentTitle) && currentTitle !== fallbackTitle) {
       return;
+    }
+    // Give every client a useful title before one-shot generation can stall
+    // on provider startup. Keep the compare-and-set guard across both writes.
+    if (isGenericChatThreadTitle(currentTitle) && fallbackTitle !== currentTitle) {
+      const renamed = yield* orchestrationEngine
+        .dispatch({
+          type: "thread.meta.update",
+          commandId: serverCommandId("thread-title-fallback-rename"),
+          threadId: input.threadId,
+          title: fallbackTitle,
+          expectedTitleSequence,
+        })
+        .pipe(
+          Effect.map(Option.some),
+          Effect.catchTag("OrchestrationCommandInvariantError", () =>
+            Effect.succeed(Option.none()),
+          ),
+        );
+      if (Option.isNone(renamed)) return;
+      expectedTitleSequence = renamed.value.sequence;
+      currentTitle = fallbackTitle;
     }
     const cwd = yield* resolveProjectedThreadWorkspaceCwd(thread);
     const textGenerationInput = yield* resolveThreadTextGenerationInput({
@@ -2878,17 +2899,6 @@ const make = Effect.gen(function* () {
       useConfiguredFallback: true,
     });
     if (!textGenerationInput) {
-      if (fallbackTitle !== currentTitle) {
-        yield* orchestrationEngine
-          .dispatch({
-            type: "thread.meta.update",
-            commandId: serverCommandId("thread-title-fallback-rename"),
-            threadId: input.threadId,
-            title: fallbackTitle,
-            expectedTitleSequence,
-          })
-          .pipe(Effect.catchTag("OrchestrationCommandInvariantError", () => Effect.void));
-      }
       return;
     }
     const textGenerationSelection = textGenerationInput.modelSelection;
@@ -2917,7 +2927,9 @@ const make = Effect.gen(function* () {
         : {}),
     };
     const nextTitle = yield* textGeneration.generateThreadTitle(titleGenerationInput).pipe(
-      Effect.map((generated) => generated.title),
+      Effect.map((generated) =>
+        isUsableGeneratedThreadTitle(generated.title) ? generated.title : fallbackTitle,
+      ),
       Effect.catch((error) =>
         Effect.logWarning("provider command reactor failed to generate thread title", {
           ...textGenerationLogContext,

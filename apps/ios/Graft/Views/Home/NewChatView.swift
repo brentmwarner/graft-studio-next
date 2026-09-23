@@ -19,6 +19,8 @@ struct NewChatView: View {
     @State private var draft = ""
     @State private var isCreating = false
     @State private var openedThread: InboxThreadItem?
+    @State private var slash = SlashCompleter()
+    @State private var showModels = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -72,6 +74,44 @@ struct NewChatView: View {
         .onChange(of: selectedProjectId) {
             if !canUseWorktree {
                 selectedMode = "local"
+            }
+        }
+        .task(id: slashContextKey) {
+            guard let projectId = selectedProjectId, app.gateway.state == .connected else {
+                slash.clear()
+                return
+            }
+            let providerId = currentModel?.providerId
+            slash.prefetch(contextKey: slashContextKey) {
+                try await app.fetchComposerCommands(projectId: projectId, providerId: providerId)
+            }
+            updateSlashCommands()
+        }
+        .onChange(of: draft) { updateSlashCommands() }
+        .onDisappear { slash.clear() }
+        .sheet(isPresented: $showModels) {
+            NavigationStack {
+                List {
+                    ForEach(app.models.providerGroups) { provider in
+                        Section(provider.label) {
+                            ForEach(provider.models, id: \.selectionID) { model in
+                                Button {
+                                    selectedModelId = model.id
+                                    selectedProviderId = model.providerId
+                                    showModels = false
+                                } label: {
+                                    Text(model.label)
+                                }
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Model")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showModels = false }
+                    }
+                }
             }
         }
     }
@@ -210,6 +250,41 @@ struct NewChatView: View {
                 .padding(.vertical, 6)
                 .glassEffect(.regular, in: .rect(cornerRadius: 26))
             }
+        }
+        .overlay(alignment: .top) {
+            VStack(spacing: 0) {
+                if focused, !isCreating, SlashCompleter.searchTerm(draft) != nil {
+                    SlashPalette(
+                        completions: slash.items,
+                        status: slash.items.isEmpty
+                            ? (slash.error ?? (slash.isLoading ? "Loading commands…" : "No matching commands"))
+                            : nil
+                    ) { command in
+                        if command.kind == "model" {
+                            draft = ""
+                            showModels = true
+                        } else {
+                            draft = "/" + command.name + " "
+                            focused = true
+                        }
+                    }
+                    .padding(.bottom, 12)
+                }
+            }
+            .alignmentGuide(.top) { $0[.bottom] }
+            .transaction { $0.animation = nil }
+        }
+    }
+
+    private var slashContextKey: String {
+        [app.id, selectedProjectId ?? "", currentModel?.providerId ?? "", String(app.gateway.state == .connected)].joined(separator: ":")
+    }
+
+    private func updateSlashCommands() {
+        guard let projectId = selectedProjectId, app.gateway.state == .connected else { return }
+        let providerId = currentModel?.providerId
+        slash.update(query: draft, contextKey: slashContextKey) {
+            try await app.fetchComposerCommands(projectId: projectId, providerId: providerId)
         }
     }
 

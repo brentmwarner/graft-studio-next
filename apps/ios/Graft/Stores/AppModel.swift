@@ -47,6 +47,7 @@ final class AppModel {
     private(set) var gatewayError: GraftError?
 
     private var snapshotRefreshTask: Task<Void, Never>?
+    private var snapshotRefreshPending = false
     private var snapshotRequestGeneration = 0
     private var commandTimeouts: [String: Task<Void, Never>] = [:]
     private var commandWaiters: [String: CheckedContinuation<HostResponseEnvelope, Error>] = [:]
@@ -99,6 +100,7 @@ final class AppModel {
         gateway.disconnect()
         failPendingCommands()
         snapshotRefreshTask?.cancel()
+        snapshotRefreshTask = nil
         snapshotRequestGeneration += 1
         activeChat = nil
         selectedThreadId = nil
@@ -544,8 +546,16 @@ final class AppModel {
     }
 
     func fetchComposerCommands(threadId: String) async throws -> [ComposerCommand] {
+        try await fetchComposerCommands(ComposerCommandsCommand(threadId: threadId))
+    }
+
+    func fetchComposerCommands(projectId: String, providerId: String?) async throws -> [ComposerCommand] {
+        try await fetchComposerCommands(ComposerCommandsCommand(projectId: projectId, providerId: providerId))
+    }
+
+    private func fetchComposerCommands(_ command: ComposerCommandsCommand) async throws -> [ComposerCommand] {
         let response = try await sendCommand(ClientCommandEnvelope(
-            command: .composerCommands(ComposerCommandsCommand(threadId: threadId))
+            command: .composerCommands(command)
         ))
         guard let commands = response.result?.commands else {
             throw GraftError.decoding("Studio could not load commands. Reopen the / menu to retry.")
@@ -780,13 +790,25 @@ final class AppModel {
     }
 
     private func scheduleSnapshotRefresh(immediately: Bool = false) {
+        // Keep the first scheduled refresh so streamed tokens cannot postpone
+        // thread metadata updates indefinitely.
+        if !immediately, snapshotRefreshTask != nil {
+            snapshotRefreshPending = true
+            return
+        }
         snapshotRefreshTask?.cancel()
         snapshotRefreshTask = Task { @MainActor [weak self] in
             if !immediately {
                 try? await Task.sleep(for: .milliseconds(200))
             }
             guard !Task.isCancelled else { return }
+            self?.snapshotRefreshPending = false
             await self?.refreshSnapshot()
+            guard !Task.isCancelled else { return }
+            self?.snapshotRefreshTask = nil
+            if self?.snapshotRefreshPending == true {
+                self?.scheduleSnapshotRefresh()
+            }
         }
     }
 

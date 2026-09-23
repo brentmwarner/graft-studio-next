@@ -57,6 +57,23 @@ final class ProtocolFixtureTests: XCTestCase {
         XCTAssertEqual(envelope.event.skills, [MessageSkill(name: "swiftui-specialist", displayName: "SwiftUI Specialist")])
     }
 
+    func testDraftComposerDiscoveryEncodesProjectAndProviderWithoutThread() throws {
+        let fixture = try decodeFixture("client-command-composer-project.json", as: ClientCommandEnvelope.self)
+        guard case .composerCommands(let discovery) = fixture.command else {
+            return XCTFail("Expected draft composer discovery")
+        }
+        XCTAssertEqual(discovery.projectId, "p1")
+        XCTAssertNil(discovery.threadId)
+        let command = ComposerCommandsCommand(projectId: "project", providerId: "codex")
+        let data = try JSONEncoder().encode(command)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["type"] as? String, "composer.commands")
+        XCTAssertEqual(json["projectId"] as? String, "project")
+        XCTAssertEqual(json["providerId"] as? String, "codex")
+        XCTAssertNil(json["threadId"])
+        XCTAssertEqual(try JSONDecoder().decode(ComposerCommandsCommand.self, from: data).projectId, "project")
+    }
+
     // MARK: Pairing
 
     func testDecodePairingPayload() throws {

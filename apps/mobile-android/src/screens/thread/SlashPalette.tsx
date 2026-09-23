@@ -1,4 +1,4 @@
-import type { GraftComposerCommand } from "@graft/mobile-contract";
+import type { GraftComposerCommand, GraftComposerContext } from "@graft/mobile-contract";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -8,27 +8,32 @@ import { useGraftPalette } from "../../theme/tokens";
 
 export function SlashPalette({
   query,
-  threadId,
-  providerId,
+  context,
   loadCommands,
   onPick,
 }: {
   readonly query: string;
-  readonly threadId: string;
-  readonly providerId: string | undefined;
-  readonly loadCommands: (threadId: string) => Promise<readonly GraftComposerCommand[]>;
+  readonly context: GraftComposerContext;
+  readonly loadCommands: (
+    context: GraftComposerContext,
+  ) => Promise<readonly GraftComposerCommand[]>;
   readonly onPick: (command: GraftComposerCommand) => void;
 }) {
   const palette = useGraftPalette();
   const [commands, setCommands] = useState<readonly GraftComposerCommand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const { threadId, projectId, providerId, interactionMode } = context;
   useEffect(() => {
     let active = true;
     setLoading(true);
     setCommands([]);
     setError(undefined);
-    void loadCommands(threadId).then(
+    void loadCommands(
+      threadId !== undefined
+        ? { threadId }
+        : { projectId: projectId!, providerId, interactionMode },
+    ).then(
       (result) => {
         if (active) {
           setCommands(result);
@@ -45,10 +50,12 @@ export function SlashPalette({
     return () => {
       active = false;
     };
-  }, [loadCommands, threadId, providerId]);
+  }, [loadCommands, threadId, projectId, providerId, interactionMode]);
   const term = query.slice(1).toLowerCase();
   const matches = commands.filter((command) =>
-    `${command.name} ${command.description}`.toLowerCase().includes(term),
+    `${command.name} ${command.displayName ?? ""} ${command.description}`
+      .toLowerCase()
+      .includes(term),
   );
   return (
     <FloatingSurface style={styles.surface}>
