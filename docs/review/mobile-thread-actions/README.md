@@ -38,9 +38,9 @@ include the fix: opt-in keyboard avoidance on `BottomSheet`, enabled by Rename.
 The follow-up adds Delete to the swipe row on both platforms. The two updated
 screenshots show the Android action and confirmation; the earlier recordings
 predate that addition. All 291 Android tests pass after this change.
-The Android suite still passes all 290 tests after that fix. Swipe reveal, long
-press, typing and saving a title, and archiving were exercised through ADB touch
-input and checked against screenshots and the accessibility hierarchy.
+Swipe reveal, long press, typing and saving a title, and archiving were
+exercised through ADB touch input and checked against screenshots and the
+accessibility hierarchy.
 
 iOS screenshots and recordings remain pending. The current Linux host cannot run
 Xcode (`xcrun ENOENT`), and no working remote Mac connection is configured.

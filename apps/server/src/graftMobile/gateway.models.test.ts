@@ -21,7 +21,10 @@ import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
 import { executeMobileCommand, makeGraftMobileGatewayState } from "./gateway";
 import { MOBILE_PROVIDER_ORDER } from "./protocolAdapter";
 
-function harness(stallProvider?: ProviderKind) {
+function harness(
+  stallProvider?: ProviderKind,
+  projectKind: "repository" | "studio" | null = "repository",
+) {
   const thread = {
     id: ThreadId.makeUnsafe("thread"),
     projectId: ProjectId.makeUnsafe("project"),
@@ -60,6 +63,12 @@ function harness(stallProvider?: ProviderKind) {
     Layer.succeed(OrchestrationEngineService, { dispatch } as never),
     Layer.succeed(ProjectionSnapshotQuery, {
       getThreadShellById: () => Effect.succeed(Option.some(thread)),
+      getProjectShellById: () =>
+        Effect.succeed(
+          projectKind === null
+            ? Option.none()
+            : Option.some({ id: thread.projectId, kind: projectKind }),
+        ),
       getShellSnapshot: () => Effect.succeed({ snapshotSequence: 1, threads: [thread] }),
     } as never),
     Layer.succeed(ProviderDiscoveryService, { listModels } as never),
@@ -128,6 +137,28 @@ describe("mobile model settings", () => {
         undefined,
       );
       expect(result).toEqual({ type: `${type}.result`, threadId: "thread" });
+    },
+  );
+
+  it.each(["thread.archive", "thread.delete"] as const)(
+    "rejects %s for a hidden Studio thread",
+    async (type) => {
+      const test = harness(undefined, "studio");
+      await expect(test.run({ type, threadId: "thread" })).rejects.toMatchObject({
+        code: "not_found",
+      });
+      expect(test.dispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["thread.archive", "thread.delete"] as const)(
+    "rejects %s when the owning project is unavailable",
+    async (type) => {
+      const test = harness(undefined, null);
+      await expect(test.run({ type, threadId: "thread" })).rejects.toMatchObject({
+        code: "not_found",
+      });
+      expect(test.dispatch).not.toHaveBeenCalled();
     },
   );
 

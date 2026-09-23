@@ -639,6 +639,10 @@ export const executeMobileCommand = Effect.fn(function* (
     case "thread.delete": {
       const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
       if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+      const project = yield* query.getProjectShellById(current.value.projectId);
+      if (Option.isNone(project) || isStudioProjectKind(project.value)) {
+        return yield* fail("not_found", "Thread not found.");
+      }
       const result = yield* engine.dispatch(
         {
           type: command.type,
