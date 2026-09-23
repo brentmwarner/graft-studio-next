@@ -282,7 +282,7 @@ export function ThreadScreen({
           {
             // Clear the composer by enough to also clear the bottom fade
             // (`insets.bottom + 116`) — at 12 the last line settled inside the
-            // gradient, which is what "the end of the conversation should be
+            // blur, which is what "the end of the conversation should be
             // readable above the composer" was asking for.
             paddingBottom: Math.max(insets.bottom + 126, bottomChromeHeight + 24),
             paddingTop: headerBottom + 30,
