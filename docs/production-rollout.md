@@ -1,8 +1,9 @@
-# Graft 0.9.0 production cutover
+# Graft 0.9.0 production cutover record
 
-This branch prepares the current Graft app to replace the legacy desktop app.
-It starts from Graft main at `da18e6797`, including the current mobile protocol
-and desktop functionality. Version 0.9.0 has not been published.
+This document records the initial cutover preparation from Graft main at
+`da18e6797`. Version 0.9.0 was published on September 18, 2026. For later
+desktop releases, use [release.md](release.md) and verify the current public
+GitHub release and all three legacy updater manifests.
 
 ## Account continuity
 
