@@ -133,12 +133,24 @@ function verifyCanonicalIdentity(): void {
 }
 
 function verifyReleaseNotes(): void {
-  const webPackage = JSON.parse(
-    readFileSync(resolve(repoRoot, "apps/web/package.json"), "utf8"),
+  const desktopPackage = JSON.parse(
+    readFileSync(resolve(repoRoot, "apps/desktop/package.json"), "utf8"),
   ) as { version?: string };
-  const version = webPackage.version;
+  const version = desktopPackage.version;
   if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
-    throw new Error("The desktop release needs a stable web package version.");
+    throw new Error("The desktop release needs a stable desktop package version.");
+  }
+  for (const file of [
+    "apps/server/package.json",
+    "apps/web/package.json",
+    "packages/contracts/package.json",
+  ]) {
+    const candidate = JSON.parse(readFileSync(resolve(repoRoot, file), "utf8")) as {
+      version?: string;
+    };
+    if (candidate.version !== version) {
+      throw new Error(`${file} must match desktop release version ${version}.`);
+    }
   }
   const releaseNoteMarkers: ReadonlyArray<readonly [string, string]> = [
     ["CHANGELOG.md", `## ${version} - `],
