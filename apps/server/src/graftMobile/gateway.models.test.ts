@@ -151,6 +151,14 @@ describe("mobile model settings", () => {
     },
   );
 
+  it("rejects rename for a hidden Studio thread", async () => {
+    const test = harness(undefined, "studio");
+    await expect(
+      test.run({ type: "thread.rename", threadId: "thread", title: "Hidden" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    expect(test.dispatch).not.toHaveBeenCalled();
+  });
+
   it.each(["thread.archive", "thread.delete"] as const)(
     "rejects %s when the owning project is unavailable",
     async (type) => {

@@ -387,6 +387,17 @@ const loadThreadDetail = Effect.fn(function* (threadId: string) {
   return detail.value;
 });
 
+const loadVisibleThreadShell = Effect.fn(function* (threadId: string) {
+  const query = yield* ProjectionSnapshotQuery;
+  const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(threadId));
+  if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+  const project = yield* query.getProjectShellById(current.value.projectId);
+  if (Option.isNone(project) || isStudioProjectKind(project.value)) {
+    return yield* fail("not_found", "Thread not found.");
+  }
+  return current.value;
+});
+
 export const loadMobileUsage = Effect.fn(function* (threadId: string) {
   const { thread } = yield* loadThreadDetail(threadId);
   const providerId = mobileThreadProvider(thread);
@@ -621,8 +632,7 @@ export const executeMobileCommand = Effect.fn(function* (
       return { type: "thread.create.result", thread: toMobileThread(thread) };
     }
     case "thread.rename": {
-      const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
-      if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
+      yield* loadVisibleThreadShell(command.threadId);
       const result = yield* engine.dispatch(
         {
           type: "thread.meta.update",
@@ -637,12 +647,7 @@ export const executeMobileCommand = Effect.fn(function* (
     }
     case "thread.archive":
     case "thread.delete": {
-      const current = yield* query.getThreadShellById(ThreadId.makeUnsafe(command.threadId));
-      if (Option.isNone(current)) return yield* fail("not_found", "Thread not found.");
-      const project = yield* query.getProjectShellById(current.value.projectId);
-      if (Option.isNone(project) || isStudioProjectKind(project.value)) {
-        return yield* fail("not_found", "Thread not found.");
-      }
+      yield* loadVisibleThreadShell(command.threadId);
       const result = yield* engine.dispatch(
         {
           type: command.type,

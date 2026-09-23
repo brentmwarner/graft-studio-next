@@ -53,6 +53,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
         details:
           "Provider discovery can inspect Factory Droid without launching an automatic login flow. Sign-in remains an explicit action when you choose to connect that provider.",
       },
+      {
+        id: "phone-chat-titles",
+        title: "Better titles for phone chats",
+        description:
+          "Chats started on a phone can receive a useful generated title after the first turn.",
+        details:
+          "The desktop host now recognizes the mobile New chat placeholder in its automatic title flow and sends the updated title through mobile snapshots. The phone interface changes in this release's source require separately distributed mobile clients.",
+      },
     ],
   },
   {
