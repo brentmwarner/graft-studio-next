@@ -22,6 +22,50 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.9.1",
+    date: "Sep 23",
+    features: [
+      {
+        id: "new-provider-models",
+        title: "More models to choose from",
+        description:
+          "GPT-6 Sol, GPT-6 Luna, and Claude Opus 5.5 are available where your provider account supports them.",
+        details:
+          "Graft's fallback model catalogs now include GPT-6 Sol and Luna for Codex, and Claude Opus 5.5 for Claude Code, Cursor, and Factory Droid. Live discovery still decides account-specific availability. Existing model choices and defaults stay in place.",
+      },
+      {
+        id: "phone-relay-pairing",
+        title: "More reliable phone pairing",
+        description:
+          "Pair through Graft's persistent relay, with clearer connection controls and recovery.",
+        details:
+          "The desktop connection flow now uses the relay address saved in your settings rather than a temporary local server address. Connection changes and recovery are handled more consistently. An updated mobile client is needed for its corresponding interface changes.",
+      },
+      {
+        id: "provider-discovery",
+        title: "Smoother provider setup",
+        description:
+          "Checking Factory Droid availability no longer starts an unrequested device-code sign-in.",
+        details:
+          "Provider discovery can inspect Factory Droid without launching an automatic login flow. Sign-in remains an explicit action when you choose to connect that provider.",
+      },
+    ],
+  },
+  {
+    version: "0.9.0",
+    date: "Sep 18",
+    features: [
+      {
+        id: "graft-production-cutover",
+        title: "Graft desktop is here",
+        description:
+          "The first Graft production desktop release brought the new app to the existing updater channel.",
+        details:
+          "Version 0.9.0 was the initial production cutover from the legacy desktop app, with migration and updater continuity for supported installations.",
+      },
+    ],
+  },
+  {
     version: "0.8.4",
     date: "Sep 14",
     features: [

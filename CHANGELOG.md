@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.1 - 2026-09-23
+
+This desktop update includes every change merged into Graft main since the 0.9.0 production cutover. The desktop release includes the server and web changes below. iOS and Android source changes need their own mobile app releases before those interfaces reach phones.
+
+### Added
+
+- GPT-6 Sol and GPT-6 Luna appear in the Codex fallback catalog; Claude Opus 5.5 appears for Claude Code, Cursor, and Factory Droid. Live provider discovery still controls account-specific availability, and existing defaults remain unchanged. ([#72](https://github.com/brentmwarner/graft-studio-next/pull/72))
+- The desktop Connections flow pairs phones through the persistent Graft relay and keeps connection settings across restarts and updates. ([#68](https://github.com/brentmwarner/graft-studio-next/pull/68))
+- Mobile client source can retain multiple computer pairings, with inbox filters and preferences scoped per computer. These phone interface changes require updated mobile clients. ([#70](https://github.com/brentmwarner/graft-studio-next/pull/70))
+
+### Improved and fixed
+
+- Factory Droid model discovery no longer starts a device-code sign-in without a user request. ([#66](https://github.com/brentmwarner/graft-studio-next/pull/66))
+- Connection transitions and relay pairing recover more predictably when network or persistence operations fail. ([#67](https://github.com/brentmwarner/graft-studio-next/pull/67), [#68](https://github.com/brentmwarner/graft-studio-next/pull/68))
+- Mobile client source adds Chats and Recents views, clearer thread activity, and Android composer, transcript, dictation, and scroll-edge improvements. These require separately distributed iOS and Android builds. ([#57](https://github.com/brentmwarner/graft-studio-next/pull/57), [#59](https://github.com/brentmwarner/graft-studio-next/pull/59), [#69](https://github.com/brentmwarner/graft-studio-next/pull/69), [#70](https://github.com/brentmwarner/graft-studio-next/pull/70), [#71](https://github.com/brentmwarner/graft-studio-next/pull/71), [#73](https://github.com/brentmwarner/graft-studio-next/pull/73), [#74](https://github.com/brentmwarner/graft-studio-next/pull/74), [#75](https://github.com/brentmwarner/graft-studio-next/pull/75))
+- Studio remains behind its default-off feature flag; the unavailable private Docs links were removed. ([#61](https://github.com/brentmwarner/graft-studio-next/pull/61), [#58](https://github.com/brentmwarner/graft-studio-next/pull/58))
+
+## 0.9.0 - 2026-09-18
+
+Initial Graft desktop production cutover from the legacy app. The release kept the existing updater path for supported installations and introduced migration and upgrade validation for account, history, and settings continuity. See the [production cutover record](docs/production-rollout.md).
+
 ## 0.8.4 - 2026-09-14
 
 108 development commits since v0.8.3, plus release preparation and validation fixes, bring a new browser automation foundation, saved browser sessions, guided setup, workspace editing and autosave, richer Git review, selected-context conversations, provider recovery, and measured reductions in CPU work, temporary memory and streaming write amplification. This inventory describes the final shipped behavior, consolidating intermediate visual revisions.

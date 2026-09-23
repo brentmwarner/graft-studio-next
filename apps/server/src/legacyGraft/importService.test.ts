@@ -36,7 +36,9 @@ afterEach(async () => {
 });
 
 async function setupFixture() {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "graft-legacy-import-test-"));
+  const directory = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), "graft-legacy-import-test-")),
+  );
   temporaryDirectories.push(directory);
   const source = path.join(directory, "source");
   await fs.mkdir(source);
