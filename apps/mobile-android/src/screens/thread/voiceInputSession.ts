@@ -53,6 +53,7 @@ export function createVoiceInputSession(
   let completion: Promise<string | undefined> | undefined;
   let resolveCompletion: ((text: string | undefined) => void) | undefined;
   let failure: string | undefined;
+  let restarting = false;
 
   const compose = (parts: readonly string[]) =>
     [initialDraft.trimEnd(), ...parts].filter(Boolean).join(" ");
@@ -62,10 +63,38 @@ export function createVoiceInputSession(
     resolveCompletion = undefined;
     completion = undefined;
   };
+  // Locale is read at each start so a restarted recognizer follows the device language.
+  const recognitionOptions = () => ({
+    lang: Intl.DateTimeFormat().resolvedOptions().locale,
+    interimResults: true,
+    // Keep listening through pauses until the user stops or cancels.
+    // Non-continuous recognition ends itself after the first silence.
+    continuous: true,
+    maxAlternatives: 1,
+    volumeChangeEventOptions: { enabled: true, intervalMillis: 60 },
+  });
+  // A silence timeout can disconnect the recognizer before its last partial
+  // arrives as a final result. Keep that phrase; the next session is a new segment.
+  const commitInterim = () => {
+    if (!interim) return;
+    segments.push(interim);
+    interim = "";
+  };
 
   const update = (next: VoiceInputPhase) => {
     phase = next;
     if (!disposed) onState({ phase, ...(failure ? { error: failure } : {}) });
+  };
+  const failStart = () => {
+    acceptingResults = false;
+    readyToStart = false;
+    failure = "Could not start dictation. Check microphone access and try again.";
+    if (capturing) {
+      update("stopping");
+      native.abort();
+    } else {
+      update("idle");
+    }
   };
   const subscriptions = [
     native.addListener("start", () => {
@@ -99,9 +128,27 @@ export function createVoiceInputSession(
     }),
     // Continuous sessions report an empty segment as nomatch and keep
     // listening, so silence is not a failure while the recording is open.
-    // A recording that ends with nothing captured is reported from "end".
+    // Android 12 and below still disconnect after a long silence and emit
+    // "end" with no error. That is not a user stop: restart while capture
+    // is still required. An explicit stop leaves a completion pending, and
+    // a real error clears acceptingResults before this event.
     native.addListener("end", () => {
       if (!capturing || disposed) return;
+      if (acceptingResults && completion === undefined && !failure) {
+        // start() can emit end before returning. Ignore that re-entry so
+        // the in-flight restart is not completed or stacked.
+        if (restarting) return;
+        restarting = true;
+        commitInterim();
+        try {
+          native.start(recognitionOptions());
+        } catch {
+          failStart();
+        } finally {
+          restarting = false;
+        }
+        return;
+      }
       capturing = false;
       if (acceptingResults && !failure && !segments.length && !interim) {
         failure = VOICE_ERRORS["no-speech"];
@@ -112,32 +159,13 @@ export function createVoiceInputSession(
     }),
   ];
 
-  const failStart = () => {
-    acceptingResults = false;
-    readyToStart = false;
-    failure = "Could not start dictation. Check microphone access and try again.";
-    if (capturing) {
-      update("stopping");
-      native.abort();
-    } else {
-      update("idle");
-    }
-  };
   const beginCapture = () => {
     if (disposed || !readyToStart || phase !== "starting" || !isForeground()) return;
     readyToStart = false;
     capturing = true;
     acceptingResults = true;
     try {
-      native.start({
-        lang: Intl.DateTimeFormat().resolvedOptions().locale,
-        interimResults: true,
-        // Keep listening through pauses until the user stops or cancels.
-        // Non-continuous recognition ends itself after the first silence.
-        continuous: true,
-        maxAlternatives: 1,
-        volumeChangeEventOptions: { enabled: true, intervalMillis: 60 },
-      });
+      native.start(recognitionOptions());
     } catch {
       failStart();
     }

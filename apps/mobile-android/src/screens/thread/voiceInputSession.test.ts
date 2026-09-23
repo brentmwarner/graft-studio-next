@@ -222,11 +222,42 @@ describe("voice input", () => {
     expect(onState).toHaveBeenLastCalledWith({ phase: "starting" });
   });
 
+  it("restarts continuous capture when the recognizer ends during an open recording", async () => {
+    const { session, native, emit, result, onDraft, onState } = setup();
+    await session.start("Please");
+    emit("start");
+    // A long-silence timeout can emit end with no stop, cancel, or error.
+    emit("nomatch");
+    emit("end");
+    expect(native.start).toHaveBeenCalledTimes(2);
+    expect(native.stop).not.toHaveBeenCalled();
+    expect(native.abort).not.toHaveBeenCalled();
+    expect(onState).toHaveBeenLastCalledWith({ phase: "listening" });
+    result("fix the");
+    emit("end");
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the");
+    expect(native.start).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ interimResults: true, continuous: true }),
+    );
+    expect(onState).toHaveBeenLastCalledWith({ phase: "listening" });
+    result("footer", true);
+    expect(onDraft).toHaveBeenLastCalledWith("Please fix the footer");
+    const completion = session.stop();
+    emit("end");
+    await expect(completion).resolves.toBe("Please fix the footer");
+    expect(onState).toHaveBeenLastCalledWith({ phase: "idle" });
+    expect(native.start).toHaveBeenCalledTimes(3);
+  });
+
   it("reports empty recognition results instead of silently returning to idle", async () => {
     const { session, emit, onState } = setup();
     await session.start("");
+    emit("start");
     emit("nomatch");
+    const completion = session.stop();
     emit("end");
+    await expect(completion).resolves.toBeUndefined();
     expect(onState).toHaveBeenLastCalledWith({
       phase: "idle",
       error: expect.stringContaining("No speech"),

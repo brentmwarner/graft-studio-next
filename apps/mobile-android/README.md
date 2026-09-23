@@ -83,9 +83,11 @@ shown above the composer. The recording capsule matches iOS: a live microphone
 waveform, Stop and review, and Send dictation, with Cancel outside the capsule.
 Stopping keeps the text for editing; sending waits for the final transcript;
 cancelling restores the draft from before recording. Recognition runs in
-continuous mode, so pausing mid-sentence does not end the recording: each spoken
-segment is finalized and appended, and only Stop, Send, Cancel, or a real
-recognizer error closes the microphone.
+continuous mode, so pausing mid-sentence does not end the recording. Android
+versions whose recognizer still disconnects after a long silence emit `end`
+without an error; that disconnect restarts capture and keeps the recording
+open. Each spoken segment is finalized and appended, and only Stop, Send,
+Cancel, or a real recognizer error closes the microphone.
 
 The idle composer is a single pill with plus, permissions, model name, and
 microphone controls. The shield beside the plus opens the permissions page
