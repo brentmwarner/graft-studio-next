@@ -17,7 +17,7 @@ export function EdgeFade({ edge, style }: EdgeFadeProps) {
   const palette = useGraftPalette();
 
   return (
-    <View pointerEvents="none" style={style}>
+    <View pointerEvents="none" style={[styles.fade, style]}>
       <ProgressiveBlurView
         edge={edge}
         fallbackColor={palette.background}
@@ -30,3 +30,11 @@ export function EdgeFade({ edge, style }: EdgeFadeProps) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fade: {
+    left: 0,
+    position: "absolute",
+    right: 0,
+  },
+});
