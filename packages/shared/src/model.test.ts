@@ -53,6 +53,15 @@ describe("Git text generation defaults", () => {
 });
 
 describe("September 2026 model additions", () => {
+  it.each([
+    ["6-sol", "gpt-6-sol"],
+    ["6-luna", "gpt-6-luna"],
+  ] as const)("resolves Codex alias %s to %s", (alias, slug) => {
+    expect(normalizeModelSlug(alias, "codex")).toBe(slug);
+    expect(resolveModelSlugForProvider("codex", alias)).toBe(slug);
+    expect(resolveSelectableModel("codex", alias, getModelOptions("codex"))).toBe(slug);
+  });
+
   it.each(["gpt-6-sol", "gpt-6-luna"])("resolves Codex %s with its own effort ladder", (model) => {
     expect(resolveSelectableModel("codex", model, getModelOptions("codex"))).toBe(model);
     const capabilities = getModelCapabilities("codex", model);
