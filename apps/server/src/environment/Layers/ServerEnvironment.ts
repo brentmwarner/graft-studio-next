@@ -1,5 +1,5 @@
 import { EnvironmentId, type ExecutionEnvironmentDescriptor } from "@graft/contracts";
-import { Effect, FileSystem, Layer, Path, Random } from "effect";
+import { Effect, FileSystem, Layer, Random } from "effect";
 
 import packageJson from "../../../package.json" with { type: "json" };
 import { ServerConfig } from "../../config";
@@ -33,7 +33,6 @@ function platformArch(): ExecutionEnvironmentDescriptor["platform"]["arch"] {
 
 export const makeServerEnvironment = Effect.fn(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig;
 
   const readPersistedEnvironmentId = Effect.gen(function* () {
@@ -66,13 +65,9 @@ export const makeServerEnvironment = Effect.fn(function* () {
   });
 
   const environmentId = EnvironmentId.makeUnsafe(environmentIdRaw);
-  const environmentHostname = process.env.HOSTNAME ?? process.env.COMPUTERNAME;
   const descriptor: ExecutionEnvironmentDescriptor = {
     environmentId,
-    label: resolveServerEnvironmentLabel({
-      cwdBaseName: path.basename(serverConfig.cwd),
-      ...(environmentHostname ? { hostname: environmentHostname } : {}),
-    }),
+    label: resolveServerEnvironmentLabel(),
     platform: {
       os: platformOs(),
       arch: platformArch(),

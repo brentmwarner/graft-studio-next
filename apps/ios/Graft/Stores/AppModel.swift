@@ -908,5 +908,13 @@ final class MachineStore {
 extension AppModel: Identifiable {
     var id: String { environmentId ?? "unpaired" }
     var environmentId: String? { connection.session?.environmentId }
-    var environmentLabel: String { connection.session?.environmentLabel ?? "Studio" }
+    var environmentLabel: String {
+        if let snapshot, snapshot.environment.id == environmentId {
+            let label = snapshot.environment.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !label.isEmpty { return label }
+        }
+        if let label = connection.session?.environmentLabel.trimmingCharacters(in: .whitespacesAndNewlines),
+           !label.isEmpty { return label }
+        return "Studio"
+    }
 }

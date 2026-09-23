@@ -317,3 +317,34 @@ it("revokes only the owning session without interrupting another computer", asyn
   );
   expect(mock.sockets[1]!.disconnect).not.toHaveBeenCalled();
 });
+
+it("refreshes each paired machine's label and keeps the last name after an offline restart", async () => {
+  const labels: Record<string, string> = { a: "omarchy", b: "MacBook Pro" };
+  mock.snapshot.mockImplementation(async (session: GraftSessionCredential) => {
+    const next = snapshot(session.environmentId);
+    return { ...next, environment: { ...next.environment, label: labels[session.environmentId] } };
+  });
+  const credentials = [a, b].map((item) => ({ ...item, environmentLabel: "brentwarner" }));
+  const names = () =>
+    ["a", "b"].map((id) => {
+      const state = published[id]!.state;
+      return state.status === "paired" ? state.session.environmentLabel : undefined;
+    });
+  await act(async () => {
+    renderer = create(createElement(Harness, { credentials }));
+  });
+  expect(names()).toEqual(["omarchy", "MacBook Pro"]);
+  labels.a = "Office Linux";
+  await connect(0);
+  expect(names()).toEqual(["Office Linux", "MacBook Pro"]);
+  expect(mock.sockets).toHaveLength(2);
+  expect(mock.sockets[1]!.disconnect).not.toHaveBeenCalled();
+  expect(credentials.map((item) => item.environmentLabel)).toEqual(["brentwarner", "brentwarner"]);
+
+  await act(async () => renderer.unmount());
+  mock.snapshot.mockRejectedValue(new GatewayError("Offline", "host_offline"));
+  await act(async () => {
+    renderer = create(createElement(Harness, { credentials }));
+  });
+  expect(names()).toEqual(["Office Linux", "MacBook Pro"]);
+});

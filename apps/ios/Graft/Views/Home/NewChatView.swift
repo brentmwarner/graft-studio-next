@@ -301,10 +301,7 @@ struct NewChatView: View {
     }
 
     private var hostLabel: String {
-        if let label = app.connection.session?.environmentLabel, !label.isEmpty {
-            return label
-        }
-        return "Studio"
+        app.environmentLabel
     }
 
     private var selectedProjectName: String {

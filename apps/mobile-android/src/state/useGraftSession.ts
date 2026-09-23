@@ -212,6 +212,11 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
           current.status === "paired" && current.session.sessionId === session.sessionId
             ? {
                 ...current,
+                session: {
+                  ...current.session,
+                  environmentLabel:
+                    snapshot.environment.label.trim() || current.session.environmentLabel,
+                },
                 snapshot,
                 // A snapshot's cursor is environment-wide, while its selected
                 // transcript can briefly lag behind a just-started turn. Keep
@@ -375,7 +380,10 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
         snapshotCursorRef.current = cached?.cursor ?? 0;
         setState({
           status: "paired",
-          session,
+          session: {
+            ...session,
+            environmentLabel: cached?.environment.label.trim() || session.environmentLabel,
+          },
           snapshot: cached,
           liveEvents: [],
           diffs: {},

@@ -18,6 +18,18 @@ The Graft CLI accepts the following configuration options, available either as C
 
 > TIP: Use the `--help` flag to see all available options and their descriptions.
 
+## Computer names in mobile apps
+
+The computer filters and project suffixes use the desktop machine's name: the
+macOS Computer Name, Linux hostname, or Windows `COMPUTERNAME`. They do not use
+the launch directory or account username. Name discovery runs when the host starts.
+
+For a custom display name, set `GRAFT_MACHINE_NAME` in the desktop/server launch
+environment (for example, `omarchy` or `MacBook Pro`) and restart the host.
+This changes only the display label; environment IDs and pairings stay the same.
+Updated mobile clients refresh existing paired labels from host snapshots and
+keep the last snapshot's name available offline, without pairing again.
+
 ## Security First
 
 - Always set `--auth-token` before exposing the server outside localhost.
