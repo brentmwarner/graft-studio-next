@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { version as packagedVersion } from "../../package.json";
+import { WHATS_NEW_ENTRIES } from "./entries";
 import {
   compareVersions,
   parseVersion,
@@ -129,5 +131,16 @@ describe("resolveWhatsNewState", () => {
     });
 
     expect(state).toEqual({ kind: "silent-bootstrap", nextLastSeenVersion: "0.0.29" });
+  });
+
+  it("shows the packaged release notes after upgrading from 0.9.0", () => {
+    const state = resolveWhatsNewState({
+      entries: WHATS_NEW_ENTRIES,
+      currentVersion: packagedVersion,
+      lastSeenVersion: "0.9.0",
+    });
+
+    expect(state.kind).toBe("show");
+    if (state.kind === "show") expect(state.currentEntry.version).toBe(packagedVersion);
   });
 });

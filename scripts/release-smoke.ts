@@ -1,5 +1,5 @@
 // FILE: release-smoke.ts
-// Purpose: Smoke-tests release version alignment and merged macOS updater manifests.
+// Purpose: Smoke-tests release version alignment, release notes, and merged macOS updater manifests.
 // Layer: Release verification script
 // Depends on: update-release-package-versions.ts and merge-mac-update-manifests.ts.
 
@@ -129,6 +129,26 @@ function verifyCanonicalIdentity(): void {
     GRAFT_DESKTOP_UPDATE_GITHUB_REPOSITORY !== "graft-studio-next"
   ) {
     throw new Error("New production builds must use the public Graft GitHub update feed.");
+  }
+}
+
+function verifyReleaseNotes(): void {
+  const webPackage = JSON.parse(
+    readFileSync(resolve(repoRoot, "apps/web/package.json"), "utf8"),
+  ) as { version?: string };
+  const version = webPackage.version;
+  if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error("The desktop release needs a stable web package version.");
+  }
+  const releaseNoteMarkers: ReadonlyArray<readonly [string, string]> = [
+    ["CHANGELOG.md", `## ${version} - `],
+    ["apps/web/src/whatsNew/entries.ts", `version: "${version}"`],
+    ["apps/marketing/src/data/changelog.ts", `version: "${version}"`],
+  ];
+  for (const [file, marker] of releaseNoteMarkers) {
+    if (!readFileSync(resolve(repoRoot, file), "utf8").includes(marker)) {
+      throw new Error(`Release ${version} is missing notes in ${file}.`);
+    }
   }
 }
 
@@ -389,6 +409,7 @@ const tempRoot = mkdtempSync(join(tmpdir(), "graft-release-smoke-"));
 
 try {
   verifyCanonicalIdentity();
+  verifyReleaseNotes();
   verifyReleaseWorkflowSafety();
   verifyDesktopStageLockAuthority();
   copyWorkspaceManifestFixture(tempRoot);

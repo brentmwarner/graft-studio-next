@@ -28,14 +28,15 @@ registration `f67e4f48-bfd9-5024-b23c-0d23fd8d8e4a` (electron-builder UUIDv5 of 
 legacy app ID). The new Electron profile remains `graft-studio-next`, so its
 migration must copy and preserve the legacy `@graft/desktop` profile.
 
-The updater uses channel `latest` at:
+Legacy installed apps use channel `latest` at:
 
 `https://xvce84ljzxgawnao.public.blob.vercel-storage.com/releases`
 
 Its platform pointers remain `latest-mac.yml`, `latest.yml`, and
-`latest-linux.yml`. Old installed apps already request these URLs. Promotion
-therefore reaches the existing audience through its normal updater behavior;
-it does not depend on users installing an intermediate bridge release.
+`latest-linux.yml`. Old installed apps already request these URLs. The current
+desktop uses the public `graft-studio-next` GitHub release provider. After
+promotion, confirm that the legacy Blob bridge updated all three manifests so
+older installs can discover the new release too.
 
 Older Macs remain on the legacy app. Both macOS update manifests carry
 `minimumSystemVersion: 21.4.0`, the Darwin kernel version for macOS 12.3, and the
@@ -51,20 +52,25 @@ This rollout cannot promise the replacement to every historical OS version.
 ## Build once, verify, then promote those bytes
 
 `.github/workflows/release.yml` is manual only. Its default operation is `build`.
-Tag pushes never change the stable feed. No npm publish, version-bump commit, or
-GitHub release is coupled to this desktop workflow.
+Tag pushes never change the stable feed. Promotion publishes a public GitHub
+release and then attempts to sync its manifests to the existing Blob updater
+feed. No npm publish or version-bump commit is coupled to this workflow.
 
 1. Commit the desired stable version in `apps/desktop/package.json` and the
-   corresponding workspace changes. Push the release branch through Cursor
-   Origin. The workflow requires the requested version to match that commit.
-2. Dispatch **Graft Production Release**, operation `build`, with the full
-   40-character current-product commit SHA and stable version. Keep
-   `sign_artifacts=true` for releasable artifacts. `false` produces build-only
-   validation artifacts that the production publisher rejects.
+   corresponding workspace changes. Add the release to `CHANGELOG.md`, the
+   in-app What's New entries, and the website changelog. `release:smoke`
+   checks that all three contain the release version. Push the release branch
+   through Cursor Origin. The workflow requires the requested version to match
+   that commit.
+2. Dispatch **Graft Production Release** in `graft-studio`, operation `build`,
+   with the full 40-character current-product commit SHA and stable version.
+   Keep `sign_artifacts=true` for signed and notarized macOS artifacts. The
+   release host currently builds Windows x64 unsigned under an explicit
+   release exception; Linux AppImage has no signing scheme.
 3. The source job runs formatting, lint, typecheck, identity, platform boundary,
    migration lineage, and repository tests. Four native jobs package, verify
-   signatures, record source/lockfile/artifact digests, and smoke the packaged
-   app using isolated state.
+   the applicable signing policy, record source/lockfile/artifact digests, and
+   smoke the packaged app using isolated state.
 4. Download and test the exact artifacts against real legacy installs. Validate
    the old updater's download/install path, account continuity, history and
    settings preservation, reconnect behavior, and rollback on every target that
@@ -75,9 +81,9 @@ GitHub release is coupled to this desktop workflow.
    predecessor version, and predecessor artifact. A successful clean-profile
    startup alone is insufficient.
 5. After completing those tests, dispatch **Graft Production Upgrade Evidence**
-   in the release-host repository with the same source/version, signed build run
-   ID, and the completed `upgrade-evidence.json`. The workflow downloads the
-   exact signed artifacts, validates every receipt and hash against them, and
+   in the release-host repository with the same source/version, production build
+   run ID, and the completed `upgrade-evidence.json`. The workflow downloads the
+   exact artifacts, validates every receipt and hash against them, and
    uploads artifact `graft-upgrade-evidence`. Never manufacture passing receipts
    for untested platforms.
 6. Dispatch operation `promote`, the same source/version, and the successful
@@ -85,7 +91,9 @@ GitHub release is coupled to this desktop workflow.
    hosting this workflow. The promotion downloads the previously built bytes;
    it does not rebuild them. Build-run identity, all four signing/provenance
    records, artifact hashes, updater SHA-512 values, predecessor versions, and
-   upgrade receipts are checked before the live feed changes.
+   upgrade receipts are checked before the public GitHub release is published.
+   The Blob bridge runs afterward with `continue-on-error`; verify all three
+   live update manifests independently before declaring the release complete.
 
 To validate collected release assets locally without any upload:
 
@@ -95,8 +103,9 @@ node scripts/publish-graft-release.ts \
   --evidence release-evidence/upgrade-evidence.json
 ```
 
-Only adding `--publish` invokes the Blob writer. The workflow supplies that flag
-only in the explicit `promote` operation.
+The live promotion uses `scripts/publish-graft-release-github.ts --publish`
+after this validation. Blob updater manifests are synchronized by
+`scripts/sync-graft-legacy-feed.ts` in a separate promotion step.
 
 ## Updates after the initial cutover
 
@@ -177,11 +186,13 @@ The sequence for the first update is:
 
 For later releases, keep dispatching that workflow with the new app's reviewed
 commit/version. No application code needs to be copied into `graft-studio`.
-If release workflow logic changes in `graft-studio-next`, update its host copy
-through a workflow-only PR before using it. Release hosting can move into
-`graft-studio-next` after provisioning its secrets; first retire the old host's
-publisher so there is **one authoritative production publisher**. GitHub
-concurrency groups do not coordinate different repositories.
+The release host currently applies a small, idempotent overlay and uses an
+explicit unsigned Windows policy; inspect its workflow and overlay when source
+release logic changes. Update the host copy through a workflow-only PR before
+using changed release logic. Release hosting can move into `graft-studio-next`
+after provisioning its secrets; first retire the old host's publisher so there
+is **one authoritative production publisher**. GitHub concurrency groups do
+not coordinate different repositories.
 
 macOS requires the existing Developer ID certificate and Apple account values:
 
@@ -194,18 +205,20 @@ DMG are signed, notarized, stapled, and verified. Update ZIPs are finalized with
 `ditto`, extracted, and verified so their hash describes the signed archive.
 The same Developer ID team must match the legacy installation's upgrade trust.
 
-Windows signed publication requires Azure Trusted Signing credentials:
+The current release host publishes Windows x64 unsigned under an explicit
+release exception, matching the 0.9.0 production installer. It can trigger
+Windows publisher or SmartScreen warnings. A future signed Windows publication
+requires Azure Trusted Signing credentials:
 
 - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
 - `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`
 - `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`
 - `AZURE_TRUSTED_SIGNING_PUBLISHER_NAME`, `AZURE_TRUSTED_SIGNING_SUBJECT_DN`
 
-The native provenance step checks Authenticode identity and timestamp. The
-runtime publisher identity is compiled into the packaged application. There is
-no unsigned production exception in this workflow. The previous Windows
-release workflow did not establish these credentials; verify actual access
-before expecting a signed Windows build to pass.
+For signed builds, native provenance checks Authenticode identity and timestamp.
+The runtime publisher identity is compiled into the packaged application. The
+release host does not currently supply these credentials; verify actual access
+before enabling signed Windows builds.
 
 Promotion requires `BLOB_READ_WRITE_TOKEN` for the existing Graft Blob store.
 Credentials are neither copied into app resources nor placed in source files.
@@ -244,40 +257,30 @@ substitute for those tests.
 
 ## Publication and recovery
 
-The publisher never deletes old artifacts. New installers, ZIPs, blockmaps,
-provenance, evidence, and a `release.json` index are written under
-`releases/VERSION/` with overwrite disabled. Existing matching immutable bytes
-can be reused on retry; conflicting bytes fail the release. It then downloads
-and hashes every object before touching any stable pointer.
+The publisher creates a draft release in the public `graft-studio-next`
+repository for the exact source commit. It uploads the verified installers,
+update ZIPs, manifests, provenance, evidence, and `release.json` index, then
+checks their sizes and SHA-256 digests before publishing the release as latest.
+It verifies that the published assets are publicly downloadable. Existing
+matching bytes can be reused on retry; conflicting bytes fail the promotion.
+Older releases remain available.
 
-The previous three pointer files are preserved first under
-`releases/VERSION/rollback/`. Only after every new object verifies does it replace
-the stable YAML files, each through a single overwrite operation. It rechecks
-that the live feed has not changed during upload. Mutable pointers use a short
-cache lifetime; immutable objects use a long one. Cached older pointers remain
-valid because their payloads are retained.
-
-Blob does not provide a transaction spanning all three platform pointers. A
-failure during promotion can leave some platforms on the previous release and
-others on the complete, verified new release. Rerunning the **same** promotion
-resumes only when already-updated pointers match the candidate's exact bytes
-and the original rollback snapshots are present. A different live version
-fails rather than overwriting a concurrent release.
-
-To stop further distribution, restore the three preserved pointer snapshots
-through the same single-object overwrite process and confirm public readback.
-Restoring a pointer does **not** downgrade already updated clients. Their
-recovery requires the retained legacy installer and preserved legacy profile,
-or a forward fix with a higher version. Confirm that path in the native upgrade
-verification before promoting the replacement.
+After publication, the separate legacy bridge copies the three public release
+manifests to the Blob updater paths and verifies each readback. Blob has no
+transaction across those pointers, and bridge failure does not undo the GitHub
+release. A partial bridge sync can leave older installs on different versions
+by platform; repair it using the same verified release assets and confirm all
+three live manifests. If distribution must stop, restore the previous
+manifests from their retained release and verify public readback. Changing an
+update pointer does **not** downgrade clients already updated; those clients
+need the tested rollback path or a forward fix with a higher version.
 
 ## Website download continuity
 
 The canonical download page is `https://www.graftapp.io/install`. It resolves
-Windows and Linux installers from their promoted manifests, and macOS DMGs
-from the same version's immutable release index (legacy manifests list DMGs
+Windows and Linux installers from the public GitHub release manifests, and
+macOS DMGs from the same version's release index (legacy manifests list DMGs
 directly). Missing platforms are shown as unavailable rather than linked to an
-unrelated release. Each platform follows its own pointer during partial rollout.
-The marketing deployment must include this resolver before production cutover.
-Its checked-in snapshot is only for deterministic visual tests; the production
-page refreshes the live feed on a short cache interval.
+unrelated release. Its checked-in snapshot is only for deterministic visual
+tests; the production page refreshes the live release feed on a short cache
+interval.
