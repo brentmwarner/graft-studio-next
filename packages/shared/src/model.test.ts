@@ -52,6 +52,54 @@ describe("Git text generation defaults", () => {
   });
 });
 
+describe("September 2026 model additions", () => {
+  it.each([
+    ["6-sol", "gpt-6-sol"],
+    ["6-luna", "gpt-6-luna"],
+  ] as const)("resolves Codex alias %s to %s", (alias, slug) => {
+    expect(normalizeModelSlug(alias, "codex")).toBe(slug);
+    expect(resolveModelSlugForProvider("codex", alias)).toBe(slug);
+    expect(resolveSelectableModel("codex", alias, getModelOptions("codex"))).toBe(slug);
+  });
+
+  it.each(["gpt-6-sol", "gpt-6-luna"])("resolves Codex %s with its own effort ladder", (model) => {
+    expect(resolveSelectableModel("codex", model, getModelOptions("codex"))).toBe(model);
+    const capabilities = getModelCapabilities("codex", model);
+    expect(capabilities.reasoningEffortLevels.map(({ value }) => value)).toEqual([
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+    ]);
+    expect(getDefaultEffort(capabilities)).toBe("medium");
+    expect(capabilities.supportsFastMode).toBe(true);
+  });
+
+  it.each(["claudeAgent", "cursor", "droid"] as const)(
+    "resolves Opus 5.5 aliases and always-on thinking for %s",
+    (provider) => {
+      const options = getModelOptions(provider);
+      expect(resolveSelectableModel(provider, "opus-5.5", options)).toBe("claude-opus-5-5");
+      expect(resolveSelectableModel(provider, "claude-opus-5.5", options)).toBe("claude-opus-5-5");
+      const capabilities = getModelCapabilities(provider, "claude-opus-5-5");
+      expect(getDefaultEffort(capabilities)).toBe("medium");
+      expect(capabilities.supportsThinkingToggle).toBe(false);
+      expect(capabilities.supportsFastMode).toBe(provider !== "droid");
+      expect(capabilities.reasoningEffortLevels.map(({ value }) => value)).toEqual([
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        ...(provider === "claudeAgent" ? ["ultracode"] : []),
+      ]);
+      expect(capabilities.promptInjectedEffortLevels).toEqual([]);
+    },
+  );
+});
+
 describe("parseCursorCliReasoningEffort", () => {
   it.each([
     ["gpt-5.5-xhigh", "xhigh"],

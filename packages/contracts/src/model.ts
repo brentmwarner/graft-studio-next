@@ -251,6 +251,18 @@ const CODEX_GPT_6_CAPABILITIES: ModelCapabilities = {
   ],
 };
 
+const CODEX_GPT_6_SOL_LUNA_CAPABILITIES: ModelCapabilities = {
+  ...CODEX_GPT_5_CAPABILITIES,
+  reasoningEffortLevels: [
+    { value: "none", label: "None" },
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium", isDefault: true },
+    { value: "high", label: "High" },
+    { value: "xhigh", label: "Extra High" },
+    { value: "max", label: "Max" },
+  ],
+};
+
 const GROK_CLI_EFFORT_DESCRIPTIONS = {
   low: "Quick, fast implementations",
   medium: "Balanced effort with standard implementation and testing",
@@ -520,6 +532,19 @@ const CLAUDE_OPUS_5_CAPABILITIES: ModelCapabilities = {
   supportsFastMode: true,
 };
 
+// Opus 5.5 keeps adaptive thinking on and changes the default effort to medium.
+const CLAUDE_OPUS_5_5_CAPABILITIES: ModelCapabilities = {
+  ...CLAUDE_OPUS_5_CAPABILITIES,
+  reasoningEffortLevels: [
+    claudeApiEffortOption("low", "Low"),
+    claudeApiEffortOption("medium", "Medium", { isDefault: true }),
+    claudeApiEffortOption("high", "High"),
+    claudeApiEffortOption("xhigh", "Extra High"),
+    claudeApiEffortOption("max", "Max"),
+    claudeCodeModeOption("ultracode", "Ultracode", "xhigh", "xhigh + workflows"),
+  ],
+};
+
 // Full reasoning ladder: xhigh + ultracode + ultrathink (Opus 4.7/4.8).
 const CLAUDE_FLAGSHIP_CAPABILITIES: ModelCapabilities = {
   reasoningEffortLevels: [
@@ -584,6 +609,16 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
       capabilities: CODEX_GPT_6_CAPABILITIES,
     },
     {
+      slug: "gpt-6-sol",
+      name: "GPT-6 Sol",
+      capabilities: CODEX_GPT_6_SOL_LUNA_CAPABILITIES,
+    },
+    {
+      slug: "gpt-6-luna",
+      name: "GPT-6 Luna",
+      capabilities: CODEX_GPT_6_SOL_LUNA_CAPABILITIES,
+    },
+    {
       slug: "gpt-5.5",
       name: "GPT-5.5",
       capabilities: CODEX_GPT_5_5_CAPABILITIES,
@@ -634,6 +669,11 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
       slug: "claude-opus-5",
       name: "Claude Opus 5",
       capabilities: CLAUDE_OPUS_5_CAPABILITIES,
+    },
+    {
+      slug: "claude-opus-5-5",
+      name: "Claude Opus 5.5",
+      capabilities: CLAUDE_OPUS_5_5_CAPABILITIES,
     },
     {
       slug: "claude-opus-4-8",
@@ -706,6 +746,17 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
       slug: "auto",
       name: "Auto Model",
       capabilities: droidCapabilities([]),
+    },
+    {
+      slug: "claude-opus-5-5",
+      name: "Claude Opus 5.5",
+      capabilities: droidCapabilities([
+        { value: "low", label: "Low" },
+        { value: "medium", label: "Medium", isDefault: true },
+        { value: "high", label: "High" },
+        { value: "xhigh", label: "Extra High" },
+        { value: "max", label: "Max" },
+      ]),
     },
     {
       slug: "claude-fable-5",
@@ -913,6 +964,15 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
       slug: "claude-opus-5",
       name: "Claude Opus 5",
       capabilities: CURSOR_CLAUDE_FULL_CAPABILITIES,
+    },
+    {
+      slug: "claude-opus-5-5",
+      name: "Claude Opus 5.5",
+      capabilities: cursorCapabilities({
+        efforts: ["low", "medium", "high", "xhigh", "max"],
+        defaultEffort: "medium",
+        fast: true,
+      }),
     },
     {
       slug: "claude-opus-4-8",
@@ -1169,6 +1229,8 @@ export type GitTextGenerationProvider = (typeof GIT_TEXT_GENERATION_PROVIDERS)[n
 export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string, ModelSlug>> = {
   codex: {
     astra: "gpt-6-astra",
+    "6-sol": "gpt-6-sol",
+    "6-luna": "gpt-6-luna",
     "6": "gpt-6-astra",
     "gpt-6": "gpt-6-astra",
     "5.5": "gpt-5.5",
@@ -1179,6 +1241,8 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     "gpt-5.3-spark": "gpt-5.3-codex-spark",
   },
   claudeAgent: {
+    "opus-5.5": "claude-opus-5-5",
+    "claude-opus-5.5": "claude-opus-5-5",
     fable: "claude-fable-5-1",
     "fable-5.1": "claude-fable-5-1",
     "claude-fable-5.1": "claude-fable-5-1",
@@ -1214,6 +1278,8 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
   // Retired Cursor slugs are remapped, not dropped: the agent answers -32602 for
   // ids it no longer serves, so persisted selections must migrate to live ones.
   cursor: {
+    "opus-5.5": "claude-opus-5-5",
+    "claude-opus-5.5": "claude-opus-5-5",
     auto: "auto",
     default: "auto",
     composer: "composer-2.5",
@@ -1248,6 +1314,8 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
   },
   antigravity: {},
   droid: {
+    "opus-5.5": "claude-opus-5-5",
+    "claude-opus-5.5": "claude-opus-5-5",
     droid: "claude-opus-4-8",
     factory: "claude-opus-4-8",
     opus: "claude-opus-4-8",

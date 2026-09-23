@@ -93,6 +93,12 @@ Providers expose different selection models:
 Graft normalizes these choices into the composer where possible without pretending that every
 provider has identical capabilities.
 
+The fallback catalogs include GPT-6 Sol and GPT-6 Luna for Codex, and Claude Opus 5.5
+for Claude Code, Cursor, and Factory Droid. Opus 5.5 defaults to medium effort and
+keeps thinking enabled; fast mode is available through Claude Code and Cursor.
+Live discovery still determines account-specific availability. Other providers expose
+new models through their own runtime catalogs.
+
 Favorite models can be surfaced above larger catalogs, and supported provider executables can be
 pointed at custom binary locations.
 
