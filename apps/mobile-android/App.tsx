@@ -332,6 +332,13 @@ function GraftApp() {
                 onNewChat={newChat}
                 onOpenMenu={() => setIsDrawerOpen(true)}
                 onOpenThread={(item) => openInboxThread(item.id)}
+                onThreadAction={async (item, action, title) => {
+                  const resource = parseMachineResourceId(item.id);
+                  const owner = resource && controllers[resource.environmentId];
+                  if (!resource || !owner)
+                    throw new Error("Computer unavailable. Reconnect and try again.");
+                  await owner.manageThread(resource.resourceId, action, title);
+                }}
                 onRefresh={async () => {
                   await Promise.all(
                     credentials

@@ -342,7 +342,7 @@ export function ThreadScreen({
         />
         <FloatingSurface style={styles.threadHeader}>
           <Text numberOfLines={1} style={[styles.threadHeading, { color: palette.foreground }]}>
-            {thread.title}
+            {model.currentThread.title}
           </Text>
           <View style={styles.threadContext}>
             <Ionicons color={palette.foregroundSubtle} name="folder-outline" size={12} />

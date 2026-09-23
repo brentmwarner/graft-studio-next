@@ -132,7 +132,6 @@ struct HomeView: View {
     private var inboxContent: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                MachineFilterBar(machines: machines.machines, selection: $selectedMachineId)
                 TimelineView(.periodic(from: .now, by: 60)) { context in
                     RemoteInboxScreen(
                         projects: inboxProjects,
@@ -154,10 +153,19 @@ struct HomeView: View {
                             }
                         },
                         onSelectThread: openThread,
+                        onThreadAction: { thread, action in
+                            guard let machine = machines.machine(thread.environmentId) else {
+                                throw GraftError.decoding("Computer unavailable. Reconnect and try again.")
+                            }
+                            try await machine.manageThread(thread.threadId, action: action)
+                        },
                         onComposeInProject: { openNewChat(projectId: $0) },
                         onComposeChats: { openNewChat() },
                         onRefresh: { visibleMachines.forEach { $0.reconnectIfNeeded() } }
                     )
+                }
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    MachineFilterBar(machines: machines.machines, selection: $selectedMachineId)
                 }
             }
 
@@ -374,6 +382,7 @@ struct RemoteInboxScreen: View {
     var fillsOpaqueBackground: Bool = true
     let onToggleProject: (String) -> Void
     let onSelectThread: (InboxThreadItem) -> Void
+    var onThreadAction: ((InboxThreadItem, InboxThreadAction) async throws -> Void)? = nil
     let onComposeInProject: (String) -> Void
     var onComposeChats: (() -> Void)? = nil
     let onRefresh: () -> Void
@@ -398,6 +407,7 @@ struct RemoteInboxScreen: View {
                                 ForEach(recentThreads) { thread in
                                     RemoteThreadRow(title: thread.title, activity: thread.activity,
                                         isSelected: selectedThreadId == thread.id, leadingInset: 20,
+                                        onThreadAction: onThreadAction.map { handler in { action in try await handler(thread, action) } },
                                         action: { onSelectThread(thread) })
                                 }
                             }
@@ -421,6 +431,7 @@ struct RemoteInboxScreen: View {
                             ForEach(chats) { thread in
                                 RemoteThreadRow(title: thread.title, activity: thread.activity,
                                     isSelected: selectedThreadId == thread.id, leadingInset: 20,
+                                    onThreadAction: onThreadAction.map { handler in { action in try await handler(thread, action) } },
                                     action: { onSelectThread(thread) })
                             }
                             if chats.isEmpty {
@@ -440,7 +451,8 @@ struct RemoteInboxScreen: View {
                                         else { onToggleProject(project.id) }
                                     },
                                     onCompose: { onComposeInProject(project.id) },
-                                    onSelectThread: onSelectThread
+                                    onSelectThread: onSelectThread,
+                                    onThreadAction: onThreadAction
                                 )
                             }
                         } else {
@@ -475,6 +487,7 @@ struct RemoteInboxScreen: View {
                                                 isSelected: selectedThreadId == entry.id,
                                                 projectName: mode == .priority ? entry.projectName : nil,
                                                 leadingInset: 20,
+                                                onThreadAction: onThreadAction.map { handler in { action in try await handler(entry.thread, action) } },
                                                 action: { onSelectThread(entry.thread) }
                                             )
                                         }
@@ -535,6 +548,7 @@ struct RemoteProjectSection: View {
     let onToggle: () -> Void
     let onCompose: () -> Void
     let onSelectThread: (InboxThreadItem) -> Void
+    var onThreadAction: ((InboxThreadItem, InboxThreadAction) async throws -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -551,6 +565,7 @@ struct RemoteProjectSection: View {
                         title: thread.title,
                         activity: thread.activity,
                         isSelected: selectedThreadId == thread.id,
+                        onThreadAction: onThreadAction.map { handler in { action in try await handler(thread, action) } },
                         action: { onSelectThread(thread) }
                     )
                 }
@@ -672,10 +687,103 @@ struct RemoteThreadRow: View {
     var isSelected: Bool = false
     var projectName: String? = nil
     var leadingInset: CGFloat = 52
+    var onThreadAction: ((InboxThreadAction) async throws -> Void)? = nil
     let action: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var swipeOpen = false
+    @State private var renaming = false
+    @State private var deleting = false
+    @State private var draftTitle = ""
+    @State private var busy = false
+    @State private var actionError: String?
+
     var body: some View {
-        Button(action: action) {
+        ZStack(alignment: .trailing) {
+            if swipeOpen {
+                HStack(spacing: 0) {
+                    Button("Rename", systemImage: "pencil", action: beginRename)
+                        .frame(width: 80)
+                    Button("Archive", systemImage: "archivebox") { perform(.archive) }
+                        .frame(width: 80)
+                    Button("Delete", systemImage: "trash", role: .destructive) { deleting = true }
+                        .frame(width: 80)
+                }
+                .labelStyle(.iconOnly)
+                .frame(maxHeight: .infinity)
+                .background(.secondary.opacity(0.12))
+                .disabled(busy)
+            }
+            row
+                .background {
+                    if swipeOpen { Color(.systemBackground) }
+                }
+                .offset(x: swipeOpen ? -240 : 0)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 24)
+                        .onEnded { value in
+                            guard onThreadAction != nil, !busy,
+                                  abs(value.translation.width) > abs(value.translation.height) * 2 else { return }
+                            withAnimation(reduceMotion ? nil : .snappy) {
+                                swipeOpen = value.translation.width < -40
+                            }
+                        }
+                )
+                .contextMenu {
+                    if onThreadAction != nil {
+                        Button("Rename", systemImage: "pencil", action: beginRename)
+                        Button("Archive", systemImage: "archivebox") { perform(.archive) }
+                        Button("Delete", systemImage: "trash", role: .destructive) { deleting = true }
+                    }
+                }
+        }
+        .clipped()
+        .disabled(busy)
+        .alert("Rename chat", isPresented: $renaming) {
+            TextField("Chat title", text: $draftTitle)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { perform(.rename(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines))) }
+                .disabled(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draftTitle.count > 200)
+        }
+        .confirmationDialog("Delete chat?", isPresented: $deleting, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { perform(.delete) }
+        } message: {
+            Text("“\(title)” will be permanently deleted.")
+        }
+        .alert("Could not update chat", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+            Button("OK", role: .cancel) { actionError = nil }
+        } message: {
+            Text(actionError ?? "")
+        }
+        .accessibilityAction(named: "Rename") { if onThreadAction != nil { beginRename() } }
+        .accessibilityAction(named: "Archive") { perform(.archive) }
+        .accessibilityAction(named: "Delete") { if onThreadAction != nil { deleting = true } }
+    }
+
+    private func beginRename() {
+        draftTitle = title
+        swipeOpen = false
+        renaming = true
+    }
+
+    private func perform(_ action: InboxThreadAction) {
+        guard let onThreadAction, !busy else { return }
+        busy = true
+        Task { @MainActor in
+            defer { busy = false }
+            do {
+                try await onThreadAction(action)
+                swipeOpen = false
+            } catch {
+                actionError = error.localizedDescription
+            }
+        }
+    }
+
+    private var row: some View {
+        Button {
+            if swipeOpen { swipeOpen = false } else { action() }
+        } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(title)

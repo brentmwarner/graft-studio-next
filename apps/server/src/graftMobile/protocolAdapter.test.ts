@@ -401,6 +401,29 @@ describe("Graft mobile protocol adapter", () => {
     expect(toMobileTranscript(thread(), 12).events).toHaveLength(2);
   });
 
+  it("excludes archived chats and their activity from the mobile inbox", () => {
+    const snapshot = toMobileSnapshot({
+      descriptor: {
+        environmentId: EnvironmentId.makeUnsafe("environment-1"),
+        label: "Computer",
+        platform: { os: "darwin", arch: "arm64" },
+        serverVersion: "0.8.1",
+        capabilities: { repositoryIdentity: true },
+      },
+      capabilities: ["threads"],
+      cursor: 12,
+      projects: [project()],
+      threads: [{ ...threadShell(), archivedAt: now }],
+      details: [{ ...thread(), archivedAt: now }],
+      selectedThreadId: "thread-1",
+    });
+    expect(snapshot.threads).toEqual([]);
+    expect(snapshot.activeRuns).toEqual([]);
+    expect(snapshot.pendingApprovals).toEqual([]);
+    expect(snapshot.pendingQuestions).toEqual([]);
+    expect(snapshot.selectedTranscript).toBeNull();
+  });
+
   it("omits studio-kind projects and their threads from mobile lists", () => {
     const studio = {
       ...project(),

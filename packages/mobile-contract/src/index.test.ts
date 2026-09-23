@@ -29,6 +29,23 @@ import {
   type GraftMobileHostMessage,
 } from "./index";
 
+describe("mobile inbox actions", () => {
+  it("normalizes rename titles and rejects empty or oversized titles", () => {
+    const command = { type: "thread.rename", threadId: "thread-1", title: "  Fix mobile titles  " };
+    expect(GraftMobileCommandSchema.parse(command)).toEqual({
+      ...command,
+      title: "Fix mobile titles",
+    });
+    for (const title of [" ", "x".repeat(201)]) {
+      expect(GraftMobileCommandSchema.safeParse({ ...command, title }).success).toBe(false);
+    }
+  });
+  it.each(["thread.archive", "thread.delete"])("requires a thread id for %s", (type) => {
+    expect(GraftMobileCommandSchema.safeParse({ type, threadId: "thread-1" }).success).toBe(true);
+    expect(GraftMobileCommandSchema.safeParse({ type, threadId: "" }).success).toBe(false);
+  });
+});
+
 const fixturesRoot = join(
   dirname(fileURLToPath(import.meta.url)),
   "../protocol-fixtures/mobile-v1",

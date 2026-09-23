@@ -768,6 +768,19 @@ export const GraftMobileCommandSchema = z
       approvalPolicy: z.string().min(1).max(40).optional(),
     }),
     z.object({
+      type: z.literal("thread.rename"),
+      threadId: z.string().min(1),
+      title: z.string().trim().min(1).max(200),
+    }),
+    z.object({
+      type: z.literal("thread.archive"),
+      threadId: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal("thread.delete"),
+      threadId: z.string().min(1),
+    }),
+    z.object({
       type: z.literal("thread.set_model"),
       threadId: z.string().min(1),
       modelId: z.string().min(1),
@@ -852,6 +865,18 @@ export const GraftMobileCommandSchema = z
 export type GraftMobileCommand = z.infer<typeof GraftMobileCommandSchema>;
 
 export const GraftMobileCommandResultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("thread.rename.result"),
+    thread: GraftThreadSummarySchema,
+  }),
+  z.object({
+    type: z.literal("thread.archive.result"),
+    threadId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("thread.delete.result"),
+    threadId: z.string().min(1),
+  }),
   z.object({
     type: z.literal("project.list.result"),
     projects: z.array(GraftProjectSummarySchema),
@@ -1023,6 +1048,10 @@ export function assertNeverMobile(value: never): never {
 
 export function describeMobileCommand(command: GraftMobileCommand): string {
   switch (command.type) {
+    case "thread.rename":
+    case "thread.archive":
+    case "thread.delete":
+      return command.type;
     case "project.list":
       return "project.list";
     case "thread.list":

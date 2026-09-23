@@ -620,9 +620,13 @@ export function toMobileSnapshot(input: {
   readonly selectedThreadId?: string;
 }): GraftEnvironmentSnapshot {
   const projects = withoutStudioProjects(input.projects);
-  const threads = withoutStudioThreads(input.threads, input.projects);
-  const details = withoutStudioThreads(input.details, input.projects);
+  const threads = withoutStudioThreads(input.threads, input.projects).filter(
+    (thread) => !thread.archivedAt,
+  );
   const visibleThreadIds = new Set<string>(threads.map((thread) => thread.id));
+  const details = withoutStudioThreads(input.details, input.projects).filter((thread) =>
+    visibleThreadIds.has(thread.id),
+  );
   const selected =
     input.selectedThreadId && visibleThreadIds.has(input.selectedThreadId)
       ? details.find((thread) => thread.id === input.selectedThreadId)

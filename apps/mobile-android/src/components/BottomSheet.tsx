@@ -3,6 +3,7 @@ import type { PropsWithChildren, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
+  KeyboardAvoidingView,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -33,6 +34,7 @@ const DISMISS_DISTANCE = 90;
 const DISMISS_VELOCITY = 0.7;
 
 interface BottomSheetProps extends PropsWithChildren {
+  readonly avoidKeyboard?: boolean;
   readonly maxHeightRatio?: number;
   readonly onClose: () => void;
   readonly title: string;
@@ -42,6 +44,7 @@ interface BottomSheetProps extends PropsWithChildren {
 }
 
 export function BottomSheet({
+  avoidKeyboard = false,
   children,
   maxHeightRatio = 0.78,
   onClose,
@@ -108,7 +111,7 @@ export function BottomSheet({
 
   return (
     <Modal animationType="none" onRequestClose={onClose} statusBarTranslucent transparent visible>
-      <View style={styles.root}>
+      <KeyboardAvoidingView enabled={avoidKeyboard} behavior="padding" style={styles.root}>
         <Animated.View style={[styles.scrim, { backgroundColor: palette.scrim }, scrimStyle]}>
           <Pressable
             accessibilityLabel="Close"
@@ -145,7 +148,7 @@ export function BottomSheet({
           </View>
           {children}
         </Animated.View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

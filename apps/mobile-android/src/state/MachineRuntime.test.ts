@@ -191,6 +191,27 @@ it("keeps two live runtimes mounted through parent updates and sends commands to
   expect(mock.sockets[1]!.disconnect).not.toHaveBeenCalled();
   expect(mock.sockets).toHaveLength(2);
 });
+it("sends inbox actions only to the owning computer and propagates failures", async () => {
+  await act(async () => {
+    renderer = create(createElement(Harness, { credentials: [a, b] }));
+  });
+  await connect(0);
+  await connect(1);
+  mock.sockets[1]!.command.mockResolvedValueOnce({ type: "thread.archive.result", threadId: "t" });
+  await act(async () => {
+    await published.b!.manageThread("t", "archive");
+  });
+  expect(mock.sockets[1]!.command).toHaveBeenCalledWith(
+    { type: "thread.archive", threadId: "t" },
+    undefined,
+  );
+  expect(mock.sockets[0]!.command).not.toHaveBeenCalled();
+  mock.sockets[1]!.command.mockRejectedValueOnce(new Error("Computer disconnected"));
+  await act(async () => {
+    await expect(published.b!.manageThread("t", "delete")).rejects.toThrow("Computer disconnected");
+  });
+});
+
 it("preserves cached history while offline and recovers only that computer", async () => {
   await act(async () => {
     renderer = create(createElement(Harness, { credentials: [a, b] }));

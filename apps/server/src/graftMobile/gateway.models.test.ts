@@ -21,7 +21,10 @@ import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
 import { executeMobileCommand, makeGraftMobileGatewayState } from "./gateway";
 import { MOBILE_PROVIDER_ORDER } from "./protocolAdapter";
 
-function harness(stallProvider?: ProviderKind) {
+function harness(
+  stallProvider?: ProviderKind,
+  projectKind: "repository" | "studio" | null = "repository",
+) {
   const thread = {
     id: ThreadId.makeUnsafe("thread"),
     projectId: ProjectId.makeUnsafe("project"),
@@ -33,12 +36,15 @@ function harness(stallProvider?: ProviderKind) {
     interactionMode: "default",
     latestTurn: null,
   };
-  const dispatch = vi.fn((command: { type: string; modelSelection?: ModelSelection }) => {
-    if (command.modelSelection) thread.modelSelection = command.modelSelection;
-    return command.type === "thread.turn.start"
-      ? Effect.fail(new Error("turn dispatch captured"))
-      : Effect.succeed({ sequence: 1 });
-  });
+  const dispatch = vi.fn(
+    (command: { type: string; modelSelection?: ModelSelection; title?: string }) => {
+      if (command.title) thread.title = command.title;
+      if (command.modelSelection) thread.modelSelection = command.modelSelection;
+      return command.type === "thread.turn.start"
+        ? Effect.fail(new Error("turn dispatch captured"))
+        : Effect.succeed({ sequence: 1 });
+    },
+  );
   const listModels = vi.fn(({ provider }: { provider: ProviderKind }) =>
     provider === stallProvider
       ? Effect.never
@@ -57,6 +63,12 @@ function harness(stallProvider?: ProviderKind) {
     Layer.succeed(OrchestrationEngineService, { dispatch } as never),
     Layer.succeed(ProjectionSnapshotQuery, {
       getThreadShellById: () => Effect.succeed(Option.some(thread)),
+      getProjectShellById: () =>
+        Effect.succeed(
+          projectKind === null
+            ? Option.none()
+            : Option.some({ id: thread.projectId, kind: projectKind }),
+        ),
       getShellSnapshot: () => Effect.succeed({ snapshotSequence: 1, threads: [thread] }),
     } as never),
     Layer.succeed(ProviderDiscoveryService, { listModels } as never),
@@ -94,6 +106,70 @@ function harness(stallProvider?: ProviderKind) {
 }
 
 describe("mobile model settings", () => {
+  it("renames the owning thread through the durable metadata command", async () => {
+    const test = harness();
+    const result = await test.run({
+      type: "thread.rename",
+      threadId: "thread",
+      title: "Mobile title",
+    });
+    expect(test.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "thread.meta.update",
+        threadId: "thread",
+        title: "Mobile title",
+      }),
+      undefined,
+    );
+    expect(result).toMatchObject({
+      type: "thread.rename.result",
+      thread: { id: "thread", title: "Mobile title" },
+    });
+  });
+
+  it.each(["thread.archive", "thread.delete"] as const)(
+    "dispatches %s through the host lifecycle",
+    async (type) => {
+      const test = harness();
+      const result = await test.run({ type, threadId: "thread" });
+      expect(test.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type, threadId: "thread" }),
+        undefined,
+      );
+      expect(result).toEqual({ type: `${type}.result`, threadId: "thread" });
+    },
+  );
+
+  it.each(["thread.archive", "thread.delete"] as const)(
+    "rejects %s for a hidden Studio thread",
+    async (type) => {
+      const test = harness(undefined, "studio");
+      await expect(test.run({ type, threadId: "thread" })).rejects.toMatchObject({
+        code: "not_found",
+      });
+      expect(test.dispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects rename for a hidden Studio thread", async () => {
+    const test = harness(undefined, "studio");
+    await expect(
+      test.run({ type: "thread.rename", threadId: "thread", title: "Hidden" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    expect(test.dispatch).not.toHaveBeenCalled();
+  });
+
+  it.each(["thread.archive", "thread.delete"] as const)(
+    "rejects %s when the owning project is unavailable",
+    async (type) => {
+      const test = harness(undefined, null);
+      await expect(test.run({ type, threadId: "thread" })).rejects.toMatchObject({
+        code: "not_found",
+      });
+      expect(test.dispatch).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps Droid available without starting discovery on mobile catalog loads or reconnects", async () => {
     const test = harness();
     for (let request = 0; request < 2; request += 1) {

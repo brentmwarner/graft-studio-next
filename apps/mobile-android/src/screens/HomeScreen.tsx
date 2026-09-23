@@ -19,6 +19,7 @@ import { CircleIconButton } from "../components/CircleIconButton";
 import { EdgeFade } from "../components/EdgeFade";
 import { FloatingSurface } from "../components/FloatingSurface";
 import { ThreadActivityIndicator } from "../components/ThreadActivityIndicator";
+import { ThreadActions, type ThreadActionHandler } from "../components/ThreadActions";
 import type { ThreadReadState } from "../state/threadActivity";
 import { PressScale } from "../components/PressScale";
 import { groupInboxThreads, inboxViewModes, type InboxViewMode } from "../state/inboxGrouping";
@@ -32,6 +33,7 @@ export interface MachineFilter {
 }
 
 interface HomeScreenProps {
+  readonly onThreadAction: ThreadActionHandler;
   readonly machines?: readonly MachineFilter[];
   readonly selectedMachineId?: string;
   readonly onSelectMachine?: (id?: string) => void;
@@ -54,6 +56,7 @@ interface HomeScreenProps {
 }
 
 interface ProjectSectionProps {
+  readonly onThreadAction: ThreadActionHandler;
   readonly isExpanded: boolean;
   readonly name: string;
   readonly onCompose: () => void;
@@ -63,6 +66,7 @@ interface ProjectSectionProps {
 }
 
 function ProjectSection({
+  onThreadAction,
   isExpanded,
   name,
   onCompose,
@@ -111,7 +115,13 @@ function ProjectSection({
       </View>
       {isExpanded
         ? threads.map((thread) => (
-            <ThreadRow key={thread.id} thread={thread} onOpenThread={onOpenThread} indented />
+            <ThreadRow
+              key={thread.id}
+              thread={thread}
+              onOpenThread={onOpenThread}
+              onThreadAction={onThreadAction}
+              indented
+            />
           ))
         : null}
     </View>
@@ -125,11 +135,13 @@ const viewOptions = {
 } as const;
 
 function ThreadRow({
+  onThreadAction,
   thread,
   onOpenThread,
   projectName,
   indented = false,
 }: {
+  readonly onThreadAction: ThreadActionHandler;
   readonly thread: InboxThreadItem;
   readonly onOpenThread: (thread: InboxThreadItem) => void;
   readonly projectName?: string;
@@ -137,38 +149,27 @@ function ThreadRow({
 }) {
   const palette = useGraftPalette();
   return (
-    <Pressable
-      accessibilityHint="Open thread"
-      accessibilityRole="button"
-      onPress={() => onOpenThread(thread)}
-    >
-      {({ pressed }) => (
-        <View
-          style={[
-            styles.threadRow,
-            { paddingLeft: indented ? 52 : 20, opacity: pressed ? 0.5 : 1 },
-          ]}
-        >
-          <View style={styles.threadCopy}>
-            <Text numberOfLines={1} style={[styles.threadTitle, { color: palette.foreground }]}>
-              {thread.title}
-            </Text>
-            {projectName ? (
-              <View style={styles.threadMetadata}>
-                <Ionicons name="folder-outline" size={14} color={palette.foregroundSubtle} />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.projectLabel, { color: palette.foregroundSubtle }]}
-                >
-                  {projectName}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <ThreadActivityIndicator activity={thread.activity} />
+    <ThreadActions thread={thread} onAction={onThreadAction} onOpen={() => onOpenThread(thread)}>
+      <View style={[styles.threadRow, { paddingLeft: indented ? 52 : 20 }]}>
+        <View style={styles.threadCopy}>
+          <Text numberOfLines={1} style={[styles.threadTitle, { color: palette.foreground }]}>
+            {thread.title}
+          </Text>
+          {projectName ? (
+            <View style={styles.threadMetadata}>
+              <Ionicons name="folder-outline" size={14} color={palette.foregroundSubtle} />
+              <Text
+                numberOfLines={1}
+                style={[styles.projectLabel, { color: palette.foregroundSubtle }]}
+              >
+                {projectName}
+              </Text>
+            </View>
+          ) : null}
         </View>
-      )}
-    </Pressable>
+        <ThreadActivityIndicator activity={thread.activity} />
+      </View>
+    </ThreadActions>
   );
 }
 
@@ -180,6 +181,7 @@ function toggleId(current: ReadonlySet<string>, id: string): ReadonlySet<string>
 }
 
 export function HomeScreen({
+  onThreadAction,
   machines,
   selectedMachineId,
   onSelectMachine,
@@ -202,7 +204,7 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const palette = useGraftPalette();
   const insets = useSafeAreaInsets();
-  const machineFilterTop = Math.max(insets.top + 40, 72);
+  const machineFilterTop = insets.top + 60;
   const scrollRef = useRef<ScrollView>(null);
   const [searchText, setSearchText] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<string>>(new Set());
@@ -309,7 +311,12 @@ export function HomeScreen({
               .filter((project) => project.kind === "desktop" && project.id !== "_orphans")
               .flatMap((project) => project.threads)
               .map((thread) => (
-                <ThreadRow key={thread.id} thread={thread} onOpenThread={onOpenThread} />
+                <ThreadRow
+                  key={thread.id}
+                  thread={thread}
+                  onOpenThread={onOpenThread}
+                  onThreadAction={onThreadAction}
+                />
               ))}
             {!projects.some(
               (project) =>
@@ -333,6 +340,7 @@ export function HomeScreen({
               .filter((project) => project.kind !== "desktop" || project.id === "_orphans")
               .map((project) => (
                 <ProjectSection
+                  onThreadAction={onThreadAction}
                   isExpanded={
                     isSearching
                       ? !collapsedSearchProjects.has(project.id)
@@ -382,6 +390,7 @@ export function HomeScreen({
                 {isExpanded
                   ? section.threads.map((entry) => (
                       <ThreadRow
+                        onThreadAction={onThreadAction}
                         key={entry.thread.id}
                         thread={entry.thread}
                         onOpenThread={onOpenThread}
@@ -395,8 +404,8 @@ export function HomeScreen({
         )}
       </ScrollView>
 
-      <EdgeFade edge="top" style={[styles.topFade, { height: insets.top + 82 }]} />
-      <View style={[styles.topBar, { paddingTop: insets.top }]}>
+      <EdgeFade edge="top" style={[styles.topFade, { height: machineFilterTop + 76 }]} />
+      <View style={[styles.topBar, { paddingTop: insets.top, height: insets.top + 48 }]}>
         <CircleIconButton accessibilityLabel="Menu" icon="menu" onPress={onOpenMenu} />
         <View style={styles.titleLockup}>
           <Text style={[styles.screenTitle, { color: palette.foreground }]}>Projects</Text>
@@ -453,7 +462,6 @@ export function HomeScreen({
           top: machineFilterTop,
           left: 0,
           right: 0,
-          backgroundColor: palette.background,
         }}
       >
         <ScrollView

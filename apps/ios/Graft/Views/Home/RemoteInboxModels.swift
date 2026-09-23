@@ -1,5 +1,11 @@
 import Foundation
 
+enum InboxThreadAction {
+    case rename(String)
+    case archive
+    case delete
+}
+
 enum InboxViewPreferences {
     private static let legacyKey = "inbox.viewMode"
 
