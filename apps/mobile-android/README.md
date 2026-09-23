@@ -22,7 +22,7 @@ mobile protocol, not UI code, with the rest of the monorepo.
 - Dictate a message with native Android speech recognition, then review or send the transcript
 - Show working-tree diff counts and changed files above the composer
 - Load individual file hunks on expansion, with retry for failed reads
-- Follow the iOS visual language with Android-native motion, floating surfaces, and edge fades
+- Follow the iOS visual language with Android-native motion, floating surfaces, and progressive scroll-edge blurs
 
 ## Projects and inbox views
 
@@ -74,6 +74,12 @@ Use the development client for normal device and emulator work:
 bun run --cwd apps/mobile-android start:dev-client
 bun run --cwd apps/mobile-android android:native
 ```
+
+Projects, new chat, and thread screens feather scrolling content with
+`ProgressiveBlurView` from `expo-backdrop` (top and bottom edges). The blur
+ramps in once content sits under the header or composer, and fast flicks fall
+back to a page-colored gradient. Rebuild the native app after pulling this
+dependency; a Metro reload alone cannot add it to an existing APK.
 
 Dictation uses `expo-speech-recognition`. Rebuild the native app after pulling
 this dependency; a Metro reload alone cannot add it to an existing APK. The first
