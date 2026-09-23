@@ -82,9 +82,15 @@ microphone tap requests permission. Android also needs an enabled speech recogni
 shown above the composer. The recording capsule matches iOS: a live microphone
 waveform, Stop and review, and Send dictation, with Cancel outside the capsule.
 Stopping keeps the text for editing; sending waits for the final transcript;
-cancelling restores the draft from before recording.
+cancelling restores the draft from before recording. Recognition runs in
+continuous mode, so pausing mid-sentence does not end the recording: each spoken
+segment is finalized and appended, and only Stop, Send, Cancel, or a real
+recognizer error closes the microphone.
 
-The idle composer is a single pill with plus, model name, and microphone controls.
+The idle composer is a single pill with plus, permissions, model name, and
+microphone controls. The shield beside the plus opens the permissions page
+directly and turns to the warning tint when the thread's policy is more
+permissive than the model's default.
 Tapping the editor expands it without replacing the input; dismissing the keyboard
 collapses it again, including with an unsent draft. Attachments keep it expanded.
 The expanded model control shows the provider logo in its original brand colors;

@@ -45,12 +45,18 @@ export function createVoiceInputSession(
   let acceptingResults = false;
   let readyToStart = false;
   let initialDraft = "";
-  let capturedDraft: string | undefined;
-  let finalResult = false;
+  // Continuous recognition delivers one final result per spoken segment and
+  // interim results for the segment in progress only, so the draft is the
+  // original text, every finalized segment, then the live segment.
+  let segments: string[] = [];
+  let interim = "";
   let completion: Promise<string | undefined> | undefined;
   let resolveCompletion: ((text: string | undefined) => void) | undefined;
   let failure: string | undefined;
 
+  const compose = (parts: readonly string[]) =>
+    [initialDraft.trimEnd(), ...parts].filter(Boolean).join(" ");
+  const finalizedDraft = () => (segments.length ? compose(segments) : undefined);
   const finish = (text?: string) => {
     resolveCompletion?.(text);
     resolveCompletion = undefined;
@@ -69,31 +75,40 @@ export function createVoiceInputSession(
       if (disposed || !acceptingResults) return;
       const transcript = event.results[0]?.transcript.trim();
       if (!transcript) return;
-      const prefix = initialDraft.trimEnd();
-      capturedDraft = prefix ? `${prefix} ${transcript}` : transcript;
-      finalResult = event.isFinal;
-      onDraft(capturedDraft);
+      if (event.isFinal) {
+        segments.push(transcript);
+        interim = "";
+      } else {
+        interim = transcript;
+      }
+      onDraft(compose([...segments, interim]));
     }),
     native.addListener("error", (event) => {
       if (!capturing || disposed) return;
-      if (acceptingResults) failure = VOICE_ERRORS[event.error];
+      // Stopping during a pause can end with "no speech" for the empty tail
+      // segment. That does not invalidate the segments already finalized.
+      const quietTail =
+        completion !== undefined &&
+        segments.length > 0 &&
+        (event.error === "no-speech" || event.error === "speech-timeout");
+      if (acceptingResults && !quietTail) failure = VOICE_ERRORS[event.error];
       acceptingResults = false;
       // Native recognition emits end after error. Keep starts blocked until
       // then so a late result/end cannot affect the next recording.
       update("stopping");
     }),
-    native.addListener("nomatch", () => {
-      if (disposed || !acceptingResults) return;
-      failure = VOICE_ERRORS["no-speech"];
-      acceptingResults = false;
-      update("stopping");
-    }),
+    // Continuous sessions report an empty segment as nomatch and keep
+    // listening, so silence is not a failure while the recording is open.
+    // A recording that ends with nothing captured is reported from "end".
     native.addListener("end", () => {
       if (!capturing || disposed) return;
       capturing = false;
+      if (acceptingResults && !failure && !segments.length && !interim) {
+        failure = VOICE_ERRORS["no-speech"];
+      }
       acceptingResults = false;
       update("idle");
-      finish(!failure && finalResult ? capturedDraft : undefined);
+      finish(failure ? undefined : finalizedDraft());
     }),
   ];
 
@@ -117,7 +132,9 @@ export function createVoiceInputSession(
       native.start({
         lang: Intl.DateTimeFormat().resolvedOptions().locale,
         interimResults: true,
-        continuous: false,
+        // Keep listening through pauses until the user stops or cancels.
+        // Non-continuous recognition ends itself after the first silence.
+        continuous: true,
         maxAlternatives: 1,
         volumeChangeEventOptions: { enabled: true, intervalMillis: 60 },
       });
@@ -146,8 +163,8 @@ export function createVoiceInputSession(
       if (disposed || phase !== "idle") return;
       const request = ++generation;
       initialDraft = draft;
-      capturedDraft = undefined;
-      finalResult = false;
+      segments = [];
+      interim = "";
       failure = undefined;
       update("starting");
       try {
