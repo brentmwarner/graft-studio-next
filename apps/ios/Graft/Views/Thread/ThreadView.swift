@@ -130,7 +130,8 @@ struct ThreadView: View {
 
 /// Only the composer and its compact accessories reserve transcript space.
 /// The jump button shares the diff row, or floats above an occupied task row.
-/// Its visibility never changes the dock's bounds.
+/// Its visibility never changes the dock's bounds. An open slash list takes
+/// the accessory row's place so it is not a card floating over hidden chips.
 struct ThreadComposerDock: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tasksExpanded = false
@@ -143,7 +144,7 @@ struct ThreadComposerDock: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            if hasAccessories {
+            if hasAccessories, !slashVisible {
                 GlassEffectContainer(spacing: 12) {
                     HStack(spacing: 12) {
                         ComposerDiffBubbleStrip(diffs: chat.pendingDiffs) { diffId in
@@ -170,18 +171,19 @@ struct ThreadComposerDock: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .opacity(slashVisible ? 0 : 1)
-                .allowsHitTesting(!slashVisible)
-                .accessibilityHidden(slashVisible)
                 .accessibilityIdentifier("composer-accessory-row")
             }
             if chat.needsInteraction {
                 InteractionBar(chat: chat)
             }
-            ComposerView(chat: chat, siblingChromeHeight: hasAccessories ? 56 : 0, onSlashVisibilityChange: { visible in
-                slashVisible = visible
-                if visible { tasksExpanded = false }
-            })
+            ComposerView(
+                chat: chat,
+                siblingChromeHeight: hasAccessories && !slashVisible ? 56 : 0,
+                onSlashVisibilityChange: { visible in
+                    slashVisible = visible
+                    if visible { tasksExpanded = false }
+                }
+            )
             .zIndex(2)
         }
         .overlay(alignment: .top) {

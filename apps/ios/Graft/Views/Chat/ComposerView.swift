@@ -81,6 +81,16 @@ struct ComposerView: View {
                     .padding(.horizontal, 20)
             }
 
+            // The command list takes the model and approval chips' slot at the
+            // composer chrome's width, instead of floating above those chips.
+            Group {
+                if slashVisible, !showModelControls {
+                    slashPalette
+                        .padding(.horizontal, 12)
+                }
+            }
+            .transaction { $0.animation = nil }
+
             HStack(alignment: .bottom, spacing: 10) {
                 leadingControl
 
@@ -146,7 +156,9 @@ struct ComposerView: View {
                             .padding(.leading, 16)
                             .padding(.trailing, isExpanded ? 16 : 0)
                             if !isExpanded {
-                                modelEffortTrigger
+                                if !slashVisible {
+                                    modelEffortTrigger
+                                }
                                 trailingControl
                                     .padding(.trailing, 7)
                                     .padding(.bottom, 7)
@@ -168,9 +180,13 @@ struct ComposerView: View {
                     if isExpanded {
                         HStack(spacing: 5) {
                             composerAttachButton
-                            permissionsMenu
+                            if !slashVisible {
+                                permissionsMenu
+                            }
                             Spacer(minLength: 8)
-                            modelEffortTrigger
+                            if !slashVisible {
+                                modelEffortTrigger
+                            }
                             trailingControl
                         }
                         .padding(.horizontal, 7)
@@ -215,29 +231,6 @@ struct ComposerView: View {
                 onDismiss: { showModelControls = false },
                 onAdvanced: openModelSettings
             )
-        }
-        .overlay(alignment: .top) {
-            VStack(spacing: 0) {
-                if slashVisible, !showModelControls {
-                    SlashPalette(
-                        completions: slash.items,
-                        status: slashStatus,
-                        onPreview: { command in
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            focused = false
-                            KeyboardDismissal.dismiss()
-                            focusAfterPreview = true
-                            previewSkill = command
-                        },
-                        onPick: pickCommand
-                    )
-                    .padding(.bottom, 12)
-                }
-            }
-            .alignmentGuide(.top) { $0[.bottom] }
-            // Keep the anchor on the overlay's outer container so the
-            // conditional menu stays wholly above the composer while typing.
-            .transaction { $0.animation = nil }
         }
         .task(id: app.gateway.state == .connected) {
             guard app.gateway.state == .connected else { return }
@@ -739,6 +732,21 @@ struct ComposerView: View {
 
     private var slashVisible: Bool {
         focused && previewSkill == nil && SlashCompleter.searchTerm(text) != nil
+    }
+
+    private var slashPalette: some View {
+        SlashPalette(
+            completions: slash.items,
+            status: slashStatus,
+            onPreview: { command in
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                focused = false
+                KeyboardDismissal.dismiss()
+                focusAfterPreview = true
+                previewSkill = command
+            },
+            onPick: pickCommand
+        )
     }
 
     private var slashStatus: String? {

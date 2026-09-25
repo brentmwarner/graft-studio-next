@@ -818,9 +818,9 @@ final class MarkdownVisualCheckTests: XCTestCase {
         add(hierarchyAttachment)
     }
 
-    func testComposerSlashOverlayDoesNotMoveTranscriptVisualAttachments() throws {
+    func testComposerSlashPaletteReplacesModelChipWithoutCoveringEditor() throws {
         let app = AppModel(store: LocalStore(inMemory: true))
-        let chat = ChatModel(threadId: "visual-thread", title: "Slash overlay check")
+        let chat = ChatModel(threadId: "visual-thread", title: "Slash layout check")
         let surface = ComposerSlashOverlayFixture(chat: chat)
             .environment(app)
             .environment(\.colorScheme, ColorScheme.light)
@@ -828,21 +828,41 @@ final class MarkdownVisualCheckTests: XCTestCase {
 
         let capture = try captureComposerSlashOverlay(surface, size: CGSize(width: 440, height: 620))
 
-        XCTAssertTrue(capture.before.hierarchy.contains("Transcript content stays fixed"))
-        XCTAssertTrue(capture.after.hierarchy.contains("Transcript content stays fixed"))
+        XCTAssertTrue(capture.before.hierarchy.contains("Transcript marker"))
+        XCTAssertTrue(capture.before.hierarchy.contains("Model and intelligence"))
+        XCTAssertTrue(capture.after.hierarchy.contains("Transcript marker"))
         XCTAssertTrue(capture.after.hierarchy.contains("Slash commands"))
+        XCTAssertFalse(
+            capture.after.hierarchy.contains("Model and intelligence"),
+            "Slash commands replace the model chip instead of floating above it."
+        )
         XCTAssertTrue(
             capture.after.hierarchy.contains("Loading commands")
                 || capture.after.hierarchy.contains("Commands could not load")
                 || capture.after.hierarchy.contains("No matching commands")
         )
-        XCTAssertEqual(capture.beforeTranscriptFrame.midY, capture.afterTranscriptFrame.midY, accuracy: 1.5)
-        XCTAssertEqual(capture.beforeComposerFrame.midY, capture.afterComposerFrame.midY, accuracy: 1.5)
-        XCTAssertLessThanOrEqual(
-            capture.afterSlashPaletteFrame.maxY,
-            capture.afterComposerFrame.minY - 12,
+        XCTAssertFalse(
+            capture.afterSlashPaletteFrame.intersects(capture.afterComposerFrame),
             "Slash palette must sit above the text editor instead of covering the typed command."
         )
+        XCTAssertLessThanOrEqual(
+            capture.afterSlashPaletteFrame.minX,
+            capture.afterComposerFrame.minX + 0.5,
+            "Slash palette lines up with the composer chrome."
+        )
+        XCTAssertGreaterThanOrEqual(
+            capture.afterSlashPaletteFrame.maxX,
+            capture.afterComposerFrame.maxX - 0.5,
+            "Slash palette lines up with the composer chrome."
+        )
+        XCTAssertEqual(
+            capture.afterSlashPaletteFrame.width,
+            440 - 24,
+            accuracy: 2,
+            "Slash palette uses the composer chrome width, without an extra inset."
+        )
+        XCTAssertFalse(capture.restoredHierarchy.contains("Slash commands"))
+        XCTAssertTrue(capture.restoredHierarchy.contains("Model and intelligence"))
 
         let beforeImage = XCTAttachment(image: capture.before.image)
         beforeImage.name = "ComposerSlashOverlay-before"
@@ -1460,7 +1480,7 @@ final class MarkdownVisualCheckTests: XCTestCase {
         controller.view.layoutIfNeeded()
 
         let beforeTranscriptFrame = try XCTUnwrap(
-            firstAccessibilityFrame(containingLabel: "Transcript content stays fixed", in: controller.view),
+            firstAccessibilityFrame(containingLabel: "Transcript marker", in: controller.view),
             file: file,
             line: line
         )
@@ -1478,7 +1498,7 @@ final class MarkdownVisualCheckTests: XCTestCase {
         controller.view.layoutIfNeeded()
 
         let afterTranscriptFrame = try XCTUnwrap(
-            firstAccessibilityFrame(containingLabel: "Transcript content stays fixed", in: controller.view),
+            firstAccessibilityFrame(containingLabel: "Transcript marker", in: controller.view),
             file: file,
             line: line
         )
@@ -1491,6 +1511,18 @@ final class MarkdownVisualCheckTests: XCTestCase {
         let after = captureHostedView(window, size: size)
         assertValidCapture(after, file: file, line: line)
 
+        if let range = composer.textRange(from: composer.beginningOfDocument, to: composer.endOfDocument) {
+            composer.replace(range, withText: "")
+        } else {
+            composer.text = ""
+            composer.delegate?.textViewDidChange?(composer)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.35))
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        let restored = captureHostedView(window, size: size)
+        assertValidCapture(restored, file: file, line: line)
+
         return ComposerSlashOverlayCapture(
             before: before,
             after: after,
@@ -1498,7 +1530,8 @@ final class MarkdownVisualCheckTests: XCTestCase {
             afterTranscriptFrame: afterTranscriptFrame,
             beforeComposerFrame: beforeComposerFrame,
             afterComposerFrame: afterComposerFrame,
-            afterSlashPaletteFrame: afterSlashPaletteFrame
+            afterSlashPaletteFrame: afterSlashPaletteFrame,
+            restoredHierarchy: restored.hierarchy
         )
     }
 
@@ -2404,6 +2437,7 @@ private struct ComposerSlashOverlayCapture {
     let beforeComposerFrame: CGRect
     let afterComposerFrame: CGRect
     let afterSlashPaletteFrame: CGRect
+    let restoredHierarchy: String
 }
 
 private struct DiffBubbleSheetFixture: View {
@@ -2471,7 +2505,7 @@ private struct ComposerSlashOverlayFixture: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Transcript content stays fixed while slash commands overlay the composer.")
+            Text("Transcript marker")
                 .font(.subheadline)
                 .foregroundStyle(DS.Color.fgSubtle)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
