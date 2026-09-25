@@ -115,6 +115,33 @@ it("keeps the permissions shortcut beside the plus button whenever policies exis
   expect(menus().some((node) => node.props.initialPage === "permissions")).toBe(false);
 });
 
+it("replaces model and permission chips while a slash command is open", async () => {
+  const permissionMenus = () =>
+    renderer.root.findAll(
+      (node) => isType(node, "Menu") && node.props.initialPage === "permissions",
+    );
+  await act(() => {
+    renderer = create(createElement(Composer, { ...props, draft: "/" }));
+  });
+  expect(renderer.root.findAllByType(ComposerSettings)).toHaveLength(0);
+  expect(permissionMenus()).toHaveLength(0);
+  expect(
+    renderer.root.findAll((node) => isType(node, "Menu") && node.props.initialPage === "options"),
+  ).toHaveLength(1);
+
+  await act(() => {
+    renderer.update(createElement(Composer, { ...props, draft: "/review " }));
+  });
+  expect(renderer.root.findAllByType(ComposerSettings)).toHaveLength(1);
+  expect(permissionMenus()).toHaveLength(1);
+
+  await act(() => {
+    renderer.update(createElement(Composer, { ...props, draft: "" }));
+  });
+  expect(renderer.root.findAllByType(ComposerSettings)).toHaveLength(1);
+  expect(permissionMenus()).toHaveLength(1);
+});
+
 it("preserves the editor and hides its controls from accessibility during dictation", async () => {
   await act(() => {
     renderer = create(createElement(Composer, props));

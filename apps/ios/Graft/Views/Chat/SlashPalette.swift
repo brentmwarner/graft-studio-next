@@ -112,7 +112,8 @@ final class SlashCompleter {
     }
 }
 
-/// This surface is placed in the composer's overlay, never in its layout stack.
+/// Replaces the model and approval chips while a slash query is open.
+/// Parents put it in that chip slot so it takes the dock's full width.
 struct SlashPalette: View {
     let completions: [ComposerCommand]
     var status: String? = nil
@@ -162,10 +163,9 @@ struct SlashPalette: View {
             }
             .padding(.vertical, 8)
         }
-        .frame(maxHeight: 300)
+        .frame(maxWidth: .infinity, maxHeight: 300, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
         .composerGlassSurface(shape: .roundedRectangle(cornerRadius: 24), interactive: false)
-        .padding(.horizontal, 12)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Slash commands")
         .accessibilityIdentifier("slash-palette")

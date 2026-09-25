@@ -177,29 +177,56 @@ struct NewChatView: View {
         .buttonStyle(.plain)
     }
 
+    /// Typing `/` swaps the model and approval chips for the command list.
+    /// Clearing the query, picking a command, or leaving the field brings the chips back.
+    private var slashActive: Bool {
+        focused && !isCreating && SlashCompleter.searchTerm(draft) != nil
+    }
+
     private var composerDock: some View {
         VStack(alignment: .leading, spacing: 9) {
-            GlassEffectContainer(spacing: 6) {
-                HStack(spacing: 8) {
-                    NewChatModelMenu(
-                        catalog: app.models,
-                        currentModel: currentModel,
-                        selectedEffort: Binding(
-                            get: { resolvedEffort },
-                            set: { selectedEffort = $0 }
-                        ),
-                        onSelect: { model in
-                            selectedModelId = model.id
-                            selectedProviderId = model.providerId
-                        },
-                        onRefresh: { Task { await app.loadModelsIfNeeded(force: true) } }
-                    )
-                    .disabled(isCreating)
-                    if !approvalOptions.isEmpty {
-                        approvalMenu
+            Group {
+                if slashActive {
+                    SlashPalette(
+                        completions: slash.items,
+                        status: slash.items.isEmpty
+                            ? (slash.error ?? (slash.isLoading ? "Loading commands…" : "No matching commands"))
+                            : nil
+                    ) { command in
+                        if command.kind == "model" {
+                            draft = ""
+                            showModels = true
+                        } else {
+                            draft = "/" + command.name + " "
+                            focused = true
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    GlassEffectContainer(spacing: 6) {
+                        HStack(spacing: 8) {
+                            NewChatModelMenu(
+                                catalog: app.models,
+                                currentModel: currentModel,
+                                selectedEffort: Binding(
+                                    get: { resolvedEffort },
+                                    set: { selectedEffort = $0 }
+                                ),
+                                onSelect: { model in
+                                    selectedModelId = model.id
+                                    selectedProviderId = model.providerId
+                                },
+                                onRefresh: { Task { await app.loadModelsIfNeeded(force: true) } }
+                            )
+                            .disabled(isCreating)
+                            if !approvalOptions.isEmpty {
+                                approvalMenu
+                            }
+                        }
                     }
                 }
             }
+            .transaction { $0.animation = nil }
 
             HStack(alignment: .bottom, spacing: 10) {
                 composerOptionsMenu
@@ -250,29 +277,6 @@ struct NewChatView: View {
                 .padding(.vertical, 6)
                 .glassEffect(.regular, in: .rect(cornerRadius: 26))
             }
-        }
-        .overlay(alignment: .top) {
-            VStack(spacing: 0) {
-                if focused, !isCreating, SlashCompleter.searchTerm(draft) != nil {
-                    SlashPalette(
-                        completions: slash.items,
-                        status: slash.items.isEmpty
-                            ? (slash.error ?? (slash.isLoading ? "Loading commands…" : "No matching commands"))
-                            : nil
-                    ) { command in
-                        if command.kind == "model" {
-                            draft = ""
-                            showModels = true
-                        } else {
-                            draft = "/" + command.name + " "
-                            focused = true
-                        }
-                    }
-                    .padding(.bottom, 12)
-                }
-            }
-            .alignmentGuide(.top) { $0[.bottom] }
-            .transaction { $0.animation = nil }
         }
     }
 

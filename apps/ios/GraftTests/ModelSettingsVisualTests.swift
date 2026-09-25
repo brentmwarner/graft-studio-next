@@ -48,6 +48,50 @@ final class ModelSettingsVisualTests: XCTestCase {
         }
     }
 
+    func testNewChatSlashPaletteReplacesModelAndApprovalChips() async throws {
+        let app = AppModel(store: LocalStore(inMemory: true))
+        await app.models.load { Self.newChatCatalog }
+        let window = host(NavigationStack { NewChatView().environment(app) }, scheme: .light)
+        defer { close(window) }
+        await settle(window)
+
+        let input = try XCTUnwrap(firstTextView(in: window))
+        let model = try XCTUnwrap(node(labeled: "Provider, model, and intelligence", in: window))
+        let permissions = try XCTUnwrap(node(labeled: "Permissions", in: window))
+        let chipSpan = model.accessibilityFrame.width + permissions.accessibilityFrame.width
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.insertText("/")
+        await settle(window)
+
+        XCTAssertNil(node(labeled: "Provider, model, and intelligence", in: window))
+        XCTAssertNil(node(labeled: "Permissions", in: window))
+        let palette = try XCTUnwrap(node(labeled: "Slash commands", in: window))
+        let options = try XCTUnwrap(node(labeled: "Composer options", in: window))
+        let send = try XCTUnwrap(node(labeled: "Send", in: window))
+        XCTAssertEqual(palette.accessibilityFrame.minX, options.accessibilityFrame.minX, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(palette.accessibilityFrame.maxX, send.accessibilityFrame.maxX - 1)
+        XCTAssertGreaterThan(palette.accessibilityFrame.width, chipSpan)
+        XCTAssertLessThanOrEqual(palette.accessibilityFrame.maxY, input.accessibilityFrame.minY + 1)
+
+        replace(input, with: "/review ")
+        await settle(window)
+        XCTAssertNil(node(labeled: "Slash commands", in: window))
+        XCTAssertNotNil(node(labeled: "Provider, model, and intelligence", in: window))
+        XCTAssertNotNil(node(labeled: "Permissions", in: window))
+
+        replace(input, with: "/")
+        await settle(window)
+        XCTAssertNotNil(node(labeled: "Slash commands", in: window))
+        XCTAssertNil(node(labeled: "Provider, model, and intelligence", in: window))
+
+        replace(input, with: "")
+        await settle(window)
+        XCTAssertNil(node(labeled: "Slash commands", in: window))
+        XCTAssertNotNil(node(labeled: "Provider, model, and intelligence", in: window))
+        XCTAssertNotNil(node(labeled: "Permissions", in: window))
+        XCTAssertEqual(input.text, "")
+    }
+
     func testNewChatMenuShowsLoadingRetryAndRecoveredProviders() async throws {
         let catalog = ModelSettingsStore()
         let window = host(
@@ -598,6 +642,19 @@ final class ModelSettingsVisualTests: XCTestCase {
         try? FileManager.default.createDirectory(at: evidence, withIntermediateDirectories: true)
         try? image.pngData()?.write(to: evidence.appendingPathComponent("\(name).png"))
         try? hierarchy.write(to: evidence.appendingPathComponent("\(name).txt"), atomically: true, encoding: .utf8)
+    }
+
+    private func node(labeled label: String, in window: UIWindow) -> NSObject? {
+        objects(in: window).first { $0.accessibilityLabel == label }
+    }
+
+    private func replace(_ input: UITextView, with text: String) {
+        if let range = input.textRange(from: input.beginningOfDocument, to: input.endOfDocument) {
+            input.replace(range, withText: text)
+        } else {
+            input.text = text
+            input.delegate?.textViewDidChange?(input)
+        }
     }
 
     private func element(_ identifier: String, in window: UIWindow) -> NSObject? {

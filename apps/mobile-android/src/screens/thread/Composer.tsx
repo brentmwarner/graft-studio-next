@@ -169,6 +169,8 @@ export function Composer({
   const idleHeight = Math.max(56, editorHeight + 16);
   const typingHeight = voice.isActive ? 0 : expanded ? editorHeight + 75 : idleHeight;
   const extras = menuConfig.extras;
+  // `/` replaces the model and approval chips until the query is completed or cleared.
+  const slashReplacesChips = draft.startsWith("/") && !/\s/.test(draft);
 
   useEffect(() => {
     // Android's Back button can hide the keyboard without blurring TextInput.
@@ -360,7 +362,7 @@ export function Composer({
                 onLayout={({ nativeEvent }) => setLeadingWidth(Math.ceil(nativeEvent.layout.width))}
               >
                 {options}
-                <ComposerPermissions config={menuConfig} />
+                {slashReplacesChips ? null : <ComposerPermissions config={menuConfig} />}
               </View>
               <View style={styles.toolbarSpacer} pointerEvents="none" />
               <View
@@ -369,12 +371,14 @@ export function Composer({
                   setControlsWidth(Math.ceil(nativeEvent.layout.width))
                 }
               >
-                <ComposerSettings
-                  config={menuConfig}
-                  modelName={currentModelName}
-                  modelMenuRequest={modelMenuRequest}
-                  showProviderIcon={expanded}
-                />
+                {slashReplacesChips ? null : (
+                  <ComposerSettings
+                    config={menuConfig}
+                    modelName={currentModelName}
+                    modelMenuRequest={modelMenuRequest}
+                    showProviderIcon={expanded}
+                  />
+                )}
                 {trailing}
               </View>
             </View>
