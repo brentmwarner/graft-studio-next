@@ -1,0 +1,9 @@
+{
+  "envelope": "command",
+  "commandId": "77777777-7777-4777-8777-777777777777",
+  "command": {
+    "type": "composer.commands",
+    "projectId": "p1",
+    "providerId": "codex"
+  }
+}

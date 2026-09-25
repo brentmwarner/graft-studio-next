@@ -165,6 +165,83 @@ beforeEach(() => {
       snapshot(session.environmentId, threadId),
     );
 });
+
+it("refreshes generated titles while tokens keep arriving", async () => {
+  await act(async () => {
+    renderer = create(createElement(Harness, { credentials: [a] }));
+  });
+  await connect(0);
+  mock.snapshot.mockImplementation(async () => ({
+    ...snapshot("a"),
+    cursor: 20,
+    threads: [{ id: "same", projectId: "p", title: "Fix mobile skills", updatedAt: 2 }],
+  }));
+  const initialCalls = mock.snapshot.mock.calls.length;
+  for (let cursor = 2; cursor <= 9; cursor++) {
+    await act(async () => {
+      mock.sockets[0]!.handlers.onMessage({
+        envelope: "event",
+        event: {
+          id: "reply",
+          cursor,
+          threadId: "same",
+          kind: "assistant.delta",
+          text: "Still streaming",
+          createdAt: cursor,
+        },
+      });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+  }
+  expect(mock.snapshot.mock.calls.length).toBeGreaterThan(initialCalls);
+  const state = published.a!.state;
+  expect(state.status === "paired" && state.snapshot?.threads[0]?.title).toBe("Fix mobile skills");
+});
+
+it("lets a slow snapshot finish and then reconciles events received during the request", async () => {
+  await act(async () => {
+    renderer = create(createElement(Harness, { credentials: [a] }));
+  });
+  await connect(0);
+  let finish!: (value: GraftEnvironmentSnapshot) => void;
+  mock.snapshot.mockImplementationOnce(
+    () =>
+      new Promise<GraftEnvironmentSnapshot>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const emit = (cursor: number) =>
+    mock.sockets[0]!.handlers.onMessage({
+      envelope: "event",
+      event: {
+        id: "reply",
+        cursor,
+        threadId: "same",
+        kind: "assistant.delta",
+        text: "Still streaming",
+        createdAt: cursor,
+      },
+    });
+  const initialCalls = mock.snapshot.mock.calls.length;
+  await act(async () => {
+    emit(2);
+    await vi.advanceTimersByTimeAsync(250);
+  });
+  for (let cursor = 3; cursor <= 10; cursor++) {
+    await act(async () => {
+      emit(cursor);
+      await vi.advanceTimersByTimeAsync(50);
+    });
+  }
+  expect(mock.snapshot.mock.calls.length).toBe(initialCalls + 1);
+  await act(async () => {
+    finish({ ...snapshot("a"), cursor: 2 });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(250);
+  });
+  expect(mock.snapshot.mock.calls.length).toBe(initialCalls + 2);
+});
 afterEach(async () => {
   await act(async () => renderer?.unmount());
   vi.useRealTimers();

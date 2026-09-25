@@ -248,6 +248,7 @@ struct ComposerView: View {
             slash.prefetch(contextKey: slashContextKey) {
                 try await app.fetchComposerCommands(threadId: chat.threadId)
             }
+            updateSlashCommands()
         }
         .photosPicker(isPresented: $showPhotos, selection: $photoItems,
                       maxSelectionCount: 4, matching: .images)

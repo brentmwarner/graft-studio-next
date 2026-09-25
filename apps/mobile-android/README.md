@@ -62,6 +62,15 @@ protocol errors still surface; live activity returns when a machine reconnects.
 
 ## Development
 
+Typing `/` opens commands and enabled skills in both new chats and existing
+threads. New-chat discovery uses the selected project and provider without
+creating a thread; this requires an updated Studio host.
+
+The first message supplies a prompt-based title while the host generates a
+shorter title. Metadata refreshes during streaming without repeatedly restarting
+the refresh timer or overlapping background requests on slow connections.
+Manual renames take precedence over automatic naming.
+
 From the repository root:
 
 ```bash

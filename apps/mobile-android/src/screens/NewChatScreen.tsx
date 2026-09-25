@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import type {
   GraftModelOption,
+  GraftComposerCommand,
+  GraftComposerContext,
   GraftEnvironmentSummary,
   GraftInteractionMode,
   GraftThreadSummary,
@@ -29,6 +31,7 @@ import { attachmentHostError, type ComposerSendOptions } from "./thread/composer
 import { useComposerAttachments } from "./thread/useComposerAttachments";
 import { useVoiceInput } from "./thread/useVoiceInput";
 import { Composer } from "./thread/Composer";
+import { SlashPalette } from "./thread/SlashPalette";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 import { resolveModelEffort } from "./thread/threadModels";
@@ -56,6 +59,9 @@ interface NewChatScreenProps {
     request: NewChatCreateRequest,
   ) => Promise<{ readonly sent: boolean; readonly thread?: GraftThreadSummary }>;
   readonly onLoadModels: (force?: boolean) => Promise<void>;
+  readonly onLoadComposerCommands: (
+    context: GraftComposerContext,
+  ) => Promise<readonly GraftComposerCommand[]>;
   readonly modelCatalog: ModelCatalogStatus;
   readonly projects: readonly InboxProjectGroup[];
 }
@@ -70,6 +76,7 @@ export function NewChatScreen({
   onBack,
   onCreate,
   onLoadModels,
+  onLoadComposerCommands,
   modelCatalog,
   projects,
 }: NewChatScreenProps) {
@@ -78,6 +85,7 @@ export function NewChatScreen({
   const headerTop = insets.top + 12;
   const keyboardVisible = useKeyboardVisibility();
   const [draft, setDraft] = useState("");
+  const [modelMenuRequest, setModelMenuRequest] = useState(0);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [mode, setMode] = useState<"local" | "worktree">("local");
@@ -299,7 +307,27 @@ export function NewChatScreen({
           {error ? (
             <Text style={{ color: palette.danger, fontSize: 12, padding: 8 }}>{error}</Text>
           ) : null}
+          {selectedProject && draft.startsWith("/") && !/\s/.test(draft) && !isCreating ? (
+            <SlashPalette
+              query={draft}
+              context={{
+                projectId: selectedProject.id,
+                providerId: currentModel?.providerId,
+                interactionMode,
+              }}
+              loadCommands={onLoadComposerCommands}
+              onPick={(command) => {
+                if (command.kind === "model") {
+                  setDraft("");
+                  setModelMenuRequest((request) => request + 1);
+                } else {
+                  setDraft(`/${command.name} `);
+                }
+              }}
+            />
+          ) : null}
           <Composer
+            modelMenuRequest={modelMenuRequest}
             voice={voice}
             onSendDictation={() => {
               void sendDictation();

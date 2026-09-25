@@ -462,24 +462,65 @@ const loadMobileThreadDetails = Effect.fn(function* (threadId: string) {
   };
 });
 
-const loadComposerCommands = Effect.fn(function* (threadId: string) {
-  const { thread, cwd } = yield* loadThreadWorkspace(threadId);
+const loadComposerContext = Effect.fn(function* (
+  command: Extract<GraftMobileCommand, { type: "composer.commands" }>,
+) {
+  if (command.threadId) {
+    const { thread, cwd } = yield* loadThreadWorkspace(command.threadId);
+    return {
+      cwd,
+      provider: thread.modelSelection.provider,
+      threadId: thread.id,
+      interactionMode: thread.interactionMode,
+    };
+  }
+  if (!command.projectId) return yield* fail("validation_failed", "Choose a project for commands.");
+  const query = yield* ProjectionSnapshotQuery;
+  const project = yield* query.getProjectShellById(ProjectId.makeUnsafe(command.projectId));
+  if (Option.isNone(project) || isStudioProjectKind(project.value)) {
+    return yield* fail("not_found", "Project not found.");
+  }
+  const selection = yield* resolveSelection({
+    ...(command.providerId ? { providerId: command.providerId } : {}),
+    fallback: project.value.defaultModelSelection,
+  });
+  return {
+    cwd: project.value.workspaceRoot,
+    provider: selection.provider,
+    interactionMode: command.interactionMode ?? "default",
+  };
+});
+
+const loadComposerCommands = Effect.fn(function* (
+  command: Extract<GraftMobileCommand, { type: "composer.commands" }>,
+) {
+  const context = yield* loadComposerContext(command);
   const discovery = yield* ProviderDiscoveryService;
   const settings = yield* ServerSettingsService;
   const input = {
-    ...providerDiscoveryInput(thread.modelSelection.provider, yield* settings.getSettings, cwd),
-    cwd,
-    threadId: thread.id,
+    ...providerDiscoveryInput(context.provider, yield* settings.getSettings, context.cwd),
+    cwd: context.cwd,
+    ...("threadId" in context ? { threadId: context.threadId } : {}),
   };
   const [commands, skills] = yield* Effect.all(
-    [discovery.listCommands(input), discovery.listSkills(input)],
+    [
+      discovery.listCommands(input).pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("mobile native command discovery failed", {
+            provider: context.provider,
+            error,
+          }).pipe(Effect.as({ commands: [] })),
+        ),
+      ),
+      discovery.listSkills(input),
+    ],
     { concurrency: 2 },
   );
   return {
     commands: mobileComposerCommands(
       commands.commands,
       skills.skills,
-      thread.modelSelection.provider === "codex" && thread.interactionMode !== "plan",
+      context.provider === "codex" && context.interactionMode !== "plan",
     ),
     skills: skills.skills,
   };
@@ -487,7 +528,7 @@ const loadComposerCommands = Effect.fn(function* (threadId: string) {
 
 const prepareMobileMessage = Effect.fn(function* (threadId: string, text: string) {
   if (!/^\/[^\s/]+(?:\s|$)/.test(text.trim())) return { text };
-  const catalog = yield* loadComposerCommands(threadId);
+  const catalog = yield* loadComposerCommands({ type: "composer.commands", threadId });
   return yield* Effect.try({
     try: () => prepareMobileSlashMessage(text, catalog.commands, catalog.skills),
     catch: (cause) =>
@@ -769,11 +810,14 @@ export const executeMobileCommand = Effect.fn(function* (
     case "composer.commands":
       return {
         type: "composer.commands.result",
-        commands: (yield* loadComposerCommands(command.threadId)).commands,
+        commands: (yield* loadComposerCommands(command)).commands,
       };
     case "composer.skill.read": {
       const { thread, cwd } = yield* loadThreadWorkspace(command.threadId);
-      const catalog = yield* loadComposerCommands(command.threadId);
+      const catalog = yield* loadComposerCommands({
+        type: "composer.commands",
+        threadId: command.threadId,
+      });
       // The phone supplies a catalog name, never a filesystem path. Recheck the
       // current provider's enabled skills before reading its discovered file.
       const skill = catalog.skills.find((entry) => entry.enabled && entry.name === command.name);

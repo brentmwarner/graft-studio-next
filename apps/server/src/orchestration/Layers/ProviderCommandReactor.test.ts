@@ -7166,6 +7166,49 @@ describe("ProviderCommandReactor", () => {
     expect((await readHarnessThread(harness))?.title).toBe("Manual title wins");
   });
 
+  it("publishes a prompt title while first-turn title generation is pending", async () => {
+    const harness = await createHarness();
+    const threadId = ThreadId.makeUnsafe("thread-1");
+    const release = Effect.runSync(Deferred.make<void>());
+    harness.generateThreadTitle.mockImplementation(() =>
+      Deferred.await(release).pipe(Effect.as({ title: "Polish loading states" })),
+    );
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.makeUnsafe("cmd-pending-placeholder"),
+        threadId,
+        title: "New chat",
+      }),
+    );
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.makeUnsafe("cmd-pending-title-turn"),
+        threadId,
+        message: {
+          messageId: asMessageId("pending-title-user"),
+          role: "user",
+          text: "Fix mobile loading states",
+          attachments: [],
+        },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    try {
+      await waitFor(() => harness.generateThreadTitle.mock.calls.length === 1);
+      expect((await readHarnessThread(harness))?.title).toBe("Fix mobile loading states");
+    } finally {
+      await Effect.runPromise(Deferred.succeed(release, undefined));
+    }
+    await waitFor(
+      async () => (await readHarnessThread(harness))?.title === "Polish loading states",
+    );
+    expect((await readHarnessThread(harness))?.title).toBe("Polish loading states");
+  });
+
   it.each(["New thread", "New chat"])(
     "renames the %s first-turn placeholder using text generation",
     async (placeholder) => {

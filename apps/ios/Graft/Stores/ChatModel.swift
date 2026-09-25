@@ -135,6 +135,9 @@ final class ChatModel: Identifiable {
     func applySnapshot(_ snapshot: EnvironmentSnapshot) {
         let replacingCache = cacheHydratedCursor == transcriptCursor
         guard replacingCache || snapshot.cursor >= transcriptCursor else { return }
+        if let thread = snapshot.threads.first(where: { $0.id == threadId }) {
+            title = thread.title
+        }
         applyPendingInteractions(snapshot)
 
         guard let transcript = snapshot.selectedTranscript,

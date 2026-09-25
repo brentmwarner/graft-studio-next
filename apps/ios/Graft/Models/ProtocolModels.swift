@@ -333,7 +333,9 @@ struct ModelsListCommand: Codable, Sendable {
 
 struct ComposerCommandsCommand: Codable, Sendable {
     var type = "composer.commands"
-    let threadId: String
+    var threadId: String? = nil
+    var projectId: String? = nil
+    var providerId: String? = nil
 }
 
 struct ComposerCommand: Codable, Sendable, Equatable, Identifiable {

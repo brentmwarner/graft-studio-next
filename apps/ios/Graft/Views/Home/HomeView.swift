@@ -964,17 +964,15 @@ private func homeErrorMessage(_ error: GraftError) -> String {
 
 struct InboxThreadActivityIndicator: View {
     let activity: InboxThreadActivity
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         switch activity {
         case .working:
-            Group {
-                if reduceMotion { Image(systemName: "hourglass") }
-                else { ProgressView().controlSize(.small).tint(.secondary) }
-            }
-            .frame(width: 18, height: 18)
-            .accessibilityLabel("Working")
+            SweepArcLoader(size: 14, lineWidth: 1.75, cycle: 1, tint: .secondary)
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Working")
         case .unread:
             Circle().fill(Color.blue).frame(width: 8, height: 8)
                 .accessibilityLabel("Unread response")

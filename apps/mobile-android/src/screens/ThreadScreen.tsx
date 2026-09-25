@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type {
   GraftApprovalDecision,
   GraftComposerCommand,
+  GraftComposerContext,
   GraftDiffSummary,
   GraftInteractionMode,
   GraftEnvironmentSnapshot,
@@ -83,7 +84,9 @@ interface ThreadScreenProps {
   readonly onLoadThreadDetails: (threadId: string) => Promise<GraftThreadDetails>;
   readonly onRenameThread: (threadId: string, title: string) => Promise<GraftThreadSummary>;
   readonly onLoadUsage: (threadId: string) => Promise<GraftThreadUsage>;
-  readonly onLoadComposerCommands: (threadId: string) => Promise<readonly GraftComposerCommand[]>;
+  readonly onLoadComposerCommands: (
+    context: GraftComposerContext,
+  ) => Promise<readonly GraftComposerCommand[]>;
   readonly onLoadModels: (force?: boolean) => Promise<void>;
   readonly modelCatalog: ModelCatalogStatus;
   readonly onRefresh: () => Promise<void>;
@@ -506,8 +509,8 @@ export function ThreadScreen({
         {draft.startsWith("/") && !/\s/.test(draft) ? (
           <SlashPalette
             query={draft}
-            threadId={thread.id}
-            providerId={model.currentThread.providerId}
+            key={`${thread.id}:${model.currentThread.providerId}:${interactionMode}`}
+            context={{ threadId: thread.id }}
             loadCommands={onLoadComposerCommands}
             onPick={(command) => {
               if (command.kind === "model") {

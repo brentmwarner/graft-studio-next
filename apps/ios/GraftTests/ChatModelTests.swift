@@ -418,7 +418,8 @@ final class ChatModelTests: XCTestCase {
         cursor: Int,
         approvals: [PendingApproval] = [],
         questions: [PendingQuestion] = [],
-        runs: [ActiveRun] = []
+        runs: [ActiveRun] = [],
+        threads: [ThreadInfo] = []
     ) -> EnvironmentSnapshot {
         EnvironmentSnapshot(
             environment: EnvironmentInfo(
@@ -426,13 +427,24 @@ final class ChatModelTests: XCTestCase {
                 protocolVersion: 1, capabilities: [], cursor: cursor
             ),
             projects: [],
-            threads: [],
+            threads: threads,
             activeRuns: runs,
             pendingApprovals: approvals,
             pendingQuestions: questions,
             selectedTranscript: TranscriptContainer(threadId: "t1", cursor: cursor, events: events),
             cursor: cursor
         )
+    }
+
+    func testSnapshotUpdatesTitleWhileStreamingWithoutRewindingIt() {
+        let chat = ChatModel(threadId: "t1", title: "New chat")
+        chat.fold(event(id: "reply", cursor: 10, kind: "assistant.delta", text: "Working"))
+        let renamed = ThreadInfo(id: "t1", projectId: "p1", title: "Fix mobile skills", updatedAt: 11)
+        chat.applySnapshot(snapshot(events: [], cursor: 11, threads: [renamed]))
+        XCTAssertEqual(chat.title, "Fix mobile skills")
+        let stale = ThreadInfo(id: "t1", projectId: "p1", title: "New chat", updatedAt: 1)
+        chat.applySnapshot(snapshot(events: [], cursor: 1, threads: [stale]))
+        XCTAssertEqual(chat.title, "Fix mobile skills")
     }
 
     func testApplySnapshotPreservesRowIdentityAcrossReconcile() {

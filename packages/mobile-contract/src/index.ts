@@ -809,7 +809,10 @@ export const GraftMobileCommandSchema = z
     }),
     z.object({
       type: z.literal("composer.commands"),
-      threadId: z.string().min(1),
+      threadId: z.string().min(1).optional(),
+      projectId: z.string().min(1).optional(),
+      providerId: z.string().min(1).optional(),
+      interactionMode: GraftInteractionModeSchema.optional(),
     }),
     z.object({
       type: z.literal("composer.skill.read"),
@@ -874,8 +877,31 @@ export const GraftMobileCommandSchema = z
     (command) =>
       command.type !== "turn.start" || Boolean(command.text.trim() || command.attachments?.length),
     { message: "A message or attachment is required." },
+  )
+  .refine(
+    (command) =>
+      command.type !== "composer.commands" ||
+      (command.threadId !== undefined
+        ? command.projectId === undefined &&
+          command.providerId === undefined &&
+          command.interactionMode === undefined
+        : command.projectId !== undefined),
+    { message: "Choose either an existing thread or a project for command discovery." },
   );
 export type GraftMobileCommand = z.infer<typeof GraftMobileCommandSchema>;
+export type GraftComposerContext =
+  | {
+      readonly threadId: string;
+      readonly projectId?: never;
+      readonly providerId?: never;
+      readonly interactionMode?: never;
+    }
+  | {
+      readonly threadId?: never;
+      readonly projectId: string;
+      readonly providerId?: string;
+      readonly interactionMode?: GraftInteractionMode;
+    };
 
 export const GraftMobileCommandResultSchema = z.discriminatedUnion("type", [
   z.object({

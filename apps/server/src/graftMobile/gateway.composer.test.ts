@@ -8,7 +8,11 @@ import { ServerEnvironment } from "../environment/Services/ServerEnvironment";
 import { GitCore } from "../git/Services/GitCore";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery";
-import { ProviderDiscoveryService } from "../provider/Services/ProviderDiscoveryService";
+import {
+  ProviderDiscoveryService,
+  type ProviderDiscoveryServiceShape,
+} from "../provider/Services/ProviderDiscoveryService";
+import { ProviderAdapterRequestError } from "../provider/Errors";
 import { ServerSettingsService } from "../serverSettings";
 import { WorkspaceEntries } from "../workspace/Services/WorkspaceEntries";
 import { WorkspaceFileSystem } from "../workspace/Services/WorkspaceFileSystem";
@@ -31,8 +35,12 @@ function harness() {
     path: "/home/tester/.codex/skills/swiftui-specialist/SKILL.md",
     enabled: true,
   };
-  const listCommands = vi.fn(() => Effect.succeed({ commands: [] }));
-  const listSkills = vi.fn(() => Effect.succeed({ skills: [skill] }));
+  const listCommands = vi.fn<ProviderDiscoveryServiceShape["listCommands"]>(() =>
+    Effect.succeed({ commands: [] }),
+  );
+  const listSkills = vi.fn<ProviderDiscoveryServiceShape["listSkills"]>(() =>
+    Effect.succeed({ skills: [skill] }),
+  );
   const readFile = vi.fn(() =>
     Effect.succeed({
       relativePath: "SKILL.md",
@@ -108,6 +116,46 @@ function harness() {
 }
 
 describe("mobile composer gateway", () => {
+  it("discovers draft skills from the project without creating a thread", async () => {
+    const test = harness();
+    const result = await test.run({
+      type: "composer.commands",
+      projectId: "project",
+      providerId: "codex",
+      interactionMode: "plan",
+    });
+    expect(test.listSkills).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "codex", cwd: "/workspace/repo" }),
+    );
+    expect(test.listSkills.mock.calls[0]?.[0]).not.toHaveProperty("threadId");
+    expect(result).toMatchObject({
+      commands: expect.arrayContaining([
+        expect.objectContaining({ name: test.skill.name, kind: "skill" }),
+      ]),
+    });
+    expect(result).toMatchObject({
+      commands: expect.not.arrayContaining([expect.objectContaining({ kind: "tasks" })]),
+    });
+    expect(test.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the skills menu available when native command discovery fails", async () => {
+    const test = harness();
+    test.listCommands.mockReturnValue(
+      Effect.fail(
+        new ProviderAdapterRequestError({
+          provider: "codex",
+          method: "commands",
+          detail: "unavailable",
+        }),
+      ),
+    );
+    expect(await test.run({ type: "composer.commands", threadId: "thread" })).toMatchObject({
+      commands: expect.arrayContaining([
+        expect.objectContaining({ name: test.skill.name, kind: "skill" }),
+      ]),
+    });
+  });
   it("previews only the selected provider's discovered skill file with a bounded read", async () => {
     const test = harness();
     const result = await test.run({

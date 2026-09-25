@@ -146,12 +146,21 @@ Offline computers retain cached projects and transcripts without warning banners
 or stale work/loading spinners. Authentication, protocol, and certificate errors
 still surface warnings. Reconnection restores live activity automatically.
 
-Working threads show a progress spinner (a static hourglass with Reduce Motion).
+Working threads show a smooth, fading circular arc in the inbox and navigation
+drawer. With Reduce Motion enabled, the arc remains still.
 Requests needing input show an attention icon. A blue dot marks a completed
 response not yet opened on this device; opening the loaded transcript in the
 foreground clears it. Read receipts persist per paired computer. The optional
 `lastCompletedAt` host field restores completions missed offline; older hosts
 use successful live responses observed by the app.
+
+Typing `/` opens commands and enabled skills in both new chats and existing
+threads. Before the first message, discovery uses the selected project and
+provider without creating a thread; this requires an updated Studio host.
+
+The first message supplies a prompt-based title while the host generates a
+shorter title. Thread metadata refreshes during streaming, including on slower
+connections, and a manual rename takes precedence over automatic naming.
 
 ## Welcome visuals
 

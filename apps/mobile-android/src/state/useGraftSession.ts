@@ -1,6 +1,7 @@
 import {
   assertNeverMobile,
   type GraftApprovalDecision,
+  type GraftComposerContext,
   type GraftDiffSummary,
   type GraftEnvironmentSnapshot,
   type GraftMobileCommandResult,
@@ -175,6 +176,8 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
   const sendAttemptsRef = useRef(new Map<string, ComposerSendAttempt>());
   const sendingThreadsRef = useRef(new Set<string>());
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const snapshotRefreshRef = useRef<Promise<void> | undefined>(undefined);
+  const snapshotPendingRef = useRef(false);
   /// Latest cursor the authoritative snapshot covers. Mirrors the iOS
   /// `AppModel` guard: a streamed frame the snapshot already accounts for
   /// doesn't need another HTTP round trip, and reading it from a ref keeps the
@@ -250,14 +253,27 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
   );
 
   const scheduleSnapshot = useCallback(
-    (immediately = false) => {
+    function schedule(immediately = false) {
+      // Do not let continuous token events postpone metadata refresh forever.
+      if (snapshotRefreshRef.current) {
+        snapshotPendingRef.current = true;
+        return;
+      }
+      if (snapshotTimerRef.current && !immediately) return;
       if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
       snapshotTimerRef.current = setTimeout(
         () => {
           snapshotTimerRef.current = undefined;
           const session = sessionRef.current;
           if (session && connectionStateRef.current === "connected") {
-            void refreshSnapshot(session, selectedThreadIdRef.current, false);
+            snapshotPendingRef.current = false;
+            const refresh = refreshSnapshot(session, selectedThreadIdRef.current, false);
+            snapshotRefreshRef.current = refresh;
+            void refresh.finally(() => {
+              if (snapshotRefreshRef.current !== refresh) return;
+              snapshotRefreshRef.current = undefined;
+              if (snapshotPendingRef.current) schedule();
+            });
           }
         },
         immediately ? 0 : SNAPSHOT_COALESCE_MS,
@@ -318,6 +334,8 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
               clearTimeout(snapshotTimerRef.current);
               snapshotTimerRef.current = undefined;
             }
+            snapshotRefreshRef.current = undefined;
+            snapshotPendingRef.current = false;
             const removedSession = sessionRef.current;
             sessionRef.current = null;
             sendAttemptsRef.current.clear();
@@ -356,6 +374,9 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
     return () => {
       stopWatchingNetwork();
       if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+      snapshotTimerRef.current = undefined;
+      snapshotRefreshRef.current = undefined;
+      snapshotPendingRef.current = false;
       socket.disconnect();
       socketRef.current = null;
       snapshotRequestRef.current += 1;
@@ -574,10 +595,10 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
   );
   const loadModels = modelCatalog.load;
 
-  const loadComposerCommands = useCallback(async (threadId: string) => {
+  const loadComposerCommands = useCallback(async (context: GraftComposerContext) => {
     const result = await runSocketCommand(
       socketRef.current,
-      { type: "composer.commands", threadId },
+      { type: "composer.commands", ...context },
       "composer.commands.result",
     );
     return result.commands;
@@ -943,6 +964,9 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
       const session = sessionRef.current;
       snapshotRequestRef.current += 1;
       if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+      snapshotTimerRef.current = undefined;
+      snapshotRefreshRef.current = undefined;
+      snapshotPendingRef.current = false;
       if (session) await clearSession(session.environmentId, session.sessionId);
       sessionRef.current = null;
       sendAttemptsRef.current.clear();

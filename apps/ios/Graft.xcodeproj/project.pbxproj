@@ -98,6 +98,7 @@
 		8583522AC851CE35EF44E313 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ABE9924C0A452E5328B490 /* QRScannerView.swift */; };
 		85D5E5158E8F49AA3B4C9F23 /* ComposerPermissionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FF0FA73739887390AA3F9F6 /* ComposerPermissionCard.swift */; };
 		870E4EAB1096D6243F9BE35E /* PairingURLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F17883971DA79A2295E6881 /* PairingURLParser.swift */; };
+		873888F4D5FE566B8FD18251 /* client-command-composer-project.json in Resources */ = {isa = PBXBuildFile; fileRef = 57D1BB94D47DF5A4851B8085 /* client-command-composer-project.json */; };
 		89901DD83E45F403914CFB38 /* ToolCallCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B658B02B0A986A4CA3D945 /* ToolCallCard.swift */; };
 		89D8DC0EC2200D5B3D57DCF7 /* CopyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 999E3E5D247B2A83AEEAF563 /* CopyButton.swift */; };
 		8A2AA49CB8A23DAE11B58F75 /* DitherWaveShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D8B9863E7EB2BD0F62B0E1F5 /* DitherWaveShader.metal */; };
@@ -265,6 +266,7 @@
 		53A94F24A685C0CA0809941B /* host-response-turn-start.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "host-response-turn-start.json"; sourceTree = "<group>"; };
 		55AAFEEDF35C9FA31B3A0401 /* NewChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChatView.swift; sourceTree = "<group>"; };
 		56FE0797A39E06390A3129B1 /* host-event-shell-command.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "host-event-shell-command.json"; sourceTree = "<group>"; };
+		57D1BB94D47DF5A4851B8085 /* client-command-composer-project.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "client-command-composer-project.json"; sourceTree = "<group>"; };
 		58A54609E97FAC5B21ADE7C2 /* TTSSynthesizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSSynthesizer.swift; sourceTree = "<group>"; };
 		5A3CB598DF65B705592D6792 /* TaskProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskProgress.swift; sourceTree = "<group>"; };
 		5A93563A5A2ABEC4A71D56A3 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
@@ -563,6 +565,7 @@
 			children = (
 				A9B501AD0AFD9E0582DC8FCD /* client-command-approval.json */,
 				A1E341260B79D20275EB5224 /* client-command-composer-commands.json */,
+				57D1BB94D47DF5A4851B8085 /* client-command-composer-project.json */,
 				2F9CEBFD2D041BD2FF171729 /* client-command-composer-skill-read.json */,
 				3BDBBD8F1CD33A64F8A94E8D /* client-command-cursor-replay.json */,
 				4AF6E90519BB7AEC6AD699E2 /* client-command-file-read.json */,
@@ -853,6 +856,7 @@
 				47EB41BD65757F45C320BDC0 /* README.md in Resources */,
 				18C85A6AAFD3CFFE217FFBCB /* client-command-approval.json in Resources */,
 				5BD76E6D8F334BE18714351C /* client-command-composer-commands.json in Resources */,
+				873888F4D5FE566B8FD18251 /* client-command-composer-project.json in Resources */,
 				06C8B28F197653FA246BE128 /* client-command-composer-skill-read.json in Resources */,
 				2A635A78E2D42E1DCEBD14D7 /* client-command-cursor-replay.json in Resources */,
 				A1EE1087B7E390A37D814946 /* client-command-file-read.json in Resources */,
