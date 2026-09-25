@@ -308,6 +308,32 @@ describe("mobile view models", () => {
     ]);
   });
 
+  it("keeps the selected skill label when the host echo only repeats the id", () => {
+    const optimistic: LocalTimelineEvent = {
+      optimisticAfterMessageId: null,
+      id: "local-skill",
+      cursor: 0,
+      kind: "user.message",
+      threadId: "thread-1",
+      createdAt: 1,
+      text: "/review fix",
+      skills: [{ name: "review", displayName: "Code audit" }],
+    };
+    const echo = {
+      ...event(2, "user.message", "/review fix"),
+      skills: [{ name: "review" }],
+    };
+
+    expect(
+      buildTranscriptItems([echo], [optimistic], 0).filter((item) => item.kind === "user"),
+    ).toEqual([
+      expect.objectContaining({
+        text: "/review fix",
+        skills: [{ name: "review", displayName: "Code audit" }],
+      }),
+    ]);
+  });
+
   it("keeps repeated user turns that are genuinely separate", () => {
     // Content-based dedup used to scan the whole settled transcript, so a user
     // who legitimately sent the same text twice — "continue", with a reply in

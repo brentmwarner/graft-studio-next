@@ -2,12 +2,14 @@ import {
   assertNeverMobile,
   type GraftEnvironmentSnapshot,
   type GraftAttachment,
+  type GraftMessageSkill,
   type GraftTimelineEvent,
   type GraftTimelineEventData,
 } from "@graft/mobile-contract";
+import { mergeMessageSkills } from "./skillTokens";
+import { reconciledOptimisticMessageIds } from "./optimisticMessages";
 
 import { threadActivity, type ThreadActivity, type ThreadReadState } from "./threadActivity";
-import { reconciledOptimisticMessageIds } from "./optimisticMessages";
 
 export interface InboxThreadItem {
   readonly id: string;
@@ -52,6 +54,7 @@ export type TranscriptItem =
       readonly runId?: string;
       text: string;
       attachments?: readonly GraftAttachment[];
+      skills?: readonly GraftMessageSkill[];
     }
   | {
       readonly id: string;
@@ -281,6 +284,13 @@ export function buildTranscriptItems(
   const completedRunIDs = new Set<string>();
   let currentAssistant: Extract<TranscriptItem, { kind: "assistant" }> | undefined;
   const userMessageIds = new Set<string>();
+  const preservedSkills = new Map<string, readonly GraftMessageSkill[]>();
+  const reconciledIds = reconciledOptimisticMessageIds(settledEvents, liveEvents);
+  for (const event of liveEvents) {
+    if (event.cursor !== 0 || !event.skills?.length) continue;
+    const id = reconciledIds.get(event.id) ?? event.id;
+    preservedSkills.set(id, mergeMessageSkills(preservedSkills.get(id), event.skills) ?? []);
+  }
 
   function settleAssistant(): void {
     if (!currentAssistant) return;
@@ -334,12 +344,14 @@ export function buildTranscriptItems(
         if (userMessageIds.has(event.id)) break;
         userMessageIds.add(event.id);
         settleAssistant();
+        const skills = mergeMessageSkills(event.skills, preservedSkills.get(event.id));
         items.push({
           id: claimId(usedIds, `user:${event.id}`),
           kind: "user",
           ...(event.runId ? { runId: event.runId } : {}),
           text,
           ...(event.attachments?.length ? { attachments: event.attachments } : {}),
+          ...(skills?.length ? { skills } : {}),
         });
         break;
       }
@@ -486,7 +498,8 @@ function sameTranscriptItem(left: TranscriptItem, right: TranscriptItem): boolea
       const other = right as typeof left;
       return (
         left.text === other.text &&
-        JSON.stringify(left.attachments) === JSON.stringify(other.attachments)
+        JSON.stringify(left.attachments) === JSON.stringify(other.attachments) &&
+        JSON.stringify(left.skills ?? []) === JSON.stringify(other.skills ?? [])
       );
     }
     case "assistant": {

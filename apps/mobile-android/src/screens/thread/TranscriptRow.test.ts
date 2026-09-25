@@ -30,6 +30,7 @@ vi.mock("react-native-reanimated", () => ({
   useReducedMotion: () => motion.reduced,
 }));
 vi.mock("../../components/ActivityCard", () => ({ ActivityCard: "ActivityCard" }));
+vi.mock("react-native-svg", () => ({ default: "Svg", Path: "Path" }));
 
 let renderer: ReactTestRenderer;
 const isType = (node: { type: unknown }, name: string) => node.type === name;
@@ -41,6 +42,21 @@ beforeEach(() => {
 afterEach(async () => {
   if (renderer) await act(() => renderer.unmount());
   vi.unstubAllGlobals();
+});
+
+it("renders a sent skill as an icon and blue name instead of the slash token", async () => {
+  const item: TranscriptItem = {
+    id: "user",
+    kind: "user",
+    text: "/review fix startup",
+    skills: [{ name: "review", displayName: "Code audit" }],
+  };
+  await act(() => {
+    renderer = create(createElement(TranscriptRow, { item }));
+  });
+  expect(renderer.root.findByProps({ accessibilityLabel: "Code audit" })).toBeTruthy();
+  expect(JSON.stringify(renderer.toJSON())).not.toContain("/review");
+  expect(JSON.stringify(renderer.toJSON())).toContain("fix startup");
 });
 
 it("renders running reasoning and tools without another live indicator", async () => {

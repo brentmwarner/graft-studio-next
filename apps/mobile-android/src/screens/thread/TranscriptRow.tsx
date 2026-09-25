@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { GraftTimelineEvent } from "@graft/mobile-contract";
+import type { GraftMessageSkill, GraftTimelineEvent } from "@graft/mobile-contract";
 import { memo, useMemo, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -10,6 +10,8 @@ import {
   type TranscriptItem,
 } from "../../state/mobileViewModels";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { leadingSkill, skillChipLabel, textAfterLeadingSkill } from "../../state/skillTokens";
+import { SkillChip } from "./SkillChip";
 import { ReasoningBlock } from "./ReasoningBlock";
 import { ToolActivityStrip, ToolRow } from "./ToolActivity";
 import { StreamingMarkdownMessage } from "./StreamingMarkdownMessage";
@@ -74,11 +76,7 @@ export const TranscriptRow = memo(function TranscriptRow({
                 </Text>
               </View>
             ))}
-            {item.text ? (
-              <Text selectable style={[styles.userText, { color: palette.foreground }]}>
-                {item.text}
-              </Text>
-            ) : null}
+            {item.text ? <UserMessageText skills={item.skills} text={item.text} /> : null}
           </View>
         </View>
       );
@@ -112,6 +110,36 @@ export const TranscriptRow = memo(function TranscriptRow({
   }
 });
 
+function UserMessageText({
+  text,
+  skills,
+}: {
+  readonly text: string;
+  readonly skills?: readonly GraftMessageSkill[];
+}) {
+  const palette = useGraftPalette();
+  const skill = leadingSkill(text, skills ?? []);
+  if (!skill) {
+    return (
+      <Text selectable style={[styles.userText, { color: palette.foreground }]}>
+        {text}
+      </Text>
+    );
+  }
+  const label = skillChipLabel(skill);
+  const rest = textAfterLeadingSkill(text, skill).replace(/^\s/, "");
+  return (
+    <View accessibilityLabel={`${label}${rest ? ` ${rest}` : ""}`} style={styles.skillMessage}>
+      <SkillChip displayName={skill.displayName} name={skill.name} />
+      {rest ? (
+        <Text selectable style={[styles.userText, styles.skillRest, { color: palette.foreground }]}>
+          {rest}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   userRow: { alignItems: "flex-end", paddingLeft: 56 },
   userBubble: {
@@ -123,6 +151,8 @@ const styles = StyleSheet.create({
   attachment: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
   attachmentName: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   userText: { fontSize: 16, lineHeight: 22 },
+  skillMessage: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  skillRest: { flexShrink: 1 },
   assistantRow: { alignItems: "flex-start", width: "100%" },
   centeredNote: {
     fontSize: 12,

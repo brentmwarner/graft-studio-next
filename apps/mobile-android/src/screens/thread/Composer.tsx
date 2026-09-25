@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { GraftComposerCommand } from "@graft/mobile-contract";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,8 @@ import { useDisclosureHeightTransition } from "../../components/disclosureMotion
 import { FloatingSurface } from "../../components/FloatingSurface";
 import { PressScale } from "../../components/PressScale";
 import { graftRadius, useGraftPalette } from "../../theme/tokens";
+import { selectedSkillToken, skillDraft, skillEditorText } from "../../state/skillTokens";
+import { SkillChip } from "./SkillChip";
 import { ComposerConfigMenu, type ComposerMenuConfig } from "./ComposerConfigMenu";
 import { ComposerPermissions, ComposerSettings } from "./ComposerSettings";
 import { ComposerAttachments } from "./ComposerAttachments";
@@ -121,6 +124,7 @@ export function Composer({
   canSend,
   currentModelName,
   draft,
+  selectedSkill,
   hostLabel,
   isConnected,
   isSending,
@@ -139,6 +143,8 @@ export function Composer({
   readonly canSend: boolean;
   readonly currentModelName: string | undefined;
   readonly draft: string;
+  /** Skill chosen from `/`, shown as a token while the draft still starts with it. */
+  readonly selectedSkill?: GraftComposerCommand;
   readonly hostLabel: string;
   readonly isConnected: boolean;
   readonly isSending: boolean;
@@ -171,6 +177,8 @@ export function Composer({
   const extras = menuConfig.extras;
   // `/` replaces the model and approval chips until the query is completed or cleared.
   const slashReplacesChips = draft.startsWith("/") && !/\s/.test(draft);
+  const skill = selectedSkillToken(draft, selectedSkill);
+  const editorValue = skill ? skillEditorText(draft, skill) : draft;
 
   useEffect(() => {
     // Android's Back button can hide the keyboard without blurring TextInput.
@@ -324,8 +332,12 @@ export function Composer({
                       paddingLeft: leadingWidth + 8,
                       paddingRight: controlsWidth + 7,
                     },
+                skill && expanded ? styles.skillRow : null,
               ]}
             >
+              {skill ? (
+                <SkillChip compact displayName={skill.displayName} name={skill.name} />
+              ) : null}
               {/* Keep the same editor mounted through focus and recording transitions. */}
               <TextInput
                 ref={inputRef}
@@ -334,7 +346,12 @@ export function Composer({
                 maxLength={100_000}
                 multiline={expanded}
                 onBlur={() => setIsComposerFocused(false)}
-                onChangeText={onDraftChange}
+                onChangeText={(next) => onDraftChange(skill ? skillDraft(skill.name, next) : next)}
+                onKeyPress={({ nativeEvent }) => {
+                  if (skill && editorValue.length === 0 && nativeEvent.key === "Backspace") {
+                    onDraftChange("");
+                  }
+                }}
                 onContentSizeChange={({ nativeEvent }) => {
                   if (expanded) setContentHeight(Math.ceil(nativeEvent.contentSize.height));
                 }}
@@ -353,7 +370,7 @@ export function Composer({
                     textAlignVertical: expanded ? "top" : "center",
                   },
                 ]}
-                value={draft}
+                value={editorValue}
               />
             </View>
             <View style={styles.toolbar} pointerEvents="box-none">
@@ -418,6 +435,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   typingRowExpanded: { gap: 0, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 6 },
+  skillRow: { alignItems: "flex-start" },
   composerInput: {
     flex: 1,
     minWidth: 0,

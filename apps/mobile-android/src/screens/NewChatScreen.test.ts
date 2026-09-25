@@ -73,7 +73,13 @@ it("opens skills before creating a thread and sends the selected invocation", as
   await act(async () => composer().props.onDraftChange("/review Fix startup"));
   await act(async () => composer().props.onSend());
   expect(createThread).toHaveBeenCalledWith(
-    expect.objectContaining({ projectId: "project", text: "/review Fix startup" }),
+    expect.objectContaining({
+      projectId: "project",
+      text: "/review Fix startup",
+      composer: expect.objectContaining({
+        skills: [{ name: "review", displayName: "Code audit" }],
+      }),
+    }),
   );
 });
 

@@ -55,6 +55,7 @@ import { ContextProgressRing } from "./thread/ContextProgressRing";
 import { contextUsageAccessibilityLabel } from "./thread/contextUsage";
 import { DiffSheet } from "./thread/DiffSheet";
 import { SlashPalette } from "./thread/SlashPalette";
+import { selectedSkillToken } from "../state/skillTokens";
 import { ApprovalPrompt, QuestionPrompt } from "./thread/InteractionPrompts";
 import { renderTranscriptRow, transcriptRowKey } from "./thread/TranscriptRow";
 import { useThreadModel } from "./thread/useThreadModel";
@@ -148,6 +149,14 @@ export function ThreadScreen({
   const headerBottom = headerTop + THREAD_HEADER_HEIGHT;
   const keyboardVisible = useKeyboardVisibility();
   const [draft, setDraft] = useState("");
+  const [selectedSkill, setSelectedSkill] = useState<GraftComposerCommand>();
+  const changeDraft = useCallback((next: string, picked?: GraftComposerCommand | null) => {
+    setDraft(next);
+    setSelectedSkill((current) => {
+      const skill = picked === undefined ? current : (picked ?? undefined);
+      return skill && selectedSkillToken(next, skill) ? skill : undefined;
+    });
+  }, []);
   const [modelMenuRequest, setModelMenuRequest] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const dictationSendPending = useRef(false);
@@ -200,7 +209,7 @@ export function ThreadScreen({
   const voice = useVoiceInput(
     thread.id,
     !isSending && !attachments.isPicking && !model.activeRunId,
-    setDraft,
+    changeDraft,
   );
   const canSend = Boolean(
     (draft.trim() || attachments.attachments.length) &&
@@ -267,14 +276,15 @@ export function ThreadScreen({
     )
       return;
     if (text === "/model" && !attachments.attachments.length) {
-      setDraft("");
+      changeDraft("");
       setModelMenuRequest((request) => request + 1);
       return;
     }
+    const skill = selectedSkillToken(text, selectedSkill);
     sendInFlight.current = true;
     const sendingAttachments = attachments.attachments;
     const releaseAttachments = attachments.retainForSend();
-    setDraft("");
+    changeDraft("");
     setIsSending(true);
     follow.pinToBottomForSend();
     let sent = false;
@@ -283,13 +293,23 @@ export function ThreadScreen({
         attachments: sendingAttachments,
         ...(composerFeatures?.interactionModes ? { interactionMode } : {}),
         ...(composerFeatures?.fastMode ? { fastMode } : {}),
+        ...(skill
+          ? {
+              skills: [
+                {
+                  name: skill.name,
+                  ...(skill.displayName ? { displayName: skill.displayName } : {}),
+                },
+              ],
+            }
+          : {}),
       });
       if (sent) attachments.remove(sendingAttachments.map((attachment) => attachment.id));
     } finally {
       releaseAttachments();
       sendInFlight.current = false;
       setIsSending(false);
-      if (!sent) setDraft(text);
+      if (!sent) changeDraft(text, skill);
     }
   }
 
@@ -514,10 +534,10 @@ export function ThreadScreen({
             loadCommands={onLoadComposerCommands}
             onPick={(command) => {
               if (command.kind === "model") {
-                setDraft("");
+                changeDraft("");
                 setModelMenuRequest((request) => request + 1);
               } else {
-                setDraft(`/${command.name} `);
+                changeDraft(`/${command.name} `, command.kind === "skill" ? command : null);
               }
             }}
           />
@@ -531,13 +551,14 @@ export function ThreadScreen({
           canSend={canSend}
           currentModelName={model.currentThread.modelName}
           draft={draft}
+          selectedSkill={selectedSkill}
           hostLabel={hostLabel}
+          onDraftChange={changeDraft}
           isConnected={isConnected}
           isSending={isSending}
           onCancel={(runId) => {
             void onCancel(runId);
           }}
-          onDraftChange={setDraft}
           modelMenuRequest={modelMenuRequest}
           menuConfig={{
             catalog: modelCatalog,

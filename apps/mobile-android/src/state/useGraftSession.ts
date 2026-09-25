@@ -767,6 +767,9 @@ export function useGraftSession(initialSession?: GraftSessionCredential | null) 
         createdAt: Date.now(),
         text,
         ...(attachments.length ? { attachments: [...attachments] } : {}),
+        ...(options.skills?.length
+          ? { skills: options.skills.map((skill) => ({ ...skill })) }
+          : {}),
       };
       updatePaired(setState, (current) => {
         const transcript = current.snapshot?.selectedTranscript;

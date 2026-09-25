@@ -469,6 +469,7 @@ export const GraftMessageSkillSchema = z.object({
   name: z.string().min(1),
   displayName: z.string().optional(),
 });
+export type GraftMessageSkill = z.infer<typeof GraftMessageSkillSchema>;
 
 export const GraftTimelineEventSchema = z.object({
   id: z.string().min(1),

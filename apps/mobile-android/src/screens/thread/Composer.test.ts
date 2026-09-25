@@ -16,6 +16,7 @@ vi.mock("react-native", () => ({
   useWindowDimensions: () => ({ height: 800, fontScale: 1 }),
 }));
 vi.mock("react-native-reanimated", () => ({ default: { View: "AnimatedView" } }));
+vi.mock("react-native-svg", () => ({ default: "Svg", Path: "Path" }));
 vi.mock("../../components/disclosureMotion", () => ({ useDisclosureHeightTransition: () => ({}) }));
 vi.mock("../../components/FloatingSurface", () => ({ FloatingSurface: "Surface" }));
 vi.mock("../../components/PressScale", () => ({ PressScale: "Press" }));
@@ -113,6 +114,33 @@ it("keeps the permissions shortcut beside the plus button whenever policies exis
     ),
   );
   expect(menus().some((node) => node.props.initialPage === "permissions")).toBe(false);
+});
+
+it("shows a selected skill as an icon and blue name without the slash token", async () => {
+  const onDraftChange = vi.fn();
+  const skill = {
+    name: "review",
+    displayName: "Code audit",
+    description: "Review code",
+    kind: "skill" as const,
+  };
+  await act(() => {
+    renderer = create(
+      createElement(Composer, {
+        ...props,
+        draft: "/review ",
+        selectedSkill: skill,
+        onDraftChange,
+      }),
+    );
+  });
+  expect(renderer.root.findByProps({ accessibilityLabel: "Code audit" })).toBeTruthy();
+  expect(input().props.value).toBe("");
+  await act(() => input().props.onKeyPress({ nativeEvent: { key: "Backspace" } }));
+  expect(onDraftChange).toHaveBeenCalledWith("");
+  onDraftChange.mockClear();
+  await act(() => input().props.onChangeText("Fix startup"));
+  expect(onDraftChange).toHaveBeenCalledWith("/review Fix startup");
 });
 
 it("replaces model and permission chips while a slash command is open", async () => {
