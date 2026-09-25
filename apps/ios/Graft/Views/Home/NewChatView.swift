@@ -17,6 +17,7 @@ struct NewChatView: View {
     @State private var selectedEffort: String?
     @State private var selectedApprovalPolicy: String?
     @State private var draft = ""
+    @State private var selectedSkill: ComposerCommand?
     @State private var isCreating = false
     @State private var openedThread: InboxThreadItem?
     @State private var slash = SlashCompleter()
@@ -195,8 +196,10 @@ struct NewChatView: View {
                     ) { command in
                         if command.kind == "model" {
                             draft = ""
+                            selectedSkill = nil
                             showModels = true
                         } else {
+                            selectedSkill = command.kind == "skill" ? command : nil
                             draft = "/" + command.name + " "
                             focused = true
                         }
@@ -232,19 +235,33 @@ struct NewChatView: View {
                 composerOptionsMenu
 
                 HStack(alignment: .bottom, spacing: 8) {
-                    TextField(
-                        "",
-                        text: $draft,
-                        prompt: Text(
-                            "Work on \(hostLabel)",
-                            comment: "New chat composer placeholder"
-                        ),
-                        axis: .vertical
-                    )
-                    .lineLimit(1...5)
-                    .focused($focused)
-                    .padding(.leading, 8)
-                    .padding(.vertical, 8)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        if let skill = composerSkill {
+                            SkillMention.text(skill.skillLabel, iconSize: 18)
+                                .accessibilityLabel(skill.skillLabel)
+                                .accessibilityIdentifier("composer-skill-token")
+                        }
+                        TextField(
+                            "",
+                            text: composerField,
+                            prompt: Text(
+                                "Work on \(hostLabel)",
+                                comment: "New chat composer placeholder"
+                            ),
+                            axis: .vertical
+                        )
+                        .lineLimit(1...5)
+                        .focused($focused)
+                        .onKeyPress(.delete) {
+                            guard composerSkill != nil, composerField.wrappedValue.isEmpty else { return .ignored }
+                            selectedSkill = nil
+                            draft = ""
+                            return .handled
+                        }
+                        .padding(.leading, composerSkill == nil ? 8 : 0)
+                        .padding(.vertical, 8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button(action: send) {
                         Group {
@@ -459,11 +476,42 @@ struct NewChatView: View {
         selectedApprovalPolicy = model.defaultApprovalPolicy
     }
 
+    /// The field edits the text after the token. Backspace on an empty field removes the skill.
+    private var composerSkill: ComposerCommand? {
+        ComposerSkillText.leadingSkill(in: draft, selected: selectedSkill)
+    }
+
+    private var composerField: Binding<String> {
+        Binding(
+            get: {
+                guard let skill = composerSkill else { return draft }
+                let rest = draft.dropFirst(skill.name.count + 1)
+                return rest.first?.isWhitespace == true ? String(rest.dropFirst()) : String(rest)
+            },
+            set: { next in
+                guard let skill = composerSkill else {
+                    draft = next
+                    if ComposerSkillText.leadingSkill(in: next, selected: selectedSkill) == nil {
+                        selectedSkill = nil
+                    }
+                    return
+                }
+                if next.isEmpty {
+                    draft = "/" + skill.name + " "
+                    return
+                }
+                let body = next.first?.isWhitespace == true ? String(next.drop(while: \.isWhitespace)) : next
+                draft = "/" + skill.name + " " + body
+            }
+        )
+    }
+
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, let projectId = selectedProjectId, !isCreating else {
             return
         }
+        let skill = ComposerSkillText.leadingSkill(in: text, selected: selectedSkill)
         let model = currentModel
         let effort = resolvedEffort
         let approvalPolicy = resolvedApprovalPolicy
@@ -482,8 +530,9 @@ struct NewChatView: View {
             if let effort {
                 app.setThreadEffort(threadId: thread.id, effort: effort)
             }
-            _ = await app.activeChat?.send(text)
+            _ = await app.activeChat?.send(text, skill: skill)
             draft = ""
+            selectedSkill = nil
             let item = InboxThreadItem(
                 id: thread.id,
                 title: thread.title,

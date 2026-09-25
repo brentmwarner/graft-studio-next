@@ -4,6 +4,7 @@ import {
   type GraftAttachment,
   type GraftInteractionMode,
   type GraftEnvironmentSummary,
+  type GraftMessageSkill,
 } from "@graft/mobile-contract";
 
 export type ComposerAttachment = GraftAttachment & { readonly uri: string };
@@ -21,6 +22,8 @@ export interface ComposerSendOptions {
   readonly attachments?: readonly ComposerAttachment[];
   readonly interactionMode?: GraftInteractionMode;
   readonly fastMode?: boolean;
+  /** Presentation only. The host still resolves the skill from the slash text. */
+  readonly skills?: readonly GraftMessageSkill[];
 }
 
 export interface ComposerSendAttempt {

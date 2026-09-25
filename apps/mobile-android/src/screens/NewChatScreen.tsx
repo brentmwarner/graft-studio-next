@@ -7,7 +7,7 @@ import type {
   GraftInteractionMode,
   GraftThreadSummary,
 } from "@graft/mobile-contract";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -32,6 +32,7 @@ import { useComposerAttachments } from "./thread/useComposerAttachments";
 import { useVoiceInput } from "./thread/useVoiceInput";
 import { Composer } from "./thread/Composer";
 import { SlashPalette } from "./thread/SlashPalette";
+import { selectedSkillToken } from "../state/skillTokens";
 import { composerBottomPadding } from "./thread/composerBottomSpacing";
 import { useKeyboardVisibility } from "./thread/useKeyboardVisibility";
 import { resolveModelEffort } from "./thread/threadModels";
@@ -85,6 +86,14 @@ export function NewChatScreen({
   const headerTop = insets.top + 12;
   const keyboardVisible = useKeyboardVisibility();
   const [draft, setDraft] = useState("");
+  const [selectedSkill, setSelectedSkill] = useState<GraftComposerCommand>();
+  const changeDraft = useCallback((next: string, picked?: GraftComposerCommand | null) => {
+    setDraft(next);
+    setSelectedSkill((current) => {
+      const skill = picked === undefined ? current : (picked ?? undefined);
+      return skill && selectedSkillToken(next, skill) ? skill : undefined;
+    });
+  }, []);
   const [modelMenuRequest, setModelMenuRequest] = useState(0);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
@@ -97,7 +106,7 @@ export function NewChatScreen({
   const [showProjects, setShowProjects] = useState(false);
   const attachments = useComposerAttachments("new-chat");
   const attachmentBlocked = attachmentHostError(attachments.attachments, composerFeatures);
-  const voice = useVoiceInput("new-chat", !isCreating && !attachments.isPicking, setDraft);
+  const voice = useVoiceInput("new-chat", !isCreating && !attachments.isPicking, changeDraft);
   const [interactionMode, setInteractionMode] = useState<GraftInteractionMode>("default");
   const [selectedFastMode, setSelectedFastMode] = useState(false);
   const sendInFlight = useRef(false);
@@ -160,6 +169,7 @@ export function NewChatScreen({
       (voice.isActive && !fromDictation)
     )
       return;
+    const skill = selectedSkillToken(text, selectedSkill);
     sendInFlight.current = true;
     setIsCreating(true);
     const releaseAttachments = attachments.retainForSend();
@@ -185,12 +195,22 @@ export function NewChatScreen({
           attachments: attachments.attachments,
           ...(composerFeatures?.interactionModes ? { interactionMode } : {}),
           ...(composerFeatures?.fastMode ? { fastMode } : {}),
+          ...(skill
+            ? {
+                skills: [
+                  {
+                    name: skill.name,
+                    ...(skill.displayName ? { displayName: skill.displayName } : {}),
+                  },
+                ],
+              }
+            : {}),
         },
       });
       if (result.thread) createdThread.current = { key, thread: result.thread };
       if (result.sent) {
         attachments.remove(attachments.attachments.map((attachment) => attachment.id));
-        setDraft("");
+        changeDraft("");
       }
     } finally {
       releaseAttachments();
@@ -318,10 +338,10 @@ export function NewChatScreen({
               loadCommands={onLoadComposerCommands}
               onPick={(command) => {
                 if (command.kind === "model") {
-                  setDraft("");
+                  changeDraft("");
                   setModelMenuRequest((request) => request + 1);
                 } else {
-                  setDraft(`/${command.name} `);
+                  changeDraft(`/${command.name} `, command.kind === "skill" ? command : null);
                 }
               }}
             />
@@ -339,11 +359,12 @@ export function NewChatScreen({
             canSend={canSend}
             currentModelName={currentModel?.id}
             draft={draft}
+            selectedSkill={selectedSkill}
             hostLabel={hostLabel}
             isConnected={isConnected}
             isSending={isCreating}
             onCancel={() => undefined}
-            onDraftChange={setDraft}
+            onDraftChange={changeDraft}
             menuConfig={{
               catalog: modelCatalog,
               onReloadModels: () => {
@@ -473,6 +494,7 @@ const styles = StyleSheet.create({
   bottomFade: { bottom: 0 },
   bottomChrome: {
     bottom: 0,
+    gap: 10,
     left: 14,
     position: "absolute",
     right: 14,
