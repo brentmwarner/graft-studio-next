@@ -57,9 +57,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
         id: "phone-chat-titles",
         title: "Better titles for phone chats",
         description:
-          "Chats started on a phone can receive a useful generated title after the first turn.",
+          "Phone chats get a useful title right away, then the generated title when it is ready.",
         details:
-          "The desktop host now recognizes the mobile New chat placeholder in its automatic title flow and sends the updated title through mobile snapshots. The phone interface changes in this release's source require separately distributed mobile clients.",
+          "The desktop host now recognizes the mobile New chat placeholder, starts with a prompt-based title, and applies the generated title without waiting for a long response to finish. Manual renames stay in place. The phone interface changes in this release's source require separately distributed mobile clients.",
       },
       {
         id: "phone-thread-details",
@@ -68,6 +68,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
           "Paired phones can show workspace and branch details supplied by your desktop.",
         details:
           "The desktop host now supplies thread workspace and branch details. Updated iOS and Android apps add easier thread controls and live file-change pills during active turns; those phone interface changes require separate mobile app releases.",
+      },
+      {
+        id: "phone-slash-commands",
+        title: "Commands and skills in phone chats",
+        description:
+          "The desktop can supply slash commands and enabled skills before a phone chat begins.",
+        details:
+          "Command discovery now uses the selected project and provider even before a thread exists. Updated iOS and Android apps are required to show the command palette; the new iOS running-thread activity arc also arrives with an updated phone app.",
       },
     ],
   },
