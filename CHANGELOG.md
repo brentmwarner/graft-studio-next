@@ -12,7 +12,7 @@ This desktop update includes every change merged into Graft main since the 0.9.0
 - The desktop host recognizes the mobile `New chat` placeholder and gives a chat a prompt-based title while a generated title is prepared. Updated mobile clients add Rename, Archive, and Delete actions through swipe and long press; those interface changes need separate mobile app releases. ([#77](https://github.com/brentmwarner/graft-studio-next/pull/77), [#80](https://github.com/brentmwarner/graft-studio-next/pull/80))
 - The desktop host supplies workspace and branch details for paired phones. Updated iOS and Android clients add thread controls and live file-change pills during active turns; those interface changes need separate mobile app releases. ([#79](https://github.com/brentmwarner/graft-studio-next/pull/79))
 - The desktop host can discover slash commands and enabled skills for a phone chat before its first message, scoped to the selected project and provider. Updated phone apps are required to show the command palette. ([#80](https://github.com/brentmwarner/graft-studio-next/pull/80))
-- Updated phone clients place slash commands in the composer controls row while a command is being typed, temporarily hiding the model and approval controls. The desktop update does not distribute those phone interface changes. ([#82](https://github.com/brentmwarner/graft-studio-next/pull/82))
+- Updated iOS clients show slash commands in place of the model and approval controls while a command is being typed. Android keeps its command list above the composer and temporarily hides those controls. The desktop update does not distribute these phone interface changes. ([#82](https://github.com/brentmwarner/graft-studio-next/pull/82))
 
 ### Improved and fixed
 

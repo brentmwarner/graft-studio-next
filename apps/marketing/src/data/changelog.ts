@@ -75,7 +75,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
         description:
           "The desktop can supply slash commands and enabled skills before a phone chat begins.",
         details:
-          "Command discovery now uses the selected project and provider even before a thread exists. Updated iOS and Android apps are required to show the command palette. Those clients place commands in the composer controls row while you type a command; the iOS running-thread activity arc also arrives with an updated phone app.",
+          "Command discovery now uses the selected project and provider even before a thread exists. Updated phone apps are required to show the command palette. On iOS, commands replace the model and approval controls while you type; Android keeps the list above the composer and hides those controls. The iOS running-thread activity arc also arrives with an updated phone app.",
       },
     ],
   },
