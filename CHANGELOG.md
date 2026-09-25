@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.1 - 2026-09-23
+## 0.9.1 - 2026-09-25
 
 This desktop update includes every change merged into Graft main since the 0.9.0 production cutover. The desktop release includes the server and web changes below. iOS and Android source changes need their own mobile app releases before those interfaces reach phones.
 
@@ -10,6 +10,7 @@ This desktop update includes every change merged into Graft main since the 0.9.0
 - The desktop Connections flow pairs phones through the persistent Graft relay and keeps connection settings across restarts and updates. ([#68](https://github.com/brentmwarner/graft-studio-next/pull/68))
 - Mobile client source can retain multiple computer pairings, with inbox filters and preferences scoped per computer. These phone interface changes require updated mobile clients. ([#70](https://github.com/brentmwarner/graft-studio-next/pull/70))
 - The desktop host recognizes the mobile `New chat` placeholder so chats started on a phone can receive generated titles after their first turn. Updated mobile clients add Rename, Archive, and Delete actions through swipe and long press; those interface changes need separate mobile app releases. ([#77](https://github.com/brentmwarner/graft-studio-next/pull/77))
+- The desktop host supplies workspace and branch details for paired phones. Updated iOS and Android clients add thread controls and live file-change pills during active turns; those interface changes need separate mobile app releases. ([#79](https://github.com/brentmwarner/graft-studio-next/pull/79))
 
 ### Improved and fixed
 

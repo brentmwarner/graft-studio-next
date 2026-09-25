@@ -23,7 +23,7 @@ import type { WhatsNewEntry } from "./logic";
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
     version: "0.9.1",
-    date: "Sep 23",
+    date: "Sep 25",
     features: [
       {
         id: "new-provider-models",
@@ -56,6 +56,14 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
           "Chats started on a phone can receive a useful generated title after the first turn.",
         details:
           "The desktop host now recognizes the mobile New chat placeholder in its automatic title flow and sends the updated title through mobile snapshots. The phone interface changes in this release's source require separately distributed mobile clients.",
+      },
+      {
+        id: "phone-thread-details",
+        title: "Clearer phone thread details",
+        description:
+          "Paired phones can show workspace and branch details supplied by your desktop.",
+        details:
+          "The desktop host now supplies thread workspace and branch details. Updated iOS and Android apps add easier thread controls and live file-change pills during active turns; those phone interface changes require separate mobile app releases.",
       },
     ],
   },
